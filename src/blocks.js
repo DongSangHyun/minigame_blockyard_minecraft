@@ -5,7 +5,8 @@ export var AIR = 0, GRASS = 1, DIRT = 2, STONE = 3, SAND = 4, LOG = 5, LEAVES = 
     PLANKS = 7, GLASS = 8, BRICK = 9, WATER = 10, COBBLE = 11, COAL = 12,
     IRON = 13, SNOW = 14, LAMP = 15, GRAVEL = 16, BEDROCK = 17,
     LAVA = 18, ICE = 19,
-    TALLGRASS = 20, FLOWER_R = 21, FLOWER_Y = 22, TORCH = 23;
+    TALLGRASS = 20, FLOWER_R = 21, FLOWER_Y = 22, TORCH = 23,
+    CACTUS = 24, DEADBUSH = 25, DRYGRASS = 26;
 
 export var TILES = {};
 TILES[GRASS]  = [0, 1, 2];
@@ -31,6 +32,9 @@ TILES[TALLGRASS] = [22, 22, 22];
 TILES[FLOWER_R]  = [23, 23, 23];
 TILES[FLOWER_Y]  = [24, 24, 24];
 TILES[TORCH]     = [25, 25, 25];
+TILES[CACTUS]    = [27, 26, 27];
+TILES[DEADBUSH]  = [28, 28, 28];
+TILES[DRYGRASS]  = [29, 29, 29];
 
 export var NAMES = {};
 NAMES[GRASS] = "GRASS"; NAMES[DIRT] = "DIRT"; NAMES[STONE] = "STONE";
@@ -42,6 +46,7 @@ NAMES[GRAVEL] = "GRAVEL"; NAMES[BEDROCK] = "BEDROCK";
 NAMES[LAVA] = "LAVA"; NAMES[ICE] = "ICE";
 NAMES[TALLGRASS] = "GRASS TUFT"; NAMES[FLOWER_R] = "POPPY";
 NAMES[FLOWER_Y] = "DANDELION"; NAMES[TORCH] = "TORCH";
+NAMES[CACTUS] = "CACTUS"; NAMES[DEADBUSH] = "DEAD BUSH"; NAMES[DRYGRASS] = "DRY GRASS";
 
 // 캐는 데 걸리는 시간(초)
 export var HARDNESS = {};
@@ -53,6 +58,7 @@ HARDNESS[COAL] = 1.55; HARDNESS[IRON] = 1.95; HARDNESS[GRAVEL] = 0.55;
 HARDNESS[ICE] = 0.40;
 HARDNESS[TALLGRASS] = 0.05; HARDNESS[FLOWER_R] = 0.05;
 HARDNESS[FLOWER_Y] = 0.05; HARDNESS[TORCH] = 0.06;
+HARDNESS[CACTUS] = 0.34; HARDNESS[DEADBUSH] = 0.05; HARDNESS[DRYGRASS] = 0.05;
 export function hardnessOf(b) { return HARDNESS[b] || 0.5; }
 
 // 캘 수 없는 블록 — 세계의 바닥이라는 걸 눈으로 알려 준다
@@ -70,12 +76,15 @@ CROSS[TALLGRASS] = { w: 0.46, h: 0.92, sway: 0.55 };
 CROSS[FLOWER_R]  = { w: 0.42, h: 0.82, sway: 0.40 };
 CROSS[FLOWER_Y]  = { w: 0.42, h: 0.82, sway: 0.40 };
 CROSS[TORCH]     = { w: 0.26, h: 0.62, sway: 0 };
+CROSS[DEADBUSH]  = { w: 0.44, h: 0.86, sway: 0.30 };
+CROSS[DRYGRASS]  = { w: 0.46, h: 0.80, sway: 0.50 };
 export function isCross(b) { return CROSS[b] !== undefined; }
 export function needsFloor(b) { return isCross(b); }
 
 export var ALL_BLOCKS = [GRASS, DIRT, STONE, COBBLE, SAND, GRAVEL, SNOW, LOG,
                   LEAVES, PLANKS, GLASS, BRICK, LAMP, TORCH, COAL, IRON, ICE,
-                  WATER, LAVA, TALLGRASS, FLOWER_R, FLOWER_Y];
+                  WATER, LAVA, CACTUS, TALLGRASS, FLOWER_R, FLOWER_Y,
+                  DEADBUSH, DRYGRASS];
 export var DEFAULT_BAR = [GRASS, DIRT, STONE, COBBLE, SAND, LOG, PLANKS, GLASS, TORCH, LAMP];
 
 // 모양 — 0 전체 · 1 반블록(아래) · 2~5 계단(높은 쪽이 -Z/+X/+Z/-X)

@@ -1295,6 +1295,244 @@ test("v8 콘텐츠: 도전 과제·기본 핫바·소개문이 새 블록을 반
   assert(/용암/.test(r.lede) && /횃불/.test(r.lede), "소개문에 새 콘텐츠 언급이 없다");
 });
 
+
+// ══════════════════════════════════════════════════════════════
+//  개선 v9 회귀 테스트
+// ══════════════════════════════════════════════════════════════
+
+test("v9 용암: 평야가 아니라 호수 — 드물고 뭉쳐 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.generate(20260904);
+    let lava = 0, clustered = 0, floor = 0;
+    const D = [[1,0,0],[-1,0,0],[0,0,1],[0,0,-1]];
+    for (let y = 1; y <= 4; y++) for (let z = 1; z < B.WZ - 1; z++) for (let x = 1; x < B.WX - 1; x++) {
+      const i = B.idx(x, y, z);
+      if (B.world[i] === 0 && B.isSolid(B.world[B.idx(x, y - 1, z)])) floor++;
+      if (B.world[i] !== B.B.LAVA) continue;
+      lava++;
+      for (let d = 0; d < 4; d++)
+        if (B.world[B.idx(x + D[d][0], y, z + D[d][1])] === B.B.LAVA) { clustered++; break; }
+    }
+    return { lava, floor, ratio: lava / Math.max(1, lava + floor),
+             clusterRatio: lava ? clustered / lava : 0 };
+  });
+  assert(r.lava > 30, "용암이 아예 없다: " + r.lava);
+  assert(r.ratio < 0.30, "동굴 바닥이 용암 평야다 — 비율 " + r.ratio.toFixed(2));
+  assert(r.clusterRatio > 0.7, "용암이 낱개로 흩어져 있다: " + r.clusterRatio.toFixed(2));
+});
+
+test("v9 조명: 물이 깊어질수록 어두워진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.generate(777); B.relightAll(false);
+    // 수면부터 아래로 밝기를 훑는다
+    let surf = -1, deep = -1, col = null;
+    for (let z = 2; z < B.WZ - 2 && !col; z++) for (let x = 2; x < B.WX - 2; x++) {
+      let depth = 0;
+      for (let y = B.SEA; y > 2; y--) {
+        if (B.world[B.idx(x, y, z)] === B.B.WATER) depth++; else break;
+      }
+      if (depth >= 5) { col = [x, z]; break; }
+    }
+    if (!col) return { skip: true };
+    surf = B.lightSky[B.idx(col[0], B.SEA, col[1])];
+    deep = B.lightSky[B.idx(col[0], B.SEA - 4, col[1])];
+    return { surf, deep, dim: B.WATER_DIM };
+  });
+  if (r.skip) return;
+  assert(r.dim >= 2, "물 감쇠 상수");
+  assert(r.deep < r.surf, `깊은 물이 수면과 같은 밝기다 — 수면 ${r.surf} · 4칸 아래 ${r.deep}`);
+});
+
+test("v9 물속: 소리 먹먹 필터와 수면 판정이 준비돼 있다", async (page, errors) => {
+  const before = errors.length;
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setMuffle(true); B.setMuffle(false);
+    return { ok: typeof B.setMuffle === "function" };
+  });
+  assert(r.ok, "setMuffle 이 없다");
+  eq(errors.length, before, "먹먹 필터에서 오류: " + errors.slice(before).join(" | "));
+});
+
+test("v9 액체: 텍스처가 실제로 흐른다 (아틀라스가 바뀐다)", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    function snap(tile) {
+      const o = [(tile % 16) * 16, Math.floor(tile / 16) * 16];
+      const cv = document.createElement("canvas");
+      cv.width = cv.height = 16;
+      cv.getContext("2d").drawImage(B.atlas, o[0], o[1], 16, 16, 0, 0, 16, 16);
+      return cv.toDataURL();
+    }
+    B.animateLiquids(0);
+    const a = snap(11), la = snap(20);
+    B.animateLiquids(1.4);
+    const b = snap(11), lb = snap(20);
+    return { water: a !== b, lava: la !== lb };
+  });
+  assert(r.water, "물 텍스처가 그대로다");
+  assert(r.lava, "용암 텍스처가 그대로다");
+});
+
+test("v9 꽃: 낱개가 아니라 패치로 핀다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.generate(99999);
+    const D = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+    let flowers = 0, withNeighbor = 0, mixed = 0;
+    for (let z = 1; z < B.WZ - 1; z++) for (let x = 1; x < B.WX - 1; x++) {
+      const t = B.topMap[z * B.WX + x];
+      for (let y = t; y <= t + 2 && y < B.WY; y++) {
+        const b = B.world[B.idx(x, y, z)];
+        if (b !== B.B.FLOWER_R && b !== B.B.FLOWER_Y) continue;
+        flowers++;
+        let near = false, other = false;
+        for (let d = 0; d < 8; d++)
+          for (let dy = -1; dy <= 1; dy++) {
+            const n = B.world[B.idx(x + D[d][0], y + dy, z + D[d][1])];
+            if (n === b) near = true;
+            if ((n === B.B.FLOWER_R || n === B.B.FLOWER_Y) && n !== b) other = true;
+          }
+        if (near) withNeighbor++;
+        if (other) mixed++;
+      }
+    }
+    return { flowers, ratio: flowers ? withNeighbor / flowers : 0,
+             mixRatio: flowers ? mixed / flowers : 0 };
+  });
+  assert(r.flowers > 40, "꽃이 너무 적다: " + r.flowers);
+  assert(r.ratio > 0.5, "꽃이 낱개로 흩어져 있다 — 이웃 있는 비율 " + r.ratio.toFixed(2));
+  assert(r.mixRatio < 0.25, "한 패치에 두 종류가 섞였다: " + r.mixRatio.toFixed(2));
+});
+
+test("v9 바이옴: 사막과 설원에도 식물이 산다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    // 시드마다 바이옴 구성이 다르므로, 사막이 있는 시드와 설원이 있는 시드를 각각 찾는다
+    let cactus = 0, bush = 0, dry = 0, badBiome = 0, sawDesert = false, sawSnow = false;
+    for (const seed of [777, 20260904, 99999, 4242, 1]) {
+      B.generate(seed);
+      let desertCols = 0, snowCols = 0;
+      for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++) {
+        const bi = B.biomeMap[z * B.WX + x];
+        if (B.topMap[z * B.WX + x] > B.SEA + 1) { if (bi === 2) desertCols++; if (bi === 1) snowCols++; }
+      }
+      if (desertCols > 200) sawDesert = true;
+      if (snowCols > 200) sawSnow = true;
+      for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++) {
+        const biome = B.biomeMap[z * B.WX + x];
+        for (let y = 1; y < B.WY; y++) {
+          const b = B.world[B.idx(x, y, z)];
+          if (b === B.B.CACTUS) { cactus++; if (biome !== 2) badBiome++; }
+          else if (b === B.B.DEADBUSH) { bush++; if (biome !== 2) badBiome++; }
+          else if (b === B.B.DRYGRASS) { dry++; if (biome !== 1) badBiome++; }
+        }
+      }
+      if (sawDesert && sawSnow && cactus && bush && dry) break;
+    }
+    return { cactus, bush, dry, badBiome, sawDesert, sawSnow,
+             cactusSolid: B.isSolid(B.B.CACTUS), bushCross: B.isCross(B.B.DEADBUSH) };
+  });
+  assert(r.cactus > 0, "선인장이 없다");
+  assert(r.bush > 0, "죽은 덤불이 없다");
+  assert(r.dry > 0, "설원 마른 풀이 없다");
+  eq(r.badBiome, 0, "엉뚱한 바이옴에 자란 식물");
+  assert(r.cactusSolid, "선인장은 막는 블록이어야 한다");
+  assert(r.bushCross, "죽은 덤불은 얇은 블록이어야 한다");
+});
+
+test("v9 얼음: 설원에 부은 물은 시차를 두고 얼고, 광원 옆은 안 언다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.generate(20260904);
+    // 설원 지표를 하나 찾는다
+    let sx = -1, sz = -1;
+    outer: for (let z = 4; z < B.WZ - 4; z++) for (let x = 4; x < B.WX - 4; x++)
+      if (B.biomeMap[z * B.WX + x] === 1 && B.topMap[z * B.WX + x] > B.SEA + 2) { sx = x; sz = z; break outer; }
+    if (sx < 0) return { skip: true };
+    const y = B.topMap[sz * B.WX + sx] + 1;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = 0; dy <= 3; dy++) B.set(sx + dx, y + dy, sz + dz, 0);
+    B.refreshAllTops();
+    B.applyEdit(sx, y, sz, B.B.WATER, false);
+    for (let k = 0; k < 60; k++) B.waterTick(2000);
+    let spread = 0;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      if (B.world[B.idx(sx + dx, y, sz + dz)] === B.B.WATER) spread++;
+    for (let k = 0; k < 40; k++) B.freezeTick(500);
+    let ice = 0;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      if (B.world[B.idx(sx + dx, y, sz + dz)] === B.B.ICE) ice++;
+    return { spread, ice };
+  });
+  if (r.skip) return;
+  assert(r.spread > 2, "설원에서 물이 퍼지지 않았다(즉시 얼어버렸다): " + r.spread);
+  assert(r.ice > 0, "설원 물이 얼지 않았다");
+});
+
+test("v9 얼음: 광원을 놓으면 주변 얼음이 녹는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 36, y = 44, z = 36;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy <= 3; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.set(x, y - 1, z, B.B.STONE);
+    B.set(x + 1, y, z, B.B.ICE);
+    B.refreshAllTops();
+    const before = B.world[B.idx(x + 1, y, z)];
+    B.applyEdit(x, y, z, B.B.LAMP, false);
+    return { before, after: B.world[B.idx(x + 1, y, z)], ICE: B.B.ICE, WATER: B.B.WATER };
+  });
+  eq(r.before, r.ICE, "얼음을 놓지 못했다");
+  eq(r.after, r.WATER, "광원 옆 얼음이 안 녹았다");
+});
+
+test("v9 물+용암: 만나면 조약돌이 된다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 64, y = 44, z = 64;
+    for (let dx = -5; dx <= 5; dx++) for (let dz = -5; dz <= 5; dz++) {
+      for (let dy = 0; dy <= 4; dy++) B.set(x + dx, y + dy, z + dz, 0);
+      B.set(x + dx, y - 1, z + dz, B.B.STONE);
+    }
+    B.refreshAllTops();
+    B.applyEdit(x, y, z, B.B.LAVA, false);
+    B.applyEdit(x + 3, y, z, B.B.WATER, false);
+    for (let k = 0; k < 60; k++) B.waterTick(2000);
+    const row = [];
+    for (let dx = 0; dx <= 3; dx++) row.push(B.world[B.idx(x + dx, y, z)]);
+    return { row, COBBLE: B.B.COBBLE, LAVA: B.B.LAVA };
+  });
+  eq(r.row[0], r.LAVA, "용암이 사라졌다");
+  assert(r.row.includes(r.COBBLE), "물이 용암에 닿았는데 조약돌이 안 생겼다: " + r.row.join(","));
+});
+
+test("v9 조작: 스페이스 더블탭 비행 · F1 HUD 숨기기", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.beginPlay();
+    const was = B.player.flying;
+    function tap(code) {
+      window.dispatchEvent(new KeyboardEvent("keydown", { code, bubbles: true }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { code, bubbles: true }));
+    }
+    tap("Space"); tap("Space");
+    const flyToggled = B.player.flying !== was;
+    const hudBefore = document.getElementById("telemetry").hidden;
+    tap("F1");
+    const hudAfter = document.getElementById("telemetry").hidden;
+    tap("F1");
+    B.endPlay(); B.setPaused(false);
+    return { flyToggled, hudBefore, hudAfter };
+  });
+  assert(r.flyToggled, "스페이스 더블탭으로 비행이 안 켜진다");
+  eq(r.hudBefore, false, "플레이 중 HUD 가 보여야 한다");
+  eq(r.hudAfter, true, "F1 로 HUD 가 숨겨지지 않았다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

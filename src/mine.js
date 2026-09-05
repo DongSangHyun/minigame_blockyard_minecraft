@@ -71,6 +71,7 @@ export function place() {
   if (!canPlaceAt(px, py, pz)) return;
 
   if (needsFloor(b) && !isSolid(get(px, py - 1, pz))) { toast("받칠 바닥이 필요합니다"); return; }
+  if (needsFloor(b) && isLiquid(get(px, py, pz))) { toast("물속에서는 꺼집니다"); return; }
   // 물·용암·풀·횃불에는 반블록·계단 모양을 붙이지 않는다 (반쪽짜리 물덩이 방지)
   var sh = (isLiquid(b) || isCross(b)) ? SH_FULL : wantSh;
   if (!applyEdit(px, py, pz, b, true, sh)) return;

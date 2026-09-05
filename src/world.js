@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { resetQueues } from "./queues.js";
 import { DIRS, N, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, BEDROCK, COAL, DIRT, FLOWER_R, FLOWER_Y, GRASS, GRAVEL, ICE, IRON, LAVA, LEAVES, LOG, SAND, SHAPE_BOXES, SH_FULL, SNOW, STONE, TALLGRASS, WATER, isCross, isSolid } from "./blocks.js";
+import { AIR, BEDROCK, CACTUS, COAL, DEADBUSH, DIRT, DRYGRASS, FLOWER_R, FLOWER_Y, GRASS, GRAVEL, ICE, IRON, LAVA, LEAVES, LOG, SAND, SHAPE_BOXES, SH_FULL, SNOW, STONE, TALLGRASS, WATER, isCross, isSolid } from "./blocks.js";
 import { makeRng } from "./atlas.js";
 
 export var world = new Uint8Array(N);
@@ -161,7 +161,9 @@ export function generate(seed) {
   // 용암 웅덩이 — 세계 바닥의 동굴 바닥에 고인다. 지하 탐험의 유일한 시각 목표.
   for (var lx2 = 0; lx2 < WX; lx2++) {
     for (var lz2 = 0; lz2 < WZ; lz2++) {
-      if (noise2(lx2 * 0.09, lz2 * 0.09, S.worldSeed + 900) < 0.52) continue;
+      // 낮은 주파수 + 높은 임계값 = 드문드문한 "호수". 예전 값(0.09/0.52)은
+      // 동굴 바닥의 절반을 용암으로 만들어 찾아내는 재미가 없었다.
+      if (noise2(lx2 * 0.055, lz2 * 0.055, S.worldSeed + 900) < 0.74) continue;
       for (var ly2 = 1; ly2 <= 4; ly2++) {
         if (get(lx2, ly2, lz2) !== AIR) continue;
         if (!isSolid(get(lx2, ly2 - 1, lz2))) continue;
@@ -203,9 +205,37 @@ export function generate(seed) {
       if (get(px2, ph, pz2) !== GRASS) continue;
       if (get(px2, ph + 1, pz2) !== AIR) continue;
       var pv = rng();
-      if (pv < 0.55) set(px2, ph + 1, pz2, TALLGRASS);
-      else if (pv < 0.585) set(px2, ph + 1, pz2, FLOWER_R);
-      else if (pv < 0.62) set(px2, ph + 1, pz2, FLOWER_Y);
+      if (pv < 0.50) { set(px2, ph + 1, pz2, TALLGRASS); continue; }
+      // 꽃은 낱개로 흩뿌리지 않고 패치로 핀다 — 한 패치에는 한 종류만
+      var fm = noise2(px2 * 0.13, pz2 * 0.13, S.worldSeed + 511);
+      if (fm < 0.54) continue;
+      if (rng() > (fm - 0.54) * 3.4) continue;
+      var kind = noise2(px2 * 0.035, pz2 * 0.035, S.worldSeed + 733) < 0.5
+        ? FLOWER_R : FLOWER_Y;
+      set(px2, ph + 1, pz2, kind);
+    }
+  }
+
+  // 사막의 선인장과 죽은 덤불 · 설원의 마른 풀 —
+  // 초원에만 풀이 깔리면 나머지 바이옴이 상대적으로 더 "만들다 만 맵" 으로 보인다
+  for (var dx2 = 1; dx2 < WX - 1; dx2++) {
+    for (var dz2 = 1; dz2 < WZ - 1; dz2++) {
+      var dh = heightMap[dz2 * WX + dx2];
+      if (dh <= SEA + 1 || dh + 4 >= WY) continue;
+      if (get(dx2, dh + 1, dz2) !== AIR) continue;
+      var dbiome = biomeMap[dz2 * WX + dx2];
+      var surf2 = get(dx2, dh, dz2);
+      if (dbiome === 2 && surf2 === SAND) {
+        var dv = rng();
+        if (dv < 0.012) {                       // 선인장 — 2~3칸
+          var tall = 2 + ((rng() * 2) | 0);
+          for (var c2 = 1; c2 <= tall; c2++) set(dx2, dh + c2, dz2, CACTUS);
+        } else if (dv < 0.06) {
+          set(dx2, dh + 1, dz2, DEADBUSH);
+        }
+      } else if (dbiome === 1 && surf2 === SNOW) {
+        if (rng() < 0.13) set(dx2, dh + 1, dz2, DRYGRASS);
+      }
     }
   }
 

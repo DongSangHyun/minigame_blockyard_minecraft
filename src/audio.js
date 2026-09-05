@@ -1,6 +1,6 @@
 // audio.js — 소리
 import { S } from "./state.js";
-import { DIRT, FLOWER_R, FLOWER_Y, GLASS, GRASS, LAMP, LEAVES, LOG, PLANKS, SAND, SNOW, TALLGRASS, TORCH } from "./blocks.js";
+import { DEADBUSH, DIRT, DRYGRASS, FLOWER_R, FLOWER_Y, GLASS, GRASS, ICE, LAMP, LEAVES, LOG, PLANKS, SAND, SNOW, TALLGRASS, TORCH } from "./blocks.js";
 import { dayLight } from "./daynight.js";
 import { opts } from "./settings.js";
 
@@ -10,7 +10,12 @@ export function ac() {
       S.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       S.masterGain = S.audioCtx.createGain();
       S.masterGain.gain.value = opts.vol / 100;
-      S.masterGain.connect(S.audioCtx.destination);
+      // 잠수하면 이 필터의 차단 주파수를 내려 소리를 먹먹하게 만든다
+      S.muffle = S.audioCtx.createBiquadFilter();
+      S.muffle.type = "lowpass";
+      S.muffle.frequency.value = 20000;
+      S.masterGain.connect(S.muffle);
+      S.muffle.connect(S.audioCtx.destination);
     } catch (e) { return null; }
   }
   if (S.audioCtx.state === "suspended") S.audioCtx.resume();
@@ -90,17 +95,32 @@ export function updateAmbient(dt) {
 export var SOFT = {};
 SOFT[GRASS] = 1; SOFT[DIRT] = 1; SOFT[SAND] = 1; SOFT[LEAVES] = 1; SOFT[SNOW] = 1;
 SOFT[TALLGRASS] = 1; SOFT[FLOWER_R] = 1; SOFT[FLOWER_Y] = 1; SOFT[TORCH] = 1;
+SOFT[DEADBUSH] = 1; SOFT[DRYGRASS] = 1;
 export function breakSound(b) {
   if (SOFT[b]) crunch(0.16, 0.16, 900);
   else if (b === GLASS || b === LAMP) { tone(1400, 0.09, "square", 0.05); crunch(0.1, 0.1, 4200); }
   else if (b === LOG || b === PLANKS) crunch(0.14, 0.15, 1500);
   else crunch(0.2, 0.2, 2600);
 }
-export function stepSound(b) {
+export function stepSound(b, through) {
+  // 풀숲을 헤치고 지나가면 바스락 소리가 먼저 난다
+  if (through) crunch(0.06, 0.05, 620);
   if (!b) return;
+  if (b === ICE) { tone(1650 + Math.random() * 250, 0.05, "triangle", 0.03);
+                   crunch(0.05, 0.035, 3200); return; }
   crunch(0.07, SOFT[b] ? 0.045 : 0.055, SOFT[b] ? 700 : 1800);
 }
 // 놓는 소리 — 캐는 소리보다 짧고 낮게, 재질은 그대로 구분한다
+// 물·용암에 잠기면 소리가 멀어진다
+export function setMuffle(on) {
+  if (!S.muffle || !S.audioCtx) return;
+  var target = on ? 420 : 20000;
+  var f = S.muffle.frequency;
+  if (Math.abs(f.value - target) < 1) return;
+  try { f.setTargetAtTime(target, S.audioCtx.currentTime, 0.08); }
+  catch (e) { f.value = target; }
+}
+
 // 용암 — 가까이 가면 "뽀글" 소리로 존재를 알린다. 지하의 유일한 긴장 요소.
 export function lavaPop(vol) {
   tone(70 + Math.random() * 50, 0.22, "sine", 0.10 * vol);

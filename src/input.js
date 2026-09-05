@@ -206,6 +206,18 @@ window.addEventListener("keydown", function (e) {
   var held = e.repeat || !!S.keys[e.code];
   S.keys[e.code] = true;
 
+  // 크리에이티브 관용구 — 스페이스 두 번 톡톡으로 비행 토글
+  if (!held && e.code === "Space" && S.active && !S.uiOpen) {
+    var nowSp = (window.performance && performance.now) ? performance.now() : Date.now();
+    if (nowSp - S.lastSpaceTap < 300) {
+      player.flying = !player.flying;
+      player.vel.y = 0;
+      S.lastSpaceTap = 0;
+      tone(player.flying ? 660 : 330, 0.09, "square", 0.05);
+      toast(player.flying ? "비행 모드" : "걷기 모드");
+    } else S.lastSpaceTap = nowSp;
+  }
+
   // 마크식 달리기 — W 를 두 번 톡톡
   if (!held && (e.code === "KeyW" || e.code === "ArrowUp")) {
     var nowMs = (window.performance && performance.now) ? performance.now() : Date.now();
@@ -250,6 +262,12 @@ window.addEventListener("keydown", function (e) {
     toast(["전체 블록", "반블록", "계단"][S.shapeMode]);
     tone(560 + S.shapeMode * 120, 0.06, "square", 0.04);
     advanceTut(3);
+  }
+  if (e.code === "F1") {
+    e.preventDefault();
+    S.hudHidden = !S.hudHidden;
+    showHud(!S.hudHidden);
+    toast(S.hudHidden ? "화면 표시 끔" : "화면 표시 켬");
   }
   if (e.code === "KeyT") cycleTime();
   if (e.code === "KeyK") {

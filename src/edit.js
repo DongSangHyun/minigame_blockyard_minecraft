@@ -1,8 +1,8 @@
 // edit.js — 편집 · 되돌리기 · 도전 과제
 import { S } from "./state.js";
 import { idx, inside } from "./dims.js";
-import { AIR, LOG, SH_FULL, WATER, isCross, isSolid, isUnbreakable } from "./blocks.js";
-import { BIOME_NAMES, refreshTop, shape, world, waterLvl } from "./world.js";
+import { AIR, EMIT, ICE, LOG, SH_FULL, WATER, isCross, isSolid, isUnbreakable } from "./blocks.js";
+import { BIOME_NAMES, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightLocal } from "./light.js";
 import { enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
 import { touch } from "./mesh.js";
@@ -12,6 +12,22 @@ import { toast } from "./hud.js";
 import { localBiome } from "./sky.js";
 
 export var HISTORY_MAX = 240;
+
+// 광원 주변 2칸 안의 얼음을 물로 되돌린다
+function meltIceAround(x, y, z) {
+  for (var dx = -2; dx <= 2; dx++)
+    for (var dy = -2; dy <= 2; dy++)
+      for (var dz = -2; dz <= 2; dz++) {
+        if (!inside(x + dx, y + dy, z + dz)) continue;
+        var i = idx(x + dx, y + dy, z + dz);
+        if (world[i] !== ICE) continue;
+        world[i] = WATER;
+        touch(x + dx, y + dy, z + dz);
+        refreshTop(x + dx, z + dz);
+        relightLocal(x + dx, y + dy, z + dz);
+        enqueueWaterAround(x + dx, y + dy, z + dz);
+      }
+}
 
 export function applyEdit(x, y, z, to, record, sh) {
   if (!inside(x, y, z)) return false;
@@ -34,6 +50,8 @@ export function applyEdit(x, y, z, to, record, sh) {
   refreshTop(x, z);
   relightLocal(x, y, z);
   if (to === AIR) enqueueWaterAround(x, y, z);
+  // 밝은 광원 옆의 얼음은 녹아 물이 된다
+  if ((EMIT[to] || 0) >= 12) meltIceAround(x, y, z);
   if (from === LOG && to !== LOG) queueLeafDecay(x, y, z);
   // 받치던 바닥이 사라지면 위에 얹힌 풀·꽃·횃불도 함께 사라진다
   if (!isSolid(to) && inside(x, y + 1, z)) {

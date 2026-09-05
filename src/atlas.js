@@ -157,6 +157,48 @@ paint(18, function (p, r) {  // 자갈
     p(cx, cy, tone); p(cx + 1, cy, tone); p(cx, cy + 1, tone);
   }
 });
+paint(26, function (p, r) {  // 선인장 옆면 — 세로 골과 가시
+  var g = ["#3f7a34", "#356b2c", "#498c3d", "#2e5c26"];
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) p(x, y, pick(r, g));
+  for (var y2 = 0; y2 < 16; y2++) { p(1, y2, "#28511f"); p(14, y2, "#28511f"); }
+  for (var k = 0; k < 9; k++) {
+    var sy = 1 + Math.floor(r() * 14);
+    p(0, sy, "#d9dfae"); p(15, sy, "#d9dfae");
+    p(7 + Math.floor(r() * 2), sy, "#cfd6a2");
+  }
+});
+
+paint(27, function (p, r) {  // 선인장 윗면
+  var g = ["#4e8c42", "#448038", "#579a4b"];
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) p(x, y, pick(r, g));
+  for (var y2 = 4; y2 < 12; y2++) for (var x2 = 4; x2 < 12; x2++) p(x2, y2, "#2e5c26");
+});
+
+paint(28, function (p, r) {  // 죽은 덤불 — 마른 가지
+  var b = ["#7a5a2e", "#8d6a37", "#694d27"];
+  for (var k = 0; k < 5; k++) {
+    var bx = 3 + Math.floor(r() * 10);
+    var top = 3 + Math.floor(r() * 6);
+    for (var y = 15; y > top; y--) {
+      var lean = Math.floor((15 - y) * (r() < 0.5 ? 0.22 : -0.22));
+      p(bx + lean, y, pick(r, b));
+    }
+    p(bx - 1, top + 2, pick(r, b)); p(bx + 1, top + 3, pick(r, b));
+  }
+});
+
+paint(29, function (p, r) {  // 마른 풀 — 설원의 누런 포기
+  var g = ["#a89a63", "#93864f", "#bdae76", "#7e7343"];
+  for (var b2 = 0; b2 < 7; b2++) {
+    var bx = 1 + Math.floor(r() * 14);
+    var top = 4 + Math.floor(r() * 6);
+    for (var y = 15; y > top; y--) {
+      var lean = Math.floor((15 - y) * (r() < 0.5 ? 0.18 : -0.18));
+      p(bx + lean, y, g[Math.min(3, Math.floor((15 - y) / 4))]);
+    }
+  }
+});
+
 paint(22, function (p, r) {  // 풀 포기 — 아래는 짙고 위로 갈수록 밝다
   var g = ["#5d8f3a", "#4e7d31", "#699c42", "#74a94a"];
   for (var b2 = 0; b2 < 7; b2++) {
@@ -289,3 +331,34 @@ export var crackTex = [];
     crackTex.push(t);
   }
 })();
+
+// ── 액체 애니메이션 — 물과 용암 타일을 세로로 흘려 정지 화면을 면한다.
+// 셰이더를 건드리지 않고 아틀라스의 두 타일만 다시 칠한다 (16×16 두 장이라 값이 싸다).
+var LIQUID_TILES = [11, 20];        // 물 · 용암
+var liquidSrc = {};
+LIQUID_TILES.forEach(function (i) {
+  var o = tileOrigin(i);
+  liquidSrc[i] = actx.getImageData(o[0], o[1], TILE, TILE);
+});
+
+function scrollTile(i, shift, boost) {
+  var src = liquidSrc[i].data, o = tileOrigin(i);
+  var out = actx.createImageData(TILE, TILE), dst = out.data;
+  for (var y = 0; y < TILE; y++) {
+    var sy = ((y + shift) % TILE + TILE) % TILE;
+    for (var x = 0; x < TILE; x++) {
+      var d = (y * TILE + x) * 4, s2 = (sy * TILE + x) * 4;
+      dst[d] = Math.min(255, src[s2] * boost);
+      dst[d + 1] = Math.min(255, src[s2 + 1] * boost);
+      dst[d + 2] = Math.min(255, src[s2 + 2] * boost);
+      dst[d + 3] = src[s2 + 3];
+    }
+  }
+  actx.putImageData(out, o[0], o[1]);
+}
+
+export function animateLiquids(t) {
+  scrollTile(11, Math.floor(t * 6) % TILE, 1);
+  scrollTile(20, Math.floor(t * 2.5) % TILE, 0.94 + 0.10 * Math.sin(t * 3.1));
+  atlasTex.needsUpdate = true;
+}

@@ -3,17 +3,17 @@ import { S } from "./state.js";
 import { Q, resetQueues } from "./queues.js";
 import { WX, WY, WZ, idx } from "./dims.js";
 import { reduceMotion } from "./boot.js";
-import { DEFAULT_BAR, ICE, LAVA, WATER, hardnessOf, isCross, isUnbreakable } from "./blocks.js";
-import { crackTex } from "./atlas.js";
+import { DEFAULT_BAR, ICE, LAVA, TORCH, WATER, hardnessOf, isCross, isUnbreakable } from "./blocks.js";
+import { animateLiquids, crackTex } from "./atlas.js";
 import { crossBase, generate, get, set, shape } from "./world.js";
 import { lightAtPlayer, lightSky, relightAll } from "./light.js";
-import { decayTick, dryTick, fallTick, waterTick } from "./fluids.js";
+import { decayTick, dryTick, fallTick, freezeTick, waterTick } from "./fluids.js";
 import { buildBudget, markAllDirty } from "./mesh.js";
 import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateParticles, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { opts } from "./settings.js";
 import { EYE, moveAxis, moveHorizontal, player, raycast, spawn, stats } from "./player.js";
-import { crunch, lavaHiss, lavaPop, miningSound, stepSound, tone, updateAmbient } from "./audio.js";
+import { crunch, lavaHiss, lavaPop, miningSound, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { saveGame } from "./save.js";
 import { refreshAchList, refreshStats, unlock } from "./edit.js";
 import { drawMinimap, facingText, mmCap, refreshBar, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, underwaterEl } from "./hud.js";
@@ -60,7 +60,10 @@ export function step(dt) {
   var eyeY = player.pos.y + EYE;
   var eyeBlock = get(Math.floor(player.pos.x), Math.floor(eyeY), Math.floor(player.pos.z));
   var feetBlock = get(Math.floor(player.pos.x), Math.floor(player.pos.y + 0.3), Math.floor(player.pos.z));
-  var eyeInWater = eyeBlock === WATER;
+  // 물 윗면은 0.12칸 낮춰 그리므로 판정도 거기에 맞춘다 — 안 그러면 전환이 어긋난다
+  var surfaceGap = (get(Math.floor(player.pos.x), Math.floor(eyeY) + 1,
+                        Math.floor(player.pos.z)) === WATER) ? 0 : 0.12;
+  var eyeInWater = eyeBlock === WATER && (eyeY - Math.floor(eyeY)) < 1 - surfaceGap;
   var eyeInLava = eyeBlock === LAVA;
   var eyeInLiquid = eyeInWater || eyeInLava;
   var feetInWater = feetBlock === WATER || feetBlock === LAVA;   // 용암은 물보다 더 끈적하다
@@ -148,13 +151,25 @@ export function step(dt) {
       var prev = S.stepPhase;
       S.stepPhase += dt * (1.8 + hSpeed * 1.6);
       if (Math.floor(prev / Math.PI) !== Math.floor(S.stepPhase / Math.PI)) {
-        stepSound(get(Math.floor(player.pos.x), Math.floor(player.pos.y - 0.1), Math.floor(player.pos.z)));
+        var bodyCell = get(Math.floor(player.pos.x), Math.floor(player.pos.y + 0.4),
+                           Math.floor(player.pos.z));
+        stepSound(get(Math.floor(player.pos.x), Math.floor(player.pos.y - 0.1),
+                      Math.floor(player.pos.z)), isCross(bodyCell));
       }
     }
     S.bobPhase = S.stepPhase;
 
+    // 마크처럼 드래그로 줄을 긋는다 — 조준한 칸이 바뀌면 쿨다운을 기다리지 않는다
     S.placeCooldown -= dt;
-    if (S.lockMode && S.mouseDown[2] && S.placeCooldown <= 0) { place(); S.placeCooldown = 0.2; }
+    if (S.lockMode && S.mouseDown[2]) {
+      var ph = raycast(6);
+      var key = ph ? ((ph.x + ph.nx) * 4096 + (ph.y + ph.ny) * 64 + (ph.z + ph.nz)) : -1;
+      if (key !== S.lastPlaceCell || S.placeCooldown <= 0) {
+        place();
+        S.lastPlaceCell = key;
+        S.placeCooldown = 0.18;
+      }
+    } else S.lastPlaceCell = -1;
   }
 
   if (!playing) { S.sneaking = false; S.sprintingNow = false; }
@@ -277,6 +292,25 @@ export function step(dt) {
 
   updateParticles(dt);
   updateAmbient(dt);
+  setMuffle(eyeInLiquid);
+
+  // 횃불에서 불티가 올라간다 — 파티클 시스템은 이미 있는데 편집 때만 쓰고 있었다
+  S.torchFxTimer -= dt;
+  if (S.torchFxTimer <= 0 && playing) {
+    S.torchFxTimer = 0.16;
+    var tx = Math.floor(player.pos.x), ty = Math.floor(player.pos.y), tz = Math.floor(player.pos.z);
+    for (var fx = -6; fx <= 6; fx += 2)
+      for (var fy = -3; fy <= 3; fy++)
+        for (var fz = -6; fz <= 6; fz += 2) {
+          if (Math.random() > 0.06) continue;
+          if (get(tx + fx, ty + fy, tz + fz) !== TORCH) continue;
+          burst(tx + fx, ty + fy + 0.25, tz + fz, TORCH, 1);
+        }
+  }
+
+  // 액체 텍스처를 흘린다 (아틀라스 두 타일만 다시 칠한다)
+  S.liquidTimer += dt;
+  if (S.liquidTimer > 0.14) { S.liquidTimer = 0; animateLiquids(voxUniforms.uTime.value); }
 
   // 용암이 가까우면 주기적으로 뽀글거린다 — 지하에서 "저쪽에 용암이 있다"를 귀로 알려 준다
   S.lavaTimer -= dt;
@@ -303,6 +337,10 @@ export function step(dt) {
     waterTick(300);
     fallTick(200);
   }
+
+  // 설원 수면은 몇 초 뒤에 언다
+  S.freezeTimer += dt;
+  if (S.freezeTimer > 2.2) { S.freezeTimer = 0; freezeTick(200); }
 
   // 잎은 시차를 두고 조금씩 떨어진다
   if (Q.decayHead < Q.decayQ.length) {

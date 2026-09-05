@@ -40,6 +40,9 @@ export const S = {
   sprintTap: false, // W 더블탭으로 걸린 달리기
   sprintingNow: false,
   lastFwdTap: 0,
+  lastSpaceTap: 0,
+  lastPlaceCell: -1,
+  hudHidden: false,
   swing: 0,
   heldKey: -1,
   ghostKey: -1,
@@ -51,6 +54,9 @@ export const S = {
   waterTimer: 0,
   achTimer: 0,
   lavaTimer: 0,
+  liquidTimer: 0,
+  freezeTimer: 0,
+  torchFxTimer: 0,
   wasInLavaFeet: false,   // 용암에 발을 담그는 순간 치익 소리를 내려고
   wasUnderwater: false,
   wasInLava: false,
@@ -70,6 +76,7 @@ export const S = {
   breaking: { on: false, x: 0, y: 0, z: 0, t: 0, need: 1, stage: -1, sw: 0 },
   audioCtx: null,
   masterGain: null,
+  muffle: null,
   ambient: null,
   history: [],
   future: [],

@@ -2,12 +2,12 @@
 import { S } from "./state.js";
 import { Q } from "./queues.js";
 import { DIRS, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, GRAVEL, LEAVES, LOG, SAND, SH_FULL, WATER, isCross, isLiquid, isSolid } from "./blocks.js";
-import { get, refreshTop, shape, world, waterLvl } from "./world.js";
-import { relightLocal } from "./light.js";
+import { AIR, COBBLE, GRAVEL, ICE, LAVA, LEAVES, LOG, SAND, SH_FULL, WATER, isCross, isLiquid, isSolid } from "./blocks.js";
+import { biomeMap, get, refreshTop, shape, waterLvl, world } from "./world.js";
+import { lightBlk, relightLocal } from "./light.js";
 import { touch } from "./mesh.js";
 import { burst } from "./scene.js";
-import { crunch } from "./audio.js";
+import { crunch, lavaHiss } from "./audio.js";
 import { applyEdit, unlock } from "./edit.js";
 
 export var MAXFLOW = 3; // 근원에서 옆으로 뻗을 수 있는 칸 수
@@ -166,7 +166,24 @@ export function waterTick(budget) {
     }
     if (lvl < 0) continue;
 
+    // 물이 용암에 닿으면 굳어 조약돌이 된다 — 마크의 고전
+    var meltsLava = false;
+    for (var m = 0; m < 6; m++) {
+      if (get(x + DIRS[m][0], y + DIRS[m][1], z + DIRS[m][2]) === LAVA) { meltsLava = true; break; }
+    }
+    if (meltsLava) {
+      world[i] = COBBLE; shape[i] = SH_FULL; waterLvl[i] = 0;
+      touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z);
+      burst(x, y, z, COBBLE, 6);
+      lavaHiss();
+      S.worldDirty = true;
+      changed++;
+      continue;
+    }
+
     world[i] = WATER;
+    // 설원의 노출된 수면은 잠시 뒤 얼어붙는다 (바로 얼리면 물이 퍼지지도 못한다)
+    if (biomeMap[z * WX + x] === 1 && y >= SEA) Q.freezeQ.push(i);
     waterLvl[i] = lvl;
     changed++;
     touch(x, y, z);
@@ -178,6 +195,30 @@ export function waterTick(budget) {
   if (Q.waterHead > 4096 && Q.waterHead === Q.waterQ.length) { Q.waterQ.length = 0; Q.waterHead = 0; }
   if (changed) unlock("flood");
   return changed;
+}
+
+// 설원 수면 얼리기 — waterTick 과 분리해 시차를 둔다
+export function freezeTick(budget) {
+  budget = budget || 200;
+  var frozen = 0;
+  var end = Q.freezeQ.length;
+  while (Q.freezeHead < end && budget-- > 0) {
+    var i = Q.freezeQ[Q.freezeHead++];
+    if (world[i] !== WATER) continue;
+    var y = (i / PLANE) | 0, rem = i - y * PLANE;
+    var z = (rem / WX) | 0, x = rem - z * WX;
+    if (biomeMap[z * WX + x] !== 1) continue;
+    if (get(x, y + 1, z) !== AIR) continue;          // 덮인 물은 얼지 않는다
+    if (lightBlk[i] >= 12) continue;                 // 광원 옆은 안 언다
+    world[i] = ICE; shape[i] = SH_FULL; waterLvl[i] = 0;
+    touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z);
+    frozen++;
+    S.worldDirty = true;
+  }
+  if (Q.freezeHead > 2048 && Q.freezeHead === Q.freezeQ.length) {
+    Q.freezeQ.length = 0; Q.freezeHead = 0;
+  }
+  return frozen;
 }
 
 export function dryTick(budget) {

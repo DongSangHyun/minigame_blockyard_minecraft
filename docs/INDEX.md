@@ -57,5 +57,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v8 — 새 블록을 상호작용 계층에 등록 · 회귀 테스트 60항목 전부 통과.**
+**v9 — 액체·바이옴·크리에이티브 관용구 · 회귀 테스트 70항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/

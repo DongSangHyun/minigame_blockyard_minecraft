@@ -1,7 +1,7 @@
 // light.js — 광원 — 햇빛과 블록광 BFS
 import { S } from "./state.js";
 import { CH, DIRS, N, PLANE, WX, WY, WZ, idx } from "./dims.js";
-import { EMIT, lightPass } from "./blocks.js";
+import { EMIT, WATER, lightPass } from "./blocks.js";
 import { set, world } from "./world.js";
 import { markDirty } from "./mesh.js";
 import { player } from "./player.js";
@@ -25,6 +25,8 @@ export function markLightCell(i) {
   if (z % CH === CH - 1) markDirty(x, y, z + 1);
 }
 
+export var WATER_DIM = 2;   // 물 한 칸을 지날 때 빛이 깎이는 양
+
 export function spreadLight(arr, queue, track) {
   var head = 0;
   while (head < queue.length) {
@@ -40,8 +42,11 @@ export function spreadLight(arr, queue, track) {
       if (nx < 0 || nx >= WX || ny < 0 || ny >= WY || nz < 0 || nz >= WZ) continue;
       var ni = idx(nx, ny, nz);
       if (!lightPass(world[ni])) continue;
-      if (arr[ni] < L - 1) {
-        arr[ni] = L - 1;
+      // 물은 빛을 한 단계 더 깎는다 — 깊이 들어갈수록 어두워진다
+      var nl = L - (world[ni] === WATER ? WATER_DIM : 1);
+      if (nl <= 0) continue;
+      if (arr[ni] < nl) {
+        arr[ni] = nl;
         if (track) markLightCell(ni);
         queue.push(ni);
       }
@@ -125,10 +130,14 @@ export function relightAll(markChanges) {
   var q = [];
   for (var x = 0; x < WX; x++) {
     for (var z = 0; z < WZ; z++) {
+      var lvl = 15;
       for (var y = WY - 1; y >= 0; y--) {
         var i = idx(x, y, z);
-        if (!lightPass(world[i])) break;
-        lightSky[i] = 15;
+        var wb = world[i];
+        if (!lightPass(wb)) break;
+        if (wb === WATER) lvl -= WATER_DIM;      // 수면 아래로 갈수록 어둡다
+        if (lvl <= 0) break;
+        lightSky[i] = lvl;
         q.push(i);
       }
     }
