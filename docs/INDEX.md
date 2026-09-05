@@ -40,6 +40,7 @@ docs/INDEX.md      이 파일 — 어디를 볼지 알려주는 색인        (�
 | `tools/codemap.mjs` | `docs/CODEMAP.md` 생성 |
 | `tools/tidy-imports.mjs` | 안 쓰는 import 정리 |
 | `tools/make-icons.mjs` | PWA 아이콘 생성 |
+| `tools/stamp.mjs` | `src/version.js` — 시작 화면의 "마지막 업데이트" 도장 |
 | `docs/` | 이 색인이 가리키는 문서들 |
 | `memory.md` | 개발 진행내역 |
 

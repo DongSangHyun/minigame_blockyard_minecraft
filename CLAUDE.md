@@ -63,7 +63,8 @@
 4) 구현 (관심사에 맞는 src/ 모듈에)
 5) node tests/run.mjs 10        ← 반드시 반복 실행
 6) node tools/codemap.mjs · node tools/tidy-imports.mjs
-7) memory.md 에 진행내역 기록 · docs/ 갱신
+7) node tools/stamp.mjs      ← 커밋 직전. 시작 화면의 "마지막 업데이트" 를 갱신한다
+8) memory.md 에 진행내역 기록 · docs/ 갱신
 ```
 
 ## 5. 테스트

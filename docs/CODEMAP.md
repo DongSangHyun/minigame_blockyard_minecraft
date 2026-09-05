@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-05 · 모듈 24개 · 합계 3,982줄
+생성일 2026-09-05 · 모듈 24개 · 합계 3,991줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -27,7 +27,7 @@
 | [`audio.js`](../src/audio.js) | 소리 | 116 | state · blocks · daynight · settings |
 | [`save.js`](../src/save.js) | 저장 · 불러오기 | 157 | state · dims · blocks · world · player · hud |
 | [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 141 | state · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
-| [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 213 | state · dims · blocks · atlas · world · player · hand · input |
+| [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 222 | state · version · dims · blocks · atlas · world · player · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 136 | state · boot · blocks · atlas · world · mesh · scene · player |
 | [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 436 | state · boot · blocks · scene · daynight · settings · player · audio · save · edit · hud · hand · mine · sky · loop |
 | [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 71 | state · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
@@ -268,18 +268,18 @@
 
 | 함수 | 줄 |
 |---|---:|
-| `drawIcon(cv, blockId)` | 14 |
-| `refreshSlot(i)` | 70 |
-| `refreshBar()` | 77 |
-| `selectSlot(i)` | 81 |
-| `openPicker()` | 115 |
-| `closePicker(resume)` | 124 |
-| `facingText()` | 137 |
-| `showHud(on)` | 156 |
-| `toast(msg)` | 162 |
-| `drawMinimap()` | 170 |
+| `drawIcon(cv, blockId)` | 15 |
+| `refreshSlot(i)` | 71 |
+| `refreshBar()` | 78 |
+| `selectSlot(i)` | 82 |
+| `openPicker()` | 116 |
+| `closePicker(resume)` | 125 |
+| `facingText()` | 138 |
+| `showHud(on)` | 157 |
+| `toast(msg)` | 163 |
+| `drawMinimap()` | 171 |
 
-내보내는 값 — `hotbarEl` · `slotCanvases` · `pickerEl` · `pickGrid` · `FACING` · `tFace` · `tPos` · `underwaterEl` · `minimapEl` · `mmCap` · `touchEl` · `hudEls` · `toastEl` · `mmCanvas` · `mmCtx` · `mmImage`
+내보내는 값 — `hotbarEl` · `slotCanvases` · `pickerEl` · `pickGrid` · `FACING` · `tFace` · `tPos` · `underwaterEl` · `minimapEl` · `mmCap` · `touchEl` · `hudEls` · `toastEl` · `mmCanvas` · `mmCtx` · `mmImage` · `stampEl`
 
 ### `hand.js` — 1인칭 손과 들고 있는 블록
 

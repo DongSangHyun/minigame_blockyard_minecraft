@@ -228,9 +228,21 @@
     box-shadow: 10px 10px 0 rgba(0,0,0,.42);
     padding: 32px 32px 26px;
   }
+  .masthead {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px; margin: 0 0 14px;
+  }
   .eyebrow {
     font-family: var(--pixel); font-size: 10px;
-    letter-spacing: .22em; color: var(--moss); margin: 0 0 14px;
+    letter-spacing: .22em; color: var(--moss); margin: 0;
+  }
+  .stamp {
+    font-family: var(--mono); font-size: 10px; color: #6d7873;
+    letter-spacing: .04em; white-space: nowrap;
+  }
+  .stamp b { color: var(--stone); font-weight: 500; }
+  @media (max-width: 480px) {
+    .masthead { flex-wrap: wrap; gap: 4px; }
   }
   h1 {
     font-family: var(--pixel); font-weight: 700;
@@ -466,7 +478,10 @@
 
 <div id="overlay">
   <div class="card">
-    <p class="eyebrow">VOXEL SANDBOX</p>
+    <div class="masthead">
+      <p class="eyebrow">VOXEL SANDBOX</p>
+      <p class="stamp" id="stamp"></p>
+    </div>
     <h1>BLOCKYARD</h1>
     <p class="lede">
       설원·초원·사막이 섞인 64×64 섬. 지하에는 동굴과 광맥이 있고

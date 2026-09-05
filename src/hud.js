@@ -1,5 +1,6 @@
 // hud.js — HUD · 핫바 · 블록 고르기 · 미니맵
 import { S } from "./state.js";
+import { BUILD } from "./version.js";
 import { WX, WY, WZ, idx } from "./dims.js";
 import { AIR, ALL_BLOCKS, GLASS, NAMES, TILES, WATER, isCross } from "./blocks.js";
 import { AVG_TOP, TILE, atlas, tileOrigin } from "./atlas.js";
@@ -209,4 +210,11 @@ export function drawMinimap() {
   mmCtx.lineTo(px + dirZ * 2 - dirX * 1.4, pz - dirX * 2 - dirZ * 1.4);
   mmCtx.closePath();
   mmCtx.fill();
+}
+
+// 시작 화면 오른쪽 위 — 마지막 업데이트가 언제인지 한눈에 보이게
+export var stampEl = document.getElementById("stamp");
+if (stampEl) {
+  stampEl.innerHTML = "마지막 업데이트 <b>" + BUILD.updated + "</b>";
+  stampEl.title = BUILD.iso;
 }
