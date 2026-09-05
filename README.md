@@ -46,6 +46,7 @@
 의존성은 [three.js](https://threejs.org/) r128 (CDN) 하나뿐입니다. 빌드 도구도 번들러도 없습니다.
 
 - 텍스처는 **이미지 파일이 아니라 코드**입니다 — 16×16 도트를 캔버스에 직접 찍어 아틀라스를 만듭니다
+- 풀·꽃·횃불은 X자로 교차한 쿼드 4장으로 그립니다 (알파 컷아웃)
 - 청크 16³ 단위 면 메싱 + AO, 프레임당 8ms 예산으로 나눠 굽습니다
 - 조명은 편집할 때 국소 BFS 로만 다시 계산합니다
 - 저장은 RLE + Base64 로 압축해 localStorage 에 넣습니다
@@ -53,9 +54,13 @@
 ## 개발
 
 ```bash
-node tests/run.mjs 10     # 회귀 테스트 50항목 × 10회
-node tests/index.mjs      # docs/CODEMAP.md 색인 다시 생성
+node tests/run.mjs 10        # 회귀 테스트 50항목 × 10회
+node tools/codemap.mjs       # docs/CODEMAP.md 색인 다시 생성
+node tools/tidy-imports.mjs  # 안 쓰는 import 정리
 ```
+
+`index.html` 은 마크업과 CSS 만 담고, 게임 코드는 `src/` 아래 ES 모듈 24개입니다.
+빌드 단계가 없어 브라우저가 모듈을 직접 읽습니다.
 
 테스트는 로컬에 캐시된 Chrome(SwiftShader WebGL)을 띄워 실제로 렌더링까지 돌립니다.
 자세한 건 [docs/INDEX.md](docs/INDEX.md).

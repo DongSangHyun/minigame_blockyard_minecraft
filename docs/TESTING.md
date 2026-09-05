@@ -5,12 +5,14 @@
 node tests/run.mjs            # 1회
 node tests/run.mjs 10         # 10회 반복 (플레이키 검출)
 node tests/run.mjs 3 "조명"   # 이름에 "조명" 이 든 항목만 3회
-node tests/index.mjs          # docs/CODEMAP.md 다시 생성
+node tools/codemap.mjs        # docs/CODEMAP.md 다시 생성
+node tools/tidy-imports.mjs   # 안 쓰는 import 정리
 ```
 실패가 있으면 종료 코드 1.
 
 ## 구성
-- `tests/harness.mjs` — 브라우저 기동 · 게임 로드 대기 · `assert` / `eq` / `near`
+- `tests/harness.mjs` — 정적 서버 + 브라우저 기동 · 게임 로드 대기 · `assert` / `eq` / `near`
+  ES 모듈은 `file://` 에서 CORS 로 막히므로 **임시 HTTP 서버**를 띄워 그 위에서 돌립니다.
 - `tests/run.mjs` — 테스트 정의 + 러너 + 회차별 요약
 - 브라우저: `playwright-core` + 로컬에 캐시된 **Chrome for Testing**
   (`~/Library/Caches/ms-playwright/chromium-1228/...`), WebGL 은 SwiftShader.

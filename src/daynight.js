@@ -1,0 +1,54 @@
+// daynight.js — 낮과 밤
+import { S } from "./state.js";
+import { lerp } from "./world.js";
+import { cloudMat, pMat, skyUniforms, voxUniforms } from "./scene.js";
+
+export var DAY_LEN = 300;
+export var SKY_STOPS = [
+  { t: 0.00, top: 0x050810, low: 0x0d1424 },
+  { t: 0.22, top: 0x243a63, low: 0x8a5f5a },
+  { t: 0.30, top: 0x2f6398, low: 0xe0a878 },
+  { t: 0.50, top: 0x2b5f96, low: 0xa8c5d4 },
+  { t: 0.72, top: 0x2c5182, low: 0xd98a55 },
+  { t: 0.82, top: 0x16233f, low: 0x4a3a52 },
+  { t: 1.00, top: 0x050810, low: 0x0d1424 }
+];
+export var _cA = new THREE.Color(), _cB = new THREE.Color();
+
+export function sampleSky(t) {
+  for (var i = 0; i < SKY_STOPS.length - 1; i++) {
+    var a = SKY_STOPS[i], b = SKY_STOPS[i + 1];
+    if (t >= a.t && t <= b.t) {
+      var f = (t - a.t) / (b.t - a.t);
+      _cA.setHex(a.top).lerp(_cB.setHex(b.top), f);
+      skyUniforms.top.value.copy(_cA);
+      _cA.setHex(a.low).lerp(_cB.setHex(b.low), f);
+      skyUniforms.low.value.copy(_cA);
+      return;
+    }
+  }
+}
+export function dayLight(t) {
+  var s = Math.sin((t - 0.25) * Math.PI * 2);
+  return Math.max(0.13, Math.min(1, s * 1.15 + 0.42));
+}
+export var _grey = new THREE.Color(0x8b949c);
+export function applyTime() {
+  sampleSky(S.timeOfDay);
+  var L = dayLight(S.timeOfDay);
+  if (S.weather) {
+    // 흐린 날은 어둡고 하늘이 잿빛으로 가라앉는다
+    L *= S.weather === 1 ? 0.68 : 0.78;
+    skyUniforms.top.value.lerp(_grey, 0.45);
+    skyUniforms.low.value.lerp(_grey, 0.55);
+  }
+  voxUniforms.uDay.value = L;
+  voxUniforms.uFogColor.value.copy(skyUniforms.low.value);
+  cloudMat.color.setRGB(L * 0.95, L * 0.96, L);
+  pMat.color.setRGB(0.35 + L * 0.65, 0.35 + L * 0.65, 0.35 + L * 0.65);
+}
+export function clockText() {
+  var mins = Math.floor(S.timeOfDay * 1440);
+  var hh = Math.floor(mins / 60), mm = mins % 60;
+  return (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;
+}
