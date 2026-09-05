@@ -157,6 +157,41 @@ paint(18, function (p, r) {  // 자갈
     p(cx, cy, tone); p(cx + 1, cy, tone); p(cx, cy + 1, tone);
   }
 });
+paint(30, function (p, r) {  // 자작나무 옆면 — 흰 껍질과 검은 옹이
+  var w = ["#e8e4d8", "#dcd7c8", "#f1eee4", "#d2ccbc"];
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) p(x, y, pick(r, w));
+  for (var k = 0; k < 7; k++) {
+    var sy = Math.floor(r() * 16), sx = Math.floor(r() * 13);
+    var len = 2 + Math.floor(r() * 4);
+    for (var i = 0; i < len; i++) p(sx + i, sy, r() < 0.5 ? "#3a352c" : "#4a4438");
+  }
+});
+
+paint(31, function (p, r) {  // 자작나무 윗면
+  var base = ["#d8c9a4", "#cbbb95", "#e2d5b3"];
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) p(x, y, pick(r, base));
+  for (var y2 = 0; y2 < 16; y2++) for (var x2 = 0; x2 < 16; x2++) {
+    var d = Math.max(Math.abs(x2 - 7.5), Math.abs(y2 - 7.5));
+    if (Math.floor(d) % 3 === 0) p(x2, y2, "#b3a17c");
+  }
+});
+
+paint(32, function (p, r) {  // 자작나무 잎 — 밝은 연둣빛
+  var g = ["#7fae4a", "#8fbc57", "#6f9d3f", "#98c463"];
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+    if (r() < 0.06) continue;                 // 잎 사이 틈
+    p(x, y, pick(r, g));
+  }
+});
+
+paint(33, function (p, r) {  // 가문비나무 잎 — 짙고 푸른 녹색
+  var g = ["#2f5a35", "#274c2c", "#38683d", "#1f3f24"];
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+    if (r() < 0.07) continue;
+    p(x, y, pick(r, g));
+  }
+});
+
 paint(26, function (p, r) {  // 선인장 옆면 — 세로 골과 가시
   var g = ["#3f7a34", "#356b2c", "#498c3d", "#2e5c26"];
   for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) p(x, y, pick(r, g));

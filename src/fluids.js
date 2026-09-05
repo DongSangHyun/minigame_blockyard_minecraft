@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { Q } from "./queues.js";
 import { DIRS, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, COBBLE, GRAVEL, ICE, LAVA, LEAVES, LOG, SAND, SH_FULL, WATER, isCross, isLiquid, isSolid } from "./blocks.js";
+import { AIR, COBBLE, GRAVEL, ICE, LAVA, SAND, SH_FULL, WATER, isCross, isLeaf, isLiquid, isLog, isSolid } from "./blocks.js";
 import { biomeMap, get, refreshTop, shape, waterLvl, world } from "./world.js";
 import { lightBlk, relightLocal } from "./light.js";
 import { touch } from "./mesh.js";
@@ -47,7 +47,7 @@ export function queueLeafDecay(x, y, z) {
   for (var ax = x0; ax <= x1; ax++)
     for (var ay = y0; ay <= y1; ay++)
       for (var az = z0; az <= z1; az++)
-        if (world[idx(ax, ay, az)] === LOG) { dist[li(ax, ay, az)] = 1; q.push(ax, ay, az); }
+        if (isLog(world[idx(ax, ay, az)])) { dist[li(ax, ay, az)] = 1; q.push(ax, ay, az); }
 
   while (head < q.length) {
     var cx = q[head++], cy = q[head++], cz = q[head++];
@@ -56,7 +56,7 @@ export function queueLeafDecay(x, y, z) {
     for (var d = 0; d < 6; d++) {
       var nx = cx + DIRS[d][0], ny = cy + DIRS[d][1], nz = cz + DIRS[d][2];
       if (nx < x0 || nx > x1 || ny < y0 || ny > y1 || nz < z0 || nz > z1) continue;
-      if (world[idx(nx, ny, nz)] !== LEAVES) continue;
+      if (!isLeaf(world[idx(nx, ny, nz)])) continue;
       var l = li(nx, ny, nz);
       if (dist[l] !== 0 && dist[l] <= dc + 1) continue;
       dist[l] = dc + 1;
@@ -67,7 +67,7 @@ export function queueLeafDecay(x, y, z) {
   for (var ex = x0; ex <= x1; ex++)
     for (var ey = y0; ey <= y1; ey++)
       for (var ez = z0; ez <= z1; ez++)
-        if (world[idx(ex, ey, ez)] === LEAVES && dist[li(ex, ey, ez)] === 0)
+        if (isLeaf(world[idx(ex, ey, ez)]) && dist[li(ex, ey, ez)] === 0)
           Q.decayQ.push(idx(ex, ey, ez));
 }
 
@@ -76,10 +76,10 @@ export function decayTick(budget) {
   var gone = 0;
   while (Q.decayHead < Q.decayQ.length && gone < budget) {
     var i = Q.decayQ[Q.decayHead++];
-    if (world[i] !== LEAVES) continue;
+    if (!isLeaf(world[i])) continue;
     var y = (i / PLANE) | 0, rem = i - y * PLANE;
     var z = (rem / WX) | 0, x = rem - z * WX;
-    burst(x, y, z, LEAVES, 5);
+    burst(x, y, z, world[i], 5);
     applyEdit(x, y, z, AIR, false);
     gone++;
   }

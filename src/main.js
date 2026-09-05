@@ -3,23 +3,23 @@ import { S } from "./state.js";
 import { animateLiquids, atlas } from "./atlas.js";
 import { Q } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, ALL_BLOCKS, BEDROCK, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DIRT, DRYGRASS, FLOWER_R, FLOWER_Y, GLASS, GRASS, GRAVEL, ICE, IRON, LAMP, LAVA, LEAVES, LOG, NAMES, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_FULL, SH_SLAB, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SNOW, STONE, TALLGRASS, TILES, TORCH, WATER, blocksLight, hardnessOf, isCross, isLiquid, isSolid, isTransparent, isUnbreakable, lightPass } from "./blocks.js";
+import { AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DIRT, DRYGRASS, FLOWER_R, FLOWER_Y, GLASS, GRASS, GRAVEL, ICE, IRON, LAMP, LAVA, LEAVES, LOG, NAMES, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TORCH, WATER, blocksLight, crossOffset, faceKindFor, hardnessOf, isCross, isLeaf, isLiquid, isLog, isSolid, isTransparent, isUnbreakable, isWallShape, lightPass, wallShapeFor } from "./blocks.js";
 import { biomeMap, crossBase, generate, get, heightMap, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, waterLvl, world } from "./world.js";
 import { WATER_DIM, lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
 import { MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueWaterAround, fallTick, freezeTick, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
 import { FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll } from "./mesh.js";
-import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, camera, highlight, updateChunkVisibility } from "./scene.js";
+import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, highlight, updateChunkVisibility } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { applyOpts, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, rayBox, raycast, spawn } from "./player.js";
-import { breakSound, lavaHiss, lavaPop, miningSound, placeSound, setMuffle } from "./audio.js";
+import { breakSound, caveSound, lavaHiss, lavaPop, miningSound, placeSound, setMuffle } from "./audio.js";
 import { OLD_KEY, SAVE_KEY, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, hasSave, liftLegacy, loadGame, saveGame } from "./save.js";
 import { ACHIEVEMENTS, achCount, applyEdit, redo, refreshAchList, refreshStats, undo, unlock } from "./edit.js";
-import { drawIcon, drawMinimap, facingText, mmCap, refreshBar, selectSlot, showHud } from "./hud.js";
+import { airEl, drawIcon, drawMinimap, facingText, mmCap, refreshBar, selectSlot, showHud } from "./hud.js";
 import { makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
 import { beginPlay, endPlay, hashSeed, pickBlock, refreshMenu } from "./input.js";
 import { canPlaceAt, place, upperFromHit } from "./mine.js";
-import { HIDE_Y, columnTop, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateWeather, wDraw, wPos } from "./sky.js";
+import { HIDE_Y, MOON_PHASES, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateWeather, wDraw, wPos } from "./sky.js";
 import { SNEAK_MUL, SPRINT, WALK, animate, step } from "./loop.js";
 
 applyOpts();
@@ -53,7 +53,8 @@ window.__blockyard = {
        COBBLE: COBBLE, COAL: COAL, IRON: IRON, SNOW: SNOW, LAMP: LAMP, GRAVEL: GRAVEL,
        BEDROCK: BEDROCK, LAVA: LAVA, ICE: ICE, TALLGRASS: TALLGRASS,
        FLOWER_R: FLOWER_R, FLOWER_Y: FLOWER_Y, TORCH: TORCH,
-       CACTUS: CACTUS, DEADBUSH: DEADBUSH, DRYGRASS: DRYGRASS },
+       CACTUS: CACTUS, DEADBUSH: DEADBUSH, DRYGRASS: DRYGRASS,
+       BIRCH_LOG: BIRCH_LOG, BIRCH_LEAVES: BIRCH_LEAVES, SPRUCE_LEAVES: SPRUCE_LEAVES },
   world: world, lightSky: lightSky, lightBlk: lightBlk,
   topMap: topMap, heightMap: heightMap, biomeMap: biomeMap,
   idx: idx, get: get, set: set, inside: inside, lightPass: lightPass,
@@ -68,7 +69,9 @@ window.__blockyard = {
   encodeWorldB64: encodeWorldB64, decodeWorldB64: decodeWorldB64,
   relightLocal: relightLocal, markAllDirty: markAllDirty, buildBudget: buildBudget,
   shape: shape, shapeAt: shapeAt, SHAPE_BOXES: SHAPE_BOXES, FACE_UV: FACE_UV,
-  SH: { FULL: SH_FULL, SLAB: SH_SLAB, N: SH_STAIR_N, E: SH_STAIR_E, S: SH_STAIR_S, W: SH_STAIR_W },
+  SH: { FULL: SH_FULL, SLAB: SH_SLAB, N: SH_STAIR_N, E: SH_STAIR_E, S: SH_STAIR_S, W: SH_STAIR_W,
+        AXIS_X: SH_AXIS_X, AXIS_Z: SH_AXIS_Z, WALL_N: SH_WALL_N, WALL_E: SH_WALL_E,
+        WALL_S: SH_WALL_S, WALL_W: SH_WALL_W },
   encodeArrB64: encodeArrB64, decodeArrB64: decodeArrB64,
   fallTick: fallTick, enqueueFall: enqueueFall, isFalling: isFalling,
   rayBox: rayBox, canPlaceAt: canPlaceAt, chunkFilled: chunkFilled,
@@ -94,6 +97,10 @@ window.__blockyard = {
   isCross: isCross, isLiquid: isLiquid, isTransparent: isTransparent,
   atlas: atlas, crossBase: crossBase, surfaceTop: surfaceTop,
   freezeTick: freezeTick, animateLiquids: animateLiquids, setMuffle: setMuffle,
+  isLog: isLog, isLeaf: isLeaf, isWallShape: isWallShape, wallShapeFor: wallShapeFor,
+  crossOffset: crossOffset, faceKindFor: faceKindFor, caveSound: caveSound,
+  moonTex: moonTex, MOON_PHASES: MOON_PHASES, airEl: airEl,
+  S: S, setZoom: function (z) { S.mmZoom = z; }, burst: burst,
   WATER_DIM: WATER_DIM, showHud: showHud,
   HL_CROSS: HL_CROSS, SHAPE_BOUNDS: SHAPE_BOUNDS,
   lavaPop: lavaPop, lavaHiss: lavaHiss,

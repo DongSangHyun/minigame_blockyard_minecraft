@@ -149,6 +149,8 @@ export var tPos = document.getElementById("t-pos"),
     tFps = document.getElementById("t-fps");
 
 export var underwaterEl = document.getElementById("underwater");
+export var airEl = document.getElementById("air");
+export var airBar = airEl ? airEl.querySelector("i") : null;
 export var minimapEl = document.getElementById("minimap");
 export var mmCap = document.getElementById("mm-cap");
 export var touchEl = document.getElementById("touch");
@@ -175,9 +177,18 @@ export function drawMinimap() {
   var py = Math.max(0, Math.min(WY - 1, Math.floor(player.pos.y)));
   S.mmUnder = topMap[pzc * WX + pxc] > player.pos.y + 2.5;
 
-  for (var z = 0; z < WZ; z++) {
-    for (var x = 0; x < WX; x++) {
-      var o = (z * WX + x) * 4;
+  // 확대 — 보이는 칸 수를 줄이고 한 칸을 여러 픽셀로 그린다
+  var zoom = S.mmZoom;
+  var spanX = Math.max(8, Math.round(WX / zoom));
+  var spanZ = Math.max(8, Math.round(WZ / zoom));
+  var x0 = Math.max(0, Math.min(WX - spanX, pxc - (spanX >> 1)));
+  var z0 = Math.max(0, Math.min(WZ - spanZ, pzc - (spanZ >> 1)));
+
+  for (var oz = 0; oz < WZ; oz++) {
+    var z = z0 + Math.floor(oz * spanZ / WZ);
+    for (var ox = 0; ox < WX; ox++) {
+      var x = x0 + Math.floor(ox * spanX / WX);
+      var o = (oz * WX + ox) * 4;
       d[o + 3] = 255;
       var b = AIR, shade = 1;
       if (S.mmUnder) {
@@ -201,16 +212,21 @@ export function drawMinimap() {
   }
   mmCtx.putImageData(mmImage, 0, 0);
 
-  var px = player.pos.x, pz = player.pos.z;
+  var px = (player.pos.x - x0) * (WX / spanX);
+  var pz = (player.pos.z - z0) * (WZ / spanZ);
+  var arrow = 3.2 * Math.min(3, zoom);
   var dirX = -Math.sin(player.yaw), dirZ = -Math.cos(player.yaw);
   mmCtx.fillStyle = "#e07a3a";
   mmCtx.beginPath();
-  mmCtx.moveTo(px + dirX * 3.2, pz + dirZ * 3.2);
-  mmCtx.lineTo(px - dirZ * 2 - dirX * 1.4, pz + dirX * 2 - dirZ * 1.4);
-  mmCtx.lineTo(px + dirZ * 2 - dirX * 1.4, pz - dirX * 2 - dirZ * 1.4);
+  mmCtx.moveTo(px + dirX * arrow, pz + dirZ * arrow);
+  mmCtx.lineTo(px - dirZ * (arrow * 0.62) - dirX * (arrow * 0.44),
+               pz + dirX * (arrow * 0.62) - dirZ * (arrow * 0.44));
+  mmCtx.lineTo(px + dirZ * (arrow * 0.62) - dirX * (arrow * 0.44),
+               pz - dirX * (arrow * 0.62) - dirZ * (arrow * 0.44));
   mmCtx.closePath();
   mmCtx.fill();
 }
+
 
 // 시작 화면 오른쪽 위 — 마지막 업데이트가 언제인지 한눈에 보이게
 export var stampEl = document.getElementById("stamp");

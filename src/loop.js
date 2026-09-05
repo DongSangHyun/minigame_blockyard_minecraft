@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { Q, resetQueues } from "./queues.js";
 import { WX, WY, WZ, idx } from "./dims.js";
 import { reduceMotion } from "./boot.js";
-import { DEFAULT_BAR, ICE, LAVA, TORCH, WATER, hardnessOf, isCross, isUnbreakable } from "./blocks.js";
+import { DEFAULT_BAR, ICE, LAVA, TORCH, WATER, hardnessOf, isCross, isSolid, isUnbreakable } from "./blocks.js";
 import { animateLiquids, crackTex } from "./atlas.js";
 import { crossBase, generate, get, set, shape } from "./world.js";
 import { lightAtPlayer, lightSky, relightAll } from "./light.js";
@@ -13,10 +13,10 @@ import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, crackMat, cr
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { opts } from "./settings.js";
 import { EYE, moveAxis, moveHorizontal, player, raycast, spawn, stats } from "./player.js";
-import { crunch, lavaHiss, lavaPop, miningSound, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
+import { caveSound, crunch, lavaHiss, lavaPop, miningSound, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { saveGame } from "./save.js";
 import { refreshAchList, refreshStats, unlock } from "./edit.js";
-import { drawMinimap, facingText, mmCap, refreshBar, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, underwaterEl } from "./hud.js";
+import { airBar, airEl, drawMinimap, facingText, mmCap, refreshBar, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, underwaterEl } from "./hud.js";
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
 import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
 import { localBiome, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateWeather } from "./sky.js";
@@ -69,7 +69,11 @@ export function step(dt) {
   var feetInWater = feetBlock === WATER || feetBlock === LAVA;   // 용암은 물보다 더 끈적하다
   var thick = feetBlock === LAVA;
 
-  if (opts.day > 0) S.timeOfDay = (S.timeOfDay + dt / (opts.day * 60)) % 1;
+  if (opts.day > 0) {
+    var prevDay = S.timeOfDay;
+    S.timeOfDay = (S.timeOfDay + dt / (opts.day * 60)) % 1;
+    if (S.timeOfDay < prevDay) S.moonDay++;      // 자정을 넘기면 달 위상이 바뀐다
+  }
   applyTime();
   voxUniforms.uTime.value += dt;
 
@@ -135,6 +139,11 @@ export function step(dt) {
 
     if (player.onGround && !S.wasOnGround && fallSpeed < -6 && !feetInWater) {
       crunch(0.12, Math.min(0.22, Math.abs(fallSpeed) * 0.014), 700);
+      // 착지 먼지 — 세게 떨어질수록 많이 인다
+      var landB = get(Math.floor(player.pos.x), Math.floor(player.pos.y - 0.1),
+                      Math.floor(player.pos.z));
+      if (landB) burst(player.pos.x - 0.5, player.pos.y - 0.35, player.pos.z - 0.5,
+                       landB, Math.min(10, 2 + Math.floor(Math.abs(fallSpeed) / 4)));
     }
     S.wasOnGround = player.onGround;
 
@@ -196,6 +205,28 @@ export function step(dt) {
                       player.pos.y + EYE - S.sneakEye + bobY, player.pos.z);
   camera.rotation.y = player.yaw;
   camera.rotation.x = player.pitch;
+
+  // F5 — 3인칭. 벽에 파묻히지 않게 시선 반대쪽으로 조금씩 물러난다
+  if (S.thirdPerson) {
+    var back = S.thirdPerson === 1 ? 1 : -1;
+    var vx = Math.sin(player.yaw) * Math.cos(player.pitch) * back;
+    var vy = -Math.sin(player.pitch) * back;
+    var vz = Math.cos(player.yaw) * Math.cos(player.pitch) * back;
+    var reach = 0;
+    for (var s3 = 0.25; s3 <= 4; s3 += 0.25) {
+      if (isSolid(get(Math.floor(camera.position.x + vx * s3),
+                      Math.floor(camera.position.y + vy * s3),
+                      Math.floor(camera.position.z + vz * s3)))) break;
+      reach = s3 - 0.25;
+    }
+    camera.position.x += vx * reach;
+    camera.position.y += vy * reach;
+    camera.position.z += vz * reach;
+    if (S.thirdPerson === 2) {
+      camera.rotation.y = player.yaw + Math.PI;
+      camera.rotation.x = -player.pitch;
+    }
+  }
   camera.rotation.z = bobX * 0.12;
   sky.position.copy(camera.position);
   updateHand(dt);
@@ -293,6 +324,31 @@ export function step(dt) {
   updateParticles(dt);
   updateAmbient(dt);
   setMuffle(eyeInLiquid);
+
+  // 산소 — 물속에서 줄고 나오면 빠르게 찬다. 다 떨어지면 숨이 차서 떠오른다.
+  if (playing) {
+    if (eyeInWater && !player.flying) S.oxygen = Math.max(0, S.oxygen - dt / 18);
+    else if (S.oxygen < 1) {
+      if (S.oxygen === 0) { crunch(0.35, 0.14, 1200); tone(320, 0.25, "sine", 0.05); }
+      S.oxygen = Math.min(1, S.oxygen + dt / 2.5);
+    }
+    if (eyeInWater && S.oxygen <= 0) player.vel.y = Math.max(player.vel.y, 2.4);
+    var showAir = eyeInWater || S.oxygen < 0.999;
+    if (airEl.hidden === showAir) airEl.hidden = !showAir;
+    if (showAir) {
+      airBar.style.width = (S.oxygen * 100).toFixed(1) + "%";
+      airEl.classList.toggle("low", S.oxygen < 0.3);
+    }
+  } else if (!airEl.hidden) airEl.hidden = true;
+
+  // 동굴 울림 — 깊고 어두운 곳에서만
+  S.caveTimer -= dt;
+  if (S.caveTimer <= 0) {
+    S.caveTimer = 7 + Math.random() * 12;
+    if (playing && player.pos.y < 22 && lightAtPlayer() <= 4) {
+      caveSound(Math.min(1, (22 - player.pos.y) / 18));
+    }
+  }
 
   // 횃불에서 불티가 올라간다 — 파티클 시스템은 이미 있는데 편집 때만 쓰고 있었다
   S.torchFxTimer -= dt;
@@ -398,10 +454,12 @@ export function animate() {
   step(dt);
 
   renderer.render(scene, camera);
-  renderer.autoClear = false;
-  renderer.clearDepth();
-  renderer.render(handScene, handCam);
-  renderer.autoClear = true;
+  if (!S.thirdPerson) {
+    renderer.autoClear = false;
+    renderer.clearDepth();
+    renderer.render(handScene, handCam);
+    renderer.autoClear = true;
+  }
 
   S.fpsAccum += dt; S.fpsFrames++; S.hudTimer += dt; S.mmTimer += dt;
   if (S.hudTimer > 0.25) {
@@ -417,7 +475,9 @@ export function animate() {
   }
   if (S.mmTimer > 0.2 && S.active) {
     drawMinimap();
-    mmCap.textContent = S.mmUnder ? ("단면 Y" + Math.floor(player.pos.y)) : ("SEED " + S.worldSeed);
+    mmCap.textContent = (S.mmUnder ? ("단면 Y" + Math.floor(player.pos.y))
+                                   : ("SEED " + S.worldSeed))
+                        + (S.mmZoom > 1 ? "  ×" + S.mmZoom : "");
     S.mmTimer = 0;
   }
 }

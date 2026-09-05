@@ -1,7 +1,7 @@
 // edit.js — 편집 · 되돌리기 · 도전 과제
 import { S } from "./state.js";
-import { idx, inside } from "./dims.js";
-import { AIR, EMIT, ICE, LOG, SH_FULL, WATER, isCross, isSolid, isUnbreakable } from "./blocks.js";
+import { DIRS, idx, inside } from "./dims.js";
+import { AIR, EMIT, ICE, SH_FULL, WALL_DIR, WATER, isCross, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
 import { BIOME_NAMES, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightLocal } from "./light.js";
 import { enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
@@ -29,6 +29,19 @@ function meltIceAround(x, y, z) {
       }
 }
 
+// 받침이 사라진 얇은 블록을 떨군다. wall 이 주어지면 그 방향 벽에 붙은 것만.
+function dropCross(x, y, z, wall) {
+  if (!inside(x, y, z)) return;
+  var i = idx(x, y, z);
+  if (!isCross(world[i])) return;
+  if (wall) {
+    var d = WALL_DIR[shape[i]];
+    if (!d || d[0] !== wall[0] || d[2] !== wall[2]) return;
+  } else if (isWallShape(shape[i])) return;   // 벽 횃불은 아래가 비어도 남는다
+  world[i] = AIR; shape[i] = SH_FULL;
+  touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z);
+}
+
 export function applyEdit(x, y, z, to, record, sh) {
   if (!inside(x, y, z)) return false;
   if (y === 0) return false;                 // 바닥은 손대지 않는다
@@ -52,13 +65,14 @@ export function applyEdit(x, y, z, to, record, sh) {
   if (to === AIR) enqueueWaterAround(x, y, z);
   // 밝은 광원 옆의 얼음은 녹아 물이 된다
   if ((EMIT[to] || 0) >= 12) meltIceAround(x, y, z);
-  if (from === LOG && to !== LOG) queueLeafDecay(x, y, z);
+  if (isLog(from) && from !== to) queueLeafDecay(x, y, z);
   // 받치던 바닥이 사라지면 위에 얹힌 풀·꽃·횃불도 함께 사라진다
-  if (!isSolid(to) && inside(x, y + 1, z)) {
-    var upI = idx(x, y + 1, z);
-    if (isCross(world[upI])) {
-      world[upI] = AIR; shape[upI] = SH_FULL;
-      touch(x, y + 1, z); refreshTop(x, z); relightLocal(x, y + 1, z);
+  if (!isSolid(to)) {
+    if (inside(x, y + 1, z)) dropCross(x, y + 1, z, null);
+    // 옆에 붙어 있던 벽 횃불도 함께 떨어진다
+    for (var wd = 0; wd < 6; wd++) {
+      if (DIRS[wd][1] !== 0) continue;
+      dropCross(x + DIRS[wd][0], y, z + DIRS[wd][2], [-DIRS[wd][0], 0, -DIRS[wd][2]]);
     }
   }
   S.worldDirty = true;

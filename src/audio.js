@@ -121,6 +121,18 @@ export function setMuffle(on) {
   catch (e) { f.value = target; }
 }
 
+// 동굴 울림 — 깊고 어두운 곳에서 가끔 낮게 울린다 (마크의 동굴 소리)
+export function caveSound(depthMix) {
+  var f = 90 + Math.random() * 120;
+  tone(f, 1.6 + Math.random(), "sine", 0.030 * depthMix);
+  if (Math.random() < 0.35) {
+    // 물방울
+    setTimeout(function () {
+      tone(900 + Math.random() * 700, 0.10, "sine", 0.035 * depthMix);
+    }, 400 + Math.random() * 900);
+  }
+}
+
 // 용암 — 가까이 가면 "뽀글" 소리로 존재를 알린다. 지하의 유일한 긴장 요소.
 export function lavaPop(vol) {
   tone(70 + Math.random() * 50, 0.22, "sine", 0.10 * vol);

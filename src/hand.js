@@ -1,7 +1,7 @@
 // hand.js — 1인칭 손과 들고 있는 블록
 import { S } from "./state.js";
 import { reduceMotion } from "./boot.js";
-import { CROSS, SHAPE_BOXES, SH_FULL, TILES, isCross } from "./blocks.js";
+import { CROSS, SHAPE_BOXES, SH_FULL, TILES, faceKindFor, isCross } from "./blocks.js";
 import { TILE, atlas, atlasTex, tileOrigin } from "./atlas.js";
 import { set } from "./world.js";
 import { CROSS_PLANES, FACES, FACE_UV } from "./mesh.js";
@@ -51,7 +51,7 @@ export function makeBlockGeometry(b, sh) {
     var box = boxes[bi];
     for (var f = 0; f < 6; f++) {
       var face = FACES[f], uvi = FACE_UV[f];
-      var to = tileOrigin(TILES[b][face.kind]);
+      var to = tileOrigin(TILES[b][faceKindFor(sh || SH_FULL, f, face.kind)]);
       var u0 = to[0] / atlas.width, v0 = 1 - (to[1] + TILE) / atlas.height;
       var us = TILE / atlas.width;
       var base = pos.length / 3;

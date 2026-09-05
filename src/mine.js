@@ -1,7 +1,7 @@
 // mine.js — 캐기 · 놓기
 import { S } from "./state.js";
 import { inside } from "./dims.js";
-import { AIR, ALL_BLOCKS, COAL, FLOWER_R, FLOWER_Y, IRON, LAMP, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TORCH, isCross, isLiquid, isSolid, needsFloor } from "./blocks.js";
+import { AIR, ALL_BLOCKS, COAL, FLOWER_R, FLOWER_Y, IRON, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TORCH, isCross, isLiquid, isLog, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
 import { get } from "./world.js";
 import { burst } from "./scene.js";
 import { BODY, HALF, currentShape, player, raycast, stats } from "./player.js";
@@ -70,10 +70,23 @@ export function place() {
   var pz = onCross ? hit.z : hit.z + hit.nz;
   if (!canPlaceAt(px, py, pz)) return;
 
-  if (needsFloor(b) && !isSolid(get(px, py - 1, pz))) { toast("받칠 바닥이 필요합니다"); return; }
   if (needsFloor(b) && isLiquid(get(px, py, pz))) { toast("물속에서는 꺼집니다"); return; }
+  // 횃불은 벽에도 붙는다 — 옆면을 클릭했고 그 벽이 단단하면 벽 횃불
+  var wallSh = 0;
+  if (b === TORCH && !onCross && (hit.nx !== 0 || hit.nz !== 0) && isSolid(hit.block)) {
+    wallSh = wallShapeFor(hit.nx, hit.nz);
+  }
+  if (needsFloor(b) && !wallSh && !isSolid(get(px, py - 1, pz))) {
+    toast("받칠 바닥이 필요합니다"); return;
+  }
   // 물·용암·풀·횃불에는 반블록·계단 모양을 붙이지 않는다 (반쪽짜리 물덩이 방지)
   var sh = (isLiquid(b) || isCross(b)) ? SH_FULL : wantSh;
+  // 원목은 클릭한 면 방향으로 눕는다 (마크와 같다)
+  if (isLog(b) && sh === SH_FULL && !onCross) {
+    if (hit.nx !== 0) sh = SH_AXIS_X;
+    else if (hit.nz !== 0) sh = SH_AXIS_Z;
+  }
+  if (wallSh) sh = wallSh;
   if (!applyEdit(px, py, pz, b, true, sh)) return;
   stats.placed++;
   unlock("firstPlace");

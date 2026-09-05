@@ -21,22 +21,54 @@ export function discTexture(size, stops) {
   return t;
 }
 
+// 나머지 텍스처가 전부 16×16 도트인데 해와 달만 매끈한 원반이면 겉돈다.
+// 마크처럼 각진 사각형으로, 달은 8단계 위상까지.
+function squareTexture(px, draw) {
+  var cv = document.createElement("canvas");
+  cv.width = cv.height = px;
+  var c = cv.getContext("2d");
+  c.imageSmoothingEnabled = false;
+  draw(c, px);
+  var t = new THREE.CanvasTexture(cv);
+  t.generateMipmaps = false;
+  t.minFilter = t.magFilter = THREE.NearestFilter;
+  return t;
+}
+
 export var sunMat = new THREE.SpriteMaterial({
-  map: discTexture(64, [[0, "rgba(255,252,232,1)"], [0.32, "rgba(255,238,168,0.92)"],
-                        [0.62, "rgba(255,196,96,0.28)"], [1, "rgba(255,180,80,0)"]]),
+  map: squareTexture(16, function (c, px) {
+    c.fillStyle = "#ffe9a0"; c.fillRect(0, 0, px, px);
+    c.fillStyle = "#fff6d2"; c.fillRect(2, 2, px - 4, px - 4);
+    c.fillStyle = "#fffdf0"; c.fillRect(5, 5, px - 10, px - 10);
+  }),
   transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending
 });
 export var sunSprite = new THREE.Sprite(sunMat);
-sunSprite.scale.setScalar(44);
+sunSprite.scale.setScalar(30);
 scene.add(sunSprite);
 
+// 달 위상 8단계 — 밤마다 모양이 바뀐다
+export var MOON_PHASES = 8;
+export var moonTex = [];
+for (var mp = 0; mp < MOON_PHASES; mp++) {
+  moonTex.push(squareTexture(16, (function (phase) {
+    return function (c, px) {
+      c.fillStyle = "#e7eefb"; c.fillRect(0, 0, px, px);
+      c.fillStyle = "#cfdaf0";
+      c.fillRect(3, 4, 3, 3); c.fillRect(9, 8, 4, 3); c.fillRect(6, 12, 3, 2);
+      // 위상 — 오른쪽부터 잘라 나간다 (0 보름 · 4 그믐)
+      var cut = Math.round(Math.abs(phase - 4) / 4 * px);
+      if (cut > 0) {
+        c.clearRect(phase <= 4 ? px - cut : 0, 0, cut, px);
+      }
+    };
+  })(mp)));
+}
 export var moonMat = new THREE.SpriteMaterial({
-  map: discTexture(64, [[0, "rgba(238,244,252,1)"], [0.40, "rgba(214,226,242,0.95)"],
-                        [0.66, "rgba(180,200,228,0.22)"], [1, "rgba(160,184,220,0)"]]),
-  transparent: true, depthWrite: false, fog: false
+  map: moonTex[0], transparent: true, depthWrite: false, fog: false
 });
 export var moonSprite = new THREE.Sprite(moonMat);
-moonSprite.scale.setScalar(30);
+moonSprite.scale.setScalar(24);
 scene.add(moonSprite);
 
 export var starMat = new THREE.PointsMaterial({
@@ -61,6 +93,9 @@ export var stars = (function () {
 })();
 
 export function updateSkyBodies() {
+  // 하루가 지날 때마다 달 위상이 한 칸씩 돈다
+  var phase = Math.floor(S.moonDay) % MOON_PHASES;
+  if (moonMat.map !== moonTex[phase]) { moonMat.map = moonTex[phase]; moonMat.needsUpdate = true; }
   var th = (S.timeOfDay - 0.25) * Math.PI * 2;
   var R = 236, sx = Math.cos(th) * R, sy = Math.sin(th) * R, sz = -R * 0.30;
   sunSprite.position.set(camera.position.x + sx, camera.position.y + sy, camera.position.z + sz);

@@ -1,6 +1,6 @@
 // mesh.js — 면 데이터 + 청크 메싱
 import { CH, CX, CY, CZ, DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, CROSS, SHAPE_BOXES, SH_FULL, TILES, WATER, blocksLight, isCross, isTransparent, lightPass } from "./blocks.js";
+import { AIR, CROSS, SHAPE_BOXES, SH_FULL, TILES, WATER, blocksLight, crossOffset, faceKindFor, isCross, isTransparent, lightPass } from "./blocks.js";
 import { TILE, atlas, tileOrigin } from "./atlas.js";
 import { crossBase, get, shape, shapeAt, world } from "./world.js";
 import { lightBlk, lightSky } from "./light.js";
@@ -97,7 +97,7 @@ export function buildChunk(cx, cy, cz) {
               }
             }
 
-            var to = tileOrigin(TILES[b][face.kind]);
+            var to = tileOrigin(TILES[b][faceKindFor(sh, f, face.kind)]);
             var u0 = to[0] / atlas.width, v0 = 1 - (to[1] + TILE) / atlas.height;
             var us = TILE / atlas.width;
 
@@ -179,7 +179,9 @@ export function emitCross(P, U, C, L, I, x, y, z, b, ci) {
   var us = TILE / atlas.width;
   var sky = lightSky[ci] / 15, blk = lightBlk[ci] / 15;
   var cxw = x + 0.5, czw = z + 0.5;
-  var yb = crossBase(x, y, z);
+  var off = crossOffset(shape[ci]);
+  var yb = off[1] ? y + off[1] : crossBase(x, y, z);
+  cxw += off[0]; czw += off[2];
 
   for (var pl = 0; pl < 2; pl++) {
     var dx = CROSS_PLANES[pl][0] * cfg.w, dz = CROSS_PLANES[pl][1] * cfg.w;

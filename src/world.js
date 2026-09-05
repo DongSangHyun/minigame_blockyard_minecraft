@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { resetQueues } from "./queues.js";
 import { DIRS, N, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, BEDROCK, CACTUS, COAL, DEADBUSH, DIRT, DRYGRASS, FLOWER_R, FLOWER_Y, GRASS, GRAVEL, ICE, IRON, LAVA, LEAVES, LOG, SAND, SHAPE_BOXES, SH_FULL, SNOW, STONE, TALLGRASS, WATER, isCross, isSolid } from "./blocks.js";
+import { AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, CACTUS, COAL, DEADBUSH, DIRT, DRYGRASS, FLOWER_R, FLOWER_Y, GRASS, GRAVEL, ICE, IRON, LAVA, LEAVES, LOG, SAND, SHAPE_BOXES, SH_FULL, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, WATER, isCross, isSolid } from "./blocks.js";
 import { makeRng } from "./atlas.js";
 
 export var world = new Uint8Array(N);
@@ -106,8 +106,8 @@ export function generate(seed) {
       // 바이옴 — 큰 스케일 노이즈 + 고도 보정
       var t = noise2(x * 0.022, z * 0.022, S.worldSeed + 300);
       var biome = 0;
-      if (t < 0.36 || h > 25) biome = 1;         // 설원 · 진짜 봉우리만 만년설
-      else if (t > 0.68 && h <= 18) biome = 2;   // 사막
+      if (t < 0.30 || h > 27) biome = 1;         // 설원 · 진짜 봉우리만 만년설
+      else if (t > 0.62 && h <= 20) biome = 2;   // 사막
       biomeMap[z * WX + x] = biome;
 
       var surf = GRASS;
@@ -181,19 +181,38 @@ export function generate(seed) {
       var th = heightMap[tz * WX + tx];
       var ground = get(tx, th, tz);
       if (th <= SEA + 1 || (ground !== GRASS && ground !== SNOW)) continue;
-      var trunk = 4 + Math.floor(rng() * 3);
-      if (th + trunk + 3 >= WY) continue;
+      // 종류 — 설원은 가문비나무(짙은 잎·뾰족한 수형), 초원은 참나무와 자작나무가 섞인다
+      var spruce = tb === 1;
+      var birch = !spruce && rng() < 0.34;
+      var logB = birch ? BIRCH_LOG : LOG;
+      var leafB = spruce ? SPRUCE_LEAVES : (birch ? BIRCH_LEAVES : LEAVES);
+      var trunk = spruce ? 5 + Math.floor(rng() * 3)
+                : (birch ? 5 + Math.floor(rng() * 3) : 4 + Math.floor(rng() * 3));
+      if (th + trunk + 4 >= WY) continue;
       var crown = th + trunk;
-      for (var ly = -2; ly <= 1; ly++) {
-        var rad = (ly >= 0) ? 1 : 2;
-        for (var lx = -rad; lx <= rad; lx++) {
-          for (var lz = -rad; lz <= rad; lz++) {
-            if (Math.abs(lx) === rad && Math.abs(lz) === rad && rng() < 0.65) continue;
-            if (get(tx + lx, crown + ly, tz + lz) === AIR) set(tx + lx, crown + ly, tz + lz, LEAVES);
+      if (spruce) {
+        // 아래로 갈수록 넓어지는 원뿔
+        for (var sy = 0; sy <= 4; sy++) {
+          var srad = sy >= 3 ? 0 : (sy >= 1 ? 1 : 2);
+          for (var sx2 = -srad; sx2 <= srad; sx2++)
+            for (var sz2 = -srad; sz2 <= srad; sz2++) {
+              if (Math.abs(sx2) === srad && Math.abs(sz2) === srad && srad > 1) continue;
+              var cy2 = crown - 2 + sy;
+              if (get(tx + sx2, cy2, tz + sz2) === AIR) set(tx + sx2, cy2, tz + sz2, leafB);
+            }
+        }
+      } else {
+        for (var ly = -2; ly <= 1; ly++) {
+          var rad = (ly >= 0) ? 1 : 2;
+          for (var lx = -rad; lx <= rad; lx++) {
+            for (var lz = -rad; lz <= rad; lz++) {
+              if (Math.abs(lx) === rad && Math.abs(lz) === rad && rng() < 0.65) continue;
+              if (get(tx + lx, crown + ly, tz + lz) === AIR) set(tx + lx, crown + ly, tz + lz, leafB);
+            }
           }
         }
       }
-      for (var k = 1; k <= trunk; k++) set(tx, th + k, tz, LOG);
+      for (var k = 1; k <= trunk; k++) set(tx, th + k, tz, logB);
     }
   }
 

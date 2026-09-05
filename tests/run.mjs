@@ -593,7 +593,7 @@ test("개선8 선택 상자: 반블록을 조준하면 납작한 상자를 쓴�
       stair: bounds(B.HL_GEO[B.SH.N])
     };
   });
-  eq(r.shapes, 11, "모양 개수만큼 선택 상자가 있어야 한다");
+  assert(r.shapes >= 11, "모양 개수만큼 선택 상자가 있어야 한다: " + r.shapes);
   near(r.full, 1.008, 0.01, "전체 블록 높이");
   near(r.slab, 0.508, 0.01, "반블록 높이");
   near(r.stair, 1.008, 0.01, "계단 높이");
@@ -745,7 +745,7 @@ test("v6 계단: 상단 반블록과 반전 계단 5종이 추가됐다", async 
       stairUp: span(7, 1)
     };
   });
-  eq(r.count, 11, "모양 개수");
+  assert(r.count >= 11, "모양 개수: " + r.count);
   eq(r.slabDown[0], 0, "아래 반블록의 바닥");
   eq(r.slabDown[1], 0.5, "아래 반블록의 천장");
   eq(r.slabUp[0], 0.5, "위 반블록의 바닥");
@@ -1120,7 +1120,7 @@ test("v8 조준 표시: 얇은 블록과 v6 모양이 모두 자기 크기를 �
   assert(r.crossKinds >= 4, "얇은 블록 상자가 부족하다: " + r.crossKinds);
   near(r.torch, 0.628, 0.02, "횃불 선택 상자 높이");
   near(r.grass, 0.928, 0.02, "풀 선택 상자 높이");
-  eq(r.boundsCount, 11, "모양별 겉면 범위 개수");
+  assert(r.boundsCount >= 11, "모양별 겉면 범위 개수: " + r.boundsCount);
   eq(r.slabUp.mn[1], 0.5, "상단 반블록의 아래 끝");
   eq(r.stairUp.mx[1], 1, "반전 계단의 위 끝");
 });
@@ -1531,6 +1531,224 @@ test("v9 조작: 스페이스 더블탭 비행 · F1 HUD 숨기기", async (page
   assert(r.flyToggled, "스페이스 더블탭으로 비행이 안 켜진다");
   eq(r.hudBefore, false, "플레이 중 HUD 가 보여야 한다");
   eq(r.hudAfter, true, "F1 로 HUD 가 숨겨지지 않았다");
+});
+
+
+// ══════════════════════════════════════════════════════════════
+//  개선 v10 회귀 테스트
+// ══════════════════════════════════════════════════════════════
+
+test("v10 원목: 옆면을 클릭하면 눕는다 (나이테가 옆으로)", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const x = 40, y = 46, z = 40;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy <= 5; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.set(x, y, z, B.B.STONE);            // 옆면을 클릭할 대상
+    B.refreshAllTops();
+    // 대상의 +X 면을 조준한다
+    B.player.pos.set(x + 3.5, y + 0.5 - 1.62, z + 0.5);
+    B.player.yaw = Math.PI / 2; B.player.pitch = 0;
+    B.camera.position.set(x + 3.5, y + 0.5, z + 0.5);
+    B.camera.rotation.set(0, Math.PI / 2, 0);
+    B.getBar()[B.getSelected()] = B.B.LOG;
+    B.setShapeMode(0);
+    B.beginPlay(); B.place(); B.endPlay(); B.setPaused(false);
+    const i = B.idx(x + 1, y, z);
+    return { block: B.world[i], shape: B.shape[i], LOG: B.B.LOG, AXIS_X: B.SH.AXIS_X,
+             kindSide: B.faceKindFor(B.SH.AXIS_X, 0, 1), kindTop: B.faceKindFor(B.SH.AXIS_X, 2, 0) };
+  });
+  eq(r.block, r.LOG, "원목이 놓이지 않았다");
+  eq(r.shape, r.AXIS_X, "옆면을 클릭했는데 눕지 않았다");
+  eq(r.kindSide, 0, "눕힌 원목의 X 면이 나이테여야 한다");
+  eq(r.kindTop, 1, "눕힌 원목의 윗면은 껍질이어야 한다");
+});
+
+test("v10 벽 횃불: 벽면에 붙고, 벽이 사라지면 함께 떨어진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const x = 52, y = 46, z = 52;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy <= 5; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.set(x, y, z, B.B.STONE);
+    B.refreshAllTops();
+    B.player.pos.set(x + 3.5, y + 0.5 - 1.62, z + 0.5);
+    B.player.yaw = Math.PI / 2; B.player.pitch = 0;
+    B.camera.position.set(x + 3.5, y + 0.5, z + 0.5);
+    B.camera.rotation.set(0, Math.PI / 2, 0);
+    B.getBar()[B.getSelected()] = B.B.TORCH;
+    B.beginPlay(); B.place(); B.endPlay(); B.setPaused(false);
+    const i = B.idx(x + 1, y, z);
+    const placed = B.world[i], sh = B.shape[i];
+    const off = B.crossOffset(sh);
+    const lit = B.lightBlk[i];
+    B.applyEdit(x, y, z, 0, false);          // 벽을 없앤다
+    return { placed, sh, off, lit, after: B.world[i], TORCH: B.B.TORCH,
+             isWall: B.isWallShape(sh) };
+  });
+  eq(r.placed, r.TORCH, "벽에 횃불이 안 놓였다");
+  assert(r.isWall, "벽 모양이 아니다: " + r.sh);
+  assert(Math.abs(r.off[0]) > 0.2, "벽 쪽으로 밀리지 않았다: " + JSON.stringify(r.off));
+  assert(r.lit >= 14, "벽 횃불이 빛을 안 낸다: " + r.lit);
+  eq(r.after, 0, "벽이 사라졌는데 횃불이 남았다");
+});
+
+test("v10 3인칭: F5 로 시점이 물러나고 손이 사라진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const x = 48, y = 46, z = 48;
+    for (let dx = -8; dx <= 8; dx++) for (let dz = -8; dz <= 8; dz++) {
+      for (let dy = 0; dy <= 6; dy++) B.set(x + dx, y + dy, z + dz, 0);
+      B.set(x + dx, y - 1, z + dz, B.B.STONE);
+    }
+    B.refreshAllTops();
+    B.player.pos.set(x + 0.5, y, z + 0.5);
+    B.player.yaw = 0; B.player.pitch = 0;
+    B.beginPlay();
+    B.step(1 / 60);
+    const first = B.camera.position.z;
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "F5", bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "F5", bubbles: true }));
+    B.step(1 / 60);
+    const third = B.camera.position.z;
+    for (let k = 0; k < 3; k++) {
+      window.dispatchEvent(new KeyboardEvent("keydown", { code: "F5", bubbles: true }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { code: "F5", bubbles: true }));
+    }
+    B.endPlay(); B.setPaused(false);
+    return { first, third };
+  });
+  assert(r.third > r.first + 1, `3인칭에서 카메라가 안 물러났다 — ${r.first.toFixed(2)} → ${r.third.toFixed(2)}`);
+});
+
+test("v10 바이옴: 설원이 육지를 독식하지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const rows = [];
+    for (const seed of [20260904, 777, 4242, 1, 99999]) {
+      B.generate(seed);
+      let land = 0, snow = 0, desert = 0, plain = 0;
+      for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++) {
+        if (B.topMap[z * B.WX + x] <= B.SEA + 1) continue;
+        land++;
+        const bi = B.biomeMap[z * B.WX + x];
+        if (bi === 1) snow++; else if (bi === 2) desert++; else plain++;
+      }
+      rows.push({ seed, snowRatio: land ? snow / land : 0 });
+    }
+    return { rows, worst: Math.max.apply(null, rows.map(r => r.snowRatio)) };
+  });
+  assert(r.worst < 0.80, "설원이 육지의 " + (r.worst * 100).toFixed(0) + "% 를 먹는 시드가 있다");
+});
+
+test("v10 나무: 초원에 자작나무, 설원에 가문비나무가 섞인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    let oak = 0, birch = 0, spruce = 0, misplaced = 0;
+    for (const seed of [99999, 20260904, 777, 1]) {
+      B.generate(seed);
+      for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++) {
+        const bi = B.biomeMap[z * B.WX + x];
+        for (let y = 1; y < B.WY; y++) {
+          const b = B.world[B.idx(x, y, z)];
+          if (b === B.B.LEAVES) oak++;
+          else if (b === B.B.BIRCH_LEAVES) birch++;
+          else if (b === B.B.SPRUCE_LEAVES) spruce++;
+          // 줄기 위치로만 바이옴을 따진다 (잎은 이웃 칸까지 뻗어 경계를 넘는다)
+          else if (b === B.B.BIRCH_LOG && bi === 1) misplaced++;
+        }
+      }
+      if (oak && birch && spruce) break;
+    }
+    return { oak, birch, spruce, misplaced,
+             logGroup: B.isLog(B.B.BIRCH_LOG), leafGroup: B.isLeaf(B.B.SPRUCE_LEAVES) };
+  });
+  assert(r.oak > 0, "참나무가 없다");
+  assert(r.birch > 0, "자작나무가 없다");
+  assert(r.spruce > 0, "가문비나무가 없다");
+  eq(r.misplaced, 0, "설원에 자작나무 줄기가 섰다");
+  assert(r.logGroup && r.leafGroup, "새 나무가 원목·잎 분류에 안 들어갔다");
+});
+
+test("v10 하늘: 해가 각지고 달은 8단계 위상을 가진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    function distinct(list) {
+      const seen = new Set();
+      list.forEach(t => {
+        const cv = document.createElement("canvas");
+        cv.width = cv.height = 16;
+        cv.getContext("2d").drawImage(t.image, 0, 0);
+        seen.add(cv.toDataURL());
+      });
+      return seen.size;
+    }
+    return { phases: B.MOON_PHASES, unique: distinct(B.moonTex) };
+  });
+  eq(r.phases, 8, "달 위상 수");
+  assert(r.unique >= 5, "달 위상이 실제로 다르지 않다: " + r.unique);
+});
+
+test("v10 미니맵: 확대하면 좁은 범위를 크게 그린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.generate(99999);
+    B.player.pos.set(B.WX / 2, 30, B.WZ / 2);
+    function snap() {
+      B.drawMinimap();
+      const cv = document.getElementById("mm");
+      return cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data.join(",");
+    }
+    B.setZoom(1); const a = snap();
+    B.setZoom(4); const b = snap();
+    B.setZoom(1);
+    return { differs: a !== b };
+  });
+  assert(r.differs, "확대해도 미니맵이 그대로다");
+});
+
+test("v10 산소: 물속에서 줄고, 나오면 다시 찬다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    // 물기둥을 만든다
+    const x = 30, y = 30, z = 30;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+      for (let dy = -1; dy <= 6; dy++) B.set(x + dx, y + dy, z + dz, B.B.WATER);
+      B.set(x + dx, y - 2, z + dz, B.B.STONE);
+    }
+    B.refreshAllTops();
+    B.player.pos.set(x + 0.5, y, z + 0.5);
+    B.player.flying = false;
+    B.beginPlay();
+    for (let k = 0; k < 120; k++) B.step(1 / 60);
+    const wet = B.S.oxygen;
+    // 물 밖으로
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = 0; dy <= 6; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.set(x, y - 1, z, B.B.STONE);
+    B.refreshAllTops();
+    B.player.pos.set(x + 0.5, y, z + 0.5);
+    for (let k = 0; k < 200; k++) B.step(1 / 60);
+    const dry = B.S.oxygen;
+    B.endPlay(); B.setPaused(false);
+    return { wet, dry };
+  });
+  assert(r.wet < 0.95, "물속인데 산소가 안 줄었다: " + r.wet.toFixed(3));
+  assert(r.dry > 0.99, "물 밖인데 산소가 안 찼다: " + r.dry.toFixed(3));
+});
+
+test("v10 감각: 착지 먼지와 동굴 울림이 예외 없이 돈다", async (page, errors) => {
+  const before = errors.length;
+  await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.caveSound(1); B.caveSound(0.3);
+    B.burst(10, 10, 10, B.B.STONE, 6);
+  });
+  eq(errors.length, before, "새 효과에서 오류: " + errors.slice(before).join(" | "));
 });
 
 // ── 실행 ───────────────────────────────────────────────

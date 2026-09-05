@@ -1,8 +1,8 @@
 // player.js — 플레이어 · 충돌 · 레이캐스트
 import { S } from "./state.js";
 import { WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, CROSS, SHAPE_BOXES, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_UP_OFF, isCross, isLiquid, isSolid } from "./blocks.js";
-import { get, set, shape, shapeAt, world } from "./world.js";
+import { AIR, CROSS, SHAPE_BOXES, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_UP_OFF, crossOffset, isCross, isLiquid, isSolid } from "./blocks.js";
+import { crossBase, get, set, shape, shapeAt, world } from "./world.js";
 import { camera } from "./scene.js";
 
 export var HALF = 0.3, BODY = 1.78, EYE = 1.62;
@@ -176,8 +176,11 @@ export function raycast(maxDist) {
           var cg = CROSS[b];
           _oA[0] = _ro.x; _oA[1] = _ro.y; _oA[2] = _ro.z;
           _dA[0] = _rd.x; _dA[1] = _rd.y; _dA[2] = _rd.z;
-          _mn[0] = x + 0.5 - cg.w; _mn[1] = y; _mn[2] = z + 0.5 - cg.w;
-          _mx[0] = x + 0.5 + cg.w; _mx[1] = y + cg.h; _mx[2] = z + 0.5 + cg.w;
+          // 조준 상자는 실제로 그려지는 자리와 같아야 한다 (반블록 위·벽 붙임 포함)
+          var co = crossOffset(sh);
+          var cyb = co[1] ? y + co[1] : crossBase(x, y, z);
+          _mn[0] = x + 0.5 + co[0] - cg.w; _mn[1] = cyb; _mn[2] = z + 0.5 + co[2] - cg.w;
+          _mx[0] = x + 0.5 + co[0] + cg.w; _mx[1] = cyb + cg.h; _mx[2] = z + 0.5 + co[2] + cg.w;
           var rc = rayBox(_oA, _dA, _mn, _mx, maxDist);
           if (rc) {
             var nc = [0, 0, 0];

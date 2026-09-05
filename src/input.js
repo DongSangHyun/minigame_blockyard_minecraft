@@ -263,11 +263,23 @@ window.addEventListener("keydown", function (e) {
     tone(560 + S.shapeMode * 120, 0.06, "square", 0.04);
     advanceTut(3);
   }
+  if (e.code === "F5") {
+    e.preventDefault();
+    S.thirdPerson = (S.thirdPerson + 1) % 3;
+    toast(["1인칭", "3인칭 (뒤)", "3인칭 (앞)"][S.thirdPerson]);
+  }
   if (e.code === "F1") {
     e.preventDefault();
     S.hudHidden = !S.hudHidden;
     showHud(!S.hudHidden);
     toast(S.hudHidden ? "화면 표시 끔" : "화면 표시 켬");
+  }
+  if (e.code === "BracketLeft" || e.code === "BracketRight") {
+    var zs = [1, 2, 4];
+    var zi = zs.indexOf(S.mmZoom);
+    zi = Math.max(0, Math.min(zs.length - 1, zi + (e.code === "BracketRight" ? 1 : -1)));
+    S.mmZoom = zs[zi];
+    toast("미니맵 ×" + S.mmZoom);
   }
   if (e.code === "KeyT") cycleTime();
   if (e.code === "KeyK") {
