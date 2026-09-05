@@ -1,26 +1,26 @@
 // main.js — 조립과 시작
 import { S } from "./state.js";
-import { MOB_KINDS, mobs, pushOutOfMobs, seedMobs, updateMobs } from "./mobs.js";
+import { MOB_KINDS, birds, fish, mobs, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { animateLiquids, atlas } from "./atlas.js";
 import { Q } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
+import { AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
 import { biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBoxes, heightMap, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, waterLvl, world } from "./world.js";
 import { WATER_DIM, lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
-import { MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueWaterAround, fallTick, freezeTick, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
+import { BLAST_R, MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueWaterAround, explode, fallTick, fireTick, freezeTick, ignite, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
 import { FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll } from "./mesh.js";
 import { FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { applyOpts, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, rayBox, raycast, spawn } from "./player.js";
-import { breakSound, caveSound, lavaHiss, lavaPop, miningSound, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
+import { breakSound, caveSound, lavaHiss, lavaPop, listenAt, miningSound, moodChord, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
 import { OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
 import { ACHIEVEMENTS, REGION_MAX, achCount, applyEdit, beginBatch, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, selectionBounds, selectionSize, undo, unlock } from "./edit.js";
 import { airEl, drawIcon, drawMinimap, facingText, helpEl, mmCap, perfEl, refreshBar, selectSlot, showHud, toggleHelp } from "./hud.js";
 import { makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
-import { beginPlay, endPlay, hashSeed, pickBlock, refreshMenu, refreshSlots } from "./input.js";
+import { beginPlay, endPlay, hashSeed, pickBlock, refreshMenu, refreshSlots, refreshTerrain } from "./input.js";
 import { canPlaceAt, place, tryInteract, upperFromHit } from "./mine.js";
-import { HIDE_Y, MOON_PHASES, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
+import { HIDE_Y, MOON_PHASES, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
 import { SNEAK_MUL, SPRINT, WALK, animate, refreshPerf, step } from "./loop.js";
 
 applyOpts();
@@ -57,7 +57,7 @@ window.__blockyard = {
        CACTUS: CACTUS, DEADBUSH: DEADBUSH, DRYGRASS: DRYGRASS,
        BIRCH_LOG: BIRCH_LOG, BIRCH_LEAVES: BIRCH_LEAVES, SPRUCE_LEAVES: SPRUCE_LEAVES,
        GOLD: GOLD, DIAMOND: DIAMOND, FENCE: FENCE, GATE: GATE,
-       PANE: PANE, LADDER: LADDER },
+       PANE: PANE, LADDER: LADDER, TNT: TNT, FIRE: FIRE },
   world: world, lightSky: lightSky, lightBlk: lightBlk,
   topMap: topMap, heightMap: heightMap, biomeMap: biomeMap,
   idx: idx, get: get, set: set, inside: inside, lightPass: lightPass,
@@ -105,6 +105,10 @@ window.__blockyard = {
   updateParticles: updateParticles, boxesAt: boxesAt, dynamicBoxes: dynamicBoxes, hasDynamicBoxes: hasDynamicBoxes,
   skyUniforms: skyUniforms, selectSlot: selectSlot,
   cloudGroup: cloudGroup, applyTime: applyTime,
+  explode: explode, ignite: ignite, fireTick: fireTick, BLAST_R: BLAST_R,
+  isFlammable: isFlammable, seedFlocks: seedFlocks, updateFlocks: updateFlocks,
+  fish: fish, birds: birds, moodChord: moodChord, listenAt: listenAt,
+  brightStars: brightStars, refreshTerrain: refreshTerrain,
   isWool: isWool, WOOL0: WOOL0, WOOL_COUNT: WOOL_COUNT, WOOL_COLORS: WOOL_COLORS,
   pushOutOfMobs: pushOutOfMobs, exportWorld: exportWorld, importWorldText: importWorldText,
   hasBackup: hasBackup, restoreBackup: restoreBackup, pushBackup: pushBackup, backupKey: backupKey,

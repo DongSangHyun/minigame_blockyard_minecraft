@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { resetQueues } from "./queues.js";
 import { DIRS, N, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, CACTUS, COAL, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAVA, LEAVES, LOG, PANE, SAND, SHAPE_BOXES, SH_FULL, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, WALL_DIR, WATER, connectsTo, isCross, isSolid } from "./blocks.js";
+import { AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, CACTUS, COAL, COBBLE, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAVA, LEAVES, LOG, PANE, PLANKS, SAND, SHAPE_BOXES, SH_FULL, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TORCH, WALL_DIR, WATER, connectsTo, isCross, isSolid } from "./blocks.js";
 import { makeRng } from "./atlas.js";
 
 export var world = new Uint8Array(N);
@@ -151,9 +151,16 @@ export function generate(seed) {
       var dx = (x - WX / 2) / (WX / 2), dz = (z - WZ / 2) / (WZ / 2);
       var falloff = 1 - Math.min(1, Math.pow(Math.sqrt(dx * dx + dz * dz) * 1.14, 3.2));
 
-      var h = 5
-        + noise2(x * 0.045, z * 0.045, S.worldSeed) * 15
-        + noise2(x * 0.11, z * 0.11, S.worldSeed + 91) * 5
+      // 지형 유형 — 0 보통 · 1 평지 · 2 산악 · 3 군도
+      var TT = S.terrain | 0;
+      var amp = TT === 1 ? 0.34 : (TT === 2 ? 1.7 : 1);
+      var base = TT === 1 ? 9 : (TT === 2 ? 4 : 5);
+      if (TT === 3) falloff = Math.max(0, falloff *
+        (0.45 + 0.85 * noise2(x * 0.028, z * 0.028, S.worldSeed + 4001)));
+
+      var h = base
+        + noise2(x * 0.045, z * 0.045, S.worldSeed) * 15 * amp
+        + noise2(x * 0.11, z * 0.11, S.worldSeed + 91) * 5 * amp
         + noise2(x * 0.24, z * 0.24, S.worldSeed + 7) * 1.8;
       h = Math.floor(2 + h * falloff);
       if (h < 1) h = 1;
@@ -303,6 +310,41 @@ export function generate(seed) {
         ? FLOWER_R : FLOWER_Y;
       set(px2, ph + 1, pz2, kind);
     }
+  }
+
+  // 버려진 오두막 — 세계에 "누가 있었다" 는 흔적을 남긴다
+  var hutTries = 40;
+  for (var ht = 0; ht < hutTries; ht++) {
+    var hx = 8 + ((rng() * (WX - 20)) | 0), hz = 8 + ((rng() * (WZ - 20)) | 0);
+    var hh = heightMap[hz * WX + hx];
+    if (hh <= SEA + 2 || hh + 7 >= WY) continue;
+    // 바닥이 고른지 본다
+    var flat = true;
+    for (var cx2 = 0; cx2 < 6 && flat; cx2++)
+      for (var cz2 = 0; cz2 < 6; cz2++)
+        if (Math.abs(heightMap[(hz + cz2) * WX + (hx + cx2)] - hh) > 2) { flat = false; break; }
+    if (!flat) continue;
+
+    var wallB = rng() < 0.5 ? PLANKS : COBBLE;
+    for (var wx2 = 0; wx2 < 6; wx2++)
+      for (var wz2 = 0; wz2 < 6; wz2++) {
+        var edge = wx2 === 0 || wz2 === 0 || wx2 === 5 || wz2 === 5;
+        set(hx + wx2, hh, hz + wz2, PLANKS);                       // 바닥
+        if (!edge) continue;
+        for (var wy2 = 1; wy2 <= 3; wy2++) {
+          if (rng() < 0.16) continue;                              // 무너진 자리
+          set(hx + wx2, hh + wy2, hz + wz2, wallB);
+        }
+      }
+    // 문 자리와 창
+    set(hx + 2, hh + 1, hz, AIR); set(hx + 2, hh + 2, hz, AIR);
+    set(hx + 4, hh + 2, hz, GLASS); set(hx, hh + 2, hz + 3, GLASS);
+    // 지붕
+    for (var rx2 = -1; rx2 <= 6; rx2++)
+      for (var rz2 = -1; rz2 <= 6; rz2++)
+        if (rng() > 0.12) set(hx + rx2, hh + 4, hz + rz2, wallB === PLANKS ? LOG : COBBLE);
+    // 안에 횃불 하나
+    set(hx + 1, hh + 1, hz + 1, TORCH);
   }
 
   // 사막의 선인장과 죽은 덤불 · 설원의 마른 풀 —

@@ -2,13 +2,13 @@
 import { S } from "./state.js";
 import { Q } from "./queues.js";
 import { DIRS, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, COBBLE, GRAVEL, ICE, LAVA, SAND, SH_FULL, WATER, isCross, isLeaf, isLiquid, isLog, isSolid } from "./blocks.js";
+import { AIR, COBBLE, FIRE, GRAVEL, ICE, LAVA, SAND, SH_FULL, STONE, TNT, WATER, isCross, isFlammable, isLeaf, isLiquid, isLog, isSolid, isUnbreakable } from "./blocks.js";
 import { biomeMap, get, refreshTop, shape, waterLvl, world } from "./world.js";
 import { lightBlk, relightLocal } from "./light.js";
 import { touch } from "./mesh.js";
 import { burst } from "./scene.js";
-import { crunch, lavaHiss } from "./audio.js";
-import { applyEdit, unlock } from "./edit.js";
+import { crunch, lavaHiss, tone } from "./audio.js";
+import { applyEdit, beginBatch, endBatch, unlock } from "./edit.js";
 
 export var MAXFLOW = 3; // 근원에서 옆으로 뻗을 수 있는 칸 수
 
@@ -270,4 +270,100 @@ export function removeWater(i, y) {
   enqueueDryAround(x, y, z);
   enqueueFall(x, y + 1, z);
   S.worldDirty = true;
+}
+
+// ══════════════════════════════════════════════════════════════
+//  불과 폭발
+// ══════════════════════════════════════════════════════════════
+export var FIRE_LIFE = 6;          // 불 한 칸이 버티는 대략적인 틱 수
+
+export function ignite(x, y, z) {
+  if (!inside(x, y, z)) return false;
+  var i = idx(x, y, z);
+  if (world[i] !== AIR && !isCross(world[i])) return false;
+  // 붙을 것이 옆에 있어야 한다
+  var fuel = false;
+  for (var d = 0; d < 6 && !fuel; d++) {
+    if (isFlammable(get(x + DIRS[d][0], y + DIRS[d][1], z + DIRS[d][2]))) fuel = true;
+  }
+  if (!fuel) return false;
+  world[i] = FIRE; shape[i] = SH_FULL;
+  touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z);
+  Q.fireQ.push(i);
+  S.worldDirty = true;
+  return true;
+}
+
+// 불이 옆으로 옮겨 붙고, 태울 것이 없으면 꺼진다
+export function fireTick(budget) {
+  budget = budget || 60;
+  var acted = 0;
+  var end = Q.fireQ.length;
+  while (Q.fireHead < end && budget-- > 0) {
+    var i = Q.fireQ[Q.fireHead++];
+    if (world[i] !== FIRE) continue;
+    var y = (i / PLANE) | 0, rem = i - y * PLANE;
+    var z = (rem / WX) | 0, x = rem - z * WX;
+
+    // 태울 것을 하나 고른다
+    var burned = false;
+    for (var d = 0; d < 6; d++) {
+      var nx = x + DIRS[d][0], ny = y + DIRS[d][1], nz = z + DIRS[d][2];
+      if (!inside(nx, ny, nz)) continue;
+      if (!isFlammable(get(nx, ny, nz))) continue;
+      if (Math.random() > 0.30) continue;
+      var ni = idx(nx, ny, nz);
+      world[ni] = FIRE; shape[ni] = SH_FULL;
+      touch(nx, ny, nz); refreshTop(nx, nz); relightLocal(nx, ny, nz);
+      Q.fireQ.push(ni);
+      burned = true;
+      acted++;
+    }
+
+    // 옆에 태울 것이 없으면 사그라진다
+    var fuel = false;
+    for (var d2 = 0; d2 < 6 && !fuel; d2++) {
+      if (isFlammable(get(x + DIRS[d2][0], y + DIRS[d2][1], z + DIRS[d2][2]))) fuel = true;
+    }
+    if (!fuel && Math.random() < 0.5) {
+      world[i] = AIR; shape[i] = SH_FULL;
+      touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z);
+      burst(x, y, z, FIRE, 3);
+      acted++;
+    } else {
+      Q.fireQ.push(i);       // 아직 살아 있으면 반드시 다시 큐에 넣는다 (안 그러면 영영 안 꺼진다)
+    }
+    S.worldDirty = true;
+  }
+  if (Q.fireHead > 4096 && Q.fireHead === Q.fireQ.length) { Q.fireQ.length = 0; Q.fireHead = 0; }
+  return acted;
+}
+
+// TNT — 반경 안을 날려 버린다. 기반암은 남는다.
+export var BLAST_R = 4;
+export function explode(cx, cy, cz, radius) {
+  var R = radius || BLAST_R;
+  beginBatch();
+  var removed = 0;
+  for (var dx = -R; dx <= R; dx++)
+    for (var dy = -R; dy <= R; dy++)
+      for (var dz = -R; dz <= R; dz++) {
+        var d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (d > R) continue;
+        if (d > 1.8 && Math.random() < (d / R) * 0.55) continue;   // 가장자리만 너덜너덜하게
+        var x = cx + dx, y = cy + dy, z = cz + dz;
+        if (!inside(x, y, z)) continue;
+        var b = get(x, y, z);
+        if (b === AIR || isUnbreakable(b)) continue;
+        if (b === TNT) { Q.fireQ.push(idx(x, y, z)); }      // 연쇄 폭발 대신 불이 붙는다
+        if (applyEdit(x, y, z, AIR, true)) removed++;
+      }
+  endBatch("폭발");
+  for (var k = 0; k < 26; k++) {
+    burst(cx + (Math.random() - 0.5) * R, cy + (Math.random() - 0.5) * R,
+          cz + (Math.random() - 0.5) * R, STONE, 5);
+  }
+  crunch(0.9, 0.34, 420);
+  tone(52, 1.2, "sine", 0.12);
+  return removed;
 }

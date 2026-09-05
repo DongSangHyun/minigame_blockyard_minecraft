@@ -1,6 +1,6 @@
 // loop.js — 게임 루프
 import { S } from "./state.js";
-import { pushOutOfMobs, seedMobs, updateMobs } from "./mobs.js";
+import { pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
 import { WX, WY, WZ, idx } from "./dims.js";
 import { reduceMotion } from "./boot.js";
@@ -8,13 +8,13 @@ import { DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, STONE, TORCH, WATER, hardnes
 import { animateLiquids, crackTex } from "./atlas.js";
 import { biomeMap, crossBase, generate, get, set, shape, topMap, world } from "./world.js";
 import { lightAtPlayer, lightSky, relightAll } from "./light.js";
-import { decayTick, dryTick, fallTick, freezeTick, waterTick } from "./fluids.js";
+import { decayTick, dryTick, fallTick, fireTick, freezeTick, waterTick } from "./fluids.js";
 import { buildBudget, dirty, markAllDirty, opaqueMeshes } from "./mesh.js";
 import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { opts } from "./settings.js";
 import { EYE, HALF, moveAxis, moveHorizontal, player, raycast, spawn, stats } from "./player.js";
-import { caveSound, crunch, lavaHiss, lavaPop, miningSound, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
+import { caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { saveGame } from "./save.js";
 import { ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
 import { airBar, airEl, drawMinimap, facingText, mmCap, perfEl, refreshBar, tAch, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, underwaterEl } from "./hud.js";
@@ -45,6 +45,7 @@ export function newWorld(seed) {
   S.selA = S.selB = null;
   S.clip = null;
   seedMobs();
+  seedFlocks();
   refreshAchList(); refreshStats();
   S.timeOfDay = 0.30;
   applyTime();
@@ -255,6 +256,7 @@ export function step(dt) {
   updateSelectionBox(selectionBounds());
   updateCreatures(dt);
   updateMobs(dt);
+  updateFlocks(dt);
 
   if (!reduceMotion) {
     cloudGroup.position.x += dt * 0.9;
@@ -348,6 +350,8 @@ export function step(dt) {
   updateParticles(dt);
   updateAmbient(dt);
   setMuffle(eyeInLiquid);
+  listenAt(camera.position.x, camera.position.y, camera.position.z,
+           -Math.sin(player.yaw), -Math.cos(player.yaw));
 
   // 산소 — 물속에서 줄고 나오면 빠르게 찬다. 다 떨어지면 숨이 차서 떠오른다.
   if (playing) {
@@ -364,6 +368,13 @@ export function step(dt) {
       airEl.classList.toggle("low", S.oxygen < 0.3);
     }
   } else if (!airEl.hidden) airEl.hidden = true;
+
+  // 배경음 — 아주 드물게
+  S.moodTimer -= dt;
+  if (S.moodTimer <= 0) {
+    S.moodTimer = 75 + Math.random() * 110;
+    if (playing) moodChord(dayLight(S.timeOfDay) < 0.35, 1);
+  }
 
   // 동굴 울림 — 깊고 어두운 곳에서만
   S.caveTimer -= dt;
@@ -414,6 +425,7 @@ export function step(dt) {
   if (S.waterTimer > 0.15) {
     S.waterTimer = 0;
     dryTick(300);
+    fireTick(40);
     waterTick(300);
     fallTick(200);
   }

@@ -94,6 +94,7 @@ export function endBatch(label) {
   S.batch = null;
   if (!b || !b.length) return 0;
   S.history.push({ batch: b, label: label || "대량 편집" });
+  if (b.length >= 100) unlock("build100");
   if (S.history.length > HISTORY_MAX) S.history.shift();
   S.future.length = 0;
   return b.length;
@@ -149,7 +150,11 @@ export var ACHIEVEMENTS = [
   { id: "torch10", name: "굴 밝히기", desc: "횃불을 10개 놓는다" },
   { id: "flower", name: "꽃다발", desc: "꽃을 심는다" },
   { id: "waterfall", name: "폭포", desc: "높은 곳에서 물을 떨어뜨린다" },
-  { id: "slabmerge", name: "빈틈없이", desc: "반블록 두 장을 겹쳐 한 블록으로 만든다" }
+  { id: "slabmerge", name: "빈틈없이", desc: "반블록 두 장을 겹쳐 한 블록으로 만든다" },
+  { id: "fire", name: "불장난", desc: "횃불로 무언가에 불을 붙인다" },
+  { id: "boom", name: "쾅", desc: "TNT 를 터뜨린다" },
+  { id: "build100", name: "대공사", desc: "영역 채우기로 100칸 이상을 한 번에 짓는다" },
+  { id: "explorer", name: "탐험가", desc: "미니맵 표식을 5개 찍는다" }
 ];
 export var achGrid = document.getElementById("achgrid");
 

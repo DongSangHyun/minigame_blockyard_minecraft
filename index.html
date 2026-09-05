@@ -264,7 +264,13 @@
     font-family: var(--mono); font-size: 10.5px; color: var(--stone);
     letter-spacing: .08em; text-transform: uppercase;
   }
-  #slots { display: flex; gap: 6px; flex-wrap: wrap; }
+  #slots, #terrain { display: flex; gap: 6px; flex-wrap: wrap; }
+  #terrain button {
+    font-family: var(--mono); font-size: 10px; color: var(--stone);
+    background: var(--panel-2); border: 2px solid var(--line);
+    padding: 6px 10px; cursor: pointer;
+  }
+  #terrain button[aria-current="true"] { border-color: var(--moss); color: var(--bone); }
   #slots button {
     font-family: var(--mono); font-size: 10px; color: var(--stone);
     background: var(--panel-2); border: 2px solid var(--line);
@@ -630,6 +636,7 @@
       <div><kbd>B</kbd><span>미니맵 표식</span></div>
       <div><kbd>TAB</kbd><span>핫바 2쪽 바꾸기</span></div>
       <div><kbd>H</kbd><span>조작 도움말 (영역 도구 포함)</span></div>
+      <div><kbd>횃불</kbd><span>들고 우클릭 — 불 붙이기 · TNT 터뜨리기</span></div>
       <div><kbd>[</kbd> <kbd>]</kbd><span>미니맵 확대 / 축소</span></div>
       <div><kbd>M</kbd><span>소리 끄기</span></div>
     </div>
@@ -655,6 +662,15 @@
         <button class="wbtn" id="w-import" type="button">가져오기</button>
         <button class="wbtn" id="w-restore" type="button">직전으로 되돌리기</button>
         <input id="w-file" type="file" accept="application/json,.json" hidden>
+      </div>
+      <div class="slotrow">
+        <span>지형</span>
+        <div id="terrain">
+          <button type="button" data-terrain="0" aria-current="true">보통</button>
+          <button type="button" data-terrain="1" aria-current="false">평지</button>
+          <button type="button" data-terrain="2" aria-current="false">산악</button>
+          <button type="button" data-terrain="3" aria-current="false">군도</button>
+        </div>
       </div>
       <div class="seedrow">
         <label for="seedin">SEED</label>

@@ -179,6 +179,33 @@ WOOL_COLORS.forEach(function (wc, wi) {
   });
 });
 
+paint(53, function (p, r) {  // TNT 옆면 — 붉은 띠와 글자
+  var w = ["#c9c3b6", "#d6d0c3", "#bcb6aa"];
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) p(x, y, pick(r, w));
+  for (var y2 = 5; y2 <= 10; y2++) for (var x2 = 0; x2 < 16; x2++)
+    p(x2, y2, y2 === 5 || y2 === 10 ? "#8b2a20" : "#c4342a");
+  var glyph = [[2,7],[3,7],[4,7],[3,8],[6,7],[6,8],[7,8],[8,7],[8,8],[10,7],[11,7],[12,7],[11,8]];
+  for (var g = 0; g < glyph.length; g++) p(glyph[g][0], glyph[g][1], "#f2ece0");
+});
+
+paint(54, function (p, r) {  // TNT 윗면 — 심지
+  var w = ["#c9c3b6", "#d6d0c3", "#bcb6aa"];
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) p(x, y, pick(r, w));
+  for (var k = 0; k < 6; k++) { p(7, 4 + k, "#5c4a2e"); p(8, 4 + k, "#6d5936"); }
+  p(7, 3, "#c4342a"); p(8, 3, "#e0623a"); p(8, 2, "#f0a04a");
+});
+
+paint(55, function (p, r) {  // 불 — 아래는 밝고 위는 붉게 흩어진다
+  for (var x = 0; x < 16; x++) {
+    var h = 9 + Math.floor(r() * 6);
+    for (var y = 15; y > 15 - h; y--) {
+      var t = (15 - y) / h;
+      if (t > 0.55 && r() < t) continue;
+      p(x, y, t < 0.25 ? "#fff0a8" : (t < 0.5 ? "#ffb43a" : (t < 0.75 ? "#f2701e" : "#c8331a")));
+    }
+  }
+});
+
 paint(36, function (p, r) {  // 사다리 — 두 기둥과 가로대
   for (var y = 0; y < 16; y++) { p(2, y, "#6b4f2a"); p(3, y, "#7d5e33"); p(12, y, "#6b4f2a"); p(13, y, "#7d5e33"); }
   for (var k = 1; k < 16; k += 4)

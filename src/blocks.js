@@ -11,6 +11,7 @@ export var AIR = 0, GRASS = 1, DIRT = 2, STONE = 3, SAND = 4, LOG = 5, LEAVES = 
     GOLD = 30, DIAMOND = 31,
     FENCE = 32, GATE = 33, PANE = 34, LADDER = 35;
 // 양털 16색 — 건축의 팔레트. 36~51 을 연속으로 쓴다.
+export var TNT = 52, FIRE = 53;
 export var WOOL0 = 36, WOOL_COUNT = 16;
 export var WOOL_COLORS = [
   ["흰색", "#e9ecec"], ["연회색", "#8e8e86"], ["회색", "#3e4447"], ["검정", "#1d1c21"],
@@ -56,6 +57,8 @@ TILES[FENCE]     = [8, 8, 8];      // 나무판자 결을 그대로 쓴다
 TILES[GATE]      = [8, 8, 8];
 TILES[PANE]      = [9, 9, 9];      // 유리
 TILES[LADDER]    = [36, 36, 36];
+TILES[TNT]       = [54, 53, 54];
+TILES[FIRE]      = [55, 55, 55];
 
 export var NAMES = {};
 NAMES[GRASS] = "GRASS"; NAMES[DIRT] = "DIRT"; NAMES[STONE] = "STONE";
@@ -71,6 +74,7 @@ NAMES[CACTUS] = "CACTUS"; NAMES[DEADBUSH] = "DEAD BUSH"; NAMES[DRYGRASS] = "DRY 
 NAMES[BIRCH_LOG] = "BIRCH"; NAMES[BIRCH_LEAVES] = "BIRCH LEAVES";
 NAMES[SPRUCE_LEAVES] = "SPRUCE LEAVES";
 NAMES[GOLD] = "GOLD"; NAMES[DIAMOND] = "DIAMOND";
+NAMES[TNT] = "TNT"; NAMES[FIRE] = "FIRE";
 NAMES[FENCE] = "FENCE"; NAMES[GATE] = "GATE";
 NAMES[PANE] = "GLASS PANE"; NAMES[LADDER] = "LADDER";
 
@@ -86,6 +90,7 @@ HARDNESS[TALLGRASS] = 0.05; HARDNESS[FLOWER_R] = 0.05;
 HARDNESS[FLOWER_Y] = 0.05; HARDNESS[TORCH] = 0.06;
 HARDNESS[CACTUS] = 0.34; HARDNESS[DEADBUSH] = 0.05; HARDNESS[DRYGRASS] = 0.05;
 HARDNESS[GOLD] = 2.35; HARDNESS[DIAMOND] = 2.9;
+HARDNESS[TNT] = 0.30; HARDNESS[FIRE] = 0.02;
 HARDNESS[FENCE] = 0.55; HARDNESS[GATE] = 0.55;
 HARDNESS[PANE] = 0.20; HARDNESS[LADDER] = 0.24;
 HARDNESS[BIRCH_LOG] = 0.78; HARDNESS[BIRCH_LEAVES] = 0.18; HARDNESS[SPRUCE_LEAVES] = 0.18;
@@ -105,7 +110,8 @@ export function isUnbreakable(b) { return b === BEDROCK; }
 export var EMIT = {};
 EMIT[LAMP] = 15;
 EMIT[LAVA] = 15;      // 동굴의 주광원 — 멀리서 오렌지빛이 새어 나온다
-EMIT[TORCH] = 14;     // 길을 막지 않는 광원 — 좁은 굴에 툭툭 박아 쓴다
+EMIT[TORCH] = 14;
+EMIT[FIRE] = 13;     // 길을 막지 않는 광원 — 좁은 굴에 툭툭 박아 쓴다
 
 // X 자 교차 쿼드로 그리는 얇은 블록 — 통과할 수 있고 빛을 막지 않는다
 export var CROSS = {};
@@ -115,6 +121,7 @@ CROSS[FLOWER_Y]  = { w: 0.42, h: 0.82, sway: 0.40 };
 CROSS[TORCH]     = { w: 0.26, h: 0.62, sway: 0 };
 CROSS[DEADBUSH]  = { w: 0.44, h: 0.86, sway: 0.30 };
 CROSS[DRYGRASS]  = { w: 0.46, h: 0.80, sway: 0.50 };
+CROSS[FIRE]      = { w: 0.50, h: 0.96, sway: 0.85 };
 export function isCross(b) { return CROSS[b] !== undefined; }
 export function needsFloor(b) { return isCross(b); }
 
@@ -122,7 +129,7 @@ export var ALL_BLOCKS = [GRASS, DIRT, STONE, COBBLE, SAND, GRAVEL, SNOW, LOG,
                   LEAVES, PLANKS, GLASS, BRICK, LAMP, TORCH, COAL, IRON, ICE,
                   WATER, LAVA, CACTUS, TALLGRASS, FLOWER_R, FLOWER_Y,
                   DEADBUSH, DRYGRASS, BIRCH_LOG, BIRCH_LEAVES, SPRUCE_LEAVES,
-                  GOLD, DIAMOND, FENCE, GATE, PANE, LADDER];
+                  GOLD, DIAMOND, FENCE, GATE, PANE, LADDER, TNT];
 for (var wj = 0; wj < WOOL_COUNT; wj++) ALL_BLOCKS.push(WOOL0 + wj);
 
 // ── 이웃에 따라 모양이 바뀌는 블록 (울타리 · 유리판)
@@ -131,6 +138,12 @@ export function isConnecting(b) { return b === FENCE || b === PANE; }
 export function isClimbable(b) { return b === LADDER; }
 // 우클릭으로 여닫는 블록
 export function isOpenable(b) { return b === GATE; }
+// 불에 타는 것들 — 불이 옮겨 붙는다
+export function isFlammable(b) {
+  return b === LOG || b === BIRCH_LOG || b === PLANKS || b === LEAVES ||
+         b === BIRCH_LEAVES || b === SPRUCE_LEAVES || b === TALLGRASS ||
+         b === DRYGRASS || b === DEADBUSH || b === FENCE || b === GATE || isWool(b);
+}
 // 울타리·유리판이 이어 붙는 상대인가
 export function connectsTo(self, other) {
   if (other === AIR || isLiquid(other) || isCross(other)) return false;

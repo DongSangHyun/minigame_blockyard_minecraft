@@ -2012,6 +2012,7 @@ test("v12 문: 우클릭으로 여닫히고, 웅크리면 대신 블록을 놓�
     B.refreshAllTops();
     B.applyEdit(x, y, z, B.B.GATE, false);
     const hit = { x: x, y: y, z: z, block: B.B.GATE, shape: 0, nx: 0, ny: 0, nz: 1 };
+    B.getBar()[B.getSelected()] = B.B.STONE;   // 횃불을 들고 있으면 불을 붙이려 든다
     B.setSneak(false);
     const acted = B.tryInteract(hit);
     const opened = B.shape[B.idx(x, y, z)];
@@ -2552,6 +2553,219 @@ test("v14 터치: 핫바 스와이프로 칸이 바뀐다", async (page) => {
     return { start, after };
   });
   assert(r.after !== r.start, "핫바를 쓸어도 칸이 안 바뀐다");
+});
+
+
+// ══════════════════════════════════════════════════════════════
+//  개선 v15 회귀 테스트 — 사건이 있는 세계
+// ══════════════════════════════════════════════════════════════
+
+test("v15 TNT: 터지면 반경 안이 날아가고 기반암은 남는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 40, y = 20, z = 40;
+    for (let dx = -8; dx <= 8; dx++) for (let dy = -8; dy <= 8; dy++) for (let dz = -8; dz <= 8; dz++)
+      B.set(x + dx, y + dy, z + dz, B.B.STONE);
+    for (let dx = -8; dx <= 8; dx++) for (let dz = -8; dz <= 8; dz++) B.set(x + dx, 0, z + dz, B.B.BEDROCK);
+    B.refreshAllTops();
+    B.history.length = 0;
+    const removed = B.explode(x, y, z, B.BLAST_R);
+    let hole = 0, far = 0;
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++)
+      if (B.world[B.idx(x + dx, y + dy, z + dz)] === 0) hole++;
+    for (let dx = -8; dx <= 8; dx += 8)
+      if (B.world[B.idx(x + dx, y, z)] === B.B.STONE) far++;
+    let bedrock = 0;
+    for (let dx = -2; dx <= 2; dx++) if (B.world[B.idx(x + dx, 0, z)] === B.B.BEDROCK) bedrock++;
+    return { removed, hole, far, bedrock, hist: B.history.length };
+  });
+  assert(r.removed > 20, "폭발이 아무것도 못 날렸다: " + r.removed);
+  eq(r.hole, 27, "중심이 안 비었다");
+  eq(r.far, 2, "반경 밖까지 날아갔다");
+  eq(r.bedrock, 5, "기반암이 날아갔다");
+  eq(r.hist, 1, "폭발이 되돌리기 기록을 " + r.hist + "개 만들었다");
+});
+
+test("v15 불: 탈 것에만 붙고, 옆으로 번지다 꺼진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 60, y = 40, z = 60;
+    for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++)
+      for (let dy = -1; dy <= 4; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.set(x, y - 1, z, B.B.STONE);
+    B.refreshAllTops();
+    // 돌 위에는 안 붙는다
+    B.applyEdit(x + 4, y, z, B.B.STONE, false);
+    const onStone = B.ignite(x + 4, y + 1, z);
+    // 나무판자 옆에는 붙는다
+    for (let i = 0; i < 5; i++) B.applyEdit(x + i, y, z + 2, B.B.PLANKS, false);
+    const onWood = B.ignite(x, y + 1, z + 2);
+    let spread = 0;
+    for (let k = 0; k < 400; k++) B.fireTick(80);
+    for (let i = 0; i < 5; i++)
+      if (B.world[B.idx(x + i, y, z + 2)] !== B.B.PLANKS) spread++;
+    // 결국 꺼진다
+    let fireLeft = 0;
+    for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++)
+      for (let dy = -1; dy <= 4; dy++)
+        if (B.world[B.idx(x + dx, y + dy, z + dz)] === B.B.FIRE) fireLeft++;
+    return { onStone, onWood, spread, fireLeft, flam: B.isFlammable(B.B.PLANKS),
+             notFlam: B.isFlammable(B.B.STONE) };
+  });
+  eq(r.onStone, false, "탈 것이 없는데 불이 붙었다");
+  assert(r.onWood, "나무 옆인데 불이 안 붙었다");
+  assert(r.spread >= 3, "불이 번지지 않았다: " + r.spread + "/5");
+  eq(r.fireLeft, 0, "태울 것이 없는데 불이 " + r.fireLeft + "칸 남았다");
+  assert(r.flam && !r.notFlam, "가연성 판정이 틀렸다");
+});
+
+test("v15 불: 광원이라 주변이 밝아진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 24, y = 40, z = 24;
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++)
+      for (let dy = -1; dy <= 4; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.set(x, y - 1, z, B.B.PLANKS);
+    B.refreshAllTops(); B.relightAll(false);
+    const before = B.lightBlk[B.idx(x + 1, y, z)];
+    B.ignite(x, y, z);
+    B.relightLocal(x, y, z);
+    return { before, after: B.lightBlk[B.idx(x + 1, y, z)] };
+  });
+  eq(r.before, 0, "불 붙이기 전이 이미 밝다");
+  assert(r.after >= 11, "불 옆이 안 밝다: " + r.after);
+});
+
+test("v15 생명: 물고기는 물속에, 새는 하늘에 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.generate(777); B.relightAll(false);
+    B.spawn();
+    B.seedFlocks();
+    for (let k = 0; k < 600; k++) B.updateFlocks(1 / 60);
+    let fishInWater = 0, fishShown = 0, birdsUp = 0;
+    for (let i = 0; i < B.fish.pos.length; i += 3) {
+      const y = B.fish.pos[i + 1];
+      if (y < -100) continue;
+      fishShown++;
+      const x = Math.floor(B.fish.pos[i]), z = Math.floor(B.fish.pos[i + 2]);
+      if (x >= 0 && x < B.WX && z >= 0 && z < B.WZ &&
+          B.world[B.idx(x, Math.floor(y), z)] === B.B.WATER) fishInWater++;
+    }
+    for (let i = 0; i < B.birds.pos.length; i += 3)
+      if (B.birds.pos[i + 1] > B.SEA + 10) birdsUp++;
+    return { fishShown, fishInWater, birdsUp, birdTotal: B.birds.pos.length / 3 };
+  });
+  assert(r.fishShown > 0, "물고기가 하나도 안 보인다");
+  eq(r.fishInWater, r.fishShown, "물 밖으로 나간 물고기가 있다");
+  assert(r.birdsUp > r.birdTotal * 0.8, "새가 하늘에 없다");
+});
+
+test("v15 동물: 물과 얼음 위로는 걸어가지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.generate(777); B.relightAll(false);
+    B.spawn();
+    B.seedMobs();
+    for (let k = 0; k < 1200; k++) B.updateMobs(1 / 60);
+    let wet = 0;
+    B.mobs.forEach(m => {
+      const x = Math.floor(m.x), z = Math.floor(m.z);
+      if (x < 0 || x >= B.WX || z < 0 || z >= B.WZ) return;
+      const gy = B.topMap[z * B.WX + x];
+      const b = B.world[B.idx(x, gy, z)];
+      if (b === B.B.WATER || b === B.B.ICE || b === B.B.LAVA) wet++;
+    });
+    return { wet, total: B.mobs.length };
+  });
+  eq(r.wet, 0, r.wet + "마리가 물·얼음 위에 있다");
+});
+
+test("v15 지형: 평지·산악·군도가 서로 다른 세계를 만든다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    function stats() {
+      let min = 999, max = -1, sum = 0, land = 0;
+      for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++) {
+        const h = B.heightMap[z * B.WX + x];
+        if (h > B.SEA) { land++; sum += h; if (h < min) min = h; if (h > max) max = h; }
+      }
+      return { avg: land ? sum / land : 0, range: max - min, land: land };
+    }
+    const out = {};
+    for (const t of [0, 1, 2, 3]) {
+      B.S.terrain = t;
+      B.generate(12345);
+      out[t] = stats();
+    }
+    B.S.terrain = 0;
+    return out;
+  });
+  assert(r[1].range < r[0].range, `평지가 보통보다 평평해야 한다 — ${r[1].range} vs ${r[0].range}`);
+  assert(r[2].range > r[0].range, `산악이 보통보다 험해야 한다 — ${r[2].range} vs ${r[0].range}`);
+  assert(r[3].land < r[0].land, `군도는 육지가 적어야 한다 — ${r[3].land} vs ${r[0].land}`);
+});
+
+test("v15 구조물: 버려진 오두막이 생긴다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    let found = 0, seeds = 0;
+    for (const seed of [777, 99999, 20260904, 4242, 1, 31337]) {
+      B.S.terrain = 0;
+      B.generate(seed);
+      seeds++;
+      // 지상에 유리와 횃불이 같이 있으면 오두막이다
+      let glass = 0, torch = 0;
+      for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++)
+        for (let y = B.SEA; y < B.WY; y++) {
+          const b = B.world[B.idx(x, y, z)];
+          if (b === B.B.GLASS) glass++;
+          else if (b === B.B.TORCH) torch++;
+        }
+      if (glass > 0 && torch > 0) found++;
+    }
+    return { found, seeds };
+  });
+  assert(r.found >= 3, `시드 ${r.seeds}개 중 ${r.found}개에서만 오두막이 나왔다`);
+});
+
+test("v15 소리: 3D 위치 지정과 배경음이 예외 없이 돈다", async (page, errors) => {
+  const before = errors.length;
+  await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.listenAt(10, 20, 30, 0, -1);
+    B.moodChord(true, 1);
+    B.moodChord(false, 0.5);
+  });
+  await page.waitForTimeout(200);
+  eq(errors.length, before, "소리에서 오류: " + errors.slice(before).join(" | "));
+});
+
+test("v15 밤하늘: 밝은 별이 밤에만 보인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setWeather(0);
+    B.setTime(0.5); B.updateSkyBodies();
+    const day = B.brightStars.visible;
+    B.setTime(0.98); B.updateSkyBodies();
+    const night = B.brightStars.visible;
+    B.setTime(0.3); B.updateSkyBodies();
+    return { day, night, count: B.brightStars.geometry.getAttribute("position").count };
+  });
+  eq(r.day, false, "낮인데 별이 보인다");
+  eq(r.night, true, "밤인데 별이 안 보인다");
+  assert(r.count >= 20, "밝은 별 개수: " + r.count);
+});
+
+test("v15 도전 과제: 새 콘텐츠 과제가 늘었다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const ids = B.ACHIEVEMENTS.map(a => a.id);
+    return { total: ids.length,
+             added: ["fire", "boom", "build100", "explorer"].filter(i => ids.includes(i)).length };
+  });
+  assert(r.total >= 26, "도전 과제 수: " + r.total);
+  eq(r.added, 4, "새 도전 과제가 빠졌다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

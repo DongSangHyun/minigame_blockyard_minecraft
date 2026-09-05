@@ -72,6 +72,27 @@ export var moonSprite = new THREE.Sprite(moonMat);
 moonSprite.scale.setScalar(24);
 scene.add(moonSprite);
 
+// 밝은 별 — 밤하늘에 늘 같은 자리에 있어 방향을 잡는 표식이 된다
+export var brightMat = new THREE.PointsMaterial({
+  color: 0xf4f8ff, size: 3.4, sizeAttenuation: false,
+  transparent: true, opacity: 0, depthWrite: false, fog: false
+});
+export var brightStars = (function () {
+  var n = 26, pos = new Float32Array(n * 3);
+  var rng = makeRng(777001);
+  for (var i = 0; i < n; i++) {
+    var u = rng() * 0.9 + 0.05, a = rng() * Math.PI * 2, r = Math.sqrt(1 - u * u);
+    pos[i * 3] = Math.cos(a) * r * 250;
+    pos[i * 3 + 1] = u * 250;
+    pos[i * 3 + 2] = Math.sin(a) * r * 250;
+  }
+  var g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  var pts = new THREE.Points(g, brightMat);
+  scene.add(pts);
+  return pts;
+})();
+
 export var starMat = new THREE.PointsMaterial({
   color: 0xdce6f2, size: 1.5, sizeAttenuation: false,
   transparent: true, opacity: 0, depthWrite: false, fog: false
@@ -107,6 +128,9 @@ export function updateSkyBodies() {
   var L = dayLight(S.timeOfDay);
   var clear = S.weather === 0 ? 1 : 0.25;
   starMat.opacity = Math.max(0, Math.min(1, 1.28 - L * 1.7)) * clear;
+  brightMat.opacity = starMat.opacity * 1.25;
+  brightStars.visible = brightMat.opacity > 0.01;
+  brightStars.position.copy(camera.position);
   sunMat.opacity = Math.max(0, Math.min(1, (sy / R) * 2.4 + 0.30)) * clear;
   moonMat.opacity = Math.max(0, Math.min(1, (-sy / R) * 2.4 + 0.20)) * clear;
   sunSprite.visible = sunMat.opacity > 0.01;

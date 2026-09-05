@@ -1,12 +1,14 @@
 // mobs.js — 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다.
-import { WX, WZ, WY, idx } from "./dims.js";
+import { SEA, WX, WY, WZ, idx } from "./dims.js";
 import { topMap, world } from "./world.js";
-import { isSolid, AIR } from "./blocks.js";
+import { AIR, ICE, LAVA, WATER, isSolid } from "./blocks.js";
 import { scene } from "./scene.js";
 import { player } from "./player.js";
 import { crunch, tone } from "./audio.js";
 
 export var MOB_COUNT = 14;
+export var FISH_COUNT = 18;
+export var BIRD_COUNT = 10;
 
 // 종류 — 몸 색 · 머리 색 · 크기 · 우는 소리 높이
 export var MOB_KINDS = [
@@ -76,7 +78,9 @@ function placeMob(m, far) {
     if (x < 2 || x > WX - 2 || z < 2 || z > WZ - 2) continue;
     var y = groundAt(x, z);
     if (y < 2 || y >= WY - 2) continue;
-    if (!isSolid(world[idx(Math.floor(x), y - 1, Math.floor(z))])) continue;
+    var below = world[idx(Math.floor(x), y - 1, Math.floor(z))];
+    if (!isSolid(below)) continue;
+    if (below === WATER || below === LAVA || below === ICE) continue;   // 물·용암은 피한다
     if (world[idx(Math.floor(x), y, Math.floor(z))] !== AIR) continue;
     m.x = x; m.y = y; m.z = z;
     m.yaw = Math.random() * Math.PI * 2;
@@ -105,7 +109,9 @@ export function updateMobs(dt) {
       var nx = m.x - Math.sin(m.yaw) * sp, nz = m.z - Math.cos(m.yaw) * sp;
       var ny = groundAt(nx, nz);
       // 한 칸 넘게 오르내리는 곳은 가지 않는다 — 절벽에서 떨어지지 않게
-      if (nx > 1 && nx < WX - 1 && nz > 1 && nz < WZ - 1 && Math.abs(ny - m.y) <= 1) {
+      var footB = world[idx(Math.floor(nx), Math.max(0, ny - 1), Math.floor(nz))];
+      var wet = footB === WATER || footB === LAVA || footB === ICE;
+      if (!wet && nx > 1 && nx < WX - 1 && nz > 1 && nz < WZ - 1 && Math.abs(ny - m.y) <= 1) {
         m.x = nx; m.z = nz; m.y += (ny - m.y) * Math.min(1, dt * 8);
       } else {
         m.yaw += 1.6 + Math.random();
@@ -159,3 +165,81 @@ export function pushOutOfMobs(px, pz, half) {
 }
 
 export function setMobsVisible(on) { mobGroup.visible = on; }
+
+// ══════════════════════════════════════════════════════════════
+//  물고기와 새 — 점으로 그려 값싸게 생명감을 더한다
+// ══════════════════════════════════════════════════════════════
+function makePoints(count, size, color, opacity) {
+  var pos = new Float32Array(count * 3);
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  var pts = new THREE.Points(geo, new THREE.PointsMaterial({
+    color: color, size: size, sizeAttenuation: true,
+    transparent: true, opacity: opacity, depthWrite: false, fog: true
+  }));
+  scene.add(pts);
+  return { pos: pos, geo: geo, pts: pts };
+}
+
+export var fish = makePoints(FISH_COUNT, 0.22, 0xa8d8e8, 0.9);
+export var birds = makePoints(BIRD_COUNT, 0.26, 0x2b2f33, 0.85);
+var fishState = [], birdState = [];
+
+export function seedFlocks() {
+  fishState.length = 0; birdState.length = 0;
+  for (var i = 0; i < FISH_COUNT; i++) fishState.push({ x: 0, y: -900, z: 0, a: Math.random() * 6.3, t: 0 });
+  for (var j = 0; j < BIRD_COUNT; j++) birdState.push({ x: 0, y: -900, z: 0, a: Math.random() * 6.3, t: 0 });
+}
+
+function findWater(near) {
+  for (var t = 0; t < 90; t++) {
+    var x = Math.floor(player.pos.x + (Math.random() - 0.5) * near);
+    var z = Math.floor(player.pos.z + (Math.random() - 0.5) * near);
+    if (x < 1 || x >= WX - 1 || z < 1 || z >= WZ - 1) continue;
+    for (var y = SEA; y >= 2; y--)
+      if (world[idx(x, y, z)] === WATER) return [x + 0.5, y + 0.5, z + 0.5];
+  }
+  return null;
+}
+
+export function updateFlocks(dt) {
+  var i, s2;
+  for (i = 0; i < fishState.length; i++) {
+    s2 = fishState[i];
+    s2.t -= dt;
+    var dxf = s2.x - player.pos.x, dzf = s2.z - player.pos.z;
+    if (s2.t <= 0 || dxf * dxf + dzf * dzf > 34 * 34) {
+      var spot = findWater(56);
+      s2.t = 6 + Math.random() * 10;
+      if (!spot) { s2.y = -900; }
+      else { s2.x = spot[0]; s2.y = spot[1]; s2.z = spot[2]; s2.a = Math.random() * 6.3; }
+    } else {
+      s2.a += (Math.random() - 0.5) * dt * 3;
+      var nx = s2.x - Math.sin(s2.a) * dt * 1.4, nz = s2.z - Math.cos(s2.a) * dt * 1.4;
+      if (world[idx(Math.floor(nx), Math.floor(s2.y), Math.floor(nz))] === WATER) { s2.x = nx; s2.z = nz; }
+      else s2.a += 2.2;
+    }
+    fish.pos[i * 3] = s2.x; fish.pos[i * 3 + 1] = s2.y; fish.pos[i * 3 + 2] = s2.z;
+  }
+  fish.geo.attributes.position.needsUpdate = true;
+
+  for (i = 0; i < birdState.length; i++) {
+    s2 = birdState[i];
+    s2.t -= dt;
+    var dxb = s2.x - player.pos.x, dzb = s2.z - player.pos.z;
+    if (s2.t <= 0 || dxb * dxb + dzb * dzb > 60 * 60) {
+      s2.t = 14 + Math.random() * 16;
+      s2.x = player.pos.x + (Math.random() - 0.5) * 60;
+      s2.z = player.pos.z + (Math.random() - 0.5) * 60;
+      s2.y = 34 + Math.random() * 16;
+      s2.a = Math.random() * 6.3;
+    } else {
+      s2.a += (Math.random() - 0.5) * dt * 1.2;
+      s2.x -= Math.sin(s2.a) * dt * 4.2;
+      s2.z -= Math.cos(s2.a) * dt * 4.2;
+      s2.y += Math.sin(s2.t * 1.7) * dt * 1.2;
+    }
+    birds.pos[i * 3] = s2.x; birds.pos[i * 3 + 1] = s2.y; birds.pos[i * 3 + 2] = s2.z;
+  }
+  birds.geo.attributes.position.needsUpdate = true;
+}

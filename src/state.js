@@ -3,6 +3,7 @@
 export const S = {
   booted: false,
   worldSeed: 0,
+  terrain: 0,
   slot: 1,
   worldDirty: false,
   saveTimer: 0,
@@ -64,6 +65,7 @@ export const S = {
   achTimer: 0,
   lavaTimer: 0,
   caveTimer: 6,
+  moodTimer: 40,
   oxygen: 1,
   mmZoom: 1,
   liquidTimer: 0,

@@ -1,11 +1,12 @@
 // mine.js — 캐기 · 놓기
 import { S } from "./state.js";
+import { explode, ignite, BLAST_R } from "./fluids.js";
 import { idx, inside } from "./dims.js";
-import { AIR, ALL_BLOCKS, COAL, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TORCH, isCross, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
+import { AIR, ALL_BLOCKS, COAL, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TNT, TORCH, isCross, isFlammable, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
 import { get, shape } from "./world.js";
 import { burst } from "./scene.js";
 import { BODY, HALF, currentShape, player, raycast, stats } from "./player.js";
-import { breakSound, placeSound, tone } from "./audio.js";
+import { breakSound, crunch, placeSound, tone } from "./audio.js";
 import { applyEdit, unlock } from "./edit.js";
 import { toast } from "./hud.js";
 import { triggerSwing } from "./hand.js";
@@ -45,6 +46,29 @@ export function canPlaceAt(px, py, pz) {
 
 // 우클릭이 "쓰기" 인가 "놓기" 인가 — 마크와 같이 웅크리면 언제나 놓기다
 export function tryInteract(hit) {
+  if (!hit || S.sneaking) return false;
+  // 여닫는 블록이 먼저다 — 횃불을 들었다고 문에 불을 붙이면 문을 쓸 수가 없다
+  if (isOpenable(hit.block)) return tryInteractGate(hit);
+  // 횃불을 들고 TNT 를 우클릭하면 터진다 (마크의 부싯돌 자리)
+  if (hit.block === TNT && S.bar[S.selected] === TORCH) {
+    explode(hit.x, hit.y, hit.z, BLAST_R);
+    triggerSwing();
+    unlock("boom");
+    return true;
+  }
+  // 횃불로 탈 것에 불을 붙인다
+  if (S.bar[S.selected] === TORCH && isFlammable(hit.block)) {
+    if (ignite(hit.x + hit.nx, hit.y + hit.ny, hit.z + hit.nz)) {
+      crunch(0.2, 0.10, 1400);
+      triggerSwing();
+      unlock("fire");
+      return true;
+    }
+  }
+  return tryInteractGate(hit);
+}
+
+function tryInteractGate(hit) {
   if (!hit || S.sneaking) return false;
   if (!isOpenable(hit.block)) return false;
   var i = idx(hit.x, hit.y, hit.z);

@@ -10,7 +10,7 @@ import { applyOpts, opts, saveOpts } from "./settings.js";
 import { player, raycast, spawn } from "./player.js";
 import { ac, startAmbient, tone } from "./audio.js";
 import { SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
-import { REGION_MAX, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, selectionSize, undo } from "./edit.js";
+import { REGION_MAX, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, selectionSize, undo, unlock } from "./edit.js";
 import { closePicker, drawMinimap, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, showHud, toast, toggleHelp } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
 import { place } from "./mine.js";
@@ -144,8 +144,27 @@ if (resBtn) resBtn.addEventListener("click", function (e) {
   else toast("백업을 읽지 못했습니다");
 });
 
+// 지형 유형 고르기 — 다음 "새 세계" 부터 적용된다
+export var terrainEl = document.getElementById("terrain");
+export function refreshTerrain() {
+  if (!terrainEl) return;
+  var bs = terrainEl.querySelectorAll("button");
+  for (var i = 0; i < bs.length; i++)
+    bs[i].setAttribute("aria-current",
+      parseInt(bs[i].getAttribute("data-terrain"), 10) === S.terrain ? "true" : "false");
+}
+if (terrainEl) terrainEl.addEventListener("click", function (e) {
+  var btn = e.target.closest("button[data-terrain]");
+  if (!btn) return;
+  e.stopPropagation();
+  S.terrain = parseInt(btn.getAttribute("data-terrain"), 10);
+  refreshTerrain();
+  toast(["보통", "평지", "산악", "군도"][S.terrain] + " — 새 세계부터 적용됩니다");
+});
+
 export function refreshMenu() {
   refreshSlots();
+  refreshTerrain();
   if (S.started) goBtn.textContent = "계속하기";
   else if (hasSave()) goBtn.textContent = "이어하기";
   else goBtn.textContent = "CLICK TO PLAY";
@@ -406,7 +425,11 @@ window.addEventListener("keydown", function (e) {
       if (Math.abs(S.marks[mi][0] - mx) < 3 && Math.abs(S.marks[mi][1] - mz) < 3) near = mi;
     if (near >= 0) { S.marks.splice(near, 1); toast("표식 지움"); }
     else if (S.marks.length >= 12) toast("표식은 12개까지입니다");
-    else { S.marks.push([mx, mz]); toast("표식 " + S.marks.length + "개"); }
+    else {
+      S.marks.push([mx, mz]);
+      toast("표식 " + S.marks.length + "개");
+      if (S.marks.length >= 5) unlock("explorer");
+    }
     S.worldDirty = true;
     tone(620, 0.08, "triangle", 0.05);
   }

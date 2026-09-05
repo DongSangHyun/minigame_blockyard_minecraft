@@ -133,6 +133,22 @@ export function thunder(delayMs, near) {
   }, delayMs);
 }
 
+// 배경음 — 몇 분에 한 번, 세 음짜리 화음이 스치듯 지나간다.
+// 루프 음악이 아니라 "가끔 들리는 것" 이라야 오래 켜 둬도 질리지 않는다.
+var MOOD_DAY = [[262, 330, 392], [294, 370, 440], [220, 277, 330]];
+var MOOD_NIGHT = [[196, 233, 294], [175, 220, 262], [147, 185, 220]];
+export function moodChord(night, vol) {
+  var set = night ? MOOD_NIGHT : MOOD_DAY;
+  var ch = set[(Math.random() * set.length) | 0];
+  for (var i = 0; i < ch.length; i++) {
+    (function (f, k) {
+      setTimeout(function () {
+        tone(f, 3.4 + Math.random(), "sine", 0.020 * vol);
+      }, k * (240 + Math.random() * 260));
+    })(ch[i], i);
+  }
+}
+
 // 동굴 울림 — 깊고 어두운 곳에서 가끔 낮게 울린다 (마크의 동굴 소리)
 export function caveSound(depthMix) {
   var f = 90 + Math.random() * 120;
@@ -146,6 +162,39 @@ export function caveSound(depthMix) {
 }
 
 // 용암 — 가까이 가면 "뽀글" 소리로 존재를 알린다. 지하의 유일한 긴장 요소.
+// 소리가 나는 자리를 지정한다 (없으면 머리 위)
+export function at(x, y, z) {
+  var c = ac();
+  if (!c || !c.createPanner) return null;
+  var pn = c.createPanner();
+  pn.panningModel = "equalpower";
+  pn.distanceModel = "inverse";
+  pn.refDistance = 4;
+  pn.maxDistance = 60;
+  pn.rolloffFactor = 1.4;
+  if (pn.positionX) {
+    pn.positionX.value = x; pn.positionY.value = y; pn.positionZ.value = z;
+  } else pn.setPosition(x, y, z);
+  pn.connect(S.masterGain);
+  return pn;
+}
+// 듣는 사람의 자리와 방향을 매 프레임 알려 준다
+export function listenAt(x, y, z, fx, fz) {
+  var c = S.audioCtx;
+  if (!c || !c.listener) return;
+  var L = c.listener;
+  try {
+    if (L.positionX) {
+      L.positionX.value = x; L.positionY.value = y; L.positionZ.value = z;
+      L.forwardX.value = fx; L.forwardY.value = 0; L.forwardZ.value = fz;
+      L.upX.value = 0; L.upY.value = 1; L.upZ.value = 0;
+    } else {
+      L.setPosition(x, y, z);
+      L.setOrientation(fx, 0, fz, 0, 1, 0);
+    }
+  } catch (e) {}
+}
+
 export function lavaPop(vol) {
   tone(70 + Math.random() * 50, 0.22, "sine", 0.10 * vol);
   crunch(0.18, 0.05 * vol, 320);
