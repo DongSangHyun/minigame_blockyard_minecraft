@@ -10,8 +10,8 @@ import { applyOpts, opts, saveOpts } from "./settings.js";
 import { player, raycast, spawn } from "./player.js";
 import { ac, startAmbient, tone } from "./audio.js";
 import { SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
-import { REGION_MAX, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, selectionSize, undo, unlock } from "./edit.js";
-import { closePicker, drawMinimap, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, showHud, toast, toggleHelp } from "./hud.js";
+import { REGION_MAX, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
+import { closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, showHud, toast, toggleHelp } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
 import { place } from "./mine.js";
 import { setWeather } from "./sky.js";
@@ -211,8 +211,23 @@ window.addEventListener("keydown", function (e) {
   } catch (e) {}
 })();
 
+// 지금 세계를 여는 링크 — 친구에게 보내면 같은 지형이 열린다
+export var copyLinkBtn = document.getElementById("copylink");
+export function shareLink() {
+  return location.origin + location.pathname + "?seed=" + S.worldSeed + "&t=" + (S.terrain | 0);
+}
+if (copyLinkBtn) copyLinkBtn.addEventListener("click", function (e) {
+  e.stopPropagation();
+  var url = shareLink();
+  try {
+    if (navigator.clipboard) navigator.clipboard.writeText(url);
+    toast("공유 링크를 복사했습니다");
+  } catch (err) { toast(url); }
+});
+
 export function refreshMenu() {
   refreshSlots();
+  drawPreview();
   refreshTerrain();
   refreshKeyButtons();
   if (S.started) goBtn.textContent = "계속하기";
@@ -365,8 +380,30 @@ export function pickBlock() {
   tone(880, 0.07, "triangle", 0.04);
 }
 
+// 명령창이 열려 있으면 조작키를 전부 넘긴다
+// hud.js 와 input.js 는 서로를 부르므로, 이 파일이 먼저 실행될 때
+// hud 의 `cmdIn` 은 아직 비어 있을 수 있다 — DOM 에서 직접 잡는다.
+var cmdInput = document.getElementById("cmd-in");
+if (cmdInput) cmdInput.addEventListener("keydown", function (e) {
+  e.stopPropagation();
+  if (e.code === "Escape") { closeCmd(); if (S.lockMode && S.active) canvas.requestPointerLock(); return; }
+  if (e.code !== "Enter") return;
+  var out = runCommand(cmdInput.value);
+  cmdSay(out);
+  if (out && out.indexOf("모르는") !== 0) {
+    applyTime();
+    cmdInput.value = "";
+    setTimeout(function () {
+      closeCmd();
+      if (S.lockMode && S.active && canvas.requestPointerLock) {
+        try { canvas.requestPointerLock(); } catch (err) {}
+      }
+    }, 700);
+  }
+});
+
 window.addEventListener("keydown", function (e) {
-  if (e.target === seedIn) return;                 // 시드 입력 중에는 조작키를 막는다
+  if (e.target === seedIn || e.target === cmdIn) return;   // 입력 중에는 조작키를 막는다
   var held = e.repeat || !!S.keys[e.code];
   S.keys[e.code] = true;
 
@@ -467,6 +504,12 @@ window.addEventListener("keydown", function (e) {
     tone(560 + S.shapeMode * 120, 0.06, "square", 0.04);
     advanceTut(3);
   }
+  if (e.code === "Slash" || (e.key === "/" && !e.ctrlKey && !e.metaKey)) {
+    e.preventDefault();
+    if (document.pointerLockElement === canvas) document.exitPointerLock();
+    openCmd();
+    return;
+  }
   if (e.code === "F2") { e.preventDefault(); S.wantShot = true; }
   if (e.code === "KeyB") {
     var mx = Math.round(player.pos.x), mz = Math.round(player.pos.z);
@@ -494,6 +537,13 @@ window.addEventListener("keydown", function (e) {
     S.showPerf = !S.showPerf;
     perfEl.hidden = !S.showPerf;
     toast(S.showPerf ? "성능 정보 켬" : "성능 정보 끔");
+  }
+  if (e.code === "F6") {
+    e.preventDefault();
+    S.photoMode = !S.photoMode;
+    showHud(!S.photoMode && !S.hudHidden);
+    if (S.photoMode) { player.flying = true; S.thirdPerson = 0; }
+    toast(S.photoMode ? "사진 모드 — F2 로 저장, F6 로 나가기" : "사진 모드 끔");
   }
   if (e.code === "F5") {
     e.preventDefault();

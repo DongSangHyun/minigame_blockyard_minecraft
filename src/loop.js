@@ -2,11 +2,11 @@
 import { S } from "./state.js";
 import { pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
-import { WX, WY, WZ, idx } from "./dims.js";
+import { CH, WX, WY, WZ, idx } from "./dims.js";
 import { reduceMotion } from "./boot.js";
 import { DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, STONE, TORCH, WATER, hardnessOf, isClimbable, isCross, isSolid, isUnbreakable } from "./blocks.js";
 import { animateLiquids, crackTex } from "./atlas.js";
-import { biomeMap, crossBase, generate, get, set, shape, topMap, world } from "./world.js";
+import { BIOME_NAMES, biomeMap, crossBase, generate, get, set, shape, topMap, world } from "./world.js";
 import { lightAtPlayer, lightSky, relightAll } from "./light.js";
 import { decayTick, dryTick, fallTick, fireTick, freezeTick, waterTick } from "./fluids.js";
 import { buildBudget, dirty, markAllDirty, opaqueMeshes, setBuildFocus } from "./mesh.js";
@@ -17,7 +17,7 @@ import { EYE, HALF, moveAxis, moveHorizontal, player, raycast, spawn, stats } fr
 import { caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { saveGame } from "./save.js";
 import { ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
-import { airBar, airEl, drawMinimap, facingText, mmCap, perfEl, refreshBar, tAch, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, underwaterEl } from "./hud.js";
+import { airBar, airEl, drawMinimap, facingText, mmCap, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, underwaterEl } from "./hud.js";
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
 import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
 import { localBiome, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather } from "./sky.js";
@@ -522,6 +522,7 @@ export function animate() {
       a.download = "blockyard-" + Date.now() + ".png";
       a.click();
       toast("화면을 저장했습니다");
+      if (S.photoMode) unlock("photo");
     } catch (e) { toast("화면 저장에 실패했습니다"); }
   }
 
@@ -537,6 +538,8 @@ export function animate() {
     tPos.textContent = Math.floor(player.pos.x) + " · " + Math.floor(player.pos.y) + " · " + Math.floor(player.pos.z);
     tTime.textContent = clockText();
     tFace.textContent = facingText();
+    tBiome.textContent = BIOME_NAMES[localBiome()] + " · 청크 " +
+      ((player.pos.x / CH) | 0) + "," + ((player.pos.z / CH) | 0);
     tLight.textContent = lightAtPlayer() + " / 15";
     tMode.textContent = player.flying ? "비행" : (S.wasUnderwater ? "헤엄" : "걷기");
     tShape.textContent = ["전체", "반블록", "계단"][S.shapeMode];

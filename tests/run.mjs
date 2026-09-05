@@ -2384,11 +2384,13 @@ test("v14 동물: 플레이어를 뚫고 지나가지 못한다", async (page) =
     const B = window.__blockyard;
     B.setPaused(true);
     B.seedMobs();
+    // 다른 동물이 시험 자리에 끼어들지 않게 전부 멀리 치운다
+    B.mobs.forEach(mm => { mm.x = 5; mm.z = 5; mm.y = 30; mm.walk = 0; mm.turn = 999; });
     const m = B.mobs[0];
-    m.x = 40; m.z = 40; m.y = 30; m.walk = 0; m.turn = 999;
+    m.x = 40; m.z = 40; m.y = 30;
     // 동물 바로 위에 선다
     const push = B.pushOutOfMobs(40.15, 40.05, 0.3);
-    const far = B.pushOutOfMobs(60, 60, 0.3);
+    const far = B.pushOutOfMobs(70, 70, 0.3);
     B.setPaused(false);
     return { pushLen: Math.hypot(push[0], push[1]), farLen: Math.hypot(far[0], far[1]) };
   });
@@ -2956,6 +2958,199 @@ test("v16 튜토리얼: 새 기능까지 안내한다", async (page) => {
   assert(r.steps >= 6, "튜토리얼 단계: " + r.steps);
   assert(r.text.indexOf("영역") >= 0, "영역 도구 안내가 없다");
   assert(r.text.indexOf("H") >= 0, "도움말 안내가 없다");
+});
+
+
+// ══════════════════════════════════════════════════════════════
+//  개선 v17 회귀 테스트 — 나누고 다루기
+// ══════════════════════════════════════════════════════════════
+
+test("v17 공유: 링크에 시드와 지형이 담긴다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.S.terrain = 2;
+    B.generate(45678);
+    const url = B.shareLink();
+    return { url, seed: B.seed() };
+  });
+  assert(r.url.indexOf("seed=" + r.seed) > 0, "링크에 시드가 없다: " + r.url);
+  assert(r.url.indexOf("t=2") > 0, "링크에 지형이 없다: " + r.url);
+});
+
+test("v17 명령: tp · time · give · seed 가 먹는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const out = {};
+    out.help = B.runCommand("help");
+    B.runCommand("tp 40 33 44");
+    out.pos = [Math.round(B.player.pos.x), Math.round(B.player.pos.y), Math.round(B.player.pos.z)];
+    B.runCommand("time 정오");
+    out.time = B.S.timeOfDay;
+    out.give = B.runCommand("give brick");
+    out.bar = B.getBar()[B.getSelected()];
+    out.seed = B.runCommand("seed");
+    out.bad = B.runCommand("어쩌구");
+    return out;
+  });
+  assert(r.help.indexOf("tp") >= 0, "help 가 비었다");
+  eq(r.pos.join(), "40,33,44", "tp 가 안 먹는다: " + r.pos.join());
+  eq(r.time, 0.5, "time 정오가 안 먹는다");
+  eq(r.bar, 9, "give brick 이 안 먹는다");
+  assert(r.seed.indexOf("SEED") === 0, "seed 응답: " + r.seed);
+  assert(r.bad.indexOf("모르는") === 0, "모르는 명령을 받아들였다");
+});
+
+test("v17 명령: fill 과 count 가 영역에 붙는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 70, y = 46, z = 70;
+    for (let dx = -1; dx <= 4; dx++) for (let dz = -1; dz <= 4; dz++)
+      for (let dy = -1; dy <= 4; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.refreshAllTops();
+    const noSel = B.runCommand("fill stone");
+    B.S.selA = [x, y, z];
+    B.S.selB = [x + 2, y + 1, z + 2];
+    const filled = B.runCommand("fill stone");
+    const counted = B.runCommand("count");
+    B.S.selA = B.S.selB = null;
+    return { noSel, filled, counted };
+  });
+  assert(r.noSel.indexOf("영역") >= 0, "영역 없이 채워졌다: " + r.noSel);
+  assert(r.filled.indexOf("18") >= 0, "채운 칸 수가 안 맞는다: " + r.filled);
+  assert(r.counted.indexOf("STONE") >= 0, "통계에 STONE 이 없다: " + r.counted);
+});
+
+test("v17 청사진: 저장하고 다시 불러온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 76, y = 46, z = 76;
+    for (let dx = -1; dx <= 4; dx++) for (let dz = -1; dz <= 4; dz++)
+      for (let dy = -1; dy <= 4; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.refreshAllTops();
+    B.applyEdit(x, y, z, B.B.DIAMOND, false);
+    B.applyEdit(x + 1, y, z, B.B.GOLD, false);
+    B.S.selA = [x, y, z];
+    B.S.selB = [x + 1, y, z];
+    B.copySelection();
+    const saved = B.saveBlueprint("탑");
+    B.S.clip = null;
+    const names = B.blueprintNames();
+    const used = B.useBlueprint("탑");
+    const missing = B.useBlueprint("없는것");
+    const n = B.pasteClip(x, y + 2, z);
+    B.S.selA = B.S.selB = null;
+    return { saved, names, used, missing, n,
+             a: B.world[B.idx(x, y + 2, z)], b: B.world[B.idx(x + 1, y + 2, z)],
+             D: B.B.DIAMOND, G: B.B.GOLD };
+  });
+  eq(r.saved, "", "청사진 저장 실패: " + r.saved);
+  assert(r.names.indexOf("탑") >= 0, "청사진 목록에 없다: " + r.names.join(","));
+  eq(r.used, "", "청사진 불러오기 실패: " + r.used);
+  assert(r.missing, "없는 청사진을 받아들였다");
+  eq(r.a, r.D, "붙여넣은 첫 블록");
+  eq(r.b, r.G, "붙여넣은 둘째 블록");
+});
+
+test("v17 동물: 먹이를 주면 따라온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.seedMobs();
+    const m = B.mobs[0];
+    B.player.pos.set(50, 30, 50);
+    m.x = 52; m.z = 50; m.y = 30; m.follow = 0;
+    const fed = B.feedNearbyMob(B.player.pos);
+    const following = m.follow > 0;
+    // 멀리 있는 동물은 안 온다
+    m.x = 90; m.z = 10;
+    B.mobs.forEach(mm => { mm.x = 90; mm.z = 10; });
+    const farFed = B.feedNearbyMob(B.player.pos);
+    B.setPaused(false);
+    return { fed, following, farFed };
+  });
+  assert(r.fed, "가까운 동물에게 먹이를 못 줬다");
+  assert(r.following, "먹이를 줬는데 안 따라온다");
+  eq(r.farFed, false, "멀리 있는 동물이 반응했다");
+});
+
+test("v17 사진 모드: F6 로 HUD 가 사라지고 비행이 켜진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.beginPlay();
+    function key(code) {
+      window.dispatchEvent(new KeyboardEvent("keydown", { code, bubbles: true }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { code, bubbles: true }));
+    }
+    key("F6");
+    const on = { photo: B.S.photoMode, hud: document.getElementById("telemetry").hidden,
+                 fly: B.player.flying };
+    key("F6");
+    const off = { photo: B.S.photoMode, hud: document.getElementById("telemetry").hidden };
+    B.endPlay(); B.setPaused(false);
+    return { on, off };
+  });
+  assert(r.on.photo && r.on.hud && r.on.fly, "사진 모드가 안 켜진다");
+  assert(!r.off.photo && !r.off.hud, "사진 모드가 안 꺼진다");
+});
+
+test("v17 알림: 도전 과제를 달성하면 큰 알림이 뜬다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.resetAch();
+    B.unlock("firstMine");
+    const el = document.getElementById("achpop");
+    return { hidden: el.hidden, text: el.textContent };
+  });
+  eq(r.hidden, false, "알림이 안 뜬다");
+  assert(r.text.indexOf("첫 삽") >= 0, "알림 내용: " + r.text);
+});
+
+test("v17 미리보기: 시작 화면에 세계 그림이 그려진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.generate(99999);
+    B.drawPreview();
+    const cv = document.getElementById("preview");
+    const d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data;
+    let nonzero = 0;
+    for (let i = 0; i < d.length; i += 4 * 53) if (d[i] > 20) nonzero++;
+    return { nonzero, cap: document.getElementById("preview-cap").textContent };
+  });
+  assert(r.nonzero > 5, "미리보기가 비었다");
+  assert(r.cap.indexOf("SEED") >= 0 && r.cap.indexOf("육지") >= 0, "미리보기 설명: " + r.cap);
+});
+
+test("v17 HUD: 지대와 청크가 표시된다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.beginPlay();
+    B.spawn();
+    for (let k = 0; k < 30; k++) B.step(1 / 60);
+    const txt = document.getElementById("t-biome").textContent;
+    B.endPlay(); B.setPaused(false);
+    return { txt };
+  });
+  assert(/초원|설원|사막/.test(r.txt), "지대가 없다: " + r.txt);
+  assert(r.txt.indexOf("청크") >= 0, "청크가 없다: " + r.txt);
+});
+
+test("v17 명령창: / 로 열리고 ESC 로 닫힌다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.beginPlay();
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "Slash", key: "/", bubbles: true }));
+    const opened = !B.cmdEl.hidden;
+    B.cmdIn.value = "seed";
+    B.cmdIn.dispatchEvent(new KeyboardEvent("keydown", { code: "Escape", bubbles: true }));
+    const closed = B.cmdEl.hidden;
+    B.endPlay(); B.setPaused(false);
+    return { opened, closed };
+  });
+  assert(r.opened, "/ 로 명령창이 안 열린다");
+  assert(r.closed, "ESC 로 명령창이 안 닫힌다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

@@ -1,15 +1,15 @@
 // edit.js — 편집 · 되돌리기 · 도전 과제
 import { S } from "./state.js";
 import { SLOTS } from "./save.js";
-import { DIRS, idx, inside } from "./dims.js";
-import { AIR, ALL_BLOCKS, EMIT, ICE, SH_FULL, WALL_DIR, WATER, isCross, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
+import { DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
+import { AIR, ALL_BLOCKS, EMIT, ICE, NAMES, SH_FULL, WALL_DIR, WATER, isCross, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
 import { BIOME_NAMES, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightLocal } from "./light.js";
 import { enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
 import { touch } from "./mesh.js";
 import { player, stats } from "./player.js";
 import { tone } from "./audio.js";
-import { toast } from "./hud.js";
+import { showAchPop, toast } from "./hud.js";
 import { localBiome } from "./sky.js";
 
 export var HISTORY_MAX = 240;
@@ -155,7 +155,9 @@ export var ACHIEVEMENTS = [
   { id: "fire", name: "불장난", desc: "횃불로 무언가에 불을 붙인다" },
   { id: "boom", name: "쾅", desc: "TNT 를 터뜨린다" },
   { id: "build100", name: "대공사", desc: "영역 채우기로 100칸 이상을 한 번에 짓는다" },
-  { id: "explorer", name: "탐험가", desc: "미니맵 표식을 5개 찍는다" }
+  { id: "explorer", name: "탐험가", desc: "미니맵 표식을 5개 찍는다" },
+  { id: "feed", name: "친구", desc: "동물에게 꽃을 준다" },
+  { id: "photo", name: "사진사", desc: "사진 모드로 화면을 저장한다" }
 ];
 export var achGrid = document.getElementById("achgrid");
 
@@ -200,7 +202,8 @@ export function unlock(id) {
   if (!found) return;
   S.earned[id] = 1;
   S.worldDirty = true;
-  toast("도전 과제 · " + found.name + "  (" + achCount() + "/" + ACHIEVEMENTS.length + ")");
+  showAchPop(found.name, found.desc);
+  toast("도전 과제 " + achCount() + " / " + ACHIEVEMENTS.length);
   tone(880, 0.09, "triangle", 0.05);
   setTimeout(function () { tone(1320, 0.12, "triangle", 0.045); }, 110);
   refreshAchList();
@@ -268,4 +271,152 @@ export function pasteClip(px, py, pz) {
         applyEdit(px + x, py + y, pz + z, b, true, sh);
       }
   return endBatch("붙여넣기");
+}
+
+// ── 명령 처리 — 짧은 이름 하나로 알아듣게
+export var CMD_HELP =
+  "tp <x> <y> <z> · time <아침|정오|노을|밤|0~1> · weather <맑음|비|눈> · " +
+  "fill <블록> · give <블록> · count · bp <save|use|list> <이름> · seed · gm <속도> · help";
+
+function findBlock(name) {
+  if (!name) return -1;
+  var q = String(name).toLowerCase();
+  for (var i = 0; i < ALL_BLOCKS.length; i++) {
+    var b = ALL_BLOCKS[i];
+    var n = (NAMES[b] || "").toLowerCase();
+    if (n === q || n.replace(/\s+/g, "") === q.replace(/\s+/g, "")) return b;
+  }
+  for (var j = 0; j < ALL_BLOCKS.length; j++) {
+    var b2 = ALL_BLOCKS[j];
+    if ((NAMES[b2] || "").toLowerCase().indexOf(q) >= 0) return b2;
+  }
+  return -1;
+}
+
+export function runCommand(line) {
+  var parts = String(line).trim().split(/\s+/);
+  var cmd = (parts[0] || "").toLowerCase();
+  if (!cmd) return "";
+  if (cmd === "help" || cmd === "?") return CMD_HELP;
+
+  if (cmd === "tp") {
+    var x = parseFloat(parts[1]), y = parseFloat(parts[2]), z = parseFloat(parts[3]);
+    if (!isFinite(x) || !isFinite(y) || !isFinite(z)) return "tp <x> <y> <z>";
+    player.pos.set(Math.max(0.4, Math.min(WX - 0.4, x)),
+                   Math.max(1, Math.min(WY - 2, y)),
+                   Math.max(0.4, Math.min(WZ - 0.4, z)));
+    player.vel.set(0, 0, 0);
+    return "이동: " + Math.floor(player.pos.x) + " " + Math.floor(player.pos.y) + " " + Math.floor(player.pos.z);
+  }
+
+  if (cmd === "time") {
+    var w = (parts[1] || "").toLowerCase();
+    var map = { "아침": 0.26, "정오": 0.5, "노을": 0.74, "밤": 0.98,
+                "morning": 0.26, "noon": 0.5, "sunset": 0.74, "night": 0.98 };
+    var t = map[w];
+    if (t === undefined) t = parseFloat(w);
+    if (!isFinite(t)) return "time <아침|정오|노을|밤|0~1>";
+    S.timeOfDay = ((t % 1) + 1) % 1;
+    return "시각: " + (S.timeOfDay * 24).toFixed(1) + "시";
+  }
+
+  if (cmd === "weather") {
+    var wm = { "맑음": 0, "비": 1, "눈": 2, "clear": 0, "rain": 1, "snow": 2 };
+    var wv = wm[(parts[1] || "").toLowerCase()];
+    if (wv === undefined) return "weather <맑음|비|눈>";
+    S.weather = wv;
+    return "날씨: " + parts[1];
+  }
+
+  if (cmd === "give") {
+    var gb = findBlock(parts.slice(1).join(" "));
+    if (gb < 0) return "그런 블록이 없습니다";
+    S.bar[S.selected] = gb;
+    return "핫바에 " + NAMES[gb];
+  }
+
+  if (cmd === "fill") {
+    var fb = findBlock(parts.slice(1).join(" "));
+    if (fb < 0) return "그런 블록이 없습니다";
+    var n = fillSelection(fb, SH_FULL);
+    if (n < 0) return "영역이 너무 큽니다";
+    if (!n) return "먼저 Ctrl+클릭으로 영역을 고르세요";
+    return n.toLocaleString("ko-KR") + "칸을 " + NAMES[fb] + " 로";
+  }
+
+  if (cmd === "gm") {
+    var sp = parseFloat(parts[1]);
+    if (!isFinite(sp)) return "gm <0.5~4>";
+    S.flySpeed = Math.max(0.5, Math.min(4, sp));
+    return "비행 속도 ×" + S.flySpeed.toFixed(2);
+  }
+
+  if (cmd === "bp") {
+    var sub = (parts[1] || "").toLowerCase();
+    var nm = parts.slice(2).join(" ");
+    if (sub === "save") { var e1 = saveBlueprint(nm); return e1 || ("청사진 저장: " + nm); }
+    if (sub === "use") { var e2 = useBlueprint(nm); return e2 || ("청사진 준비됨: " + nm + " — Ctrl+V 로 붙여넣기"); }
+    if (sub === "list") { var ns = blueprintNames(); return ns.length ? ns.join(", ") : "저장된 청사진이 없습니다"; }
+    return "bp <save|use|list> <이름>";
+  }
+
+  if (cmd === "count") {
+    var cl = selectionCounts();
+    if (!cl) return "먼저 Ctrl+클릭으로 영역을 고르세요";
+    if (!cl.length) return "영역이 비어 있습니다";
+    return cl.slice(0, 4).map(function (e) { return e.name + " " + e.n; }).join(" · ")
+           + (cl.length > 4 ? " …" : "");
+  }
+
+  if (cmd === "seed") return "SEED " + S.worldSeed;
+
+  return "모르는 명령: " + cmd + "  (help)";
+}
+
+// ── 청사진 — 복사한 영역을 이름 붙여 두고 나중에 다시 쓴다
+export var BP_KEY = "blockyard.blueprints";
+
+export function loadBlueprints() {
+  try { return JSON.parse(localStorage.getItem(BP_KEY) || "{}"); } catch (e) { return {}; }
+}
+export function saveBlueprint(name) {
+  if (!S.clip) return "복사한 것이 없습니다";
+  if (!name) return "이름을 적어 주세요";
+  var all = loadBlueprints();
+  all[name] = {
+    w: S.clip.w, h: S.clip.h, d: S.clip.d,
+    b: Array.prototype.slice.call(S.clip.blocks),
+    s: Array.prototype.slice.call(S.clip.shapes)
+  };
+  try { localStorage.setItem(BP_KEY, JSON.stringify(all)); }
+  catch (e) { return "저장 공간이 부족합니다"; }
+  return "";
+}
+export function useBlueprint(name) {
+  var all = loadBlueprints();
+  var bp = all[name];
+  if (!bp) return "그런 청사진이 없습니다";
+  S.clip = { w: bp.w, h: bp.h, d: bp.d,
+             blocks: new Uint8Array(bp.b), shapes: new Uint8Array(bp.s) };
+  return "";
+}
+export function blueprintNames() { return Object.keys(loadBlueprints()); }
+
+// ── 영역 안 블록 통계 — 무엇으로 지었는지 세어 준다
+export function selectionCounts() {
+  var b = selectionBounds();
+  if (!b) return null;
+  var counts = {};
+  for (var y = b.y0; y <= b.y1; y++)
+    for (var z = b.z0; z <= b.z1; z++)
+      for (var x = b.x0; x <= b.x1; x++) {
+        var v = world[idx(x, y, z)];
+        if (v === AIR) continue;
+        counts[v] = (counts[v] || 0) + 1;
+      }
+  var list = Object.keys(counts).map(function (k) {
+    return { block: +k, name: NAMES[+k] || ("#" + k), n: counts[k] };
+  });
+  list.sort(function (a, b2) { return b2.n - a.n; });
+  return list;
 }

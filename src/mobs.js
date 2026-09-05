@@ -60,7 +60,7 @@ function makeMob(kind) {
   }
   mobGroup.add(g);
   return { g: g, legs: legs, kind: kind, x: 0, y: 0, z: 0, yaw: 0,
-           turn: 0, walk: 0, phase: Math.random() * 6, cry: 3 + Math.random() * 12 };
+           turn: 0, walk: 0, phase: Math.random() * 6, cry: 3 + Math.random() * 12, follow: 0 };
 }
 
 export function seedMobs() {
@@ -85,6 +85,7 @@ function placeMob(m, far) {
     m.x = x; m.y = y; m.z = z;
     m.yaw = Math.random() * Math.PI * 2;
     m.turn = 1 + Math.random() * 3;
+    m.follow = 0;
     m.walk = Math.random() < 0.6 ? 1 : 0;
     return true;
   }
@@ -96,6 +97,18 @@ export function updateMobs(dt) {
   var px = player.pos.x, pz = player.pos.z;
   for (var i = 0; i < mobs.length; i++) {
     var m = mobs[i], k = MOB_KINDS[m.kind];
+
+    // 먹이를 받은 동물은 플레이어 쪽을 본다
+    if (m.follow > 0) {
+      m.follow -= dt;
+      var fdx = player.pos.x - m.x, fdz = player.pos.z - m.z;
+      var fd = Math.hypot(fdx, fdz);
+      if (fd > 2.2) {
+        m.yaw = Math.atan2(-fdx, -fdz);
+        m.walk = 1;
+        m.turn = 0.4;
+      } else { m.walk = 0; m.turn = 0.6; }
+    }
 
     m.turn -= dt;
     if (m.turn <= 0) {
@@ -162,6 +175,22 @@ export function pushOutOfMobs(px, pz, half) {
     m.x -= ax * push * 0.45; m.z -= az * push * 0.45;
   }
   return [dx, dz];
+}
+
+// 먹이를 주면 잠깐 따라온다
+export function feedNearbyMob(pos) {
+  var best = -1, bestD = 16;
+  for (var i = 0; i < mobs.length; i++) {
+    var m = mobs[i];
+    var dx = m.x - pos.x, dz = m.z - pos.z;
+    var d = dx * dx + dz * dz;
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  if (best < 0) return false;
+  var mm = mobs[best], k = MOB_KINDS[mm.kind];
+  mm.follow = 22 + Math.random() * 14;
+  tone(k.cry * 1.35, 0.16, "triangle", 0.06);
+  return true;
 }
 
 export function setMobsVisible(on) { mobGroup.visible = on; }

@@ -58,5 +58,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v16 — 편의와 완성도 · 회귀 테스트 137항목 전부 통과.**
+**v17 — 나누고 다루기 · 회귀 테스트 147항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/

@@ -145,6 +145,23 @@ export function facingText() {
 }
 export var tFace = document.getElementById("t-face");
 export var tAch = document.getElementById("t-ach");
+export var tBiome = document.getElementById("t-biome");
+
+// 도전 과제 달성 알림 — 토스트보다 눈에 띄게
+export var achPop = document.getElementById("achpop");
+var achPopTimer = null;
+export function showAchPop(name, desc) {
+  if (!achPop) return;
+  achPop.hidden = false;
+  achPop.querySelector("b").textContent = "도전 과제 달성";
+  achPop.querySelector("span").textContent = name + " — " + desc;
+  requestAnimationFrame(function () { achPop.classList.add("on"); });
+  clearTimeout(achPopTimer);
+  achPopTimer = setTimeout(function () {
+    achPop.classList.remove("on");
+    setTimeout(function () { achPop.hidden = true; }, 350);
+  }, 2600);
+}
 export var tPos = document.getElementById("t-pos"),
     tTime = document.getElementById("t-time"),
     tLight = document.getElementById("t-light"),
@@ -316,3 +333,54 @@ if (pickTabs) pickTabs.addEventListener("click", function (ev) {
     bs[i].setAttribute("aria-current", bs[i] === btn ? "true" : "false");
   refreshPickFilter();
 });
+
+// ── 명령창 — 한 줄로 세계를 조작한다 (`/` 로 연다)
+export var cmdEl = document.getElementById("cmd");
+export var cmdIn = document.getElementById("cmd-in");
+export var cmdMsg = document.getElementById("cmd-msg");
+export function openCmd() {
+  if (!cmdEl) return;
+  cmdEl.hidden = false;
+  cmdIn.value = "";
+  if (cmdMsg) cmdMsg.textContent = "";
+  cmdIn.focus();
+}
+export function closeCmd() {
+  if (!cmdEl) return;
+  cmdEl.hidden = true;
+  cmdIn.blur();
+}
+export function cmdSay(msg) { if (cmdMsg) cmdMsg.textContent = msg; }
+
+// ── 시작 화면 세계 미리보기 — 어떤 섬인지 들어가기 전에 보인다
+export var previewEl = document.getElementById("preview");
+export var previewCap = document.getElementById("preview-cap");
+export function drawPreview() {
+  if (!previewEl) return;
+  var c = previewEl.getContext("2d");
+  var img = c.createImageData(WX, WZ);
+  var d = img.data;
+  var land = 0, high = 0;
+  for (var z = 0; z < WZ; z++) for (var x = 0; x < WX; x++) {
+    var o = (z * WX + x) * 4;
+    var y = topMap[z * WX + x];
+    d[o + 3] = 255;
+    if (y < 0) { d[o] = 12; d[o + 1] = 16; d[o + 2] = 20; continue; }
+    if (y > SEA) land++;
+    if (y > 24) high++;
+    var b = world[idx(x, y, z)];
+    var col = AVG_TOP[b] || [120, 120, 120];
+    var sh = 0.6 + (y / WY) * 0.8;
+    d[o] = Math.min(255, col[0] * sh);
+    d[o + 1] = Math.min(255, col[1] * sh);
+    d[o + 2] = Math.min(255, col[2] * sh);
+  }
+  previewEl.width = WX; previewEl.height = WZ;
+  c.putImageData(img, 0, 0);
+  if (previewCap) {
+    previewCap.innerHTML = "SEED <b>" + S.worldSeed + "</b><br>" +
+      "육지 " + Math.round(land / (WX * WZ) * 100) + "% · 산 " +
+      Math.round(high / Math.max(1, land) * 100) + "%<br>" +
+      ["보통", "평지", "산악", "군도"][S.terrain | 0];
+  }
+}

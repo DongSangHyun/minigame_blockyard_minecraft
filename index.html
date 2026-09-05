@@ -115,6 +115,42 @@
     box-shadow: inset 0 0 200px rgba(90,16,2,.92);
   }
 
+  /* ---------- 도전 과제 알림 ---------- */
+  #achpop {
+    position: fixed; top: calc(18px + var(--safe-t)); left: 50%;
+    transform: translateX(-50%) translateY(-16px); z-index: 15;
+    padding: 12px 18px; text-align: center;
+    background: color-mix(in srgb, var(--panel) 94%, transparent);
+    border: 2px solid var(--moss);
+    opacity: 0; transition: opacity .3s ease, transform .3s ease;
+  }
+  #achpop.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #achpop b {
+    display: block; font-family: var(--pixel); font-size: 11px;
+    color: var(--moss); letter-spacing: .12em; margin-bottom: 5px;
+  }
+  #achpop span { font-family: var(--sans); font-size: 13px; color: var(--bone); }
+
+  /* ---------- 명령창 ---------- */
+  #cmd {
+    position: fixed; left: 50%; bottom: calc(140px + var(--safe-b));
+    transform: translateX(-50%); z-index: 14;
+    display: flex; align-items: center; gap: 8px;
+    width: min(620px, 92vw); padding: 9px 12px;
+    background: color-mix(in srgb, var(--panel-2) 94%, transparent);
+    border: 2px solid var(--line-hi);
+  }
+  #cmd span { font-family: var(--pixel); font-size: 12px; color: var(--moss); }
+  #cmd input {
+    flex: 1; background: transparent; border: 0; outline: 0;
+    font-family: var(--mono); font-size: 12px; color: var(--bone);
+  }
+  #cmd input::placeholder { color: #5f6a66; }
+  #cmd em {
+    font-family: var(--mono); font-size: 10px; color: var(--stone);
+    font-style: normal; white-space: nowrap;
+  }
+
   /* ---------- 성능 정보 (F3) ---------- */
   #perf {
     position: fixed; left: 14px; top: 50%; transform: translateY(-50%);
@@ -275,6 +311,13 @@
     padding: 6px 10px; cursor: pointer; white-space: nowrap;
   }
   .copyseed:hover { color: var(--bone); border-color: var(--line-hi); }
+
+  .previewrow { display: flex; gap: 12px; align-items: center; margin-top: 14px; }
+  #preview {
+    width: 96px; height: 96px; image-rendering: pixelated;
+    border: 2px solid var(--line); background: var(--panel-2);
+  }
+  #preview-cap { margin: 0; font-family: var(--mono); font-size: 10.5px; color: var(--stone); line-height: 1.8; }
 
   .worldrow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
   .wbtn {
@@ -574,11 +617,15 @@
 <div id="reticle" hidden></div>
 <div id="air" hidden><i></i></div>
 <pre id="perf" hidden></pre>
+<div id="achpop" hidden><b></b><span></span></div>
+<div id="cmd" hidden><span>/</span><input id="cmd-in" type="text" autocomplete="off"
+  placeholder="tp 48 40 48 · time 밤 · fill stone · give wool · seed · help"><em id="cmd-msg"></em></div>
 
 <dl id="telemetry" hidden>
   <dt>좌표</dt><dd id="t-pos">— · — · —</dd>
   <dt>시각</dt><dd id="t-time">—</dd>
   <dt>방위</dt><dd id="t-face">—</dd>
+  <dt>지대</dt><dd id="t-biome">—</dd>
   <dt>밝기</dt><dd id="t-light">—</dd>
   <dt>이동</dt><dd id="t-mode">걷기</dd>
   <dt>모양</dt><dd id="t-shape">전체</dd>
@@ -688,6 +735,8 @@
       <div><kbd>F1</kbd><span>화면 표시 숨기기</span></div>
       <div><kbd>F2</kbd><span>화면 저장 (PNG)</span></div>
       <div><kbd>F3</kbd><span>성능 정보</span></div>
+      <div><kbd>F6</kbd><span>사진 모드</span></div>
+      <div><kbd>/</kbd><span>명령창 (tp · time · fill · bp · count)</span></div>
       <div><kbd>V</kbd><span>여기를 시작 지점으로</span></div>
       <div><kbd>B</kbd><span>미니맵 표식</span></div>
       <div><kbd>TAB</kbd><span>핫바 2쪽 바꾸기</span></div>
@@ -721,6 +770,10 @@
         <button class="wbtn" id="w-restore" type="button">직전으로 되돌리기</button>
         <input id="w-file" type="file" accept="application/json,.json" hidden>
       </div>
+      <div class="previewrow">
+        <canvas id="preview" width="96" height="96"></canvas>
+        <p id="preview-cap">이 세계</p>
+      </div>
       <div class="slotrow">
         <span>조작키</span>
         <div id="keys">
@@ -742,7 +795,8 @@
       <div class="seedrow">
         <label for="seedin">SEED</label>
         <input id="seedin" type="text" inputmode="numeric" placeholder="비우면 무작위">
-        <button class="copyseed" id="copyseed" type="button">지금 시드 복사</button>
+        <button class="copyseed" id="copyseed" type="button">시드 복사</button>
+        <button class="copyseed" id="copylink" type="button">공유 링크 복사</button>
       </div>
     </details>
 

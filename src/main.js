@@ -1,6 +1,6 @@
 // main.js — 조립과 시작
 import { S } from "./state.js";
-import { MOB_KINDS, birds, fish, mobs, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
+import { MOB_KINDS, birds, feedNearbyMob, fish, mobs, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { animateLiquids, atlas } from "./atlas.js";
 import { Q } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
@@ -15,20 +15,32 @@ import { applyOpts, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, rayBox, raycast, spawn } from "./player.js";
 import { breakSound, caveSound, lavaHiss, lavaPop, listenAt, miningSound, moodChord, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
 import { OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
-import { ACHIEVEMENTS, REGION_MAX, achCount, applyEdit, beginBatch, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, selectionBounds, selectionSize, undo, unlock } from "./edit.js";
-import { airEl, bootDone, bootProgress, drawIcon, drawMinimap, facingText, helpEl, mmCap, noteBlockUse, perfEl, refreshBar, refreshPickFilter, selectSlot, showHud, sortPickByRecent, toggleHelp } from "./hud.js";
+import { ACHIEVEMENTS, CMD_HELP, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
+import { airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp } from "./hud.js";
 import { makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
-import { TUT, beginPlay, endPlay, hashSeed, pickBlock, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain } from "./input.js";
+import { TUT, beginPlay, endPlay, hashSeed, pickBlock, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink } from "./input.js";
 import { canPlaceAt, place, tryInteract, upperFromHit } from "./mine.js";
 import { HIDE_Y, MOON_PHASES, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
 import { SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, refreshPerf, step } from "./loop.js";
 
+// 주소에 ?seed=1234&t=2 가 있으면 그 세계로 연다 — 링크 하나로 같은 세계를 나눈다
+(function fromUrl() {
+  try {
+    var q = new URLSearchParams(location.search);
+    var sd = q.get("seed"), tt = q.get("t");
+    if (tt !== null) S.terrain = Math.max(0, Math.min(3, parseInt(tt, 10) || 0));
+    if (sd !== null) {
+      S.urlSeed = /^\d+$/.test(sd) ? (parseInt(sd, 10) % 1000000) : hashSeed(sd);
+    }
+  } catch (e) {}
+})();
+
 applyOpts();
 bootProgress("세계를 여는 중…", 0.08);
-S.loadedFromSave = hasSave() && loadGame();
+S.loadedFromSave = S.urlSeed === null && hasSave() && loadGame();
 if (!S.loadedFromSave) {
   bootProgress("세계를 만드는 중…", 0.20);
-  generate((Math.random() * 100000) | 0);
+  generate(S.urlSeed !== null ? S.urlSeed : ((Math.random() * 100000) | 0));
 }
 bootProgress("빛을 계산하는 중…", 0.45);
 relightAll(false);
@@ -112,6 +124,10 @@ window.__blockyard = {
   skyUniforms: skyUniforms, selectSlot: selectSlot,
   cloudGroup: cloudGroup, applyTime: applyTime,
   setBuildFocus: setBuildFocus, autoTuneFar: autoTuneFar, CH: CH,
+  runCommand: runCommand, CMD_HELP: CMD_HELP, openCmd: openCmd, closeCmd: closeCmd,
+  saveBlueprint: saveBlueprint, useBlueprint: useBlueprint, blueprintNames: blueprintNames,
+  selectionCounts: selectionCounts, feedNearbyMob: feedNearbyMob, shareLink: shareLink,
+  drawPreview: drawPreview, showAchPop: showAchPop, cmdIn: cmdIn, cmdEl: cmdEl,
   refreshStats: refreshStats, categoryOf: categoryOf, noteBlockUse: noteBlockUse,
   sortPickByRecent: sortPickByRecent, refreshPickFilter: refreshPickFilter,
   refreshKeyButtons: refreshKeyButtons, TUT: TUT, chunkCX: chunkCX, chunkCZ: chunkCZ,
