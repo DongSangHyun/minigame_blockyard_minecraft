@@ -1,0 +1,16 @@
+{
+  "name": "Blockyard — 복셀 샌드박스",
+  "short_name": "Blockyard",
+  "description": "브라우저에서 바로 도는 마인크래프트풍 복셀 샌드박스. 설치도 서버도 필요 없습니다.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0f1316",
+  "theme_color": "#0f1316",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
