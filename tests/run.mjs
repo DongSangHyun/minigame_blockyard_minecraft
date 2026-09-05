@@ -2143,6 +2143,236 @@ test("v12 파편: 바닥에 닿으면 한 번 튕긴다", async (page, errors) =
   eq(errors.length, before, "파티클에서 오류: " + errors.slice(before).join(" | "));
 });
 
+
+// ══════════════════════════════════════════════════════════════
+//  개선 v13 회귀 테스트 — 건축 도구와 생명
+// ══════════════════════════════════════════════════════════════
+
+test("v13 양털: 16색이 이름·굳기·목록에 모두 등록됐다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    let named = 0, hard = 0, listed = 0, distinct = new Set();
+    for (let i = 0; i < B.WOOL_COUNT; i++) {
+      const b = B.WOOL0 + i;
+      if (B.NAMES[b]) named++;
+      if (B.hardnessOf(b) > 0) hard++;
+      if (B.ALL_BLOCKS.indexOf(b) >= 0) listed++;
+      distinct.add(B.TILES[b][0]);
+    }
+    return { count: B.WOOL_COUNT, named, hard, listed, tiles: distinct.size,
+             isWool: B.isWool(B.WOOL0 + 5), notWool: B.isWool(B.B.STONE) };
+  });
+  eq(r.count, 16, "양털 색 수");
+  eq(r.named, 16, "이름 없는 양털");
+  eq(r.hard, 16, "굳기 없는 양털");
+  eq(r.listed, 16, "목록에 없는 양털");
+  eq(r.tiles, 16, "같은 타일을 쓰는 양털이 있다");
+  assert(r.isWool && !r.notWool, "isWool 판정이 틀렸다");
+});
+
+test("v13 영역: 채우기가 선택 범위를 정확히 덮는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 20, y = 44, z = 20;
+    for (let dx = -2; dx <= 6; dx++) for (let dz = -2; dz <= 6; dz++)
+      for (let dy = -2; dy <= 6; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.refreshAllTops();
+    B.S.selA = [x, y, z];
+    B.S.selB = [x + 3, y + 2, z + 1];
+    const size = B.selectionSize();
+    B.getBar()[B.getSelected()] = B.B.BRICK;
+    const n = B.fillSelection(B.B.BRICK, 0);
+    let inside = 0, outside = 0;
+    for (let dx = -1; dx <= 4; dx++) for (let dy = -1; dy <= 3; dy++) for (let dz = -1; dz <= 2; dz++) {
+      const isIn = dx >= 0 && dx <= 3 && dy >= 0 && dy <= 2 && dz >= 0 && dz <= 1;
+      const v = B.world[B.idx(x + dx, y + dy, z + dz)];
+      if (isIn && v === B.B.BRICK) inside++;
+      if (!isIn && v === B.B.BRICK) outside++;
+    }
+    return { size, n, inside, outside };
+  });
+  eq(r.size, 4 * 3 * 2, "선택 칸 수");
+  eq(r.n, r.size, "채운 칸 수");
+  eq(r.inside, r.size, "안쪽이 다 안 채워졌다");
+  eq(r.outside, 0, "바깥까지 채워졌다");
+});
+
+test("v13 영역: 대량 편집이 한 번에 되돌려진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 26, y = 44, z = 26;
+    for (let dx = -1; dx <= 5; dx++) for (let dz = -1; dz <= 5; dz++)
+      for (let dy = -1; dy <= 5; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.refreshAllTops();
+    B.history.length = 0; B.future.length = 0;
+    B.S.selA = [x, y, z];
+    B.S.selB = [x + 3, y + 2, z + 3];
+    const n = B.fillSelection(B.B.STONE, 0);
+    const histAfterFill = B.history.length;
+    B.undo();
+    let left = 0;
+    for (let dx = 0; dx <= 3; dx++) for (let dy = 0; dy <= 2; dy++) for (let dz = 0; dz <= 3; dz++)
+      if (B.world[B.idx(x + dx, y + dy, z + dz)] === B.B.STONE) left++;
+    B.redo();
+    let back = 0;
+    for (let dx = 0; dx <= 3; dx++) for (let dy = 0; dy <= 2; dy++) for (let dz = 0; dz <= 3; dz++)
+      if (B.world[B.idx(x + dx, y + dy, z + dz)] === B.B.STONE) back++;
+    B.S.selA = B.S.selB = null;
+    return { n, histAfterFill, left, back };
+  });
+  eq(r.histAfterFill, 1, "대량 편집이 되돌리기 기록을 " + r.histAfterFill + "개나 만들었다");
+  eq(r.left, 0, "한 번 되돌렸는데 남았다");
+  eq(r.back, r.n, "다시하기가 전부 복원하지 못했다");
+});
+
+test("v13 영역: 복사한 것을 다른 곳에 붙여넣는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 60, y = 44, z = 20;
+    for (let dx = -2; dx <= 12; dx++) for (let dz = -2; dz <= 6; dz++)
+      for (let dy = -2; dy <= 6; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.refreshAllTops();
+    // ㄱ 자 모양을 하나 만든다
+    B.applyEdit(x, y, z, B.B.BRICK, false);
+    B.applyEdit(x + 1, y, z, B.B.BRICK, false);
+    B.applyEdit(x, y + 1, z, B.B.GLASS, false);
+    B.S.selA = [x, y, z];
+    B.S.selB = [x + 1, y + 1, z];
+    const copied = B.copySelection();
+    const n = B.pasteClip(x + 6, y, z);
+    B.S.selA = B.S.selB = null;
+    return {
+      copied, n,
+      a: B.world[B.idx(x + 6, y, z)], b: B.world[B.idx(x + 7, y, z)],
+      c: B.world[B.idx(x + 6, y + 1, z)], d: B.world[B.idx(x + 7, y + 1, z)],
+      BRICK: B.B.BRICK, GLASS: B.B.GLASS
+    };
+  });
+  eq(r.copied, 4, "복사한 칸 수");
+  eq(r.a, r.BRICK, "붙여넣기 (0,0)");
+  eq(r.b, r.BRICK, "붙여넣기 (1,0)");
+  eq(r.c, r.GLASS, "붙여넣기 (0,1)");
+  eq(r.d, 0, "빈칸까지 덮어썼다");
+});
+
+test("v13 영역: 너무 큰 범위는 거절한다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.S.selA = [0, 0, 0];
+    B.S.selB = [B.WX - 1, B.WY - 1, B.WZ - 1];
+    const size = B.selectionSize();
+    const fill = B.fillSelection(B.B.STONE, 0);
+    const copy = B.copySelection();
+    B.S.selA = B.S.selB = null;
+    return { size, fill, copy, max: B.REGION_MAX };
+  });
+  assert(r.size > r.max, "시험용 범위가 상한보다 작다");
+  eq(r.fill, -1, "상한을 넘었는데 채웠다");
+  eq(r.copy, -1, "상한을 넘었는데 복사했다");
+});
+
+test("v13 조작: 비행 속도 · 핫바 2쪽 · 미니맵 표식", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.beginPlay();
+    function key(code) {
+      window.dispatchEvent(new KeyboardEvent("keydown", { code, bubbles: true }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { code, bubbles: true }));
+    }
+    // 비행 속도
+    const fly0 = B.S.flySpeed;
+    window.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, ctrlKey: true, bubbles: true }));
+    const fly1 = B.S.flySpeed;
+    // 핫바 2쪽
+    const page1 = B.getBar().slice();
+    key("Tab");
+    const page2 = B.getBar().slice();
+    key("Tab");
+    const back = B.getBar().slice();
+    // 표식
+    B.S.marks = [];
+    B.player.pos.set(20, 30, 30);
+    key("KeyB");
+    const one = B.S.marks.length;
+    key("KeyB");
+    const zero = B.S.marks.length;
+    B.endPlay(); B.setPaused(false);
+    return { fly0, fly1, differs: page1.join() !== page2.join(),
+             restored: page1.join() === back.join(), one, zero };
+  });
+  assert(r.fly1 > r.fly0, "Ctrl+휠로 비행 속도가 안 바뀐다");
+  assert(r.differs, "Tab 으로 핫바가 안 바뀐다");
+  assert(r.restored, "Tab 두 번에 원래 핫바로 안 돌아온다");
+  eq(r.one, 1, "표식이 안 찍혔다");
+  eq(r.zero, 0, "같은 자리를 다시 눌러도 안 지워진다");
+});
+
+test("v13 도움말: H 로 열리고 닫힌다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.beginPlay();
+    function key(code) {
+      window.dispatchEvent(new KeyboardEvent("keydown", { code, bubbles: true }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { code, bubbles: true }));
+    }
+    key("KeyH");
+    const opened = !B.helpEl.hidden;
+    const text = B.helpEl.textContent;
+    key("KeyH");
+    const closed = B.helpEl.hidden;
+    B.endPlay(); B.setPaused(false);
+    return { opened, closed, hasRegion: text.indexOf("영역") >= 0, hasMove: text.indexOf("이동") >= 0 };
+  });
+  assert(r.opened, "H 로 도움말이 안 열린다");
+  assert(r.closed, "H 로 도움말이 안 닫힌다");
+  assert(r.hasRegion && r.hasMove, "도움말에 빠진 항목이 있다");
+});
+
+test("v13 동물: 땅 위를 걸어 다니고 물에 빠지지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.generate(99999); B.relightAll(false);
+    B.spawn();
+    B.seedMobs();
+    const start = B.mobs.map(m => [m.x, m.z]);
+    for (let k = 0; k < 900; k++) B.updateMobs(1 / 60);
+    let moved = 0, grounded = 0, inWorld = 0;
+    B.mobs.forEach((m, i) => {
+      if (Math.abs(m.x - start[i][0]) + Math.abs(m.z - start[i][1]) > 0.5) moved++;
+      const gy = B.topMap[Math.floor(m.z) * B.WX + Math.floor(m.x)] + 1;
+      if (Math.abs(m.y - gy) < 1.6) grounded++;
+      if (m.x > 0 && m.x < B.WX && m.z > 0 && m.z < B.WZ) inWorld++;
+    });
+    B.setPaused(false);
+    return { total: B.mobs.length, moved, grounded, inWorld, kinds: B.MOB_KINDS.length };
+  });
+  assert(r.total >= 10, "동물이 너무 적다: " + r.total);
+  assert(r.kinds >= 3, "동물 종류: " + r.kinds);
+  assert(r.moved > r.total * 0.4, `동물이 안 움직인다 — ${r.moved}/${r.total}`);
+  eq(r.inWorld, r.total, "세계 밖으로 나간 동물이 있다");
+  assert(r.grounded > r.total * 0.7, `땅에서 떨어진 동물이 있다 — ${r.grounded}/${r.total}`);
+});
+
+test("v13 저장: 표식·2쪽 핫바·비행 속도가 저장된다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.S.marks = [[11, 22], [33, 44]];
+    B.S.flySpeed = 2.5;
+    B.S.barAlt = B.getBar().slice().reverse();
+    const altWas = B.S.barAlt.slice();
+    B.saveGame();
+    B.S.marks = []; B.S.flySpeed = 1; B.S.barAlt = null;
+    B.loadGame();
+    return { marks: B.S.marks, fly: B.S.flySpeed, alt: B.S.barAlt, altWas };
+  });
+  eq(r.marks.length, 2, "표식이 안 실렸다");
+  eq(r.fly, 2.5, "비행 속도가 안 실렸다");
+  eq((r.alt || []).join(), r.altWas.join(), "2쪽 핫바가 안 실렸다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

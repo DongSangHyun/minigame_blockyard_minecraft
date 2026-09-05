@@ -1,5 +1,5 @@
 // atlas.js — 텍스처 아틀라스 (코드로 그리는 16×16 도트)
-import { TILES } from "./blocks.js";
+import { TILES, WOOL_COLORS } from "./blocks.js";
 
 export var TILE = 16, COLS = 16;
 export var atlas = document.createElement("canvas");
@@ -157,6 +157,28 @@ paint(18, function (p, r) {  // 자갈
     p(cx, cy, tone); p(cx + 1, cy, tone); p(cx, cy + 1, tone);
   }
 });
+// 양털 16색 — 색마다 결이 살짝 다르게 흔들어 준다
+WOOL_COLORS.forEach(function (wc, wi) {
+  paint(37 + wi, function (p, r) {
+    var base = wc[1];
+    var rgb = [parseInt(base.slice(1, 3), 16), parseInt(base.slice(3, 5), 16),
+               parseInt(base.slice(5, 7), 16)];
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var n = (r() - 0.5) * 26;
+      p(x, y, "rgb(" + Math.max(0, Math.min(255, rgb[0] + n)) + "," +
+                       Math.max(0, Math.min(255, rgb[1] + n)) + "," +
+                       Math.max(0, Math.min(255, rgb[2] + n)) + ")");
+    }
+    for (var k = 0; k < 16; k++) {
+      var cx = Math.floor(r() * 15), cy = Math.floor(r() * 15);
+      var d = (r() < 0.5 ? 20 : -20);
+      p(cx, cy, "rgb(" + Math.max(0, Math.min(255, rgb[0] + d)) + "," +
+                         Math.max(0, Math.min(255, rgb[1] + d)) + "," +
+                         Math.max(0, Math.min(255, rgb[2] + d)) + ")");
+    }
+  });
+});
+
 paint(36, function (p, r) {  // 사다리 — 두 기둥과 가로대
   for (var y = 0; y < 16; y++) { p(2, y, "#6b4f2a"); p(3, y, "#7d5e33"); p(12, y, "#6b4f2a"); p(13, y, "#7d5e33"); }
   for (var k = 1; k < 16; k += 4)

@@ -10,8 +10,8 @@ import { applyOpts, opts, saveOpts } from "./settings.js";
 import { player, raycast, spawn } from "./player.js";
 import { ac, startAmbient, tone } from "./audio.js";
 import { SLOTS, hasSave, loadGame, saveGame, slotInfo } from "./save.js";
-import { redo, refreshStats, undo } from "./edit.js";
-import { closePicker, openPicker, perfEl, refreshSlot, selectSlot, showHud, toast } from "./hud.js";
+import { REGION_MAX, copySelection, fillSelection, pasteClip, redo, refreshStats, selectionSize, undo } from "./edit.js";
+import { closePicker, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, showHud, toast, toggleHelp } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
 import { place } from "./mine.js";
 import { setWeather } from "./sky.js";
@@ -292,6 +292,35 @@ window.addEventListener("keydown", function (e) {
   if (S.uiOpen) return;
 
   if (e.ctrlKey || e.metaKey) {
+    // ── 영역 도구
+    if (e.code === "KeyF") {
+      e.preventDefault();
+      var n = fillSelection(S.bar[S.selected], currentShape(false));
+      toast(n < 0 ? ("영역이 너무 큽니다 (최대 " + REGION_MAX.toLocaleString("ko-KR") + "칸)")
+                  : (n ? n.toLocaleString("ko-KR") + "칸을 채웠습니다" : "먼저 영역을 고르세요"));
+      return;
+    }
+    if (e.code === "KeyC") {
+      e.preventDefault();
+      var c = copySelection();
+      toast(c < 0 ? "영역이 너무 큽니다" : (c ? c.toLocaleString("ko-KR") + "칸을 복사했습니다"
+                                            : "먼저 영역을 고르세요"));
+      return;
+    }
+    if (e.code === "KeyV") {
+      e.preventDefault();
+      var hitV = raycast(6);
+      if (!hitV) { toast("붙여넣을 자리를 조준하세요"); return; }
+      var pn = pasteClip(hitV.x + hitV.nx, hitV.y + hitV.ny, hitV.z + hitV.nz);
+      toast(pn ? pn.toLocaleString("ko-KR") + "칸을 붙여넣었습니다" : "복사한 것이 없습니다");
+      return;
+    }
+    if (e.code === "KeyD") {
+      e.preventDefault();
+      S.selA = S.selB = null;
+      toast("영역 선택 해제");
+      return;
+    }
     if (e.code === "KeyZ") {
       e.preventDefault();
       var ok = e.shiftKey ? redo() : undo();
@@ -305,6 +334,17 @@ window.addEventListener("keydown", function (e) {
   if (e.code.indexOf("Digit") === 0) {
     var n = parseInt(e.code.slice(5), 10);
     selectSlot(n === 0 ? 9 : n - 1);
+  }
+  if (e.code === "Tab") {
+    e.preventDefault();
+    var swapBar = S.bar;
+    S.bar = S.barAlt;
+    S.barAlt = swapBar;
+    S.barPage = S.barPage === 1 ? 2 : 1;
+    refreshBar();
+    S.worldDirty = true;
+    toast("핫바 " + S.barPage + "쪽");
+    tone(520 + S.barPage * 90, 0.06, "square", 0.04);
   }
   if (e.code === "KeyQ") pickBlock();
   if (e.code === "KeyF") {
@@ -320,6 +360,17 @@ window.addEventListener("keydown", function (e) {
     advanceTut(3);
   }
   if (e.code === "F2") { e.preventDefault(); S.wantShot = true; }
+  if (e.code === "KeyB") {
+    var mx = Math.round(player.pos.x), mz = Math.round(player.pos.z);
+    var near = -1;
+    for (var mi = 0; mi < S.marks.length; mi++)
+      if (Math.abs(S.marks[mi][0] - mx) < 3 && Math.abs(S.marks[mi][1] - mz) < 3) near = mi;
+    if (near >= 0) { S.marks.splice(near, 1); toast("표식 지움"); }
+    else if (S.marks.length >= 12) toast("표식은 12개까지입니다");
+    else { S.marks.push([mx, mz]); toast("표식 " + S.marks.length + "개"); }
+    S.worldDirty = true;
+    tone(620, 0.08, "triangle", 0.05);
+  }
   if (e.code === "KeyV") {
     S.spawnPoint = [player.pos.x, player.pos.y, player.pos.z];
     S.worldDirty = true;
@@ -350,6 +401,7 @@ window.addEventListener("keydown", function (e) {
     S.mmZoom = zs[zi];
     toast("미니맵 ×" + S.mmZoom);
   }
+  if (e.code === "KeyH") { toggleHelp(); }
   if (e.code === "KeyT") cycleTime();
   if (e.code === "KeyK") {
     setWeather((S.weather + 1) % 3);
@@ -380,6 +432,11 @@ window.addEventListener("keyup", function (e) {
 
 window.addEventListener("wheel", function (e) {
   if (!S.active || S.uiOpen) return;
+  if (e.ctrlKey || e.metaKey) {                 // 비행 속도
+    S.flySpeed = Math.max(0.5, Math.min(4, S.flySpeed * (e.deltaY > 0 ? 0.85 : 1.18)));
+    toast("비행 속도 ×" + S.flySpeed.toFixed(2));
+    return;
+  }
   selectSlot(S.selected + (e.deltaY > 0 ? 1 : -1));
 }, { passive: true });
 
@@ -389,6 +446,18 @@ canvas.addEventListener("mousedown", function (e) {
   if (!S.active) { requestPlay(); return; }
   if (S.uiOpen) return;
   if (e.button === 1) { e.preventDefault(); pickBlock(); return; }   // 휠 클릭 = 픽블록
+  // Ctrl + 클릭으로 영역의 두 모서리를 찍는다
+  if (e.ctrlKey || e.metaKey) {
+    e.preventDefault();
+    var hs = raycast(6);
+    if (!hs) return;
+    if (e.button === 0) { S.selA = [hs.x, hs.y, hs.z]; toast("영역 시작"); }
+    else if (e.button === 2) {
+      S.selB = [hs.x, hs.y, hs.z];
+      toast("영역 " + selectionSize().toLocaleString("ko-KR") + "칸");
+    }
+    return;
+  }
   if (S.lockMode) {
     S.mouseDown[e.button] = true;
     if (e.button === 2) S.placeCooldown = 0;

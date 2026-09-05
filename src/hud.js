@@ -236,3 +236,12 @@ if (stampEl) {
   stampEl.innerHTML = "마지막 업데이트 <b>" + BUILD.updated + "</b>";
   stampEl.title = BUILD.iso;
 }
+
+// ── 조작 도움말 (H)
+export var helpEl = document.getElementById("help");
+export function toggleHelp(on) {
+  if (!helpEl) return;
+  var want = on === undefined ? helpEl.hidden : on;
+  helpEl.hidden = !want;
+}
+if (helpEl) helpEl.addEventListener("click", function () { helpEl.hidden = true; });

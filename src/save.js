@@ -120,7 +120,8 @@ export function saveGame() {
       s: [stats.placed, stats.mined],
       t: S.timeOfDay, f: player.flying, bar: S.bar,
       ach: S.earned, kinds: S.placedKinds, lamps: S.lampsPlaced,
-      secs: Math.round(S.playSeconds), tut: S.tut
+      secs: Math.round(S.playSeconds), tut: S.tut,
+      sp: S.spawnPoint, marks: S.marks, bar2: S.barAlt, fly: S.flySpeed
     }));
     try { localStorage.removeItem(OLD_KEY); } catch (e2) {}
     S.worldDirty = false;
@@ -161,6 +162,10 @@ export function loadGame() {
     S.lampsPlaced = d.lamps || 0;
     S.playSeconds = d.secs || 0;
     S.tut = typeof d.tut === "number" ? d.tut : 0;
+    S.spawnPoint = Array.isArray(d.sp) && d.sp.length === 3 ? d.sp.slice() : null;
+    S.marks = Array.isArray(d.marks) ? d.marks.slice(0, 12) : [];
+    if (Array.isArray(d.bar2) && d.bar2.length === DEFAULT_BAR.length) S.barAlt = d.bar2.slice();
+    S.flySpeed = typeof d.fly === "number" ? Math.max(0.5, Math.min(4, d.fly)) : 1;
     refreshAllTops();
     return true;
   } catch (e) { return false; }

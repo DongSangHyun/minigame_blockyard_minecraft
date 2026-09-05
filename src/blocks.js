@@ -10,6 +10,15 @@ export var AIR = 0, GRASS = 1, DIRT = 2, STONE = 3, SAND = 4, LOG = 5, LEAVES = 
     BIRCH_LOG = 27, BIRCH_LEAVES = 28, SPRUCE_LEAVES = 29,
     GOLD = 30, DIAMOND = 31,
     FENCE = 32, GATE = 33, PANE = 34, LADDER = 35;
+// 양털 16색 — 건축의 팔레트. 36~51 을 연속으로 쓴다.
+export var WOOL0 = 36, WOOL_COUNT = 16;
+export var WOOL_COLORS = [
+  ["흰색", "#e9ecec"], ["연회색", "#8e8e86"], ["회색", "#3e4447"], ["검정", "#1d1c21"],
+  ["빨강", "#b02e26"], ["주황", "#f9801d"], ["노랑", "#fed83d"], ["연두", "#80c71f"],
+  ["초록", "#5e7c16"], ["청록", "#169c9c"], ["하늘", "#3ab3da"], ["파랑", "#3c44aa"],
+  ["보라", "#8932b8"], ["자홍", "#c74ebd"], ["분홍", "#f38baa"], ["갈색", "#835432"]
+];
+export function isWool(b) { return b >= WOOL0 && b < WOOL0 + WOOL_COUNT; }
 
 export var TILES = {};
 TILES[GRASS]  = [0, 1, 2];
@@ -80,6 +89,13 @@ HARDNESS[GOLD] = 2.35; HARDNESS[DIAMOND] = 2.9;
 HARDNESS[FENCE] = 0.55; HARDNESS[GATE] = 0.55;
 HARDNESS[PANE] = 0.20; HARDNESS[LADDER] = 0.24;
 HARDNESS[BIRCH_LOG] = 0.78; HARDNESS[BIRCH_LEAVES] = 0.18; HARDNESS[SPRUCE_LEAVES] = 0.18;
+// 양털 16색을 표·이름·굳기에 한꺼번에 등록한다
+for (var wi = 0; wi < WOOL_COUNT; wi++) {
+  TILES[WOOL0 + wi] = [37 + wi, 37 + wi, 37 + wi];
+  NAMES[WOOL0 + wi] = "WOOL " + WOOL_COLORS[wi][0];
+  HARDNESS[WOOL0 + wi] = 0.42;
+}
+
 export function hardnessOf(b) { return HARDNESS[b] || 0.5; }
 
 // 캘 수 없는 블록 — 세계의 바닥이라는 걸 눈으로 알려 준다
@@ -107,6 +123,7 @@ export var ALL_BLOCKS = [GRASS, DIRT, STONE, COBBLE, SAND, GRAVEL, SNOW, LOG,
                   WATER, LAVA, CACTUS, TALLGRASS, FLOWER_R, FLOWER_Y,
                   DEADBUSH, DRYGRASS, BIRCH_LOG, BIRCH_LEAVES, SPRUCE_LEAVES,
                   GOLD, DIAMOND, FENCE, GATE, PANE, LADDER];
+for (var wj = 0; wj < WOOL_COUNT; wj++) ALL_BLOCKS.push(WOOL0 + wj);
 
 // ── 이웃에 따라 모양이 바뀌는 블록 (울타리 · 유리판)
 export function isConnecting(b) { return b === FENCE || b === PANE; }
@@ -192,4 +209,5 @@ export function lightPass(b) {
 }
 
 
-S.bar = DEFAULT_BAR.slice();   // state.js 는 import 를 하지 않으므로 여기서 채운다
+S.bar = DEFAULT_BAR.slice();
+S.barAlt = [BRICK, COBBLE, SNOW, ICE, GLASS, FENCE, GATE, PANE, LADDER, WOOL0];   // state.js 는 import 를 하지 않으므로 여기서 채운다

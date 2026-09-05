@@ -1,5 +1,6 @@
 // loop.js — 게임 루프
 import { S } from "./state.js";
+import { updateMobs, seedMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
 import { WX, WY, WZ, idx } from "./dims.js";
 import { reduceMotion } from "./boot.js";
@@ -9,13 +10,13 @@ import { biomeMap, crossBase, generate, get, set, shape, topMap, world } from ".
 import { lightAtPlayer, lightSky, relightAll } from "./light.js";
 import { decayTick, dryTick, fallTick, freezeTick, waterTick } from "./fluids.js";
 import { buildBudget, dirty, markAllDirty, opaqueMeshes } from "./mesh.js";
-import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, voxUniforms } from "./scene.js";
+import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { opts } from "./settings.js";
 import { EYE, moveAxis, moveHorizontal, player, raycast, spawn, stats } from "./player.js";
 import { caveSound, crunch, lavaHiss, lavaPop, miningSound, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { saveGame } from "./save.js";
-import { ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, unlock } from "./edit.js";
+import { ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
 import { airBar, airEl, drawMinimap, facingText, mmCap, perfEl, refreshBar, tAch, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, underwaterEl } from "./hud.js";
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
 import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
@@ -40,6 +41,10 @@ export function newWorld(seed) {
   S.earned = {}; S.placedKinds = {}; S.lampsPlaced = 0; S.playSeconds = 0; S.tut = 0;
   S.shapeMode = 0;
   S.spawnPoint = null;
+  S.marks = [];
+  S.selA = S.selB = null;
+  S.clip = null;
+  seedMobs();
   refreshAchList(); refreshStats();
   S.timeOfDay = 0.30;
   applyTime();
@@ -93,7 +98,7 @@ export function step(dt) {
                     (S.sprintTap || !!(S.keys.ControlLeft || S.keys.ControlRight));
     S.sprintingNow = sprinting;
 
-    var speed = player.flying ? FLY
+    var speed = player.flying ? FLY * S.flySpeed
               : (S.sneaking ? WALK * SNEAK_MUL : (sprinting ? SPRINT : WALK));
     if (feetInWater && !player.flying) speed *= thick ? 0.30 : 0.55;
 
@@ -119,7 +124,7 @@ export function step(dt) {
     if (Math.abs(player.vel.z) < 0.02) player.vel.z = 0;
 
     if (player.flying) {
-      player.vel.y = ((S.keys.Space ? 1 : 0) - (crouchKey ? 1 : 0)) * FLY;
+      player.vel.y = ((S.keys.Space ? 1 : 0) - (crouchKey ? 1 : 0)) * FLY * S.flySpeed;
     } else {
       // 사다리 — 몸이 사다리에 걸쳐 있으면 천천히 오르내린다
       var onLadder = isClimbable(get(Math.floor(player.pos.x),
@@ -244,7 +249,9 @@ export function step(dt) {
   updateWeather(dt);
   updateStorm(dt);
   updateEdge(player.pos.x, player.pos.z);
+  updateSelectionBox(selectionBounds());
   updateCreatures(dt);
+  updateMobs(dt);
 
   if (!reduceMotion) {
     cloudGroup.position.x += dt * 0.9;

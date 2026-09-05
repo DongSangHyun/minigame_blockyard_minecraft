@@ -51,11 +51,12 @@ blocks · atlas          블록 정의와 텍스처
 world · light · fluids  세계 데이터와 시뮬레이션
 mesh · scene            그리기
 player · mine · sky     플레이어와 상호작용
+mobs                    걸어 다니는 동물
 hud · hand · input      화면과 조작
 loop · main             매 프레임과 조립
 ```
 
 ## 현재 상태 한 줄
 
-**v12 — 건축 부품과 상호작용 · 회귀 테스트 98항목 전부 통과.**
+**v13 — 건축 도구와 생명 · 회귀 테스트 107항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/

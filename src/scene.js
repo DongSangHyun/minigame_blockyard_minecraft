@@ -326,3 +326,19 @@ export function updateEdge(px, pz) {
   edgeMat.opacity = near * near * 0.34;
   edgeGroup.visible = edgeMat.opacity > 0.005;
 }
+
+// ── 영역 선택 상자 — 두 모서리를 찍으면 초록 테두리가 뜬다
+export var selMat = new THREE.LineBasicMaterial({ color: 0x7ec850, fog: false,
+  transparent: true, opacity: 0.9 });
+export var selBox = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)), selMat);
+selBox.visible = false;
+selBox.renderOrder = 6;
+scene.add(selBox);
+
+export function updateSelectionBox(b) {
+  if (!b) { selBox.visible = false; return; }
+  selBox.visible = true;
+  selBox.scale.set(b.x1 - b.x0 + 1.02, b.y1 - b.y0 + 1.02, b.z1 - b.z0 + 1.02);
+  selBox.position.set((b.x0 + b.x1 + 1) / 2, (b.y0 + b.y1 + 1) / 2, (b.z0 + b.z1 + 1) / 2);
+}

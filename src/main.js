@@ -1,21 +1,22 @@
 // main.js — 조립과 시작
 import { S } from "./state.js";
+import { MOB_KINDS, mobs, seedMobs, updateMobs } from "./mobs.js";
 import { animateLiquids, atlas } from "./atlas.js";
 import { Q } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TORCH, WATER, blocksLight, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, lightPass, wallShapeFor } from "./blocks.js";
+import { AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
 import { biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBoxes, heightMap, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, waterLvl, world } from "./world.js";
 import { WATER_DIM, lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
 import { MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueWaterAround, fallTick, freezeTick, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
 import { FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll } from "./mesh.js";
-import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, edgeMat, highlight, updateChunkVisibility, updateEdge, updateParticles, voxUniforms } from "./scene.js";
+import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, edgeMat, highlight, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { applyOpts, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, rayBox, raycast, spawn } from "./player.js";
 import { breakSound, caveSound, lavaHiss, lavaPop, miningSound, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
 import { OLD_KEY, SAVE_KEY, SLOTS, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, hasSave, liftLegacy, loadGame, saveGame, slotInfo, slotKey } from "./save.js";
-import { ACHIEVEMENTS, achCount, applyEdit, redo, refreshAchList, refreshStats, undo, unlock } from "./edit.js";
-import { airEl, drawIcon, drawMinimap, facingText, mmCap, perfEl, refreshBar, selectSlot, showHud } from "./hud.js";
+import { ACHIEVEMENTS, REGION_MAX, achCount, applyEdit, beginBatch, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, selectionBounds, selectionSize, undo, unlock } from "./edit.js";
+import { airEl, drawIcon, drawMinimap, facingText, helpEl, mmCap, perfEl, refreshBar, selectSlot, showHud, toggleHelp } from "./hud.js";
 import { makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
 import { beginPlay, endPlay, hashSeed, pickBlock, refreshMenu, refreshSlots } from "./input.js";
 import { canPlaceAt, place, tryInteract, upperFromHit } from "./mine.js";
@@ -102,6 +103,12 @@ window.__blockyard = {
   isLog: isLog, isLeaf: isLeaf, isWallShape: isWallShape, wallShapeFor: wallShapeFor,
   updateStorm: updateStorm, updateEdge: updateEdge, edgeMat: edgeMat,
   updateParticles: updateParticles, boxesAt: boxesAt, dynamicBoxes: dynamicBoxes, hasDynamicBoxes: hasDynamicBoxes,
+  isWool: isWool, WOOL0: WOOL0, WOOL_COUNT: WOOL_COUNT, WOOL_COLORS: WOOL_COLORS,
+  fillSelection: fillSelection, copySelection: copySelection, pasteClip: pasteClip,
+  selectionBounds: selectionBounds, selectionSize: selectionSize, REGION_MAX: REGION_MAX,
+  beginBatch: beginBatch, endBatch: endBatch, updateSelectionBox: updateSelectionBox,
+  mobs: mobs, updateMobs: updateMobs, seedMobs: seedMobs, MOB_KINDS: MOB_KINDS,
+  toggleHelp: toggleHelp, helpEl: helpEl,
   isConnecting: isConnecting, isClimbable: isClimbable, isOpenable: isOpenable,
   connectsTo: connectsTo, tryInteract: tryInteract, perfEl: perfEl,
   refreshPerf: refreshPerf,

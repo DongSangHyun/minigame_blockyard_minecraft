@@ -78,20 +78,40 @@ export function applyEdit(x, y, z, to, record, sh) {
   S.worldDirty = true;
 
   if (record) {
-    S.history.push({ x: x, y: y, z: z, from: from, to: to, fromSh: fromSh, toSh: toSh });
+    var rec = { x: x, y: y, z: z, from: from, to: to, fromSh: fromSh, toSh: toSh };
+    if (S.batch) { S.batch.push(rec); return true; }     // 묶음 편집 중이면 모아 둔다
+    S.history.push(rec);
     if (S.history.length > HISTORY_MAX) S.history.shift();
     S.future.length = 0;
   }
   return true;
 }
 
+// 대량 편집(채우기·붙여넣기)은 한 덩어리로 묶어 한 번에 되돌린다
+export function beginBatch() { S.batch = []; }
+export function endBatch(label) {
+  var b = S.batch;
+  S.batch = null;
+  if (!b || !b.length) return 0;
+  S.history.push({ batch: b, label: label || "대량 편집" });
+  if (S.history.length > HISTORY_MAX) S.history.shift();
+  S.future.length = 0;
+  return b.length;
+}
+
+function applyCell(e, toSide) {
+  var i = idx(e.x, e.y, e.z);
+  world[i] = toSide ? e.to : e.from;
+  shape[i] = (toSide ? e.toSh : e.fromSh) || SH_FULL;
+  touch(e.x, e.y, e.z); refreshTop(e.x, e.z); relightLocal(e.x, e.y, e.z);
+  if (world[i] === AIR) enqueueWaterAround(e.x, e.y, e.z);
+}
+
 export function undo() {
   var e = S.history.pop();
   if (!e) return false;
-  world[idx(e.x, e.y, e.z)] = e.from;
-  shape[idx(e.x, e.y, e.z)] = e.fromSh || SH_FULL;
-  touch(e.x, e.y, e.z); refreshTop(e.x, e.z); relightLocal(e.x, e.y, e.z);
-  if (e.from === AIR) enqueueWaterAround(e.x, e.y, e.z);
+  if (e.batch) { for (var i = e.batch.length - 1; i >= 0; i--) applyCell(e.batch[i], false); }
+  else applyCell(e, false);
   S.future.push(e);
   S.worldDirty = true;
   return true;
@@ -99,10 +119,8 @@ export function undo() {
 export function redo() {
   var e = S.future.pop();
   if (!e) return false;
-  world[idx(e.x, e.y, e.z)] = e.to;
-  shape[idx(e.x, e.y, e.z)] = e.toSh || SH_FULL;
-  touch(e.x, e.y, e.z); refreshTop(e.x, e.z); relightLocal(e.x, e.y, e.z);
-  if (e.to === AIR) enqueueWaterAround(e.x, e.y, e.z);
+  if (e.batch) { for (var i = 0; i < e.batch.length; i++) applyCell(e.batch[i], true); }
+  else applyCell(e, true);
   S.history.push(e);
   S.worldDirty = true;
   return true;
@@ -175,4 +193,68 @@ export function unlock(id) {
   tone(880, 0.09, "triangle", 0.05);
   setTimeout(function () { tone(1320, 0.12, "triangle", 0.045); }, 110);
   refreshAchList();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  영역 도구 — 크리에이티브 건축의 채우기 · 복사 · 붙여넣기
+// ══════════════════════════════════════════════════════════════
+function bounds() {
+  if (!S.selA || !S.selB) return null;
+  return {
+    x0: Math.min(S.selA[0], S.selB[0]), x1: Math.max(S.selA[0], S.selB[0]),
+    y0: Math.min(S.selA[1], S.selB[1]), y1: Math.max(S.selA[1], S.selB[1]),
+    z0: Math.min(S.selA[2], S.selB[2]), z1: Math.max(S.selA[2], S.selB[2])
+  };
+}
+export function selectionBounds() { return bounds(); }
+export function selectionSize() {
+  var b = bounds();
+  if (!b) return 0;
+  return (b.x1 - b.x0 + 1) * (b.y1 - b.y0 + 1) * (b.z1 - b.z0 + 1);
+}
+export var REGION_MAX = 40000;   // 한 번에 다룰 수 있는 칸 수
+
+export function fillSelection(block, sh) {
+  var b = bounds();
+  if (!b) return 0;
+  if (selectionSize() > REGION_MAX) return -1;
+  beginBatch();
+  for (var y = b.y0; y <= b.y1; y++)
+    for (var z = b.z0; z <= b.z1; z++)
+      for (var x = b.x0; x <= b.x1; x++)
+        applyEdit(x, y, z, block, true, sh || SH_FULL);
+  return endBatch("채우기");
+}
+
+export function copySelection() {
+  var b = bounds();
+  if (!b) return 0;
+  if (selectionSize() > REGION_MAX) return -1;
+  var w = b.x1 - b.x0 + 1, h = b.y1 - b.y0 + 1, d = b.z1 - b.z0 + 1;
+  var blocks = new Uint8Array(w * h * d), shapes = new Uint8Array(w * h * d);
+  var n = 0;
+  for (var y = 0; y < h; y++)
+    for (var z = 0; z < d; z++)
+      for (var x = 0; x < w; x++) {
+        var i = idx(b.x0 + x, b.y0 + y, b.z0 + z);
+        blocks[n] = world[i]; shapes[n] = shape[i]; n++;
+      }
+  S.clip = { w: w, h: h, d: d, blocks: blocks, shapes: shapes };
+  return w * h * d;
+}
+
+export function pasteClip(px, py, pz) {
+  var c = S.clip;
+  if (!c) return 0;
+  beginBatch();
+  var n = 0;
+  for (var y = 0; y < c.h; y++)
+    for (var z = 0; z < c.d; z++)
+      for (var x = 0; x < c.w; x++) {
+        var b = c.blocks[n], sh = c.shapes[n];
+        n++;
+        if (b === AIR) continue;                 // 빈칸은 덮어쓰지 않는다
+        applyEdit(px + x, py + y, pz + z, b, true, sh);
+      }
+  return endBatch("붙여넣기");
 }
