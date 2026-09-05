@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { resetQueues } from "./queues.js";
 import { DIRS, N, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, CACTUS, COAL, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FLOWER_R, FLOWER_Y, GOLD, GRASS, GRAVEL, ICE, IRON, LAVA, LEAVES, LOG, SAND, SHAPE_BOXES, SH_FULL, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, WATER, isCross, isSolid } from "./blocks.js";
+import { AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, CACTUS, COAL, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAVA, LEAVES, LOG, PANE, SAND, SHAPE_BOXES, SH_FULL, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, WALL_DIR, WATER, connectsTo, isCross, isSolid } from "./blocks.js";
 import { makeRng } from "./atlas.js";
 
 export var world = new Uint8Array(N);
@@ -45,6 +45,62 @@ export function surfaceTop(x, y, z) {
 export function crossBase(x, y, z) {
   var st = surfaceTop(x, y - 1, z);
   return (st > 0 && st < 1) ? y - (1 - st) : y;
+}
+
+// ── 이웃에 따라 달라지는 상자 —
+// 울타리·유리판은 옆에 무엇이 있느냐로 모양이 바뀌므로 SHAPE_BOXES 로는 담을 수 없다.
+export function dynamicBoxes(b, x, y, z) {
+  var _dynBoxes = [];
+  if (b === FENCE) {
+    _dynBoxes.push([0.375, 0, 0.375, 0.625, 1, 0.625]);           // 기둥
+    if (connectsTo(b, get(x - 1, y, z))) _dynBoxes.push([0, 0.30, 0.437, 0.375, 0.94, 0.563]);
+    if (connectsTo(b, get(x + 1, y, z))) _dynBoxes.push([0.625, 0.30, 0.437, 1, 0.94, 0.563]);
+    if (connectsTo(b, get(x, y, z - 1))) _dynBoxes.push([0.437, 0.30, 0, 0.563, 0.94, 0.375]);
+    if (connectsTo(b, get(x, y, z + 1))) _dynBoxes.push([0.437, 0.30, 0.625, 0.563, 0.94, 1]);
+    return _dynBoxes;
+  }
+  if (b === PANE) {
+    var w = connectsTo(b, get(x - 1, y, z)), e = connectsTo(b, get(x + 1, y, z));
+    var n = connectsTo(b, get(x, y, z - 1)), s2 = connectsTo(b, get(x, y, z + 1));
+    if (!w && !e && !n && !s2) {                                   // 외톨이는 십자로 선다
+      _dynBoxes.push([0.437, 0, 0.437, 0.563, 1, 0.563]);
+      return _dynBoxes;
+    }
+    if (w || e) _dynBoxes.push([w ? 0 : 0.437, 0, 0.437, e ? 1 : 0.563, 1, 0.563]);
+    if (n || s2) _dynBoxes.push([0.437, 0, n ? 0 : 0.437, 0.563, 1, s2 ? 1 : 0.563]);
+    return _dynBoxes;
+  }
+  if (b === GATE) {
+    var open = shape[idx(x, y, z)] === 1;
+    var alongX = connectsTo(b, get(x - 1, y, z)) || connectsTo(b, get(x + 1, y, z));
+    if (open) {                                                    // 열리면 옆으로 접힌다
+      if (alongX) {
+        _dynBoxes.push([0, 0.25, 0, 0.18, 1, 0.30]);
+        _dynBoxes.push([0.82, 0.25, 0, 1, 1, 0.30]);
+      } else {
+        _dynBoxes.push([0, 0.25, 0, 0.30, 1, 0.18]);
+        _dynBoxes.push([0, 0.25, 0.82, 0.30, 1, 1]);
+      }
+      return _dynBoxes;
+    }
+    if (alongX) _dynBoxes.push([0, 0.25, 0.437, 1, 1, 0.563]);
+    else _dynBoxes.push([0.437, 0.25, 0, 0.563, 1, 1]);
+    return _dynBoxes;
+  }
+  if (b === LADDER) {
+    var d = WALL_DIR[shape[idx(x, y, z)]] || [0, 0, -1];
+    if (d[0]) return _dynBoxes.push(d[0] > 0 ? [0.86, 0, 0, 1, 1, 1] : [0, 0, 0, 0.14, 1, 1]), _dynBoxes;
+    return _dynBoxes.push(d[2] > 0 ? [0, 0, 0.86, 1, 1, 1] : [0, 0, 0, 1, 1, 0.14]), _dynBoxes;
+  }
+  return null;
+}
+export function hasDynamicBoxes(b) {
+  return b === FENCE || b === PANE || b === GATE || b === LADDER;
+}
+// 충돌·조준·메싱이 함께 쓰는 단일 진입점
+export function boxesAt(b, sh, x, y, z) {
+  if (hasDynamicBoxes(b)) return dynamicBoxes(b, x, y, z);
+  return SHAPE_BOXES[sh] || SHAPE_BOXES[SH_FULL];
 }
 
 export function refreshAllTops() {

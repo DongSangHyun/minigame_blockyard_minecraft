@@ -1,8 +1,8 @@
 // player.js — 플레이어 · 충돌 · 레이캐스트
 import { S } from "./state.js";
 import { WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, CROSS, SHAPE_BOXES, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_UP_OFF, crossOffset, isCross, isLiquid, isSolid } from "./blocks.js";
-import { crossBase, get, set, shape, shapeAt, world } from "./world.js";
+import { AIR, CROSS, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_UP_OFF, crossOffset, isCross, isLiquid, isSolid } from "./blocks.js";
+import { boxesAt, crossBase, get, hasDynamicBoxes, set, shape, shapeAt, world } from "./world.js";
 import { camera } from "./scene.js";
 
 export var HALF = 0.3, BODY = 1.78, EYE = 1.62;
@@ -27,6 +27,13 @@ export function currentShape(upper) {
 }
 
 export function spawn() {
+  // 직접 정해 둔 시작 지점이 있으면 거기로 (V 키)
+  if (S.spawnPoint) {
+    player.pos.set(S.spawnPoint[0], S.spawnPoint[1], S.spawnPoint[2]);
+    player.vel.set(0, 0, 0);
+    player.flying = false;
+    return;
+  }
   var sx = Math.floor(WX / 2), sz = Math.floor(WZ / 2);
   var top = WY - 1;
   while (top > 0 && get(sx, top, sz) === AIR) top--;
@@ -44,10 +51,11 @@ export function boxHitsWorld(px, py, pz) {
   for (var x = x0; x <= x1; x++) {
     for (var y = y0; y <= y1; y++) {
       for (var z = z0; z <= z1; z++) {
-        if (!isSolid(get(x, y, z))) continue;
+        var cb = get(x, y, z);
+        if (!isSolid(cb)) continue;
         var sh = shapeAt(x, y, z);
-        if (sh === SH_FULL) return true;
-        var boxes = SHAPE_BOXES[sh];
+        if (sh === SH_FULL && !hasDynamicBoxes(cb)) return true;
+        var boxes = boxesAt(cb, sh, x, y, z);
         for (var k = 0; k < boxes.length; k++) {
           var q = boxes[k];
           if (bX > x + q[0] && aX < x + q[3] &&
@@ -188,13 +196,13 @@ export function raycast(maxDist) {
             return { x: x, y: y, z: z, nx: nc[0], ny: nc[1], nz: nc[2], block: b, shape: sh,
                      t: rc.t, hitY: _ro.y + _rd.y * rc.t, cross: true };
           }
-        } else if (sh === SH_FULL) {
+        } else if (sh === SH_FULL && !hasDynamicBoxes(b)) {
           return { x: x, y: y, z: z, nx: nx, ny: ny, nz: nz, block: b, shape: sh,
                    t: t, hitY: _ro.y + _rd.y * t };
         }
         _oA[0] = _ro.x; _oA[1] = _ro.y; _oA[2] = _ro.z;
         _dA[0] = _rd.x; _dA[1] = _rd.y; _dA[2] = _rd.z;
-        var boxes = SHAPE_BOXES[sh], best = null;
+        var boxes = boxesAt(b, sh, x, y, z), best = null;
         for (var bb = 0; bb < boxes.length; bb++) {
           var q = boxes[bb];
           _mn[0] = x + q[0]; _mn[1] = y + q[1]; _mn[2] = z + q[2];

@@ -151,6 +151,7 @@ export var tPos = document.getElementById("t-pos"),
 
 export var underwaterEl = document.getElementById("underwater");
 export var airEl = document.getElementById("air");
+export var perfEl = document.getElementById("perf");
 export var airBar = airEl ? airEl.querySelector("i") : null;
 export var minimapEl = document.getElementById("minimap");
 export var mmCap = document.getElementById("mm-cap");

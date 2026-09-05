@@ -38,9 +38,9 @@ function squareTexture(px, draw) {
 
 export var sunMat = new THREE.SpriteMaterial({
   map: squareTexture(16, function (c, px) {
-    c.fillStyle = "#ffe9a0"; c.fillRect(0, 0, px, px);
-    c.fillStyle = "#fff6d2"; c.fillRect(2, 2, px - 4, px - 4);
-    c.fillStyle = "#fffdf0"; c.fillRect(5, 5, px - 10, px - 10);
+    c.fillStyle = "#f0c860"; c.fillRect(0, 0, px, px);
+    c.fillStyle = "#f8dc8e"; c.fillRect(2, 2, px - 4, px - 4);
+    c.fillStyle = "#fdeeb6"; c.fillRect(5, 5, px - 10, px - 10);
   }),
   transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending
 });

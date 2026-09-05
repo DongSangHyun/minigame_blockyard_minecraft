@@ -8,7 +8,8 @@ export var AIR = 0, GRASS = 1, DIRT = 2, STONE = 3, SAND = 4, LOG = 5, LEAVES = 
     TALLGRASS = 20, FLOWER_R = 21, FLOWER_Y = 22, TORCH = 23,
     CACTUS = 24, DEADBUSH = 25, DRYGRASS = 26,
     BIRCH_LOG = 27, BIRCH_LEAVES = 28, SPRUCE_LEAVES = 29,
-    GOLD = 30, DIAMOND = 31;
+    GOLD = 30, DIAMOND = 31,
+    FENCE = 32, GATE = 33, PANE = 34, LADDER = 35;
 
 export var TILES = {};
 TILES[GRASS]  = [0, 1, 2];
@@ -42,6 +43,10 @@ TILES[BIRCH_LEAVES] = [32, 32, 32];
 TILES[SPRUCE_LEAVES]= [33, 33, 33];
 TILES[GOLD]      = [34, 34, 34];
 TILES[DIAMOND]   = [35, 35, 35];
+TILES[FENCE]     = [8, 8, 8];      // 나무판자 결을 그대로 쓴다
+TILES[GATE]      = [8, 8, 8];
+TILES[PANE]      = [9, 9, 9];      // 유리
+TILES[LADDER]    = [36, 36, 36];
 
 export var NAMES = {};
 NAMES[GRASS] = "GRASS"; NAMES[DIRT] = "DIRT"; NAMES[STONE] = "STONE";
@@ -57,6 +62,8 @@ NAMES[CACTUS] = "CACTUS"; NAMES[DEADBUSH] = "DEAD BUSH"; NAMES[DRYGRASS] = "DRY 
 NAMES[BIRCH_LOG] = "BIRCH"; NAMES[BIRCH_LEAVES] = "BIRCH LEAVES";
 NAMES[SPRUCE_LEAVES] = "SPRUCE LEAVES";
 NAMES[GOLD] = "GOLD"; NAMES[DIAMOND] = "DIAMOND";
+NAMES[FENCE] = "FENCE"; NAMES[GATE] = "GATE";
+NAMES[PANE] = "GLASS PANE"; NAMES[LADDER] = "LADDER";
 
 // 캐는 데 걸리는 시간(초)
 export var HARDNESS = {};
@@ -70,6 +77,8 @@ HARDNESS[TALLGRASS] = 0.05; HARDNESS[FLOWER_R] = 0.05;
 HARDNESS[FLOWER_Y] = 0.05; HARDNESS[TORCH] = 0.06;
 HARDNESS[CACTUS] = 0.34; HARDNESS[DEADBUSH] = 0.05; HARDNESS[DRYGRASS] = 0.05;
 HARDNESS[GOLD] = 2.35; HARDNESS[DIAMOND] = 2.9;
+HARDNESS[FENCE] = 0.55; HARDNESS[GATE] = 0.55;
+HARDNESS[PANE] = 0.20; HARDNESS[LADDER] = 0.24;
 HARDNESS[BIRCH_LOG] = 0.78; HARDNESS[BIRCH_LEAVES] = 0.18; HARDNESS[SPRUCE_LEAVES] = 0.18;
 export function hardnessOf(b) { return HARDNESS[b] || 0.5; }
 
@@ -97,7 +106,20 @@ export var ALL_BLOCKS = [GRASS, DIRT, STONE, COBBLE, SAND, GRAVEL, SNOW, LOG,
                   LEAVES, PLANKS, GLASS, BRICK, LAMP, TORCH, COAL, IRON, ICE,
                   WATER, LAVA, CACTUS, TALLGRASS, FLOWER_R, FLOWER_Y,
                   DEADBUSH, DRYGRASS, BIRCH_LOG, BIRCH_LEAVES, SPRUCE_LEAVES,
-                  GOLD, DIAMOND];
+                  GOLD, DIAMOND, FENCE, GATE, PANE, LADDER];
+
+// ── 이웃에 따라 모양이 바뀌는 블록 (울타리 · 유리판)
+export function isConnecting(b) { return b === FENCE || b === PANE; }
+// 얇지만 통과할 수 있는 블록 (사다리)
+export function isClimbable(b) { return b === LADDER; }
+// 우클릭으로 여닫는 블록
+export function isOpenable(b) { return b === GATE; }
+// 울타리·유리판이 이어 붙는 상대인가
+export function connectsTo(self, other) {
+  if (other === AIR || isLiquid(other) || isCross(other)) return false;
+  if (self === PANE) return other === PANE || other === GLASS || isSolid(other);
+  return other === FENCE || other === GATE || isSolid(other);
+}
 
 // 원목·잎으로 묶어 두면 잎 부패와 축 회전이 종류를 안 가린다
 export function isLog(b) { return b === LOG || b === BIRCH_LOG; }
@@ -161,11 +183,12 @@ export function faceKindFor(sh, f, base) {
 export function isAxisShape(sh) { return sh === SH_AXIS_X || sh === SH_AXIS_Z; }
 
 export function isLiquid(b) { return b === WATER || b === LAVA; }
-export function isTransparent(b) { return b === GLASS || b === WATER || b === ICE; }
-export function isSolid(b) { return b !== AIR && !isLiquid(b) && !isCross(b); }
+export function isTransparent(b) { return b === GLASS || b === WATER || b === ICE || b === PANE; }
+export function isSolid(b) { return b !== AIR && !isLiquid(b) && !isCross(b) && b !== LADDER; }
 export function blocksLight(b) { return b !== AIR && !isTransparent(b) && !isCross(b); }
 export function lightPass(b) {
-  return b === AIR || b === WATER || b === GLASS || b === ICE || isCross(b);
+  return b === AIR || b === WATER || b === GLASS || b === ICE || b === PANE ||
+         b === FENCE || b === GATE || b === LADDER || isCross(b);
 }
 
 

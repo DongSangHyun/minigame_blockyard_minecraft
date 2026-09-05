@@ -1,11 +1,11 @@
 // mine.js — 캐기 · 놓기
 import { S } from "./state.js";
-import { inside } from "./dims.js";
-import { AIR, ALL_BLOCKS, COAL, FLOWER_R, FLOWER_Y, IRON, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TORCH, isCross, isLiquid, isLog, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
-import { get } from "./world.js";
+import { idx, inside } from "./dims.js";
+import { AIR, ALL_BLOCKS, COAL, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TORCH, isCross, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
+import { get, shape } from "./world.js";
 import { burst } from "./scene.js";
 import { BODY, HALF, currentShape, player, raycast, stats } from "./player.js";
-import { breakSound, placeSound } from "./audio.js";
+import { breakSound, placeSound, tone } from "./audio.js";
 import { applyEdit, unlock } from "./edit.js";
 import { toast } from "./hud.js";
 import { triggerSwing } from "./hand.js";
@@ -43,9 +43,21 @@ export function canPlaceAt(px, py, pz) {
   return true;
 }
 
+// 우클릭이 "쓰기" 인가 "놓기" 인가 — 마크와 같이 웅크리면 언제나 놓기다
+export function tryInteract(hit) {
+  if (!hit || S.sneaking) return false;
+  if (!isOpenable(hit.block)) return false;
+  var i = idx(hit.x, hit.y, hit.z);
+  applyEdit(hit.x, hit.y, hit.z, hit.block, true, shape[i] === 1 ? 0 : 1);
+  tone(shape[i] === 1 ? 420 : 300, 0.09, "square", 0.05);
+  triggerSwing();
+  return true;
+}
+
 export function place() {
   var hit = raycast(6);
   if (!hit) return;
+  if (tryInteract(hit)) return;
   var b = S.bar[S.selected];
 
   // 반블록 두 장을 겹치면 온전한 블록이 된다 — 건축가가 제일 먼저 시도하는 것
@@ -73,9 +85,11 @@ export function place() {
   if (needsFloor(b) && isLiquid(get(px, py, pz))) { toast("물속에서는 꺼집니다"); return; }
   // 횃불은 벽에도 붙는다 — 옆면을 클릭했고 그 벽이 단단하면 벽 횃불
   var wallSh = 0;
-  if (b === TORCH && !onCross && (hit.nx !== 0 || hit.nz !== 0) && isSolid(hit.block)) {
+  if ((b === TORCH || b === LADDER) && !onCross &&
+      (hit.nx !== 0 || hit.nz !== 0) && isSolid(hit.block)) {
     wallSh = wallShapeFor(hit.nx, hit.nz);
   }
+  if (b === LADDER && !wallSh) { toast("벽에 붙여야 합니다"); return; }
   if (needsFloor(b) && !wallSh && !isSolid(get(px, py - 1, pz))) {
     toast("받칠 바닥이 필요합니다"); return;
   }

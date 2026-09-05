@@ -284,7 +284,9 @@ export function updateParticles(dt) {
     pPos[k * 3 + 2] += pVel[k * 3 + 2] * dt;
     if (isSolid(get(Math.floor(pPos[k * 3]), Math.floor(pPos[k * 3 + 1]), Math.floor(pPos[k * 3 + 2])))) {
       pPos[k * 3 + 1] = Math.floor(pPos[k * 3 + 1]) + 1.02;
-      pVel[k * 3] *= 0.4; pVel[k * 3 + 1] = 0; pVel[k * 3 + 2] *= 0.4;
+      // 바닥에 닿으면 한 번 튕기고 잦아든다 — 툭 떨어져 멈추는 것보다 살아 있다
+      pVel[k * 3 + 1] = pVel[k * 3 + 1] < -1.6 ? -pVel[k * 3 + 1] * 0.32 : 0;
+      pVel[k * 3] *= 0.55; pVel[k * 3 + 2] *= 0.55;
     }
   }
   pGeo.attributes.position.needsUpdate = true;

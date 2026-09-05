@@ -3,12 +3,12 @@ import { S } from "./state.js";
 import { Q, resetQueues } from "./queues.js";
 import { WX, WY, WZ, idx } from "./dims.js";
 import { reduceMotion } from "./boot.js";
-import { DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, STONE, TORCH, WATER, hardnessOf, isCross, isSolid, isUnbreakable } from "./blocks.js";
+import { DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, STONE, TORCH, WATER, hardnessOf, isClimbable, isCross, isSolid, isUnbreakable } from "./blocks.js";
 import { animateLiquids, crackTex } from "./atlas.js";
 import { biomeMap, crossBase, generate, get, set, shape, topMap, world } from "./world.js";
 import { lightAtPlayer, lightSky, relightAll } from "./light.js";
 import { decayTick, dryTick, fallTick, freezeTick, waterTick } from "./fluids.js";
-import { buildBudget, markAllDirty } from "./mesh.js";
+import { buildBudget, dirty, markAllDirty, opaqueMeshes } from "./mesh.js";
 import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { opts } from "./settings.js";
@@ -16,7 +16,7 @@ import { EYE, moveAxis, moveHorizontal, player, raycast, spawn, stats } from "./
 import { caveSound, crunch, lavaHiss, lavaPop, miningSound, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { saveGame } from "./save.js";
 import { ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, unlock } from "./edit.js";
-import { airBar, airEl, drawMinimap, facingText, mmCap, refreshBar, tAch, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, underwaterEl } from "./hud.js";
+import { airBar, airEl, drawMinimap, facingText, mmCap, perfEl, refreshBar, tAch, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, underwaterEl } from "./hud.js";
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
 import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
 import { localBiome, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather } from "./sky.js";
@@ -39,6 +39,7 @@ export function newWorld(seed) {
   resetQueues();
   S.earned = {}; S.placedKinds = {}; S.lampsPlaced = 0; S.playSeconds = 0; S.tut = 0;
   S.shapeMode = 0;
+  S.spawnPoint = null;
   refreshAchList(); refreshStats();
   S.timeOfDay = 0.30;
   applyTime();
@@ -120,6 +121,15 @@ export function step(dt) {
     if (player.flying) {
       player.vel.y = ((S.keys.Space ? 1 : 0) - (crouchKey ? 1 : 0)) * FLY;
     } else {
+      // 사다리 — 몸이 사다리에 걸쳐 있으면 천천히 오르내린다
+      var onLadder = isClimbable(get(Math.floor(player.pos.x),
+                                     Math.floor(player.pos.y + 0.6),
+                                     Math.floor(player.pos.z)));
+      if (onLadder) {
+        var up = S.keys.Space ? 1 : (crouchKey ? -1 : (len > 0 ? 0.75 : 0));
+        player.vel.y = up ? up * 3.2 : -1.1;
+        if (up > 0 && Math.random() < dt * 6) crunch(0.05, 0.03, 900);
+      } else
       player.vel.y -= GRAVITY * dt * (feetInWater ? (thick ? 0.14 : 0.22) : 1);
       if (feetInWater) {
         player.vel.y = Math.max(player.vel.y, thick ? -1.4 : -2.6);
@@ -502,13 +512,14 @@ export function animate() {
     tPos.textContent = Math.floor(player.pos.x) + " · " + Math.floor(player.pos.y) + " · " + Math.floor(player.pos.z);
     tTime.textContent = clockText();
     tFace.textContent = facingText();
-    tAch.innerHTML = "<b>" + achCount() + "</b> / " + ACHIEVEMENTS.length;
     tLight.textContent = lightAtPlayer() + " / 15";
     tMode.textContent = player.flying ? "비행" : (S.wasUnderwater ? "헤엄" : "걷기");
     tShape.textContent = ["전체", "반블록", "계단"][S.shapeMode];
     tBlocks.innerHTML = "놓음 <b>" + stats.placed + "</b> · 캔 <b>" + stats.mined + "</b>";
+    tAch.innerHTML = "<b>" + achCount() + "</b> / " + ACHIEVEMENTS.length;
     tFps.textContent = Math.round(S.fpsFrames / S.fpsAccum);
     S.fpsAccum = 0; S.fpsFrames = 0; S.hudTimer = 0;
+    if (S.showPerf) refreshPerf();
   }
   if (S.mmTimer > 0.2 && S.active) {
     drawMinimap();
@@ -517,4 +528,22 @@ export function animate() {
                         + (S.mmZoom > 1 ? "  ×" + S.mmZoom : "");
     S.mmTimer = 0;
   }
+}
+
+// 성능 정보 (F3) — 눈으로 확인할 수 있게 따로 떼어 두었다
+export function refreshPerf() {
+  var vis = 0, tris = 0;
+  for (var pi = 0; pi < opaqueMeshes.length; pi++) {
+    if (!opaqueMeshes[pi].visible) continue;
+    vis++;
+    var ix = opaqueMeshes[pi].geometry.getIndex();
+    if (ix) tris += ix.count / 3;
+  }
+  perfEl.innerHTML =
+    "청크   <b>" + vis + "</b> / " + opaqueMeshes.length + "\n" +
+    "삼각형 <b>" + tris.toLocaleString("ko-KR") + "</b>\n" +
+    "굽는중 <b>" + dirty.size + "</b>\n" +
+    "물     <b>" + (Q.waterQ.length - Q.waterHead) + "</b>  낙하 " + (Q.fallQ.length - Q.fallHead) + "\n" +
+    "잎     <b>" + (Q.decayQ.length - Q.decayHead) + "</b>\n" +
+    "시야   <b>" + opts.far + "</b>m  DPR " + renderer.getPixelRatio().toFixed(2);
 }

@@ -157,6 +157,12 @@ paint(18, function (p, r) {  // 자갈
     p(cx, cy, tone); p(cx + 1, cy, tone); p(cx, cy + 1, tone);
   }
 });
+paint(36, function (p, r) {  // 사다리 — 두 기둥과 가로대
+  for (var y = 0; y < 16; y++) { p(2, y, "#6b4f2a"); p(3, y, "#7d5e33"); p(12, y, "#6b4f2a"); p(13, y, "#7d5e33"); }
+  for (var k = 1; k < 16; k += 4)
+    for (var x = 3; x < 13; x++) { p(x, k, "#8a6838"); p(x, k + 1, "#74562d"); }
+});
+
 paint(34, orePaint("#f2c14a", "#d9a327"));   // 금
 paint(35, orePaint("#57e0d8", "#2fb9b1"));   // 다이아
 

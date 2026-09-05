@@ -46,6 +46,8 @@ export const S = {
   lastPlaceCell: -1,
   hudHidden: false,
   wantShot: false,
+  showPerf: false,
+  spawnPoint: null,
   thirdPerson: 0,
   swing: 0,
   heldKey: -1,

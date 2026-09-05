@@ -89,6 +89,17 @@
     box-shadow: inset 0 0 200px rgba(90,16,2,.92);
   }
 
+  /* ---------- 성능 정보 (F3) ---------- */
+  #perf {
+    position: fixed; left: 14px; top: 50%; transform: translateY(-50%);
+    margin: 0; padding: 10px 12px;
+    background: color-mix(in srgb, var(--panel-2) 86%, transparent);
+    border: 2px solid var(--line);
+    font-family: var(--mono); font-size: 10.5px; line-height: 1.7;
+    color: var(--stone); pointer-events: none; white-space: pre;
+  }
+  #perf b { color: var(--moss); font-weight: 500; }
+
   /* ---------- 산소 ---------- */
   #air {
     position: fixed; left: 50%; bottom: calc(96px + var(--safe-b));
@@ -228,6 +239,13 @@
     .slot { width: 29px; height: 29px; }
     .slot canvas { width: 25px; height: 25px; }
   }
+
+  .copyseed {
+    font-family: var(--mono); font-size: 10px; color: var(--stone);
+    background: var(--panel-2); border: 2px solid var(--line);
+    padding: 6px 10px; cursor: pointer; white-space: nowrap;
+  }
+  .copyseed:hover { color: var(--bone); border-color: var(--line-hi); }
 
   .slotrow {
     display: flex; align-items: center; gap: 10px; margin-top: 12px;
@@ -467,6 +485,7 @@
 <div id="underwater" hidden></div>
 <div id="reticle" hidden></div>
 <div id="air" hidden><i></i></div>
+<pre id="perf" hidden></pre>
 
 <dl id="telemetry" hidden>
   <dt>좌표</dt><dd id="t-pos">— · — · —</dd>
@@ -543,6 +562,8 @@
       <div><kbd>F5</kbd><span>1인칭 / 3인칭</span></div>
       <div><kbd>F1</kbd><span>화면 표시 숨기기</span></div>
       <div><kbd>F2</kbd><span>화면 저장 (PNG)</span></div>
+      <div><kbd>F3</kbd><span>성능 정보</span></div>
+      <div><kbd>V</kbd><span>여기를 시작 지점으로</span></div>
       <div><kbd>[</kbd> <kbd>]</kbd><span>미니맵 확대 / 축소</span></div>
       <div><kbd>M</kbd><span>소리 끄기</span></div>
     </div>
@@ -565,6 +586,7 @@
       <div class="seedrow">
         <label for="seedin">SEED</label>
         <input id="seedin" type="text" inputmode="numeric" placeholder="비우면 무작위">
+        <button class="copyseed" id="copyseed" type="button">지금 시드 복사</button>
       </div>
     </details>
 

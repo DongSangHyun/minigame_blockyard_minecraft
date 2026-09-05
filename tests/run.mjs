@@ -1934,6 +1934,215 @@ test("v11 소리: 천둥·빗소리가 예외 없이 돈다", async (page, error
   eq(errors.length, before, "소리에서 오류: " + errors.slice(before).join(" | "));
 });
 
+
+// ══════════════════════════════════════════════════════════════
+//  개선 v12 회귀 테스트 — 건축 부품과 상호작용
+// ══════════════════════════════════════════════════════════════
+
+test("v12 울타리: 이웃이 생기면 팔을 뻗어 이어진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 30, y = 46, z = 30;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy <= 3; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.set(x, y - 1, z, B.B.STONE);
+    B.refreshAllTops();
+    B.applyEdit(x, y, z, B.B.FENCE, false);
+    const alone = B.boxesAt(B.B.FENCE, 0, x, y, z).length;
+    B.applyEdit(x + 1, y, z, B.B.FENCE, false);
+    const paired = B.boxesAt(B.B.FENCE, 0, x, y, z).length;
+    return { alone, paired, connecting: B.isConnecting(B.B.FENCE) };
+  });
+  eq(r.alone, 1, "외톨이 울타리는 기둥 하나여야 한다");
+  eq(r.paired, 2, "이웃이 생겼는데 팔을 안 뻗었다");
+  assert(r.connecting, "울타리가 연결형으로 등록되지 않았다");
+});
+
+test("v12 울타리: 넘어갈 수 없게 막는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 34, y = 46, z = 34;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+      for (let dy = 0; dy <= 3; dy++) B.set(x + dx, y + dy, z + dz, 0);
+      B.set(x + dx, y - 1, z + dz, B.B.STONE);
+    }
+    B.refreshAllTops();
+    B.applyEdit(x + 1, y, z, B.B.FENCE, false);
+    B.player.pos.set(x + 0.5, y, z + 0.5);
+    B.setSneak(false);
+    B.moveHorizontal(0.9, 0);
+    const stopped = B.player.pos.x;
+    const stuck = B.boxHitsWorld(B.player.pos.x, B.player.pos.y, B.player.pos.z);
+    // 울타리 기둥은 칸의 0.375~0.625 를 차지한다
+    return { stopped, stuck, postFace: x + 1 + 0.375, want: x + 0.5 + 0.9 };
+  });
+  eq(r.stuck, false, "울타리에 박혔다");
+  assert(r.stopped + 0.3 <= r.postFace + 0.01,
+    `울타리 기둥을 뚫고 지나갔다 — 몸 앞이 ${(r.stopped + 0.3).toFixed(3)}, 기둥은 ${r.postFace}`);
+  assert(r.stopped < r.want - 0.05, "울타리가 아예 막지 못했다: " + r.stopped.toFixed(3));
+});
+
+test("v12 유리판: 홀로 서면 십자, 이어지면 한 장이 된다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 38, y = 46, z = 38;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy <= 3; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.set(x, y - 1, z, B.B.STONE);
+    B.refreshAllTops();
+    B.applyEdit(x, y, z, B.B.PANE, false);
+    const alone = B.boxesAt(B.B.PANE, 0, x, y, z).map(q => q.slice());
+    B.applyEdit(x + 1, y, z, B.B.PANE, false);
+    const joined = B.boxesAt(B.B.PANE, 0, x, y, z);
+    return { aloneW: alone[0][3] - alone[0][0], joinedW: joined[0][3] - joined[0][0],
+             trans: B.isTransparent(B.B.PANE) };
+  });
+  near(r.aloneW, 0.126, 0.02, "외톨이 유리판 두께");
+  assert(r.joinedW > 0.5, "이웃 쪽으로 안 늘어났다: " + r.joinedW.toFixed(3));
+  assert(r.trans, "유리판이 반투명이 아니다");
+});
+
+test("v12 문: 우클릭으로 여닫히고, 웅크리면 대신 블록을 놓는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 42, y = 46, z = 42;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy <= 3; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.set(x, y - 1, z, B.B.STONE);
+    B.refreshAllTops();
+    B.applyEdit(x, y, z, B.B.GATE, false);
+    const hit = { x: x, y: y, z: z, block: B.B.GATE, shape: 0, nx: 0, ny: 0, nz: 1 };
+    B.setSneak(false);
+    const acted = B.tryInteract(hit);
+    const opened = B.shape[B.idx(x, y, z)];
+    B.tryInteract({ x: x, y: y, z: z, block: B.B.GATE, shape: 1, nx: 0, ny: 0, nz: 1 });
+    const closed = B.shape[B.idx(x, y, z)];
+    B.setSneak(true);
+    const sneaked = B.tryInteract(hit);
+    B.setSneak(false);
+    return { acted, opened, closed, sneaked, openable: B.isOpenable(B.B.GATE) };
+  });
+  assert(r.openable, "문이 여닫는 블록으로 등록되지 않았다");
+  assert(r.acted, "우클릭이 문을 안 건드렸다");
+  eq(r.opened, 1, "문이 안 열렸다");
+  eq(r.closed, 0, "문이 안 닫혔다");
+  eq(r.sneaked, false, "웅크렸는데도 문을 열었다");
+});
+
+test("v12 사다리: 벽에 붙고, 타고 오를 수 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const x = 46, y = 46, z = 46;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy <= 8; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    for (let dy = -1; dy <= 6; dy++) B.set(x, y + dy, z, B.B.STONE);   // 벽
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      if (dx !== 0 || dz !== 0) B.set(x + dx, y - 1, z + dz, B.B.STONE);
+    for (let dy = 0; dy <= 6; dy++) B.set(x + 1, y + dy, z, B.B.LADDER, 0);
+    // 벽이 -X 쪽에 있으므로 SH_WALL_W
+    for (let dy = 0; dy <= 6; dy++) B.shape[B.idx(x + 1, y + dy, z)] = B.SH.WALL_W;
+    B.refreshAllTops(); B.relightAll(false); B.markAllDirty(); B.buildBudget(4000);
+
+    B.beginPlay();
+    B.player.pos.set(x + 1.5, y, z + 0.5);
+    B.player.vel.set(0, 0, 0);
+    B.player.flying = false;
+    const y0 = B.player.pos.y;
+    B.setKey("Space", true);
+    for (let k = 0; k < 90; k++) B.step(1 / 60);
+    B.setKey("Space", false);
+    const y1 = B.player.pos.y;
+    B.endPlay(); B.setPaused(false);
+    return { y0, y1, climbable: B.isClimbable(B.B.LADDER), solid: B.isSolid(B.B.LADDER) };
+  });
+  assert(r.climbable, "사다리가 오를 수 있는 블록이 아니다");
+  eq(r.solid, false, "사다리가 길을 막는다");
+  assert(r.y1 > r.y0 + 1.5, `사다리를 못 올라갔다 — ${r.y0.toFixed(2)} → ${r.y1.toFixed(2)}`);
+});
+
+test("v12 시작 지점: V 로 정한 곳에서 되살아난다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.beginPlay();
+    B.player.pos.set(33.5, 40, 44.5);
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyV", bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyV", bubbles: true }));
+    const saved = B.S.spawnPoint ? B.S.spawnPoint.slice() : null;
+    B.player.pos.set(1, 1, 1);
+    B.spawn();
+    const after = [B.player.pos.x, B.player.pos.y, B.player.pos.z];
+    B.S.spawnPoint = null;
+    B.endPlay(); B.setPaused(false);
+    return { saved, after };
+  });
+  assert(r.saved, "시작 지점이 저장되지 않았다");
+  near(r.after[0], 33.5, 0.01, "되살아난 X");
+  near(r.after[2], 44.5, 0.01, "되살아난 Z");
+});
+
+test("v12 시드 복사: 버튼이 지금 시드를 입력칸에 넣는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.generate(31337);
+    document.getElementById("copyseed").click();
+    return { seed: B.seed(), field: document.getElementById("seedin").value };
+  });
+  eq(r.field, String(r.seed), "시드가 입력칸에 안 들어갔다");
+});
+
+test("v12 성능 패널: F3 로 열리고 숫자가 채워진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.beginPlay();
+    B.markAllDirty(); B.buildBudget(4000);
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "F3", bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "F3", bubbles: true }));
+    for (let k = 0; k < 30; k++) B.step(1 / 60);
+    B.refreshPerf();
+    const txt = B.perfEl.textContent;
+    const hidden = B.perfEl.hidden;
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "F3", bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "F3", bubbles: true }));
+    B.endPlay(); B.setPaused(false);
+    return { txt, hidden, hiddenAfter: B.perfEl.hidden };
+  });
+  eq(r.hidden, false, "F3 로 패널이 안 열렸다");
+  assert(r.txt.indexOf("청크") >= 0 && /\d/.test(r.txt), "패널이 비어 있다: " + r.txt);
+  eq(r.hiddenAfter, true, "F3 로 다시 안 닫혔다");
+});
+
+test("v12 새 블록이 목록과 조준에 모두 등록됐다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const need = [B.B.FENCE, B.B.GATE, B.B.PANE, B.B.LADDER];
+    return {
+      inList: need.filter(b => B.ALL_BLOCKS.indexOf(b) >= 0).length,
+      named: need.filter(b => !!B.NAMES[b]).length,
+      hard: need.filter(b => B.hardnessOf(b) > 0).length,
+      dyn: need.filter(b => B.hasDynamicBoxes(b)).length,
+      picks: document.querySelectorAll("#pick-grid .pick").length,
+      total: B.ALL_BLOCKS.length
+    };
+  });
+  eq(r.inList, 4, "새 블록이 블록 목록에 없다");
+  eq(r.named, 4, "이름이 없는 새 블록이 있다");
+  eq(r.dyn, 4, "동적 상자에 등록되지 않은 새 블록이 있다");
+  eq(r.picks, r.total, "블록 고르기 패널이 목록과 다르다");
+});
+
+test("v12 파편: 바닥에 닿으면 한 번 튕긴다", async (page, errors) => {
+  const before = errors.length;
+  await page.evaluate(() => {
+    const B = window.__blockyard;
+    for (let k = 0; k < 40; k++) B.burst(48, 30, 48, B.B.STONE, 5);
+    for (let k = 0; k < 120; k++) B.updateParticles(1 / 60);
+  });
+  eq(errors.length, before, "파티클에서 오류: " + errors.slice(before).join(" | "));
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

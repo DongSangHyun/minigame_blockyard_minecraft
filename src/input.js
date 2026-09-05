@@ -11,7 +11,7 @@ import { player, raycast, spawn } from "./player.js";
 import { ac, startAmbient, tone } from "./audio.js";
 import { SLOTS, hasSave, loadGame, saveGame, slotInfo } from "./save.js";
 import { redo, refreshStats, undo } from "./edit.js";
-import { closePicker, openPicker, refreshSlot, selectSlot, showHud, toast } from "./hud.js";
+import { closePicker, openPicker, perfEl, refreshSlot, selectSlot, showHud, toast } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
 import { place } from "./mine.js";
 import { setWeather } from "./sky.js";
@@ -87,6 +87,21 @@ if (slotsEl) {
     refreshSlots();
     refreshMenu();
     refreshStats();
+  });
+}
+
+// 지금 세계의 시드를 클립보드로
+export var copySeedBtn = document.getElementById("copyseed");
+if (copySeedBtn) {
+  copySeedBtn.addEventListener("click", function (e) {
+    e.stopPropagation();
+    var txt = String(S.worldSeed);
+    seedIn.value = txt;
+    try {
+      if (navigator.clipboard) navigator.clipboard.writeText(txt);
+      else { seedIn.select(); document.execCommand("copy"); }
+      toast("시드 " + txt + " 복사됨");
+    } catch (err) { toast("시드 " + txt); }
   });
 }
 
@@ -305,6 +320,18 @@ window.addEventListener("keydown", function (e) {
     advanceTut(3);
   }
   if (e.code === "F2") { e.preventDefault(); S.wantShot = true; }
+  if (e.code === "KeyV") {
+    S.spawnPoint = [player.pos.x, player.pos.y, player.pos.z];
+    S.worldDirty = true;
+    toast("여기를 시작 지점으로 정했습니다");
+    tone(700, 0.1, "triangle", 0.05);
+  }
+  if (e.code === "F3") {
+    e.preventDefault();
+    S.showPerf = !S.showPerf;
+    perfEl.hidden = !S.showPerf;
+    toast(S.showPerf ? "성능 정보 켬" : "성능 정보 끔");
+  }
   if (e.code === "F5") {
     e.preventDefault();
     S.thirdPerson = (S.thirdPerson + 1) % 3;

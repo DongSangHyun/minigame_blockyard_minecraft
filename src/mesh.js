@@ -1,8 +1,8 @@
 // mesh.js — 면 데이터 + 청크 메싱
 import { CH, CX, CY, CZ, DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, CROSS, SHAPE_BOXES, SH_FULL, TILES, WATER, blocksLight, crossOffset, faceKindFor, isCross, isTransparent, lightPass } from "./blocks.js";
+import { AIR, CROSS, SH_FULL, TILES, WATER, blocksLight, crossOffset, faceKindFor, isCross, isTransparent, lightPass } from "./blocks.js";
 import { TILE, atlas, tileOrigin } from "./atlas.js";
-import { crossBase, get, shape, shapeAt, world } from "./world.js";
+import { boxesAt, crossBase, get, hasDynamicBoxes, shape, shapeAt, world } from "./world.js";
 import { lightBlk, lightSky } from "./light.js";
 
 export var FACES = [
@@ -70,7 +70,7 @@ export function buildChunk(cx, cy, cz) {
         }
 
         var sh = shape[ci];
-        var boxes = SHAPE_BOXES[sh] || SHAPE_BOXES[0];
+        var boxes = boxesAt(b, sh, x, y, z);
 
         var trans = isTransparent(b);
         var P = trans ? tpos : pos, U = trans ? tuv : uv,
@@ -92,7 +92,7 @@ export function buildChunk(cx, cy, cz) {
             if (flush) {
               var n = get(ax, ay, az);
               if (n !== AIR && !isCross(n)) {
-                var nFull = shapeAt(ax, ay, az) === SH_FULL;
+                var nFull = shapeAt(ax, ay, az) === SH_FULL && !hasDynamicBoxes(n);
                 if (nFull && (!isTransparent(n) || n === b)) continue;
               }
             }
