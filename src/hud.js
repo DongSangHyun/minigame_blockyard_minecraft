@@ -1,8 +1,8 @@
 // hud.js — HUD · 핫바 · 블록 고르기 · 미니맵
 import { S } from "./state.js";
 import { BUILD } from "./version.js";
-import { WX, WY, WZ, idx } from "./dims.js";
-import { AIR, ALL_BLOCKS, GLASS, NAMES, TILES, WATER, isCross } from "./blocks.js";
+import { SEA, WX, WY, WZ, idx } from "./dims.js";
+import { AIR, ALL_BLOCKS, GLASS, NAMES, TILES, WATER, categoryOf, isCross } from "./blocks.js";
 import { AVG_TOP, TILE, atlas, tileOrigin } from "./atlas.js";
 import { topMap, world } from "./world.js";
 import { player } from "./player.js";
@@ -91,6 +91,7 @@ export function selectSlot(i) {
 export var pickerEl = document.getElementById("picker");
 export var pickGrid = document.getElementById("pick-grid");
 
+export var pickBtns = [];
 ALL_BLOCKS.forEach(function (b) {
   var btn = document.createElement("button");
   btn.className = "pick";
@@ -111,10 +112,13 @@ ALL_BLOCKS.forEach(function (b) {
     toast(NAMES[b]);
   });
   pickGrid.appendChild(btn);
+  pickBtns.push({ el: btn, block: b, name: NAMES[b] || "", cat: categoryOf(b) });
 });
 
 export function openPicker() {
   if (S.uiOpen) return;
+  sortPickByRecent();
+  refreshPickFilter();
   S.uiOpen = true;
   pickerEl.hidden = false;
   if (document.pointerLockElement === canvas) document.exitPointerLock();
@@ -203,7 +207,15 @@ export function drawMinimap() {
         }
       } else {
         var y = topMap[z * WX + x];
-        if (y >= 0) { b = world[idx(x, y, z)]; shade = 0.62 + (y / WY) * 0.72; }
+        if (y >= 0) {
+          b = world[idx(x, y, z)];
+          shade = 0.62 + (y / WY) * 0.72;
+          // 등고선 — 일정 높이마다 한 줄씩 어둡게 해 높낮이를 읽게 한다
+          if (S.contour && y > SEA) {
+            var west = topMap[z * WX + Math.max(0, x - 1)];
+            if (Math.floor(y / 4) !== Math.floor(west / 4)) shade *= 0.72;
+          }
+        }
       }
       if (b === AIR) { d[o] = 12; d[o + 1] = 16; d[o + 2] = 20; continue; }
       var c = AVG_TOP[b] || [120, 120, 120];
@@ -245,3 +257,62 @@ export function toggleHelp(on) {
   helpEl.hidden = !want;
 }
 if (helpEl) helpEl.addEventListener("click", function () { helpEl.hidden = true; });
+
+// ── 첫 로딩 화면 — 세계를 만들고 굽는 동안 멈춘 것처럼 보이지 않게
+export var bootEl = document.getElementById("boot");
+export var bootMsg = document.getElementById("boot-msg");
+export var bootBar = document.getElementById("boot-bar");
+export function bootProgress(msg, frac) {
+  if (!bootEl) return;
+  if (msg && bootMsg) bootMsg.textContent = msg;
+  if (bootBar) bootBar.style.width = Math.round(Math.max(0, Math.min(1, frac)) * 100) + "%";
+}
+export function bootDone() {
+  if (!bootEl) return;
+  bootEl.classList.add("done");
+  setTimeout(function () { bootEl.style.display = "none"; }, 400);
+}
+
+// ── 블록 목록 걸러 보기
+export var pickFind = document.getElementById("pick-find");
+export var pickTabs = document.getElementById("pick-tabs");
+export var pickCat = "all";
+// 최근 쓴 블록 — 목록을 열면 맨 앞에 온다
+export function noteBlockUse(b) {
+  var i = S.recent.indexOf(b);
+  if (i >= 0) S.recent.splice(i, 1);
+  S.recent.unshift(b);
+  if (S.recent.length > 12) S.recent.length = 12;
+}
+export function sortPickByRecent() {
+  var order = pickBtns.slice().sort(function (a, b) {
+    var ai = S.recent.indexOf(a.block), bi = S.recent.indexOf(b.block);
+    if (ai < 0) ai = 999;
+    if (bi < 0) bi = 999;
+    return ai - bi;
+  });
+  for (var i = 0; i < order.length; i++) pickGrid.appendChild(order[i].el);
+}
+
+export function refreshPickFilter() {
+  var q = (pickFind && pickFind.value || "").trim().toLowerCase();
+  var shown = 0;
+  for (var i = 0; i < pickBtns.length; i++) {
+    var e = pickBtns[i];
+    var ok = (pickCat === "all" || e.cat === pickCat) &&
+             (!q || e.name.toLowerCase().indexOf(q) >= 0);
+    e.el.hidden = !ok;
+    if (ok) shown++;
+  }
+  return shown;
+}
+if (pickFind) pickFind.addEventListener("input", refreshPickFilter);
+if (pickTabs) pickTabs.addEventListener("click", function (ev) {
+  var btn = ev.target.closest("button[data-cat]");
+  if (!btn) return;
+  pickCat = btn.getAttribute("data-cat");
+  var bs = pickTabs.querySelectorAll("button");
+  for (var i = 0; i < bs.length; i++)
+    bs[i].setAttribute("aria-current", bs[i] === btn ? "true" : "false");
+  refreshPickFilter();
+});

@@ -58,5 +58,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v15 — 사건이 있는 세계 · 회귀 테스트 127항목 전부 통과.**
+**v16 — 편의와 완성도 · 회귀 테스트 137항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/

@@ -9,10 +9,10 @@ import { animateLiquids, crackTex } from "./atlas.js";
 import { biomeMap, crossBase, generate, get, set, shape, topMap, world } from "./world.js";
 import { lightAtPlayer, lightSky, relightAll } from "./light.js";
 import { decayTick, dryTick, fallTick, fireTick, freezeTick, waterTick } from "./fluids.js";
-import { buildBudget, dirty, markAllDirty, opaqueMeshes } from "./mesh.js";
+import { buildBudget, dirty, markAllDirty, opaqueMeshes, setBuildFocus } from "./mesh.js";
 import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
-import { opts } from "./settings.js";
+import { applyOpts, opts, saveOpts } from "./settings.js";
 import { EYE, HALF, moveAxis, moveHorizontal, player, raycast, spawn, stats } from "./player.js";
 import { caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { saveGame } from "./save.js";
@@ -469,6 +469,7 @@ export function step(dt) {
   }
 
   // 청크 재생성 — 프레임당 8ms 예산
+  setBuildFocus(camera.position);
   buildBudget(8);
   updateChunkVisibility(eyeInLiquid ? 26 : opts.far);
 
@@ -541,7 +542,9 @@ export function animate() {
     tShape.textContent = ["전체", "반블록", "계단"][S.shapeMode];
     tBlocks.innerHTML = "놓음 <b>" + stats.placed + "</b> · 캔 <b>" + stats.mined + "</b>";
     tAch.innerHTML = "<b>" + achCount() + "</b> / " + ACHIEVEMENTS.length;
-    tFps.textContent = Math.round(S.fpsFrames / S.fpsAccum);
+    var fps = Math.round(S.fpsFrames / S.fpsAccum);
+    tFps.textContent = fps;
+    autoTuneFar(fps);
     S.fpsAccum = 0; S.fpsFrames = 0; S.hudTimer = 0;
     if (S.showPerf) refreshPerf();
   }
@@ -555,6 +558,24 @@ export function animate() {
 }
 
 // 성능 정보 (F3) — 눈으로 확인할 수 있게 따로 떼어 두었다
+// 프레임이 계속 낮으면 시야거리를 스스로 줄이고, 넉넉해지면 되돌린다
+export function autoTuneFar(fps) {
+  if (!S.autoPerf) return;
+  if (fps < 32 && opts.far > 40) {
+    S.perfDrop = (S.perfDrop || 0) + 1;
+    if (S.perfDrop >= 3) {
+      S.perfDrop = 0;
+      opts.far = Math.max(40, opts.far - 15);
+      applyOpts(); saveOpts();
+      toast("프레임이 낮아 시야거리를 " + opts.far + "m 로 줄였습니다");
+    }
+  } else if (fps > 55 && opts.far < S.farWanted) {
+    S.perfDrop = 0;
+    opts.far = Math.min(S.farWanted, opts.far + 10);
+    applyOpts(); saveOpts();
+  } else S.perfDrop = 0;
+}
+
 export function refreshPerf() {
   var vis = 0, tris = 0;
   for (var pi = 0; pi < opaqueMeshes.length; pi++) {

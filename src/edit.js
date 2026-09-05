@@ -1,7 +1,8 @@
 // edit.js — 편집 · 되돌리기 · 도전 과제
 import { S } from "./state.js";
+import { SLOTS } from "./save.js";
 import { DIRS, idx, inside } from "./dims.js";
-import { AIR, EMIT, ICE, SH_FULL, WALL_DIR, WATER, isCross, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
+import { AIR, ALL_BLOCKS, EMIT, ICE, SH_FULL, WALL_DIR, WATER, isCross, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
 import { BIOME_NAMES, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightLocal } from "./light.js";
 import { enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
@@ -180,7 +181,12 @@ export function refreshStats() {
       Math.floor(player.pos.y) + " · " + Math.floor(player.pos.z) + "</dd>" +
     "<dt>지형</dt><dd>" + BIOME_NAMES[localBiome()] + "</dd>" +
     "<dt>램프</dt><dd>" + S.lampsPlaced + "</dd>" +
-    "<dt>과제</dt><dd>" + achCount() + " / " + ACHIEVEMENTS.length + "</dd>";
+    "<dt>과제</dt><dd>" + achCount() + " / " + ACHIEVEMENTS.length + "</dd>" +
+    "<dt>지형</dt><dd>" + ["보통", "평지", "산악", "군도"][S.terrain | 0] + "</dd>" +
+    "<dt>슬롯</dt><dd>" + S.slot + " / " + SLOTS + "</dd>" +
+    "<dt>표식</dt><dd>" + S.marks.length + "개</dd>" +
+    "<dt>블록 종류</dt><dd>" + Object.keys(S.placedKinds).length + " / " + ALL_BLOCKS.length + "</dd>" +
+    "<dt>되돌리기</dt><dd>" + S.history.length + "단계</dd>";
 }
 export function achCount() {
   var n = 0;

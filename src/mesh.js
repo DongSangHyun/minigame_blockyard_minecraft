@@ -238,11 +238,26 @@ export function rebuildAll() {
 export function markAllDirty() {
   for (var id = 0; id < CX * CY * CZ; id++) dirty.add(id);
 }
+// 굽는 순서를 카메라와의 거리로 정한다 — 눈앞이 먼저 채워져야 기다림이 짧게 느껴진다
+export var buildFocus = null;
+export function setBuildFocus(v) { buildFocus = v; }    // 여기에 가까운 청크부터 굽는다 (보통 카메라)
+
 export function buildBudget(ms) {
   if (!dirty.size) return 0;
   var t0 = (window.performance && performance.now) ? performance.now() : Date.now();
   var ids = [];
   dirty.forEach(function (id) { ids.push(id); });
+  // 눈앞이 먼저 채워져야 기다림이 짧게 느껴진다
+  if (buildFocus && ids.length > 1) {
+    var fx = buildFocus.x, fy = buildFocus.y, fz = buildFocus.z;
+    ids.sort(function (a, b) {
+      var ax = (chunkCX(a) + 0.5) * CH - fx, ay = (chunkCY(a) + 0.5) * CH - fy,
+          az = (chunkCZ(a) + 0.5) * CH - fz;
+      var bx = (chunkCX(b) + 0.5) * CH - fx, by = (chunkCY(b) + 0.5) * CH - fy,
+          bz = (chunkCZ(b) + 0.5) * CH - fz;
+      return (ax * ax + ay * ay + az * az) - (bx * bx + by * by + bz * bz);
+    });
+  }
   var built = 0;
   for (var k = 0; k < ids.length; k++) {
     buildChunk(chunkCX(ids[k]), chunkCY(ids[k]), chunkCZ(ids[k]));

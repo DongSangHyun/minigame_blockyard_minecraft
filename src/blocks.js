@@ -224,3 +224,14 @@ export function lightPass(b) {
 
 S.bar = DEFAULT_BAR.slice();
 S.barAlt = [BRICK, COBBLE, SNOW, ICE, GLASS, FENCE, GATE, PANE, LADDER, WOOL0];   // state.js 는 import 를 하지 않으므로 여기서 채운다
+
+// ── 블록 갈래 — 목록이 35종을 넘어가면 분류가 필요하다
+export function categoryOf(b) {
+  if (isWool(b)) return "color";
+  if (b === WATER || b === LAVA || b === LAMP || b === TORCH || b === FIRE || b === ICE) return "light";
+  if (b === GRASS || b === DIRT || b === STONE || b === SAND || b === GRAVEL || b === SNOW ||
+      b === LOG || b === BIRCH_LOG || b === LEAVES || b === BIRCH_LEAVES || b === SPRUCE_LEAVES ||
+      b === COAL || b === IRON || b === GOLD || b === DIAMOND || b === CACTUS ||
+      isCross(b)) return "nature";
+  return "build";
+}

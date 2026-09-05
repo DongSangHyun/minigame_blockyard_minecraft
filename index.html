@@ -41,6 +41,17 @@
 
   [hidden] { display: none !important; }
 
+  /* 고대비 — 밝은 곳이나 색 구분이 어려울 때 */
+  .hc {
+    --line: #6d7c82;
+    --line-hi: #9fb0b6;
+    --stone: #cfd8d4;
+  }
+  .hc #telemetry, .hc #minimap, .hc #hotbar, .hc #toast, .hc #perf {
+    background: rgba(9, 12, 14, .94);
+  }
+  .hc #reticle { opacity: 1; }
+
   html, body { height: 100%; }
   body {
     margin: 0;
@@ -55,6 +66,20 @@
 
   #stage { position: fixed; inset: 0; }
   #stage canvas { display: block; width: 100%; height: 100%; }
+
+  /* ---------- 첫 로딩 ---------- */
+  #boot {
+    position: fixed; inset: 0; z-index: 30;
+    display: grid; place-items: center; text-align: center;
+    background: var(--void); color: var(--bone);
+    transition: opacity .35s ease;
+  }
+  #boot.done { opacity: 0; pointer-events: none; }
+  #boot b { font-family: var(--pixel); font-size: 22px; display: block; margin-bottom: 14px; }
+  #boot span { font-family: var(--mono); font-size: 11px; color: var(--stone); letter-spacing: .06em; }
+  #boot i { display: block; width: 220px; height: 6px; margin: 16px auto 0;
+            background: var(--panel); border: 2px solid var(--line); }
+  #boot em { display: block; height: 100%; width: 0; background: var(--moss); transition: width .2s ease; }
 
   /* ---------- 작은 화면 · 노치 대응 ---------- */
   :root {
@@ -264,7 +289,13 @@
     font-family: var(--mono); font-size: 10.5px; color: var(--stone);
     letter-spacing: .08em; text-transform: uppercase;
   }
-  #slots, #terrain { display: flex; gap: 6px; flex-wrap: wrap; }
+  #slots, #terrain, #keys { display: flex; gap: 6px; flex-wrap: wrap; }
+  #keys button {
+    font-family: var(--mono); font-size: 10px; color: var(--stone);
+    background: var(--panel-2); border: 2px solid var(--line);
+    padding: 6px 10px; cursor: pointer;
+  }
+  #keys button.wait { border-color: var(--ember); color: var(--bone); }
   #terrain button {
     font-family: var(--mono); font-size: 10px; color: var(--stone);
     background: var(--panel-2); border: 2px solid var(--line);
@@ -437,6 +468,19 @@
   @media (max-width: 640px) { .help-cols { grid-template-columns: 1fr; } }
 
   /* ---------- 블록 고르기 ---------- */
+  .pick-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 14px; }
+  #pick-find {
+    flex: 1 1 200px; min-width: 160px;
+    font-family: var(--mono); font-size: 11px; color: var(--bone);
+    background: var(--panel-2); border: 2px solid var(--line); padding: 7px 9px;
+  }
+  #pick-find::placeholder { color: #5f6a66; }
+  #pick-tabs { display: flex; gap: 5px; flex-wrap: wrap; }
+  #pick-tabs button {
+    font-family: var(--mono); font-size: 10px; color: var(--stone);
+    background: var(--panel-2); border: 2px solid var(--line); padding: 6px 9px; cursor: pointer;
+  }
+  #pick-tabs button[aria-current="true"] { border-color: var(--moss); color: var(--bone); }
   #picker {
     position: fixed; inset: 0; z-index: 5;
     display: grid; place-items: center; padding: 24px;
@@ -523,6 +567,8 @@
 </style>
 
 <div id="stage"></div>
+<div id="boot"><div><b>BLOCKYARD</b><span id="boot-msg">세계를 만드는 중…</span>
+  <i><em id="boot-bar"></em></i></div></div>
 <div id="rotate"><div><b>BLOCKYARD</b>가로로 돌려 주세요<br><small>넓은 화면에서 훨씬 잘 보입니다</small></div></div>
 <div id="underwater" hidden></div>
 <div id="reticle" hidden></div>
@@ -592,6 +638,16 @@
   <div class="pick-card">
     <h2>블록 고르기</h2>
     <p>고른 블록이 지금 선택된 칸에 들어갑니다 · <kbd>E</kbd> 로 닫기</p>
+    <div class="pick-tools">
+      <input id="pick-find" type="text" placeholder="이름으로 찾기 (예: wool, stone)" autocomplete="off">
+      <div id="pick-tabs">
+        <button type="button" data-cat="all" aria-current="true">전체</button>
+        <button type="button" data-cat="nature">자연</button>
+        <button type="button" data-cat="build">건축</button>
+        <button type="button" data-cat="color">색</button>
+        <button type="button" data-cat="light">빛·물</button>
+      </div>
+    </div>
     <div id="pick-grid"></div>
   </div>
 </div>
@@ -638,6 +694,7 @@
       <div><kbd>H</kbd><span>조작 도움말 (영역 도구 포함)</span></div>
       <div><kbd>횃불</kbd><span>들고 우클릭 — 불 붙이기 · TNT 터뜨리기</span></div>
       <div><kbd>[</kbd> <kbd>]</kbd><span>미니맵 확대 / 축소</span></div>
+      <div><kbd>\</kbd><span>미니맵 등고선</span></div>
       <div><kbd>M</kbd><span>소리 끄기</span></div>
     </div>
 
@@ -652,6 +709,7 @@
         <label class="opt"><span>밝기</span><input type="range" id="s-bright" min="0" max="100" step="5"><output id="o-bright"></output></label>
         <label class="opt"><span>화면 표시 크기</span><input type="range" id="s-ui" min="80" max="180" step="10"><output id="o-ui"></output></label>
         <label class="opt check"><span>Y축 반전</span><input type="checkbox" id="s-inv"><output id="o-inv"></output></label>
+        <label class="opt check"><span>고대비 화면</span><input type="checkbox" id="s-hc"><output id="o-hc"></output></label>
       </div>
       <div class="slotrow">
         <span>저장 슬롯</span>
@@ -662,6 +720,15 @@
         <button class="wbtn" id="w-import" type="button">가져오기</button>
         <button class="wbtn" id="w-restore" type="button">직전으로 되돌리기</button>
         <input id="w-file" type="file" accept="application/json,.json" hidden>
+      </div>
+      <div class="slotrow">
+        <span>조작키</span>
+        <div id="keys">
+          <button type="button" data-act="fly">비행</button>
+          <button type="button" data-act="shape">모양</button>
+          <button type="button" data-act="pick">복사</button>
+          <button type="button" data-act="help">도움말</button>
+        </div>
       </div>
       <div class="slotrow">
         <span>지형</span>

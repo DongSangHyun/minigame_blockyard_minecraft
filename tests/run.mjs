@@ -2768,6 +2768,196 @@ test("v15 도전 과제: 새 콘텐츠 과제가 늘었다", async (page) => {
   eq(r.added, 4, "새 도전 과제가 빠졌다");
 });
 
+
+// ══════════════════════════════════════════════════════════════
+//  개선 v16 회귀 테스트 — 편의와 완성도
+// ══════════════════════════════════════════════════════════════
+
+test("v16 로딩: 첫 화면이 진행을 보여주고 끝나면 사라진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const el = document.getElementById("boot");
+    return { exists: !!el, done: el.classList.contains("done"),
+             text: document.getElementById("boot-msg").textContent };
+  });
+  assert(r.exists, "로딩 화면이 없다");
+  assert(r.done, "부팅이 끝났는데 로딩 화면이 남았다");
+  assert(r.text.length > 0, "로딩 문구가 비었다");
+});
+
+test("v16 굽기: 카메라에 가까운 청크부터 굽는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    // 전부 지우고 딱 한 청크만 굽게 한 뒤, 그게 가장 가까운 것인지 본다
+    B.opaqueMeshes.forEach(m => { m.userData.hasGeo = false; });
+    B.markAllDirty();
+    const focus = { x: 8, y: 8, z: 8 };
+    B.setBuildFocus(focus);
+    B.buildBudget(0);                        // 정확히 한 청크
+    let built = -1, count = 0;
+    for (let i = 0; i < B.opaqueMeshes.length; i++)
+      if (B.opaqueMeshes[i].userData.hasGeo) { built = i; count++; }
+    function dist(id) {
+      const dx = (B.chunkCX(id) + 0.5) * B.CH - focus.x;
+      const dy = (B.chunkCY(id) + 0.5) * B.CH - focus.y;
+      const dz = (B.chunkCZ(id) + 0.5) * B.CH - focus.z;
+      return dx * dx + dy * dy + dz * dz;
+    }
+    let best = 0;
+    for (let i = 1; i < B.opaqueMeshes.length; i++) if (dist(i) < dist(best)) best = i;
+    B.setBuildFocus(null);
+    B.markAllDirty(); B.buildBudget(9000);
+    return { count, builtD: built >= 0 ? dist(built) : -1, bestD: dist(best) };
+  });
+  eq(r.count, 1, "정확히 한 청크만 구워야 한다");
+  eq(r.builtD, r.bestD, "가장 가까운 청크를 먼저 굽지 않았다");
+});
+
+test("v16 미니맵: 등고선을 켜고 끌 수 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.generate(99999);
+    B.player.pos.set(B.WX / 2, 40, B.WZ / 2);
+    function snap() {
+      B.drawMinimap();
+      const cv = document.getElementById("mm");
+      return cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data.join(",");
+    }
+    B.S.contour = false; const off = snap();
+    B.S.contour = true;  const on = snap();
+    return { differs: off !== on };
+  });
+  assert(r.differs, "등고선을 켜도 미니맵이 그대로다");
+});
+
+test("v16 블록 목록: 갈래와 이름으로 걸러진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const find = document.getElementById("pick-find");
+    const tabs = document.getElementById("pick-tabs");
+    function count() {
+      return Array.prototype.filter.call(
+        document.querySelectorAll("#pick-grid .pick"), e => !e.hidden).length;
+    }
+    find.value = ""; tabs.querySelector('[data-cat="all"]').click();
+    const all = count();
+    tabs.querySelector('[data-cat="color"]').click();
+    const color = count();
+    tabs.querySelector('[data-cat="all"]').click();
+    find.value = "wool";
+    find.dispatchEvent(new Event("input", { bubbles: true }));
+    const search = count();
+    find.value = "";
+    find.dispatchEvent(new Event("input", { bubbles: true }));
+    return { all, color, search, cats: [B.categoryOf(B.WOOL0), B.categoryOf(B.B.STONE),
+                                        B.categoryOf(B.B.LAMP), B.categoryOf(B.B.BRICK)] };
+  });
+  assert(r.all > 30, "전체 목록이 너무 짧다: " + r.all);
+  eq(r.color, 16, "색 갈래가 양털 16개가 아니다: " + r.color);
+  eq(r.search, 16, "이름 검색이 안 걸린다: " + r.search);
+  eq(r.cats[0], "color", "양털 갈래");
+  eq(r.cats[1], "nature", "돌 갈래");
+  eq(r.cats[2], "light", "램프 갈래");
+  eq(r.cats[3], "build", "벽돌 갈래");
+});
+
+test("v16 목록: 최근 쓴 블록이 앞으로 온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.S.recent = [];
+    B.noteBlockUse(B.B.DIAMOND);
+    B.noteBlockUse(B.B.BRICK);
+    B.sortPickByRecent();
+    const first = document.querySelector("#pick-grid .pick");
+    const label = first.getAttribute("aria-label");
+    return { label, recent: B.S.recent.slice(), brick: B.NAMES[B.B.BRICK] };
+  });
+  eq(r.label, r.brick, "가장 최근에 쓴 블록이 앞에 없다: " + r.label);
+  eq(r.recent.length, 2, "최근 목록 길이");
+});
+
+test("v16 조작키: 재배치한 키가 실제로 먹는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.beginPlay();
+    const was = B.player.flying;
+    B.S.binds.fly = "KeyJ";
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyJ", bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyJ", bubbles: true }));
+    const toggled = B.player.flying !== was;
+    // 원래 키는 이제 안 먹어야 한다
+    const before = B.player.flying;
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyF", bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyF", bubbles: true }));
+    const oldKey = B.player.flying !== before;
+    B.S.binds.fly = "KeyF";
+    B.player.flying = was;
+    B.endPlay(); B.setPaused(false);
+    return { toggled, oldKey };
+  });
+  assert(r.toggled, "재배치한 키가 안 먹는다");
+  eq(r.oldKey, false, "옛 키가 아직도 먹는다");
+});
+
+test("v16 고대비: 설정을 켜면 문서에 표시된다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const keep = B.opts.contrast;
+    B.opts.contrast = 1; B.applyOpts();
+    const on = document.documentElement.classList.contains("hc");
+    B.opts.contrast = 0; B.applyOpts();
+    const off = document.documentElement.classList.contains("hc");
+    B.opts.contrast = keep; B.applyOpts();
+    return { on, off };
+  });
+  assert(r.on, "고대비를 켜도 반영이 안 된다");
+  eq(r.off, false, "고대비를 꺼도 남아 있다");
+});
+
+test("v16 성능 자동 조절: 프레임이 낮으면 시야거리를 줄인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.beginPlay();
+    B.S.autoPerf = true;
+    B.S.farWanted = 120;
+    B.opts.far = 120; B.applyOpts();
+    B.S.perfDrop = 0;
+    // 아주 느린 프레임을 흉내 낸다
+    for (let k = 0; k < 5; k++) B.autoTuneFar(12);
+    const dropped = B.opts.far;
+    B.opts.far = 120; B.applyOpts();
+    B.S.perfDrop = 0;
+    B.endPlay(); B.setPaused(false);
+    return { dropped };
+  });
+  assert(r.dropped < 120, "프레임이 낮은데 시야거리가 그대로다: " + r.dropped);
+});
+
+test("v16 통계: 지형·슬롯·블록 종류가 기록에 나온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.refreshStats();
+    const txt = document.getElementById("statgrid").textContent;
+    return { txt };
+  });
+  assert(r.txt.indexOf("지형") >= 0, "지형이 없다");
+  assert(r.txt.indexOf("슬롯") >= 0, "슬롯이 없다");
+  assert(r.txt.indexOf("블록 종류") >= 0, "블록 종류가 없다");
+  assert(r.txt.indexOf("되돌리기") >= 0, "되돌리기 단계가 없다");
+});
+
+test("v16 튜토리얼: 새 기능까지 안내한다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    return { steps: B.TUT.length, text: B.TUT.join(" ") };
+  });
+  assert(r.steps >= 6, "튜토리얼 단계: " + r.steps);
+  assert(r.text.indexOf("영역") >= 0, "영역 도구 안내가 없다");
+  assert(r.text.indexOf("H") >= 0, "도움말 안내가 없다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

@@ -39,7 +39,9 @@ export var TUT = [
   '이번엔 <b>우클릭</b>으로 블록을 놓아보세요',
   '<b>E</b> 를 눌러 블록 목록에서 다른 재료를 골라보세요',
   '<b>G</b> 로 반블록·계단으로 바꿔 지어보세요',
-  '<b>9</b> 번 <b>횃불</b>로 어두운 굴을 밝혀보세요'
+  '<b>9</b> 번 <b>횃불</b>로 어두운 굴을 밝혀보세요',
+  '<b>Ctrl</b>+클릭으로 영역을 고르고 <b>Ctrl</b>+<b>F</b> 로 한 번에 채워보세요',
+  '<b>H</b> 를 누르면 나머지 조작이 전부 나옵니다'
 ];
 export function refreshHint() {
   hintEl.innerHTML = S.tut < TUT.length ? TUT[S.tut] : (S.lockMode ? HINT_LOCK : HINT_DRAG);
@@ -162,9 +164,57 @@ if (terrainEl) terrainEl.addEventListener("click", function (e) {
   toast(["보통", "평지", "산악", "군도"][S.terrain] + " — 새 세계부터 적용됩니다");
 });
 
+// ── 조작키 재배치 — 손이 다른 사람들을 위해 핵심 몇 개만 바꿀 수 있게
+export var KEY_LABEL = { fly: "비행", shape: "모양", pick: "복사", help: "도움말" };
+export var keysEl = document.getElementById("keys");
+var waitingFor = null;
+
+function keyName(code) {
+  return String(code).replace(/^Key|^Digit/, "").replace("Bracket", "").toUpperCase();
+}
+export function refreshKeyButtons() {
+  if (!keysEl) return;
+  var bs = keysEl.querySelectorAll("button");
+  for (var i = 0; i < bs.length; i++) {
+    var act = bs[i].getAttribute("data-act");
+    bs[i].textContent = KEY_LABEL[act] + " " + keyName(S.binds[act]);
+    bs[i].classList.toggle("wait", waitingFor === act);
+  }
+}
+if (keysEl) keysEl.addEventListener("click", function (e) {
+  var btn = e.target.closest("button[data-act]");
+  if (!btn) return;
+  e.stopPropagation();
+  waitingFor = btn.getAttribute("data-act");
+  refreshKeyButtons();
+  toast("새 키를 누르세요 (ESC 로 취소)");
+});
+window.addEventListener("keydown", function (e) {
+  if (!waitingFor) return;
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.code !== "Escape") {
+    S.binds[waitingFor] = e.code;
+    try { localStorage.setItem("blockyard.binds", JSON.stringify(S.binds)); } catch (err) {}
+    toast(KEY_LABEL[waitingFor] + " → " + keyName(e.code));
+  }
+  waitingFor = null;
+  refreshKeyButtons();
+}, true);
+(function loadBinds() {
+  try {
+    var raw = localStorage.getItem("blockyard.binds");
+    if (raw) {
+      var d = JSON.parse(raw);
+      for (var k in S.binds) if (d[k]) S.binds[k] = d[k];
+    }
+  } catch (e) {}
+})();
+
 export function refreshMenu() {
   refreshSlots();
   refreshTerrain();
+  refreshKeyButtons();
   if (S.started) goBtn.textContent = "계속하기";
   else if (hasSave()) goBtn.textContent = "이어하기";
   else goBtn.textContent = "CLICK TO PLAY";
@@ -404,13 +454,13 @@ window.addEventListener("keydown", function (e) {
     toast("핫바 " + S.barPage + "쪽");
     tone(520 + S.barPage * 90, 0.06, "square", 0.04);
   }
-  if (e.code === "KeyQ") pickBlock();
-  if (e.code === "KeyF") {
+  if (e.code === S.binds.pick) pickBlock();
+  if (e.code === S.binds.fly) {
     player.flying = !player.flying; player.vel.y = 0;
     tone(player.flying ? 660 : 330, 0.09, "square", 0.05);
     toast(player.flying ? "비행 모드" : "걷기 모드");
   }
-  if (e.code === "KeyG") {
+  if (e.code === S.binds.shape) {
     S.shapeMode = (S.shapeMode + 1) % 3;
     updateHandBlock();
     toast(["전체 블록", "반블록", "계단"][S.shapeMode]);
@@ -456,6 +506,10 @@ window.addEventListener("keydown", function (e) {
     showHud(!S.hudHidden);
     toast(S.hudHidden ? "화면 표시 끔" : "화면 표시 켬");
   }
+  if (e.code === "Backslash") {
+    S.contour = !S.contour;
+    toast(S.contour ? "미니맵 등고선 켬" : "미니맵 등고선 끔");
+  }
   if (e.code === "BracketLeft" || e.code === "BracketRight") {
     var zs = [1, 2, 4];
     var zi = zs.indexOf(S.mmZoom);
@@ -463,7 +517,7 @@ window.addEventListener("keydown", function (e) {
     S.mmZoom = zs[zi];
     toast("미니맵 ×" + S.mmZoom);
   }
-  if (e.code === "KeyH") { toggleHelp(); }
+  if (e.code === S.binds.help) { toggleHelp(); advanceTut(5); }
   if (e.code === "KeyT") cycleTime();
   if (e.code === "KeyK") {
     setWeather((S.weather + 1) % 3);
@@ -517,6 +571,7 @@ canvas.addEventListener("mousedown", function (e) {
     else if (e.button === 2) {
       S.selB = [hs.x, hs.y, hs.z];
       toast("영역 " + selectionSize().toLocaleString("ko-KR") + "칸");
+      advanceTut(4);
     }
     return;
   }
@@ -673,6 +728,17 @@ bindOpt("s-vol", "o-vol", "vol", function (v) { return v + "%"; });
 bindOpt("s-day", "o-day", "day", function (v) { return v === 0 ? "고정" : v + "분"; });
 bindOpt("s-bright", "o-bright", "bright", function (v) { return v + "%"; });
 bindOpt("s-ui", "o-ui", "ui", function (v) { return v + "%"; });
+(function bindContrast() {
+  var el = document.getElementById("s-hc"), out = document.getElementById("o-hc");
+  if (!el) return;
+  el.checked = !!opts.contrast;
+  if (out) out.textContent = opts.contrast ? "켬" : "끔";
+  el.addEventListener("change", function () {
+    opts.contrast = el.checked ? 1 : 0;
+    if (out) out.textContent = el.checked ? "켬" : "끔";
+    applyOpts(); saveOpts();
+  });
+})();
 (function bindInvert() {
   var el = document.getElementById("s-inv"), out = document.getElementById("o-inv");
   el.checked = !!opts.invertY;

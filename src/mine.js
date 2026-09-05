@@ -8,7 +8,7 @@ import { burst } from "./scene.js";
 import { BODY, HALF, currentShape, player, raycast, stats } from "./player.js";
 import { breakSound, crunch, placeSound, tone } from "./audio.js";
 import { applyEdit, unlock } from "./edit.js";
-import { toast } from "./hud.js";
+import { noteBlockUse, toast } from "./hud.js";
 import { triggerSwing } from "./hand.js";
 import { advanceTut } from "./input.js";
 
@@ -136,6 +136,7 @@ export function place() {
   if (sh === SH_STAIR_N || sh === SH_STAIR_E || sh === SH_STAIR_S || sh === SH_STAIR_W ||
       sh >= SH_STAIR_NU) unlock("stair");
   S.placedKinds[b] = 1;
+  noteBlockUse(b);
   var allKinds = true;
   for (var ak = 0; ak < ALL_BLOCKS.length; ak++) if (!S.placedKinds[ALL_BLOCKS[ak]]) allKinds = false;
   if (allKinds) unlock("collector");

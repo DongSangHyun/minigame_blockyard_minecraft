@@ -4,11 +4,11 @@ import { MOB_KINDS, birds, fish, mobs, pushOutOfMobs, seedFlocks, seedMobs, upda
 import { animateLiquids, atlas } from "./atlas.js";
 import { Q } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
+import { AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, categoryOf, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
 import { biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBoxes, heightMap, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, waterLvl, world } from "./world.js";
 import { WATER_DIM, lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
 import { BLAST_R, MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueWaterAround, explode, fallTick, fireTick, freezeTick, ignite, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
-import { FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll } from "./mesh.js";
+import { FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll, setBuildFocus } from "./mesh.js";
 import { FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { applyOpts, opts } from "./settings.js";
@@ -16,18 +16,24 @@ import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, move
 import { breakSound, caveSound, lavaHiss, lavaPop, listenAt, miningSound, moodChord, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
 import { OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
 import { ACHIEVEMENTS, REGION_MAX, achCount, applyEdit, beginBatch, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, selectionBounds, selectionSize, undo, unlock } from "./edit.js";
-import { airEl, drawIcon, drawMinimap, facingText, helpEl, mmCap, perfEl, refreshBar, selectSlot, showHud, toggleHelp } from "./hud.js";
+import { airEl, bootDone, bootProgress, drawIcon, drawMinimap, facingText, helpEl, mmCap, noteBlockUse, perfEl, refreshBar, refreshPickFilter, selectSlot, showHud, sortPickByRecent, toggleHelp } from "./hud.js";
 import { makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
-import { beginPlay, endPlay, hashSeed, pickBlock, refreshMenu, refreshSlots, refreshTerrain } from "./input.js";
+import { TUT, beginPlay, endPlay, hashSeed, pickBlock, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain } from "./input.js";
 import { canPlaceAt, place, tryInteract, upperFromHit } from "./mine.js";
 import { HIDE_Y, MOON_PHASES, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
-import { SNEAK_MUL, SPRINT, WALK, animate, refreshPerf, step } from "./loop.js";
+import { SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, refreshPerf, step } from "./loop.js";
 
 applyOpts();
+bootProgress("세계를 여는 중…", 0.08);
 S.loadedFromSave = hasSave() && loadGame();
-if (!S.loadedFromSave) generate((Math.random() * 100000) | 0);
+if (!S.loadedFromSave) {
+  bootProgress("세계를 만드는 중…", 0.20);
+  generate((Math.random() * 100000) | 0);
+}
+bootProgress("빛을 계산하는 중…", 0.45);
 relightAll(false);
 markAllDirty();
+bootProgress("지형을 굽는 중…", 0.70);
 buildBudget(70);          // 첫 화면에 보이는 만큼만 먼저 굽고 나머지는 프레임마다
 refreshBar();
 selectSlot(0);
@@ -105,6 +111,10 @@ window.__blockyard = {
   updateParticles: updateParticles, boxesAt: boxesAt, dynamicBoxes: dynamicBoxes, hasDynamicBoxes: hasDynamicBoxes,
   skyUniforms: skyUniforms, selectSlot: selectSlot,
   cloudGroup: cloudGroup, applyTime: applyTime,
+  setBuildFocus: setBuildFocus, autoTuneFar: autoTuneFar, CH: CH,
+  refreshStats: refreshStats, categoryOf: categoryOf, noteBlockUse: noteBlockUse,
+  sortPickByRecent: sortPickByRecent, refreshPickFilter: refreshPickFilter,
+  refreshKeyButtons: refreshKeyButtons, TUT: TUT, chunkCX: chunkCX, chunkCZ: chunkCZ,
   explode: explode, ignite: ignite, fireTick: fireTick, BLAST_R: BLAST_R,
   isFlammable: isFlammable, seedFlocks: seedFlocks, updateFlocks: updateFlocks,
   fish: fish, birds: birds, moodChord: moodChord, listenAt: listenAt,
@@ -151,5 +161,7 @@ window.__blockyard = {
   getSelected: function () { return S.selected; }
 };
 
+bootProgress("준비됨", 1);
+bootDone();
 S.booted = true;
 animate();
