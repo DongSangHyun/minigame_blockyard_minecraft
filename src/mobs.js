@@ -38,6 +38,15 @@ function makeMob(kind) {
     new THREE.MeshBasicMaterial({ color: k.head }));
   head.position.set(0, k.h * 0.72 + 0.28, -k.w * 0.86);
   g.add(head);
+  // 발밑 그림자 — 땅에 붙어 있다는 느낌을 만든다
+  var shadow = new THREE.Mesh(
+    new THREE.CircleGeometry(k.w * 0.85, 10),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true,
+                                  opacity: 0.22, depthWrite: false, fog: false }));
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.02;
+  g.add(shadow);
+
   var legMat = new THREE.MeshBasicMaterial({ color: 0x4a4038 });
   var legs = [];
   for (var i = 0; i < 4; i++) {
@@ -129,6 +138,24 @@ export function updateMobs(dt) {
     }
     m.g.position.y += m.walk ? Math.abs(Math.sin(m.phase)) * 0.03 : 0;
   }
+}
+
+// 플레이어가 동물을 뚫고 지나가지 못하게 부드럽게 밀어낸다
+export function pushOutOfMobs(px, pz, half) {
+  var dx = 0, dz = 0;
+  for (var i = 0; i < mobs.length; i++) {
+    var m = mobs[i], k = MOB_KINDS[m.kind];
+    var r = k.w * 0.75 + half;
+    var ax = px - m.x, az = pz - m.z;
+    var d2 = ax * ax + az * az;
+    if (d2 > r * r || d2 < 1e-6) continue;
+    var d = Math.sqrt(d2);
+    var push = (r - d) / d;
+    dx += ax * push; dz += az * push;
+    // 동물도 밀린다
+    m.x -= ax * push * 0.45; m.z -= az * push * 0.45;
+  }
+  return [dx, dz];
 }
 
 export function setMobsVisible(on) { mobGroup.visible = on; }

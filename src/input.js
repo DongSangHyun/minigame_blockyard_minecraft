@@ -9,9 +9,9 @@ import { applyTime } from "./daynight.js";
 import { applyOpts, opts, saveOpts } from "./settings.js";
 import { player, raycast, spawn } from "./player.js";
 import { ac, startAmbient, tone } from "./audio.js";
-import { SLOTS, hasSave, loadGame, saveGame, slotInfo } from "./save.js";
-import { REGION_MAX, copySelection, fillSelection, pasteClip, redo, refreshStats, selectionSize, undo } from "./edit.js";
-import { closePicker, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, showHud, toast, toggleHelp } from "./hud.js";
+import { SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
+import { REGION_MAX, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, selectionSize, undo } from "./edit.js";
+import { closePicker, drawMinimap, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, showHud, toast, toggleHelp } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
 import { place } from "./mine.js";
 import { setWeather } from "./sky.js";
@@ -104,6 +104,45 @@ if (copySeedBtn) {
     } catch (err) { toast("시드 " + txt); }
   });
 }
+
+// ── 세계 파일 · 백업
+export var expBtn = document.getElementById("w-export");
+export var impBtn = document.getElementById("w-import");
+export var resBtn = document.getElementById("w-restore");
+export var fileIn = document.getElementById("w-file");
+
+function afterWorldSwap(msg) {
+  relightAll(false); markAllDirty(); buildBudget(70);
+  spawn();
+  if (S.savedPos) { S.savedPos.copy(player.pos); S.savedYaw = player.yaw; S.savedPitch = player.pitch; }
+  refreshBar(); refreshSlots(); refreshMenu(); refreshStats(); refreshAchList();
+  drawMinimap();
+  toast(msg);
+}
+
+if (expBtn) expBtn.addEventListener("click", function (e) {
+  e.stopPropagation();
+  toast(exportWorld() ? "세계를 파일로 내보냈습니다" : "내보낼 세계가 없습니다");
+});
+if (impBtn) impBtn.addEventListener("click", function (e) { e.stopPropagation(); fileIn.click(); });
+if (fileIn) fileIn.addEventListener("change", function () {
+  var f = fileIn.files && fileIn.files[0];
+  if (!f) return;
+  var rd = new FileReader();
+  rd.onload = function () {
+    var err = importWorldText(String(rd.result));
+    fileIn.value = "";
+    if (err) { toast(err); return; }
+    afterWorldSwap("세계를 가져왔습니다");
+  };
+  rd.readAsText(f);
+});
+if (resBtn) resBtn.addEventListener("click", function (e) {
+  e.stopPropagation();
+  if (!hasBackup()) { toast("되돌릴 백업이 없습니다"); return; }
+  if (restoreBackup()) afterWorldSwap("직전 저장으로 되돌렸습니다");
+  else toast("백업을 읽지 못했습니다");
+});
 
 export function refreshMenu() {
   refreshSlots();
@@ -519,7 +558,25 @@ window.addEventListener("touchmove", function (e) {
   }
 }, { passive: false });
 
-export function endTouch(e) {
+// 핫바를 좌우로 쓸면 칸이 바뀐다 (폰에서 작은 칸을 정확히 누르기 어렵다)
+(function bindHotbarSwipe() {
+  var el = document.getElementById("hotbar");
+  if (!el) return;
+  var startX = 0, startSel = 0, active = false;
+  el.addEventListener("touchstart", function (ev) {
+    active = true;
+    startX = ev.changedTouches[0].clientX;
+    startSel = S.selected;
+  }, { passive: true });
+  el.addEventListener("touchmove", function (ev) {
+    if (!active) return;
+    var dx = ev.changedTouches[0].clientX - startX;
+    selectSlot(startSel + Math.round(dx / 40));
+  }, { passive: true });
+  el.addEventListener("touchend", function () { active = false; }, { passive: true });
+})();
+
+function endTouch(e) {
   for (var i = 0; i < e.changedTouches.length; i++) {
     var t = e.changedTouches[i];
     if (t.identifier === S.stickId) {
@@ -592,6 +649,7 @@ bindOpt("s-far", "o-far", "far", function (v) { return v + "m"; });
 bindOpt("s-vol", "o-vol", "vol", function (v) { return v + "%"; });
 bindOpt("s-day", "o-day", "day", function (v) { return v === 0 ? "고정" : v + "분"; });
 bindOpt("s-bright", "o-bright", "bright", function (v) { return v + "%"; });
+bindOpt("s-ui", "o-ui", "ui", function (v) { return v + "%"; });
 (function bindInvert() {
   var el = document.getElementById("s-inv"), out = document.getElementById("o-inv");
   el.checked = !!opts.invertY;

@@ -1,6 +1,6 @@
 // loop.js — 게임 루프
 import { S } from "./state.js";
-import { updateMobs, seedMobs } from "./mobs.js";
+import { pushOutOfMobs, seedMobs, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
 import { WX, WY, WZ, idx } from "./dims.js";
 import { reduceMotion } from "./boot.js";
@@ -10,10 +10,10 @@ import { biomeMap, crossBase, generate, get, set, shape, topMap, world } from ".
 import { lightAtPlayer, lightSky, relightAll } from "./light.js";
 import { decayTick, dryTick, fallTick, freezeTick, waterTick } from "./fluids.js";
 import { buildBudget, dirty, markAllDirty, opaqueMeshes } from "./mesh.js";
-import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
+import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { opts } from "./settings.js";
-import { EYE, moveAxis, moveHorizontal, player, raycast, spawn, stats } from "./player.js";
+import { EYE, HALF, moveAxis, moveHorizontal, player, raycast, spawn, stats } from "./player.js";
 import { caveSound, crunch, lavaHiss, lavaPop, miningSound, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { saveGame } from "./save.js";
 import { ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
@@ -80,7 +80,7 @@ export function step(dt) {
     S.timeOfDay = (S.timeOfDay + dt / (opts.day * 60)) % 1;
     if (S.timeOfDay < prevDay) S.moonDay++;      // 자정을 넘기면 달 위상이 바뀐다
   }
-  applyTime();
+  applyTime(dt);
   voxUniforms.uTime.value += dt;
 
   if (playing) {
@@ -151,6 +151,9 @@ export function step(dt) {
     player.onGround = false;
     moveAxis("y", player.vel.y * dt);
     moveHorizontal(player.vel.x * dt, player.vel.z * dt);
+    // 동물을 뚫고 지나가지 않는다
+    var push = pushOutOfMobs(player.pos.x, player.pos.z, HALF);
+    if (push[0] || push[2]) moveHorizontal(push[0] * 0.5, push[1] * 0.5);
 
     if (player.onGround && !S.wasOnGround && fallSpeed < -6 && !feetInWater) {
       crunch(0.12, Math.min(0.22, Math.abs(fallSpeed) * 0.014), 700);
@@ -256,6 +259,8 @@ export function step(dt) {
   if (!reduceMotion) {
     cloudGroup.position.x += dt * 0.9;
     if (cloudGroup.position.x > 220) cloudGroup.position.x -= 440;
+    cloudGroupHigh.position.x += dt * 2.1;      // 높은 층이 더 빨리 흐른다
+    if (cloudGroupHigh.position.x > 220) cloudGroupHigh.position.x -= 440;
   }
 
   // 물속

@@ -1,6 +1,6 @@
 // main.js — 조립과 시작
 import { S } from "./state.js";
-import { MOB_KINDS, mobs, seedMobs, updateMobs } from "./mobs.js";
+import { MOB_KINDS, mobs, pushOutOfMobs, seedMobs, updateMobs } from "./mobs.js";
 import { animateLiquids, atlas } from "./atlas.js";
 import { Q } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
@@ -9,12 +9,12 @@ import { biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBo
 import { WATER_DIM, lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
 import { MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueWaterAround, fallTick, freezeTick, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
 import { FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll } from "./mesh.js";
-import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, edgeMat, highlight, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
+import { FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { applyOpts, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, rayBox, raycast, spawn } from "./player.js";
 import { breakSound, caveSound, lavaHiss, lavaPop, miningSound, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
-import { OLD_KEY, SAVE_KEY, SLOTS, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, hasSave, liftLegacy, loadGame, saveGame, slotInfo, slotKey } from "./save.js";
+import { OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
 import { ACHIEVEMENTS, REGION_MAX, achCount, applyEdit, beginBatch, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, selectionBounds, selectionSize, undo, unlock } from "./edit.js";
 import { airEl, drawIcon, drawMinimap, facingText, helpEl, mmCap, perfEl, refreshBar, selectSlot, showHud, toggleHelp } from "./hud.js";
 import { makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
@@ -103,7 +103,12 @@ window.__blockyard = {
   isLog: isLog, isLeaf: isLeaf, isWallShape: isWallShape, wallShapeFor: wallShapeFor,
   updateStorm: updateStorm, updateEdge: updateEdge, edgeMat: edgeMat,
   updateParticles: updateParticles, boxesAt: boxesAt, dynamicBoxes: dynamicBoxes, hasDynamicBoxes: hasDynamicBoxes,
+  skyUniforms: skyUniforms, selectSlot: selectSlot,
+  cloudGroup: cloudGroup, applyTime: applyTime,
   isWool: isWool, WOOL0: WOOL0, WOOL_COUNT: WOOL_COUNT, WOOL_COLORS: WOOL_COLORS,
+  pushOutOfMobs: pushOutOfMobs, exportWorld: exportWorld, importWorldText: importWorldText,
+  hasBackup: hasBackup, restoreBackup: restoreBackup, pushBackup: pushBackup, backupKey: backupKey,
+  cloudGroupHigh: cloudGroupHigh, FREE_DIST: FREE_DIST,
   fillSelection: fillSelection, copySelection: copySelection, pasteClip: pasteClip,
   selectionBounds: selectionBounds, selectionSize: selectionSize, REGION_MAX: REGION_MAX,
   beginBatch: beginBatch, endBatch: endBatch, updateSelectionBox: updateSelectionBox,

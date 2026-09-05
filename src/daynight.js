@@ -34,7 +34,9 @@ export function dayLight(t) {
 }
 export var _grey = new THREE.Color(0x8b949c);
 var _white = new THREE.Color(0xf2f6ff);
-export function applyTime() {
+var _skyTop = new THREE.Color(), _skyLow = new THREE.Color(), _skyInit = false;
+
+export function applyTime(dt) {
   sampleSky(S.timeOfDay);
   var L = dayLight(S.timeOfDay);
   if (S.weather) {
@@ -49,6 +51,17 @@ export function applyTime() {
     skyUniforms.top.value.lerp(_white, f * 0.85);
     skyUniforms.low.value.lerp(_white, f * 0.85);
     L = Math.min(1, L + f * 0.8);
+  }
+  // 날씨·번개로 목표색이 튀므로, 실제 하늘색은 목표를 부드럽게 좇는다
+  if (!_skyInit) {
+    _skyTop.copy(skyUniforms.top.value); _skyLow.copy(skyUniforms.low.value);
+    _skyInit = true;
+  } else {
+    var k = Math.min(1, (dt || 0.016) * 6);
+    _skyTop.lerp(skyUniforms.top.value, k);
+    _skyLow.lerp(skyUniforms.low.value, k);
+    skyUniforms.top.value.copy(_skyTop);
+    skyUniforms.low.value.copy(_skyLow);
   }
   voxUniforms.uDay.value = L;
   voxUniforms.uFogColor.value.copy(skyUniforms.low.value);

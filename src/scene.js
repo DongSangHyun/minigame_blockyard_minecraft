@@ -4,7 +4,7 @@ import { IS_TOUCH, bail } from "./boot.js";
 import { CROSS, SHAPE_BOXES, isSolid } from "./blocks.js";
 import { AVG_SIDE, atlasTex, crackTex, makeRng } from "./atlas.js";
 import { get, set } from "./world.js";
-import { chunkCX, chunkCY, chunkCZ, chunkCenters, glassMeshes, opaqueMeshes } from "./mesh.js";
+import { chunkCX, chunkCY, chunkCZ, chunkCenters, dirty, glassMeshes, opaqueMeshes } from "./mesh.js";
 
 export var matOpaque, matGlass;
 export var scene, camera, renderer;
@@ -57,6 +57,7 @@ export var VOX_FS = [
   "uniform float uFogNear;",
   "uniform float uFogFar;",
   "uniform float uGamma;",
+  "uniform float uTime;",
   "varying vec3 vCol;",
   "varying vec3 vLight;",
   "varying vec2 vUvv;",
@@ -71,6 +72,10 @@ export var VOX_FS = [
   "  vec3 tint = mix(uNight, vec3(1.0), clamp(sky * 1.25, 0.0, 1.0));",
   "  vec3 c = t.rgb * vCol * litness * tint;",
   "  c += t.rgb * vCol * blk * blk * vec3(0.20, 0.11, 0.02);",
+  "  if (vLight.z > 0.5) {",
+  "    float sp = sin(vUvv.x * 90.0 + uTime * 1.6) * sin(vUvv.y * 74.0 - uTime * 1.1);",
+  "    c += vec3(0.10, 0.14, 0.16) * max(0.0, sp - 0.72) * 3.0 * sky;",
+  "  }",
   "  float f = smoothstep(uFogNear, uFogFar, vFogDepth);",
   "  c = pow(max(c, 0.0), vec3(uGamma));",
   "  gl_FragColor = vec4(mix(c, uFogColor, f), t.a);",
@@ -127,35 +132,61 @@ for (var ci2 = 0; ci2 < CX * CY * CZ; ci2++) {
   chunkCenters.push(new THREE.Vector3(
     (chunkCX(ci2) + 0.5) * CH, (chunkCY(ci2) + 0.5) * CH, (chunkCZ(ci2) + 0.5) * CH));
 }
+export var FREE_DIST = 2.4;    // 시야의 이 배를 넘어가면 지오메트리를 놓아 준다
+export var chunkFreed = 0;
+
 export function updateChunkVisibility(farDist) {
   var lim = farDist + CH * 1.8;
   var lim2 = lim * lim;
+  var free2 = (lim * FREE_DIST) * (lim * FREE_DIST);
   var px = camera.position.x, py = camera.position.y, pz = camera.position.z;
   for (var id = 0; id < chunkCenters.length; id++) {
     var c = chunkCenters[id];
     var dx = c.x - px, dy = c.y - py, dz = c.z - pz;
-    var near = (dx * dx + dy * dy + dz * dz) < lim2;
+    var d2 = dx * dx + dy * dy + dz * dz;
+    var near = d2 < lim2;
     opaqueMeshes[id].visible = near && opaqueMeshes[id].userData.hasGeo === true;
     glassMeshes[id].visible = near && glassMeshes[id].userData.hasGeo === true;
+    // 아주 멀어진 청크는 정점 버퍼를 놓아 준다 — 다시 다가오면 dirty 로 굽는다
+    if (d2 > free2 && opaqueMeshes[id].userData.hasGeo === true) {
+      opaqueMeshes[id].geometry.dispose();
+      glassMeshes[id].geometry.dispose();
+      opaqueMeshes[id].geometry = new THREE.BufferGeometry();
+      glassMeshes[id].geometry = new THREE.BufferGeometry();
+      opaqueMeshes[id].userData.hasGeo = false;
+      glassMeshes[id].userData.hasGeo = false;
+      opaqueMeshes[id].visible = glassMeshes[id].visible = false;
+      dirty.add(id);
+      chunkFreed++;
+    }
   }
 }
 
 export var cloudMat = new THREE.MeshBasicMaterial({ color: 0xf2f6f8, fog: false, transparent: true, opacity: 0.88 });
-export var cloudGroup = new THREE.Group();
+export var cloudMatHigh = new THREE.MeshBasicMaterial({
+  color: 0xe8eef2, fog: false, transparent: true, opacity: 0.52 });
+export var cloudGroup = new THREE.Group();      // 낮은 층 — 크고 느리다
+export var cloudGroupHigh = new THREE.Group();  // 높은 층 — 얇고 빠르다
 (function makeClouds() {
   var rng = makeRng(4242);
-  for (var c = 0; c < 22; c++) {
-    var g = new THREE.Group();
-    for (var p = 0, puffs = 3 + Math.floor(rng() * 4); p < puffs; p++) {
-      var m = new THREE.Mesh(new THREE.BoxGeometry(8 + rng() * 14, 3, 8 + rng() * 12), cloudMat);
-      m.position.set(rng() * 16 - 8, rng() * 2, rng() * 16 - 8);
-      g.add(m);
+  function layer(group, n, mat, yBase, ySpread, scale) {
+    for (var c = 0; c < n; c++) {
+      var g = new THREE.Group();
+      for (var p = 0, puffs = 3 + Math.floor(rng() * 4); p < puffs; p++) {
+        var m = new THREE.Mesh(new THREE.BoxGeometry(
+          (8 + rng() * 14) * scale, 3 * scale, (8 + rng() * 12) * scale), mat);
+        m.position.set(rng() * 16 - 8, rng() * 2, rng() * 16 - 8);
+        g.add(m);
+      }
+      g.position.set(rng() * 400 - 200, yBase + rng() * ySpread, rng() * 400 - 200);
+      group.add(g);
     }
-    g.position.set(rng() * 400 - 200, 58 + rng() * 14, rng() * 400 - 200);
-    cloudGroup.add(g);
   }
+  layer(cloudGroup, 22, cloudMat, 58, 14, 1);
+  layer(cloudGroupHigh, 16, cloudMatHigh, 92, 18, 1.7);
 })();
 scene.add(cloudGroup);
+scene.add(cloudGroupHigh);
 
 // 모양마다 하나씩 미리 만들어 두는 선택 상자 — 반블록을 조준하면 납작하게 감싼다
 export var HL_EDGES = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];

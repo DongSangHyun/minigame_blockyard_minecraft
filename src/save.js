@@ -112,6 +112,7 @@ export function liftLegacy(src, dst, asRuns) {
 
 export function saveGame() {
   try {
+    pushBackup();
     localStorage.setItem(curKey(), JSON.stringify({
       v: 5, seed: S.worldSeed, w: encodeWorldB64(), sh: encodeArrB64(shape),
       wl: encodeArrB64(waterLvl),
@@ -172,4 +173,58 @@ export function loadGame() {
 }
 export function clearSave() {
   try { localStorage.removeItem(curKey()); if (S.slot <= 1) localStorage.removeItem(OLD_KEY); } catch (e) {}
+}
+
+// ══════════════════════════════════════════════════════════════
+//  세계 내보내기 · 가져오기 · 자동 백업
+// ══════════════════════════════════════════════════════════════
+export function backupKey(n) { return slotKey(n) + ".bak"; }
+
+// 저장할 때마다 직전 내용을 백업으로 밀어 둔다 — 실수로 덮어써도 되돌릴 수 있다
+export function pushBackup() {
+  try {
+    var cur = localStorage.getItem(curKey());
+    if (cur) localStorage.setItem(backupKey(S.slot), cur);
+    return !!cur;
+  } catch (e) { return false; }
+}
+export function hasBackup() {
+  try { return !!localStorage.getItem(backupKey(S.slot)); } catch (e) { return false; }
+}
+export function restoreBackup() {
+  try {
+    var bak = localStorage.getItem(backupKey(S.slot));
+    if (!bak) return false;
+    localStorage.setItem(curKey(), bak);
+    return loadGame();
+  } catch (e) { return false; }
+}
+
+// 파일로 내보내기 — 브라우저 밖으로 세계를 꺼낼 유일한 길
+export function exportWorld() {
+  try {
+    if (S.worldDirty) saveGame();
+    var raw = localStorage.getItem(curKey());
+    if (!raw) return false;
+    var blob = new Blob([raw], { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "blockyard-seed" + S.worldSeed + "-" + Date.now() + ".json";
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+    return true;
+  } catch (e) { return false; }
+}
+
+// 파일에서 가져오기 — 형태를 확인한 뒤에만 덮어쓴다
+export function importWorldText(text) {
+  var d;
+  try { d = JSON.parse(text); } catch (e) { return "형식이 올바르지 않습니다"; }
+  if (!d || !d.w || typeof d.seed !== "number") return "블록야드 세계 파일이 아닙니다";
+  if (!(d.v >= 2 && d.v <= 5)) return "지원하지 않는 저장 버전입니다 (v" + d.v + ")";
+  try {
+    pushBackup();
+    localStorage.setItem(curKey(), text);
+  } catch (e) { return "저장 공간이 부족합니다"; }
+  return loadGame() ? "" : "세계를 읽지 못했습니다";
 }

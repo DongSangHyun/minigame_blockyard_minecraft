@@ -2373,6 +2373,187 @@ test("v13 저장: 표식·2쪽 핫바·비행 속도가 저장된다", async (pa
   eq((r.alt || []).join(), r.altWas.join(), "2쪽 핫바가 안 실렸다");
 });
 
+
+// ══════════════════════════════════════════════════════════════
+//  개선 v14 회귀 테스트 — 마무리와 안전
+// ══════════════════════════════════════════════════════════════
+
+test("v14 동물: 플레이어를 뚫고 지나가지 못한다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.seedMobs();
+    const m = B.mobs[0];
+    m.x = 40; m.z = 40; m.y = 30; m.walk = 0; m.turn = 999;
+    // 동물 바로 위에 선다
+    const push = B.pushOutOfMobs(40.15, 40.05, 0.3);
+    const far = B.pushOutOfMobs(60, 60, 0.3);
+    B.setPaused(false);
+    return { pushLen: Math.hypot(push[0], push[1]), farLen: Math.hypot(far[0], far[1]) };
+  });
+  assert(r.pushLen > 0.05, "겹쳤는데 밀어내지 않는다: " + r.pushLen.toFixed(3));
+  eq(r.farLen, 0, "멀리 있는데 밀어낸다");
+});
+
+test("v14 세계 파일: 내보낸 내용을 그대로 가져온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.generate(24680);
+    B.applyEdit(48, 30, 48, B.B.DIAMOND, false);
+    B.saveGame();
+    const text = localStorage.getItem(B.slotKey(B.S.slot));
+    const seedBefore = B.seed();
+    // 다른 세계로 갈아탄 뒤 되돌린다
+    B.generate(13579);
+    const other = B.seed();
+    const err = B.importWorldText(text);
+    return { err, seedBefore, other, back: B.seed(),
+             mark: B.world[B.idx(48, 30, 48)], DIAMOND: B.B.DIAMOND };
+  });
+  eq(r.err, "", "가져오기 실패: " + r.err);
+  assert(r.other !== r.seedBefore, "시험용 세계 교체가 안 됐다");
+  eq(r.back, r.seedBefore, "시드가 복원되지 않았다");
+  eq(r.mark, r.DIAMOND, "표식 블록이 복원되지 않았다");
+});
+
+test("v14 세계 파일: 엉뚱한 파일은 거절한다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    return {
+      junk: B.importWorldText("이건 그냥 글자"),
+      wrong: B.importWorldText(JSON.stringify({ hello: 1 })),
+      old: B.importWorldText(JSON.stringify({ v: 99, w: "x", seed: 1 }))
+    };
+  });
+  assert(r.junk, "쓰레기 문자열을 받아들였다");
+  assert(r.wrong, "다른 JSON 을 받아들였다");
+  assert(r.old, "모르는 버전을 받아들였다");
+});
+
+test("v14 백업: 저장할 때마다 직전 내용이 남고 되돌릴 수 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.generate(11111);
+    B.saveGame();                       // 백업 없음(첫 저장)
+    const seedA = B.seed();
+    B.generate(22222);
+    B.saveGame();                       // 여기서 seedA 가 백업으로 밀린다
+    const seedB = B.seed();
+    const had = B.hasBackup();
+    const ok = B.restoreBackup();
+    return { seedA, seedB, had, ok, now: B.seed() };
+  });
+  assert(r.had, "백업이 만들어지지 않았다");
+  assert(r.ok, "백업 복원에 실패했다");
+  eq(r.now, r.seedA, "직전 저장으로 안 돌아갔다");
+});
+
+test("v14 하늘: 구름이 두 겹이고 높은 층이 더 빨리 흐른다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.beginPlay();
+    const lo0 = B.cloudGroup.position.x, hi0 = B.cloudGroupHigh.position.x;
+    for (let k = 0; k < 120; k++) B.step(1 / 60);
+    const lo = B.cloudGroup.position.x - lo0, hi = B.cloudGroupHigh.position.x - hi0;
+    B.endPlay(); B.setPaused(false);
+    return { lo, hi, layers: B.cloudGroup.children.length, high: B.cloudGroupHigh.children.length };
+  });
+  assert(r.layers > 0 && r.high > 0, "구름 층이 비어 있다");
+  assert(r.lo > 0 && r.hi > r.lo, `높은 구름이 더 빨라야 한다 — 낮 ${r.lo.toFixed(2)} · 높 ${r.hi.toFixed(2)}`);
+});
+
+test("v14 하늘: 색이 한 프레임에 튀지 않고 따라간다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setWeather(0);
+    B.setTime(0.5); B.applyTime(1);       // 충분히 수렴시킨다
+    for (let k = 0; k < 200; k++) B.applyTime(1 / 60);
+    const noon = B.skyUniforms.top.value.clone();
+    B.setTime(0.98);
+    B.applyTime(1 / 60);                  // 한 프레임만
+    const oneFrame = B.skyUniforms.top.value.clone();
+    for (let k = 0; k < 300; k++) B.applyTime(1 / 60);
+    const settled = B.skyUniforms.top.value.clone();
+    B.setTime(0.3); for (let k = 0; k < 300; k++) B.applyTime(1 / 60);
+    function dist(a, b) { return Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b); }
+    return { jump: dist(noon, oneFrame), total: dist(noon, settled) };
+  });
+  assert(r.total > 0.05, "정오와 한밤 하늘색이 거의 같다");
+  assert(r.jump < r.total * 0.5,
+    `하늘색이 한 프레임에 튀었다 — 한 프레임 ${r.jump.toFixed(3)} / 전체 ${r.total.toFixed(3)}`);
+});
+
+test("v14 성능: 아주 멀어진 청크는 정점 버퍼를 놓아 준다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.markAllDirty(); B.buildBudget(9000);
+    let before = 0;
+    B.opaqueMeshes.forEach(m => { if (m.userData.hasGeo) before++; });
+    // 카메라를 세계 밖 아주 먼 곳으로
+    B.camera.position.set(-600, 200, -600);
+    B.updateChunkVisibility(40);
+    let after = 0;
+    B.opaqueMeshes.forEach(m => { if (m.userData.hasGeo) after++; });
+    // 되돌려 놓는다
+    B.camera.position.set(B.WX / 2, 30, B.WZ / 2);
+    B.markAllDirty(); B.buildBudget(9000);
+    return { before, after, dist: B.FREE_DIST };
+  });
+  assert(r.before > 10, "구운 청크가 너무 적다: " + r.before);
+  assert(r.after < r.before * 0.2, `멀어진 청크를 안 놓았다 — ${r.before} → ${r.after}`);
+});
+
+test("v14 설정: 화면 표시 크기가 CSS 에 반영된다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const keep = B.opts.ui;
+    B.opts.ui = 150; B.applyOpts();
+    const big = getComputedStyle(document.documentElement).getPropertyValue("--ui").trim();
+    B.opts.ui = 100; B.applyOpts();
+    const one = getComputedStyle(document.documentElement).getPropertyValue("--ui").trim();
+    B.opts.ui = keep; B.applyOpts();
+    return { big, one };
+  });
+  eq(r.big, "1.50", "UI 배율이 안 커진다");
+  eq(r.one, "1.00", "UI 배율이 안 돌아온다");
+});
+
+test("v14 셰이더: 물 반짝임을 넣어도 컴파일 오류가 없다", async (page, errors) => {
+  const before = errors.length;
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.markAllDirty(); B.buildBudget(9000);
+    return { gamma: B.voxUniforms.uGamma.value, time: B.voxUniforms.uTime.value };
+  });
+  await page.waitForTimeout(200);
+  eq(errors.length, before, "셰이더 오류: " + errors.slice(before).join(" | "));
+  assert(typeof r.gamma === "number", "uGamma 가 없다");
+});
+
+test("v14 터치: 핫바 스와이프로 칸이 바뀐다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const el = document.getElementById("hotbar");
+    function touch(type, x) {
+      const t = { identifier: 1, clientX: x, clientY: 300, target: el };
+      const ev = new Event(type, { bubbles: true });
+      ev.changedTouches = [t];
+      ev.touches = type === "touchend" ? [] : [t];
+      el.dispatchEvent(ev);
+    }
+    B.selectSlot(0);
+    const start = B.getSelected();
+    touch("touchstart", 100);
+    touch("touchmove", 220);
+    touch("touchend", 220);
+    const after = B.getSelected();
+    B.selectSlot(0);
+    return { start, after };
+  });
+  assert(r.after !== r.start, "핫바를 쓸어도 칸이 안 바뀐다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
