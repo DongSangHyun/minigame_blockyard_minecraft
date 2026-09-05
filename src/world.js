@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { resetQueues } from "./queues.js";
 import { DIRS, N, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, BEDROCK, COAL, DIRT, FLOWER_R, FLOWER_Y, GRASS, GRAVEL, ICE, IRON, LAVA, LEAVES, LOG, SAND, SH_FULL, SNOW, STONE, TALLGRASS, WATER, isCross, isSolid } from "./blocks.js";
+import { AIR, BEDROCK, COAL, DIRT, FLOWER_R, FLOWER_Y, GRASS, GRAVEL, ICE, IRON, LAVA, LEAVES, LOG, SAND, SHAPE_BOXES, SH_FULL, SNOW, STONE, TALLGRASS, WATER, isCross, isSolid } from "./blocks.js";
 import { makeRng } from "./atlas.js";
 
 export var world = new Uint8Array(N);
@@ -32,6 +32,21 @@ export function refreshTop(x, z) {
   }
   topMap[z * WX + x] = -1;
 }
+// 그 칸이 딛을 수 있는 윗면의 높이 (0 = 딛을 것이 없음)
+export function surfaceTop(x, y, z) {
+  if (!isSolid(get(x, y, z))) return 0;
+  var boxes = SHAPE_BOXES[shapeAt(x, y, z)] || SHAPE_BOXES[SH_FULL];
+  var top = 0;
+  for (var i = 0; i < boxes.length; i++) if (boxes[i][4] > top) top = boxes[i][4];
+  return top;
+}
+
+// 풀·꽃·횃불이 시작하는 y — 반블록 위에서는 0.5칸 내려앉는다
+export function crossBase(x, y, z) {
+  var st = surfaceTop(x, y - 1, z);
+  return (st > 0 && st < 1) ? y - (1 - st) : y;
+}
+
 export function refreshAllTops() {
   for (var x = 0; x < WX; x++) for (var z = 0; z < WZ; z++) refreshTop(x, z);
 }

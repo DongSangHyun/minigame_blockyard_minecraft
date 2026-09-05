@@ -69,14 +69,14 @@ export var CROSS = {};
 CROSS[TALLGRASS] = { w: 0.46, h: 0.92, sway: 0.55 };
 CROSS[FLOWER_R]  = { w: 0.42, h: 0.82, sway: 0.40 };
 CROSS[FLOWER_Y]  = { w: 0.42, h: 0.82, sway: 0.40 };
-CROSS[TORCH]     = { w: 0.10, h: 0.62, sway: 0 };
+CROSS[TORCH]     = { w: 0.26, h: 0.62, sway: 0 };
 export function isCross(b) { return CROSS[b] !== undefined; }
 export function needsFloor(b) { return isCross(b); }
 
 export var ALL_BLOCKS = [GRASS, DIRT, STONE, COBBLE, SAND, GRAVEL, SNOW, LOG,
                   LEAVES, PLANKS, GLASS, BRICK, LAMP, TORCH, COAL, IRON, ICE,
                   WATER, LAVA, TALLGRASS, FLOWER_R, FLOWER_Y];
-export var DEFAULT_BAR = [GRASS, DIRT, STONE, COBBLE, SAND, LOG, LEAVES, PLANKS, GLASS, LAMP];
+export var DEFAULT_BAR = [GRASS, DIRT, STONE, COBBLE, SAND, LOG, PLANKS, GLASS, TORCH, LAMP];
 
 // 모양 — 0 전체 · 1 반블록(아래) · 2~5 계단(높은 쪽이 -Z/+X/+Z/-X)
 //        6 반블록(위) · 7~10 반전 계단 (아래·위가 뒤집힌 것, 처마와 아치용)

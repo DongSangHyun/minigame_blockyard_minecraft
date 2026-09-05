@@ -36,7 +36,8 @@ export var TUT = [
   '먼저 <b>좌클릭을 길게</b> 눌러 블록을 캐보세요',
   '이번엔 <b>우클릭</b>으로 블록을 놓아보세요',
   '<b>E</b> 를 눌러 블록 목록에서 다른 재료를 골라보세요',
-  '<b>G</b> 로 반블록·계단으로 바꿔 지어보세요'
+  '<b>G</b> 로 반블록·계단으로 바꿔 지어보세요',
+  '<b>9</b> 번 <b>횃불</b>로 어두운 굴을 밝혀보세요'
 ];
 export function refreshHint() {
   hintEl.innerHTML = S.tut < TUT.length ? TUT[S.tut] : (S.lockMode ? HINT_LOCK : HINT_DRAG);

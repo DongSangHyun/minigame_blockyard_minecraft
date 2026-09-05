@@ -85,7 +85,7 @@ export var ACHIEVEMENTS = [
   { id: "coal", name: "검은 돌", desc: "석탄 광석을 캔다" },
   { id: "iron", name: "쇠맛", desc: "철 광석을 캔다" },
   { id: "deep", name: "깊은 곳", desc: "높이 3 아래로 내려간다" },
-  { id: "high", name: "꼭대기", desc: "높이 34 위로 올라간다" },
+  { id: "high", name: "꼭대기", desc: "높이 50 위로 올라간다" },
   { id: "lamp10", name: "등대지기", desc: "램프를 10개 놓는다" },
   { id: "flood", name: "수문장", desc: "바닷물을 끌어들인다" },
   { id: "gravity", name: "사태", desc: "모래나 자갈을 무너뜨린다" },
@@ -93,7 +93,13 @@ export var ACHIEVEMENTS = [
   { id: "snow", name: "설원", desc: "설원에 발을 딛는다" },
   { id: "desert", name: "사막", desc: "사막에 발을 딛는다" },
   { id: "stair", name: "계단공", desc: "계단을 놓는다" },
-  { id: "collector", name: "수집가", desc: "모든 종류의 블록을 놓아본다" }
+  { id: "collector", name: "수집가", desc: "모든 종류의 블록을 놓아본다" },
+  { id: "lava", name: "불의 강", desc: "지하에서 용암을 마주친다" },
+  { id: "ice", name: "살얼음", desc: "얼음 위에 올라선다" },
+  { id: "torch10", name: "굴 밝히기", desc: "횃불을 10개 놓는다" },
+  { id: "flower", name: "꽃다발", desc: "꽃을 심는다" },
+  { id: "waterfall", name: "폭포", desc: "높은 곳에서 물을 떨어뜨린다" },
+  { id: "slabmerge", name: "빈틈없이", desc: "반블록 두 장을 겹쳐 한 블록으로 만든다" }
 ];
 export var achGrid = document.getElementById("achgrid");
 

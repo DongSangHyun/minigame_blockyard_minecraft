@@ -10,6 +10,7 @@ export const S = {
   earned: {},
   placedKinds: {},
   lampsPlaced: 0,
+  torchesPlaced: 0,
   playSeconds: 0,
   tut: 0,
   muted: false,
@@ -49,6 +50,8 @@ export const S = {
   fpsFrames: 0,
   waterTimer: 0,
   achTimer: 0,
+  lavaTimer: 0,
+  wasInLavaFeet: false,   // 용암에 발을 담그는 순간 치익 소리를 내려고
   wasUnderwater: false,
   wasInLava: false,
   wasOnGround: true,

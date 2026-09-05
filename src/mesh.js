@@ -2,7 +2,7 @@
 import { CH, CX, CY, CZ, DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
 import { AIR, CROSS, SHAPE_BOXES, SH_FULL, TILES, WATER, blocksLight, isCross, isTransparent, lightPass } from "./blocks.js";
 import { TILE, atlas, tileOrigin } from "./atlas.js";
-import { get, shape, shapeAt, world } from "./world.js";
+import { crossBase, get, shape, shapeAt, world } from "./world.js";
 import { lightBlk, lightSky } from "./light.js";
 
 export var FACES = [
@@ -179,6 +179,7 @@ export function emitCross(P, U, C, L, I, x, y, z, b, ci) {
   var us = TILE / atlas.width;
   var sky = lightSky[ci] / 15, blk = lightBlk[ci] / 15;
   var cxw = x + 0.5, czw = z + 0.5;
+  var yb = crossBase(x, y, z);
 
   for (var pl = 0; pl < 2; pl++) {
     var dx = CROSS_PLANES[pl][0] * cfg.w, dz = CROSS_PLANES[pl][1] * cfg.w;
@@ -189,7 +190,7 @@ export function emitCross(P, U, C, L, I, x, y, z, b, ci) {
       // 아래 왼 · 아래 오른 · 위 오른 · 위 왼
       var xs = side === 0 ? [ax0, ax1, ax1, ax0] : [ax1, ax0, ax0, ax1];
       var zs = side === 0 ? [az0, az1, az1, az0] : [az1, az0, az0, az1];
-      var ys = [y, y, y + cfg.h, y + cfg.h];
+      var ys = [yb, yb, yb + cfg.h, yb + cfg.h];
       var uus = side === 0 ? [0, 1, 1, 0] : [1, 0, 0, 1];
       var vvs = [0, 0, 1, 1];
       for (var v = 0; v < 4; v++) {

@@ -3,15 +3,15 @@ import { S } from "./state.js";
 import { Q } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
 import { AIR, ALL_BLOCKS, BEDROCK, BRICK, COAL, COBBLE, CROSS, DIRT, FLOWER_R, FLOWER_Y, GLASS, GRASS, GRAVEL, ICE, IRON, LAMP, LAVA, LEAVES, LOG, NAMES, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_FULL, SH_SLAB, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SNOW, STONE, TALLGRASS, TILES, TORCH, WATER, blocksLight, hardnessOf, isCross, isLiquid, isSolid, isTransparent, isUnbreakable, lightPass } from "./blocks.js";
-import { biomeMap, generate, get, heightMap, refreshAllTops, refreshTop, set, shape, shapeAt, topMap, world, waterLvl } from "./world.js";
+import { biomeMap, crossBase, generate, get, heightMap, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, waterLvl, world } from "./world.js";
 import { lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
 import { MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueWaterAround, fallTick, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
 import { FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll } from "./mesh.js";
-import { HL_GEO, camera, highlight, updateChunkVisibility } from "./scene.js";
+import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, camera, highlight, updateChunkVisibility } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { applyOpts, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, rayBox, raycast, spawn } from "./player.js";
-import { breakSound, miningSound, placeSound } from "./audio.js";
+import { breakSound, lavaHiss, lavaPop, miningSound, placeSound } from "./audio.js";
 import { OLD_KEY, SAVE_KEY, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, hasSave, liftLegacy, loadGame, saveGame } from "./save.js";
 import { ACHIEVEMENTS, achCount, applyEdit, redo, refreshAchList, refreshStats, undo, unlock } from "./edit.js";
 import { drawIcon, drawMinimap, facingText, mmCap, refreshBar, selectSlot } from "./hud.js";
@@ -90,6 +90,9 @@ window.__blockyard = {
   // ── 개선 v5 에서 추가된 것들
   isUnbreakable: isUnbreakable, columnTop: columnTop, facingText: facingText,
   isCross: isCross, isLiquid: isLiquid, isTransparent: isTransparent,
+  crossBase: crossBase, surfaceTop: surfaceTop,
+  HL_CROSS: HL_CROSS, SHAPE_BOUNDS: SHAPE_BOUNDS,
+  lavaPop: lavaPop, lavaHiss: lavaHiss,
   waterLvl: waterLvl, MAXFLOW: MAXFLOW, dryTick: dryTick, enqueueDryAround: enqueueDryAround,
   decayTick: decayTick, queueLeafDecay: queueLeafDecay, decayQ: Q.decayQ,
   decayPending: function () { return Q.decayQ.length - Q.decayHead; },

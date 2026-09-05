@@ -1,7 +1,7 @@
 // scene.js — three.js 씬 · 셰이더 · 파티클
 import { CH, CX, CY, CZ } from "./dims.js";
 import { IS_TOUCH, bail } from "./boot.js";
-import { SHAPE_BOXES, isSolid } from "./blocks.js";
+import { CROSS, SHAPE_BOXES, isSolid } from "./blocks.js";
 import { AVG_SIDE, atlasTex, crackTex, makeRng } from "./atlas.js";
 import { get, set } from "./world.js";
 import { chunkCX, chunkCY, chunkCZ, chunkCenters, glassMeshes, opaqueMeshes } from "./mesh.js";
@@ -179,6 +179,40 @@ export var HL_GEO = (function () {
   }
   return out;
 })();
+// 풀·꽃·횃불은 SHAPE_BOXES 가 아니라 CROSS 치수로 상자를 만든다
+export var HL_CROSS = (function () {
+  var out = {};
+  Object.keys(CROSS).forEach(function (key) {
+    var cfg = CROSS[key], e = 0.004;
+    var lo = 0.5 - cfg.w - e, hi = 0.5 + cfg.w + e;
+    var c = [
+      [lo, -e, lo], [hi, -e, lo], [hi, -e, hi], [lo, -e, hi],
+      [lo, cfg.h + e, lo], [hi, cfg.h + e, lo], [hi, cfg.h + e, hi], [lo, cfg.h + e, hi]
+    ];
+    var pts = [];
+    for (var k = 0; k < HL_EDGES.length; k++) {
+      var a = c[HL_EDGES[k][0]], b = c[HL_EDGES[k][1]];
+      pts.push(a[0], a[1], a[2], b[0], b[1], b[2]);
+    }
+    var g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+    out[key] = g;
+  });
+  return out;
+})();
+
+// 모양별 겉면 범위 — 균열 오버레이를 실제 블록 크기에 맞추는 데 쓴다
+export var SHAPE_BOUNDS = SHAPE_BOXES.map(function (boxes) {
+  var mn = [1, 1, 1], mx = [0, 0, 0];
+  boxes.forEach(function (q) {
+    for (var a = 0; a < 3; a++) {
+      if (q[a] < mn[a]) mn[a] = q[a];
+      if (q[a + 3] > mx[a]) mx[a] = q[a + 3];
+    }
+  });
+  return { mn: mn, mx: mx };
+});
+
 export var highlight = new THREE.LineSegments(
   HL_GEO[0],
   new THREE.LineBasicMaterial({ color: 0x0d1114, fog: false, transparent: true, opacity: 0.85 })

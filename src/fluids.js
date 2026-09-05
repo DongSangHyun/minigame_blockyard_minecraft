@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { Q } from "./queues.js";
 import { DIRS, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, GRAVEL, LEAVES, LOG, SAND, SH_FULL, WATER, isLiquid, isSolid } from "./blocks.js";
+import { AIR, GRAVEL, LEAVES, LOG, SAND, SH_FULL, WATER, isCross, isLiquid, isSolid } from "./blocks.js";
 import { get, refreshTop, shape, world, waterLvl } from "./world.js";
 import { relightLocal } from "./light.js";
 import { touch } from "./mesh.js";
@@ -96,7 +96,10 @@ export function enqueueFall(x, y, z) {
 export function fallTick(budget) {
   budget = budget || 200;
   var moved = 0;
-  while (Q.fallHead < Q.fallQ.length && budget-- > 0) {
+  // 이번 틱에 들어와 있던 것까지만 처리한다 —
+  // 그러지 않으면 새로 밀어 넣은 이웃까지 같은 호출에서 다 처리해 순간이동처럼 보인다
+  var end = Q.fallQ.length;
+  while (Q.fallHead < end && budget-- > 0) {
     var i = Q.fallQ[Q.fallHead++];
     var b = world[i];
     if (!isFalling(b) || shape[i] !== SH_FULL) continue;
@@ -106,7 +109,8 @@ export function fallTick(budget) {
     var z = (rem / WX) | 0;
     var x = rem - z * WX;
     var below = get(x, y - 1, z);
-    if (below !== AIR && !isLiquid(below)) continue;
+    // 떨어지는 모래·자갈은 풀·꽃·횃불을 부수고 지나간다
+    if (below !== AIR && !isLiquid(below) && !isCross(below)) continue;
 
     world[i] = AIR; shape[i] = SH_FULL;
     var bi = idx(x, y - 1, z);
@@ -129,9 +133,11 @@ export function fallTick(budget) {
 export function waterTick(budget) {
   budget = budget || 300;
   var changed = 0;
-  while (Q.waterHead < Q.waterQ.length && budget-- > 0) {
+  var end = Q.waterQ.length;          // 한 틱에 한 칸씩만 번진다
+  while (Q.waterHead < end && budget-- > 0) {
     var i = Q.waterQ[Q.waterHead++];
-    if (world[i] !== AIR) continue;
+    // 흐르는 물은 풀·꽃·횃불을 쓸어버린다 (마크와 같다)
+    if (world[i] !== AIR && !isCross(world[i])) continue;
     var y = (i / PLANE) | 0;
     var rem = i - y * PLANE;
     var z = (rem / WX) | 0;
@@ -145,6 +151,7 @@ export function waterTick(budget) {
       }
     } else if (get(x, y + 1, z) === WATER) {
       lvl = 0;                          // 위에서 떨어지는 물은 다시 근원이 된다
+      unlock("waterfall");
     } else {
       for (var h = 0; h < 6; h++) {
         if (DIRS[h][1] !== 0) continue;  // 옆으로만
@@ -176,7 +183,8 @@ export function waterTick(budget) {
 export function dryTick(budget) {
   budget = budget || 300;
   var dried = 0;
-  while (Q.dryHead < Q.dryQ.length && budget-- > 0) {
+  var end = Q.dryQ.length;
+  while (Q.dryHead < end && budget-- > 0) {
     var i = Q.dryQ[Q.dryHead++];
     if (world[i] !== WATER) continue;
     var y = (i / PLANE) | 0;

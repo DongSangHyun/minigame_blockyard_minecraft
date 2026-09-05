@@ -3,17 +3,17 @@ import { S } from "./state.js";
 import { Q, resetQueues } from "./queues.js";
 import { WX, WY, WZ, idx } from "./dims.js";
 import { reduceMotion } from "./boot.js";
-import { DEFAULT_BAR, LAVA, SH_SLAB, WATER, hardnessOf, isUnbreakable } from "./blocks.js";
+import { DEFAULT_BAR, ICE, LAVA, WATER, hardnessOf, isCross, isUnbreakable } from "./blocks.js";
 import { crackTex } from "./atlas.js";
-import { generate, get, set, shape } from "./world.js";
+import { crossBase, generate, get, set, shape } from "./world.js";
 import { lightAtPlayer, lightSky, relightAll } from "./light.js";
 import { decayTick, dryTick, fallTick, waterTick } from "./fluids.js";
 import { buildBudget, markAllDirty } from "./mesh.js";
-import { HL_GEO, burst, camera, cloudGroup, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateParticles, voxUniforms } from "./scene.js";
+import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateParticles, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { opts } from "./settings.js";
 import { EYE, moveAxis, moveHorizontal, player, raycast, spawn, stats } from "./player.js";
-import { crunch, miningSound, stepSound, tone, updateAmbient } from "./audio.js";
+import { crunch, lavaHiss, lavaPop, miningSound, stepSound, tone, updateAmbient } from "./audio.js";
 import { saveGame } from "./save.js";
 import { refreshAchList, refreshStats, unlock } from "./edit.js";
 import { drawMinimap, facingText, mmCap, refreshBar, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, underwaterEl } from "./hud.js";
@@ -95,12 +95,16 @@ export function step(dt) {
     if (len > 0.001) { mx = mx / len * speed; mz = mz / len * speed; } else { mx = 0; mz = 0; len = 0; }
 
     // 관성 — 목표 속도로 붙되 지상은 빠르게, 공중에서는 거의 못 바꾼다
+    // 얼음 위에서는 붙는 힘도 마찰도 확 낮아진다 — 얼음의 유일한 정체성
+    var ground = get(Math.floor(player.pos.x), Math.floor(player.pos.y - 0.1),
+                     Math.floor(player.pos.z));
+    var slick = (ground === ICE && player.onGround && !player.flying) ? 0.14 : 1;
     var control = player.flying ? 1 : (player.onGround ? 1 : AIR_CONTROL);
-    var grab = Math.min(1, dt * (player.flying ? 16 : 24) * control);
+    var grab = Math.min(1, dt * (player.flying ? 16 : 24) * control * slick);
     player.vel.x += (mx - player.vel.x) * grab;
     player.vel.z += (mz - player.vel.z) * grab;
     if (len === 0 && (player.onGround || player.flying)) {
-      var fric = Math.max(0, 1 - dt * (player.flying ? 9 : 12));
+      var fric = Math.max(0, 1 - dt * (player.flying ? 9 : 12) * slick);
       player.vel.x *= fric; player.vel.z *= fric;
     }
     if (Math.abs(player.vel.x) < 0.02) player.vel.x = 0;
@@ -215,8 +219,13 @@ export function step(dt) {
   var hit = playing ? raycast(6) : null;
   if (hit) {
     highlight.visible = true;
-    highlight.geometry = HL_GEO[hit.shape] || HL_GEO[0];
-    highlight.position.set(hit.x, hit.y, hit.z);
+    if (isCross(hit.block)) {
+      highlight.geometry = HL_CROSS[hit.block] || HL_GEO[0];
+      highlight.position.set(hit.x, crossBase(hit.x, hit.y, hit.z), hit.z);
+    } else {
+      highlight.geometry = HL_GEO[hit.shape] || HL_GEO[0];
+      highlight.position.set(hit.x, hit.y, hit.z);
+    }
     var gx = hit.x + hit.nx, gy = hit.y + hit.ny, gz = hit.z + hit.nz;
     if (canPlaceAt(gx, gy, gz)) updateGhost(gx, gy, gz, upperFromHit(hit));
     else ghostMesh.visible = false;
@@ -253,9 +262,12 @@ export function step(dt) {
         crackMat.needsUpdate = true;
       }
       crackMesh.visible = true;
-      var half = hit.shape === SH_SLAB;
-      crackMesh.scale.y = half ? 0.5 : 1;
-      crackMesh.position.set(hit.x + 0.5, hit.y + (half ? 0.25 : 0.5), hit.z + 0.5);
+      // 반블록·계단·상단슬랩 모두 실제 겉면에 맞춰 금이 가게 한다
+      var bd = SHAPE_BOUNDS[hit.shape] || SHAPE_BOUNDS[0];
+      crackMesh.scale.set(bd.mx[0] - bd.mn[0], bd.mx[1] - bd.mn[1], bd.mx[2] - bd.mn[2]);
+      crackMesh.position.set(hit.x + (bd.mn[0] + bd.mx[0]) / 2,
+                             hit.y + (bd.mn[1] + bd.mx[1]) / 2,
+                             hit.z + (bd.mn[2] + bd.mx[2]) / 2);
       if (S.breaking.t % 0.22 < dt) burst(hit.x, hit.y, hit.z, hit.block, 1);
     }
   } else {
@@ -265,6 +277,23 @@ export function step(dt) {
 
   updateParticles(dt);
   updateAmbient(dt);
+
+  // 용암이 가까우면 주기적으로 뽀글거린다 — 지하에서 "저쪽에 용암이 있다"를 귀로 알려 준다
+  S.lavaTimer -= dt;
+  if (S.lavaTimer <= 0) {
+    S.lavaTimer = 0.4 + Math.random() * 0.6;
+    if (playing) {
+      var lx = Math.floor(player.pos.x), ly = Math.floor(player.pos.y), lz = Math.floor(player.pos.z);
+      var near = 0;
+      for (var ax = -5; ax <= 5; ax++)
+        for (var ay = -4; ay <= 4; ay += 2)
+          for (var az = -5; az <= 5; az++)
+            if (get(lx + ax, ly + ay, lz + az) === LAVA) near++;
+      if (near > 0) { lavaPop(Math.min(1, 0.25 + near / 30)); unlock("lava"); }
+    }
+  }
+  if (thick && !S.wasInLavaFeet) lavaHiss();
+  S.wasInLavaFeet = thick;
 
   // 바닷물 흐름
   S.waterTimer += dt;
@@ -298,7 +327,9 @@ export function step(dt) {
     if (S.achTimer <= 0) {
       S.achTimer = 0.5;
       if (player.pos.y < 3) unlock("deep");
-      if (player.pos.y > 34) unlock("high");
+      if (get(Math.floor(player.pos.x), Math.floor(player.pos.y - 0.1),
+              Math.floor(player.pos.z)) === ICE) unlock("ice");
+      if (player.pos.y > 50) unlock("high");
       var lb = localBiome();
       if (lb === 1) unlock("snow");
       if (lb === 2) unlock("desert");

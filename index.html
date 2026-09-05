@@ -82,7 +82,9 @@
     background: radial-gradient(120% 90% at 50% 50%, rgba(28,86,140,.20) 0%, rgba(14,52,92,.58) 100%);
     box-shadow: inset 0 0 160px rgba(6,30,58,.75);
   }
+  @keyframes lavapulse { 0%, 100% { opacity: .88; } 50% { opacity: 1; } }
   #underwater.lava {
+    animation: lavapulse 1.5s ease-in-out infinite;
     background: radial-gradient(120% 90% at 50% 50%, rgba(255,140,40,.55) 0%, rgba(150,38,6,.92) 100%);
     box-shadow: inset 0 0 200px rgba(90,16,2,.92);
   }
@@ -484,10 +486,11 @@
     </div>
     <h1>BLOCKYARD</h1>
     <p class="lede">
-      설원·초원·사막이 섞인 64×64 섬. 지하에는 동굴과 광맥이 있고
-      <em>빛이 닿지 않는 곳은 정말로 캄캄합니다</em> — 램프를 놓아 길을 밝히세요.
-      해가 뜨고 지고, 비와 눈이 지나가고, 밤이면 반딧불이가 납니다.
-      해수면 아래를 파면 바닷물이 흘러 들어옵니다. 모든 것은 자동 저장됩니다.
+      설원·초원·사막이 섞인 96×96 섬. 풀과 꽃이 깔린 들판 아래로 동굴과 광맥이 뻗어 있고,
+      <em>빛이 닿지 않는 곳은 정말로 캄캄합니다</em> — 횃불을 박아 길을 내세요.
+      세계 바닥에는 용암이 고여 오렌지빛을 흘리고, 설원 바다는 얼어 있습니다.
+      해가 뜨고 지고, 비와 눈이 지나가고(지붕 아래에는 내리지 않습니다), 밤이면 반딧불이가 납니다.
+      물을 직접 놓아 폭포와 웅덩이를 만들 수 있습니다. 모든 것은 자동 저장됩니다.
     </p>
 
     <div class="rule"></div>
@@ -497,7 +500,7 @@
       <div><kbd>SPACE</kbd><span>점프 / 상승 / 헤엄</span></div>
       <div><kbd>SHIFT</kbd><span>웅크리기 (가장자리에서 안 떨어짐) / 비행 중 하강</span></div>
       <div><kbd>CTRL</kbd><span>달리기 (<kbd>W</kbd> 두 번 톡톡 해도 됩니다)</span></div>
-      <div><kbd>1</kbd>–<kbd>0</kbd><span>블록 고르기</span></div>
+      <div><kbd>1</kbd>–<kbd>0</kbd><span>블록 고르기 (<kbd>9</kbd> 는 횃불)</span></div>
       <div><kbd>좌클릭</kbd><span>길게 눌러 캐기</span></div>
       <div><kbd>우클릭</kbd><span>놓기</span></div>
       <div><kbd>E</kbd><span>블록 목록 열기</span></div>

@@ -1016,6 +1016,285 @@ test("v6 물: 바다는 마르지 않는다", async (page) => {
   eq(r.after, r.before, "바닷물이 말라 버렸다");
 });
 
+
+// ══════════════════════════════════════════════════════════════
+//  개선 v8 회귀 테스트 — 새 블록을 "상호작용 계층" 에 등록하기
+// ══════════════════════════════════════════════════════════════
+
+test("v8 물: 흐르는 물이 풀을 쓸어버리며 퍼진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 60, y = 40, z = 60;
+    for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++) {
+      for (let dy = 0; dy <= 4; dy++) B.set(x + dx, y + dy, z + dz, 0);
+      B.set(x + dx, y - 1, z + dz, B.B.GRASS);
+    }
+    B.refreshAllTops();
+    // 사방을 풀로 채운다
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++)
+      if (dx || dz) B.applyEdit(x + dx, y, z + dz, B.B.TALLGRASS, false);
+    B.applyEdit(x, y, z, B.B.WATER, false);
+    for (let k = 0; k < 200; k++) B.waterTick(4000);
+    let wet = 0, grassLeft = 0;
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++) {
+      const v = B.world[B.idx(x + dx, y, z + dz)];
+      if (v === B.B.WATER) wet++;
+      if (B.isCross(v) && Math.abs(dx) + Math.abs(dz) <= B.MAXFLOW) grassLeft++;
+    }
+    return { wet, grassLeft };
+  });
+  assert(r.wet > 5, "잔디밭에서 물이 퍼지지 않는다: " + r.wet + "칸");
+  eq(r.grassLeft, 0, "물이 지나간 자리에 풀이 남았다");
+});
+
+test("v8 중력: 모래가 풀을 부수고 지면까지 떨어진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 40, y = 40, z = 40;
+    for (let dy = 0; dy <= 8; dy++) B.set(x, y + dy, z, 0);
+    B.set(x, y - 1, z, B.B.GRASS);
+    B.refreshAllTops();
+    B.applyEdit(x, y, z, B.B.TALLGRASS, false);
+    B.applyEdit(x, y + 4, z, B.B.SAND, false);
+    B.enqueueFall(x, y + 4, z);
+    for (let k = 0; k < 60; k++) B.fallTick(200);
+    let sandY = -1;
+    for (let dy = 0; dy <= 6; dy++) if (B.world[B.idx(x, y + dy, z)] === B.B.SAND) sandY = y + dy;
+    return { sandY, floor: y, grass: B.isCross(B.world[B.idx(x, y, z)]) };
+  });
+  eq(r.sandY, r.floor, "모래가 풀 위에 떠서 멈췄다");
+  eq(r.grass, false, "모래가 풀을 부수지 않았다");
+});
+
+test("v8 놓기: 풀을 조준하고 놓으면 그 자리를 덮어쓴다 (허공 블록 없음)", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const x = 30, y = 40, z = 30;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -6; dz <= 3; dz++) {
+      for (let dy = 0; dy <= 6; dy++) B.set(x + dx, y + dy, z + dz, 0);
+      B.set(x + dx, y - 1, z + dz, B.B.GRASS);
+    }
+    B.refreshAllTops();
+    B.applyEdit(x, y, z - 3, B.B.TALLGRASS, false);
+
+    // 풀을 정면으로 조준한다 — raycast 는 player.pos + EYE 에서 쏜다
+    B.player.pos.set(x + 0.5, y + 0.5 - 1.62, z + 0.5);
+    B.player.yaw = 0; B.player.pitch = 0;
+    B.camera.position.set(x + 0.5, y + 0.5, z + 0.5);
+    B.camera.rotation.set(0, 0, 0);
+    const hit = B.raycast(6);
+    B.getBar()[B.getSelected()] = B.B.STONE;
+    B.beginPlay();
+    B.place();
+    B.endPlay(); B.setPaused(false);
+    return {
+      hitBlock: hit && hit.block, TALLGRASS: B.B.TALLGRASS,
+      atGrass: B.world[B.idx(x, y, z - 3)], STONE: B.B.STONE,
+      above: B.world[B.idx(x, y + 1, z - 3)]
+    };
+  });
+  eq(r.hitBlock, r.TALLGRASS, "풀을 조준하지 못했다");
+  eq(r.atGrass, r.STONE, "풀 자리를 덮어쓰지 않았다");
+  eq(r.above, 0, "풀 위 허공에 블록이 생겼다");
+});
+
+test("v8 조준 표시: 얇은 블록과 v6 모양이 모두 자기 크기를 쓴다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    function height(g) {
+      const a = g.getAttribute("position");
+      let lo = Infinity, hi = -Infinity;
+      for (let i = 0; i < a.count; i++) { const v = a.getY(i); if (v < lo) lo = v; if (v > hi) hi = v; }
+      return hi - lo;
+    }
+    return {
+      crossKinds: Object.keys(B.HL_CROSS).length,
+      torch: height(B.HL_CROSS[B.B.TORCH]),
+      grass: height(B.HL_CROSS[B.B.TALLGRASS]),
+      boundsCount: B.SHAPE_BOUNDS.length,
+      slabUp: B.SHAPE_BOUNDS[6],
+      stairUp: B.SHAPE_BOUNDS[7]
+    };
+  });
+  assert(r.crossKinds >= 4, "얇은 블록 상자가 부족하다: " + r.crossKinds);
+  near(r.torch, 0.628, 0.02, "횃불 선택 상자 높이");
+  near(r.grass, 0.928, 0.02, "풀 선택 상자 높이");
+  eq(r.boundsCount, 11, "모양별 겉면 범위 개수");
+  eq(r.slabUp.mn[1], 0.5, "상단 반블록의 아래 끝");
+  eq(r.stairUp.mx[1], 1, "반전 계단의 위 끝");
+});
+
+test("v8 모양: 물·풀·횃불에는 반블록/계단 모양이 붙지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const x = 70, y = 40, z = 70;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+      for (let dy = 0; dy <= 6; dy++) B.set(x + dx, y + dy, z + dz, 0);
+      B.set(x + dx, y - 1, z + dz, B.B.STONE);
+    }
+    B.refreshAllTops();
+    B.setShapeMode(1);                       // 반블록 모드
+    B.player.pos.set(x + 0.5, y, z + 0.5);
+    B.player.yaw = 0; B.player.pitch = 1.2;  // 발밑을 본다
+    B.camera.position.set(x + 0.5, y + 0.3, z + 0.5);
+    B.camera.rotation.set(-1.2, 0, 0);
+    B.beginPlay();
+    B.getBar()[B.getSelected()] = B.B.WATER;
+    B.place();
+    const out = {};
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = 0; dy <= 1; dy++) {
+        const i = B.idx(x + dx, y + dy, z + dz);
+        if (B.world[i] === B.B.WATER) out.waterShape = B.shape[i];
+      }
+    // 돌은 여전히 반블록으로 놓여야 한다
+    B.getBar()[B.getSelected()] = B.B.STONE;
+    B.place();
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = 0; dy <= 1; dy++) {
+        const i = B.idx(x + dx, y + dy, z + dz);
+        if (B.world[i] === B.B.STONE && (y + dy) !== y - 1) out.stoneShape = B.shape[i];
+      }
+    B.setShapeMode(0);
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  eq(r.waterShape, 0, "물에 반블록 모양이 붙었다");
+  eq(r.stoneShape, 1, "돌은 반블록으로 놓여야 한다");
+});
+
+test("v8 건축: 반블록 위에 같은 반블록을 놓으면 온전한 블록이 된다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const x = 24, y = 44, z = 24;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy <= 6; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.set(x, y - 1, z, B.B.STONE);
+    B.applyEdit(x, y, z, B.B.STONE, false, B.SH.SLAB);
+    B.refreshAllTops();
+
+    // 반블록 윗면을 내려다본다
+    B.player.pos.set(x + 0.5, y + 2, z + 0.5);
+    B.camera.position.set(x + 0.5, y + 2.5, z + 0.5);
+    B.camera.rotation.set(-Math.PI / 2 + 0.01, 0, 0);
+    B.player.yaw = 0; B.player.pitch = -Math.PI / 2 + 0.01;
+    B.setShapeMode(1);
+    B.getBar()[B.getSelected()] = B.B.STONE;
+    B.beginPlay();
+    B.place();
+    const i = B.idx(x, y, z);
+    B.setShapeMode(0);
+    B.endPlay(); B.setPaused(false);
+    return { block: B.world[i], shape: B.shape[i], STONE: B.B.STONE,
+             above: B.world[B.idx(x, y + 1, z)], merged: B.getEarned().slabmerge };
+  });
+  eq(r.block, r.STONE, "블록이 사라졌다");
+  eq(r.shape, 0, "두 반블록이 온전한 블록으로 합쳐지지 않았다");
+  eq(r.above, 0, "위 칸에 또 반블록이 생겼다");
+});
+
+test("v8 횃불: 굵기가 보일 만큼 되고, 반블록 위에서는 0.5칸 내려앉는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 12, y = 44, z = 12;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = -2; dy <= 4; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.set(x, y - 1, z, B.B.STONE);                      // 온전한 블록
+    B.applyEdit(x + 1, y - 1, z, B.B.STONE, false, B.SH.SLAB);   // 하단 반블록
+    B.refreshAllTops();
+    return {
+      w: B.CROSS[B.B.TORCH].w,
+      onFull: B.crossBase(x, y, z),
+      onSlab: B.crossBase(x + 1, y, z),
+      full: y, slab: y - 0.5
+    };
+  });
+  assert(r.w >= 0.2, "횃불이 너무 얇다: 반너비 " + r.w);
+  eq(r.onFull, r.full, "온전한 블록 위 횃불 높이");
+  eq(r.onSlab, r.slab, "반블록 위 횃불이 0.5칸 떠 있다");
+});
+
+test("v8 얼음: 얼음 위에서는 훨씬 멀리 미끄러진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    function run(floor) {
+      const x = 48, y = 46, z = 48;
+      for (let dx = -14; dx <= 14; dx++) for (let dz = -14; dz <= 14; dz++) {
+        for (let dy = 0; dy <= 5; dy++) B.set(x + dx, y + dy, z + dz, 0);
+        B.set(x + dx, y - 1, z + dz, floor);
+      }
+      B.refreshAllTops();
+      B.player.pos.set(x + 0.5, y, z + 0.5);
+      B.player.vel.set(0, 0, 0);
+      B.player.onGround = true; B.player.flying = false;
+      B.player.yaw = 0; B.player.pitch = 0;
+      B.camera.rotation.set(0, 0, 0);
+      B.beginPlay();
+      B.setKey("KeyW", true);
+      for (let k = 0; k < 90; k++) B.step(1 / 60);
+      B.setKey("KeyW", false);
+      const z0 = B.player.pos.z;
+      for (let k = 0; k < 60; k++) B.step(1 / 60);
+      const coast = Math.abs(B.player.pos.z - z0);
+      B.endPlay();
+      return coast;
+    }
+    const stone = run(B.B.STONE);
+    const ice = run(B.B.ICE);
+    B.setPaused(false);
+    return { stone, ice };
+  });
+  assert(r.ice > r.stone * 2,
+    `얼음이 미끄럽지 않다 — 돌 ${r.stone.toFixed(2)}칸 · 얼음 ${r.ice.toFixed(2)}칸`);
+});
+
+test("v8 물: 한 틱에 한 칸씩 번진다 (한 프레임에 완결되지 않는다)", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 80, y = 40, z = 80;
+    for (let dx = -8; dx <= 8; dx++) for (let dz = -8; dz <= 8; dz++) {
+      for (let dy = 0; dy <= 4; dy++) B.set(x + dx, y + dy, z + dz, 0);
+      B.set(x + dx, y - 1, z + dz, B.B.STONE);
+    }
+    B.refreshAllTops();
+    B.applyEdit(x, y, z, B.B.WATER, false);
+    const radii = [];
+    for (let t = 0; t < 4; t++) {
+      B.waterTick(4000);
+      let far = 0;
+      for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++)
+        if (B.world[B.idx(x + dx, y, z + dz)] === B.B.WATER)
+          far = Math.max(far, Math.abs(dx) + Math.abs(dz));
+      radii.push(far);
+    }
+    return { radii };
+  });
+  eq(r.radii[0], 1, "첫 틱에 1칸만 번져야 한다 — 실제 " + r.radii.join("→"));
+  assert(r.radii[1] > r.radii[0], "두 번째 틱에 더 번져야 한다: " + r.radii.join("→"));
+});
+
+test("v8 콘텐츠: 도전 과제·기본 핫바·소개문이 새 블록을 반영한다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const ids = B.ACHIEVEMENTS.map(a => a.id);
+    return {
+      total: ids.length,
+      hasNew: ["lava", "ice", "torch10", "flower", "waterfall", "slabmerge"].filter(i => ids.includes(i)).length,
+      bar: B.getBar().map(b => B.NAMES[b]),
+      lede: document.querySelector(".lede").textContent
+    };
+  });
+  assert(r.total >= 22, "도전 과제 수: " + r.total);
+  eq(r.hasNew, 6, "새 콘텐츠 도전 과제가 빠졌다");
+  assert(r.bar.includes("TORCH"), "기본 핫바에 횃불이 없다: " + r.bar.join(","));
+  assert(r.lede.includes("96×96"), "소개문의 섬 크기가 낡았다");
+  assert(/용암/.test(r.lede) && /횃불/.test(r.lede), "소개문에 새 콘텐츠 언급이 없다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

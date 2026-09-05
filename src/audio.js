@@ -101,6 +101,17 @@ export function stepSound(b) {
   crunch(0.07, SOFT[b] ? 0.045 : 0.055, SOFT[b] ? 700 : 1800);
 }
 // 놓는 소리 — 캐는 소리보다 짧고 낮게, 재질은 그대로 구분한다
+// 용암 — 가까이 가면 "뽀글" 소리로 존재를 알린다. 지하의 유일한 긴장 요소.
+export function lavaPop(vol) {
+  tone(70 + Math.random() * 50, 0.22, "sine", 0.10 * vol);
+  crunch(0.18, 0.05 * vol, 320);
+}
+// 용암에 발을 담글 때의 치익 소리
+export function lavaHiss() {
+  crunch(0.55, 0.22, 900);
+  tone(180, 0.5, "sawtooth", 0.05);
+}
+
 export function placeSound(b) {
   if (SOFT[b]) crunch(0.09, 0.10, 850);
   else if (b === GLASS || b === LAMP) { tone(1180, 0.05, "square", 0.035); crunch(0.06, 0.06, 3600); }
