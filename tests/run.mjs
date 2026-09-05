@@ -1,5 +1,5 @@
 // Blockyard 회귀 테스트 스위트
-import { launch, openGame, assert, eq, near } from "./harness.mjs";
+import { launch, openGame, stopServer, assert, eq, near } from "./harness.mjs";
 
 const REPEAT = Math.max(1, parseInt(process.argv[2] || "1", 10));
 const FILTER = process.argv[3] || "";
@@ -1047,6 +1047,7 @@ for (let round = 1; round <= REPEAT; round++) {
   await ctx.close();
 }
 await browser.close();
+stopServer();
 
 console.log("─".repeat(52));
 console.log(`합계: 통과 ${totalPass} · 실패 ${totalFail} (${REPEAT}회 반복)`);

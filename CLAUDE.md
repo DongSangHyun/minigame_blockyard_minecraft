@@ -4,7 +4,8 @@
 > 나머지 문서는 INDEX 가 가리키는 것만 필요할 때 펼친다. (색인 계층 구조)
 
 ## 0. 이 프로젝트가 뭔가
-마인크래프트를 모방한 웹 복셀 샌드박스. `index.html` 이 진입점이다.
+마인크래프트를 모방한 웹 복셀 샌드박스.
+`index.html`(마크업) → `src/main.js`(ES 모듈 24개) 구조다.
 빌드 도구 없음 · 번들러 없음 · 프레임워크 없음. **GitHub Pages 에 그대로 얹혀 돌아간다.**
 
 **공개 주소** https://dongsanghyun.github.io/minigame_blockyard_minecraft/
@@ -28,11 +29,22 @@
 3. **ES5 문체를 지킨다.** `var` · `function` 선언 · 화살표 함수와 `let/const` 를 섞지 않는다.
    기존 코드 3,500줄이 전부 ES5 다. 문체가 섞이면 읽는 사람이 손해를 본다.
 4. **UI 문구는 한국어.** 코드 주석도 한국어. 변수·함수 이름은 영어.
-5. **섹션 번호 주석(`// 1. 블록 정의` …)을 유지한다.** 이게 색인의 뼈대다.
-   새 섹션을 넣으면 `node tests/index.mjs` 로 `docs/INDEX.md` 를 다시 만든다.
-6. **`window.__blockyard` 훅에 새 기능을 반드시 노출한다.** 테스트가 여기로만 접근한다.
+5. **모듈 하나 = 관심사 하나.** 파일 첫 줄은 항상 `// 이름.js — 하는 일` 이다.
+   구조를 바꾸면 `node tools/codemap.mjs` 로 `docs/CODEMAP.md` 를 다시 만든다.
+6. **`window.__blockyard` 훅(`src/main.js`)에 새 기능을 반드시 노출한다.**
+   테스트가 여기로만 접근한다.
 7. **저장 포맷을 바꾸면 `v` 를 올리고 이전 버전 로딩 경로를 남긴다.** (현재 v4)
 8. **파괴적 조작에는 확인을 건다.** 월드를 날리는 동작이 단축키 하나로 일어나면 안 된다.
+
+## 2.5 모듈 규칙
+- **읽기는 `import`, 쓰기는 `S`.** ES 모듈에서 import 한 바인딩에는 대입할 수 없다.
+  여러 모듈이 값을 바꾸는 변수만 `src/state.js` 의 `S` 에 둔다. 나머지는 그냥 `export var`.
+- **`state.js` · `dims.js` · `queues.js` 는 아무것도 import 하지 않는다.**
+  초기화 순서의 뿌리라서, 여기에 import 를 넣으면 순환이 생겨 다른 모듈이
+  아직 값이 없는 상태에서 돌게 된다 (실제로 겪은 사고다).
+- 모듈 사이 순환은 **함수 호출 시점에만** 서로를 보게 한다.
+  최상위(모듈이 로드될 때 바로 실행되는 코드)에서 순환 상대의 값을 읽으면 안 된다.
+- import 를 손댔으면 `node tools/tidy-imports.mjs` 로 안 쓰는 것을 지운다.
 
 ## 3. 성능 예산 (넘기면 되돌린다)
 | 항목 | 예산 |
@@ -45,12 +57,13 @@
 
 ## 4. 작업 루프
 ```
-1) docs/INDEX.md 로 위치 파악
+1) docs/INDEX.md → docs/CODEMAP.md 로 위치 파악
 2) (필요하면) 고인물 자문 에이전트에게 감각 검증
 3) 후보를 유저에게 제시 → 승인
-4) 구현 (한 파일 안에서, 섹션 번호에 맞는 자리에)
+4) 구현 (관심사에 맞는 src/ 모듈에)
 5) node tests/run.mjs 10        ← 반드시 반복 실행
-6) memory.md 에 진행내역 기록 · docs/ 갱신
+6) node tools/codemap.mjs · node tools/tidy-imports.mjs
+7) memory.md 에 진행내역 기록 · docs/ 갱신
 ```
 
 ## 5. 테스트
@@ -61,7 +74,10 @@
 
 ## 6. 자주 하는 실수
 - `applyEdit` 를 거치지 않고 `world[]` 를 직접 쓰면 조명·메시·저장이 전부 어긋난다.
-  월드를 바꿀 때는 항상 `applyEdit(x,y,z,블록,기록여부,모양)`.
+  월드를 바꿀 때는 항상 `applyEdit(x,y,z,블록,기록여부,모양)`. (`src/edit.js`)
+- import 한 변수에 대입하면 `Assignment to constant variable` 이 난다.
+  그 변수는 `S` 로 옮기거나, 값을 넣는 모듈로 선언을 옮겨야 한다.
 - 블록을 새로 추가할 때 빠뜨리기 쉬운 곳: `TILES` · `NAMES` · `HARDNESS` · `ALL_BLOCKS` ·
   아틀라스 `paint()` · (빛나면) `EMIT` · `isTransparent/isSolid/lightPass`.
-- `shape` 배열은 `world` 와 항상 같은 길이·같은 인덱스. 한쪽만 건드리면 안 된다.
+- `shape` · `waterLvl` 배열은 `world` 와 항상 같은 길이·같은 인덱스. 한쪽만 건드리면 안 된다.
+- 저장 포맷을 바꿨는데 `liftLegacy` 를 손보지 않으면 기존 플레이어의 세계가 사라진다.

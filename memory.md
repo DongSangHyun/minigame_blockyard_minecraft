@@ -128,3 +128,47 @@
 게임 코드의 ES 모듈 분리는 사용자 승인 아래 다음 작업으로 진행 중.
 
 ---
+
+## 3. 2026-09-05 — ES 모듈 분리 (v7)
+
+사용자가 "파일 하나" 제약을 풀어 준 뒤, 4,000줄짜리 IIFE 하나를 `src/` 아래 **모듈 24개**로 나눴다.
+겉보기 동작은 하나도 바뀌지 않았고 회귀 테스트 50항목이 전후 모두 통과한다.
+
+### 3-1. 구조
+```
+state · dims · queues     아무것도 import 하지 않는 뿌리
+blocks · atlas            블록 정의와 텍스처
+world · light · fluids    세계 데이터와 시뮬레이션
+mesh · scene              그리기
+player · mine · sky       플레이어와 상호작용
+hud · hand · input        화면과 조작
+loop · main               매 프레임과 조립
+```
+`index.html` 은 마크업과 CSS 만 남기고 `<script type="module" src="src/main.js">` 하나로 시작한다.
+
+### 3-2. 이 과정에서 겪은 사고 네 가지
+1. **최상위 `return`** — IIFE 안에서 쓰던 `bail(...); return;` 이 모듈에서는 구문 오류다. 예외로 바꿨다.
+2. **객체 리터럴 키까지 치환** — `bar: bar` 를 `S.bar: S.bar` 로 바꿔 버렸다.
+   키 앞 글자는 항상 `{` · `,` · 줄머리라는 점을 이용해 값 쪽만 바꾸도록 고쳤다.
+3. **가짜 순환 import** — 지역 변수 이름(`tone`, `player`)이 다른 모듈의 export 와 겹쳐
+   쓰지도 않는 모듈을 import 하게 됐고, `atlas → audio → … → hand → atlas` 순환이 생겨
+   `tileOrigin` 이 `undefined` 인 채로 기하를 만들다 터졌다.
+   → 모듈 안에서 지역 선언된 이름은 import 하지 않도록 걸렀다.
+4. **import 한 바인딩에 대입** — `Assignment to constant variable`.
+   여러 모듈이 바꾸는 값은 `state.js` 의 `S` 로, 한 모듈만 바꾸는 값은 그 모듈로 선언을 옮겼다.
+
+### 3-3. 남긴 도구 / 지운 도구
+- 남김: `tools/codemap.mjs`(모듈 지도 생성) · `tools/tidy-imports.mjs`(안 쓰는 import 정리) ·
+  `tools/make-icons.mjs`(PWA 아이콘)
+- **지움: 자동 분리 스크립트와 분리 전 단일 파일.**
+  저장소에 두면 "단일 파일" 과 "모듈" 두 개의 진실이 생겨 다음 세션이 헷갈린다.
+  지금부터 진실은 `src/` 하나이고, 분리 전 원본은 git 이력에 있다.
+
+### 3-4. 테스트 하네스 변경
+ES 모듈은 `file://` 에서 CORS 로 막히므로, 하네스가 **임시 HTTP 서버**를 띄우고
+그 위에서 페이지를 연다 (`tests/harness.mjs` 의 `serve()`).
+
+### 3-5. 검증
+`node tests/run.mjs 10` → **50항목 × 10회 = 500 통과 / 0 실패.**
+
+---

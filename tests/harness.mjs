@@ -31,13 +31,38 @@ export async function launch() {
   });
 }
 
+// ES 모듈은 file:// 에서 CORS 로 막히므로 정적 서버를 띄운다.
+const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8", ".json": "application/json; charset=utf-8",
+  ".webmanifest": "application/manifest+json", ".png": "image/png", ".ico": "image/x-icon" };
+
+let server = null, origin = null;
+export async function serve() {
+  if (origin) return origin;
+  const http = await import("node:http");
+  server = http.createServer((req, res) => {
+    const rel = decodeURIComponent(req.url.split("?")[0]).replace(/^\/+/, "") || "index.html";
+    const file = path.join(ROOT, rel);
+    if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
+      res.writeHead(404).end("not found"); return;
+    }
+    res.writeHead(200, { "content-type": MIME[path.extname(file)] || "application/octet-stream" });
+    fs.createReadStream(file).pipe(res);
+  });
+  await new Promise(r => server.listen(0, "127.0.0.1", r));
+  origin = "http://127.0.0.1:" + server.address().port;
+  return origin;
+}
+export function stopServer() { if (server) { server.close(); server = null; origin = null; } }
+
 export async function openGame(browser) {
+  const base = await serve();
   const ctx = await browser.newContext({ viewport: { width: 1024, height: 640 } });
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push("pageerror: " + e.message));
   page.on("console", m => { if (m.type() === "error") errors.push("console: " + m.text()); });
-  await page.goto(pathToFileURL(GAME).href, { waitUntil: "load" });
+  await page.goto(base + "/index.html", { waitUntil: "load" });
   await page.waitForFunction("window.__blockyard && window.__blockyard.booted !== false", null,
     { timeout: 30000 });
   return { page, ctx, errors };
