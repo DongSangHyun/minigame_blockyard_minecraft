@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { resetQueues } from "./queues.js";
 import { DIRS, N, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, CACTUS, COAL, DEADBUSH, DIRT, DRYGRASS, FLOWER_R, FLOWER_Y, GRASS, GRAVEL, ICE, IRON, LAVA, LEAVES, LOG, SAND, SHAPE_BOXES, SH_FULL, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, WATER, isCross, isSolid } from "./blocks.js";
+import { AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, CACTUS, COAL, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FLOWER_R, FLOWER_Y, GOLD, GRASS, GRAVEL, ICE, IRON, LAVA, LEAVES, LOG, SAND, SHAPE_BOXES, SH_FULL, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, WATER, isCross, isSolid } from "./blocks.js";
 import { makeRng } from "./atlas.js";
 
 export var world = new Uint8Array(N);
@@ -117,7 +117,17 @@ export function generate(seed) {
 
       for (var y = 0; y <= h; y++) {
         if (y === 0) { set(x, y, z, BEDROCK); continue; }
-        if (y < h - 2 && noise3(x * 0.105, y * 0.17, z * 0.105, S.worldSeed + 55) > 0.635) continue;
+        // 동굴 — 좁은 굴(고주파) · 넓은 방(저주파) · 세로로 갈라진 협곡
+        if (y < h - 2) {
+          if (noise3(x * 0.105, y * 0.17, z * 0.105, S.worldSeed + 55) > 0.635) continue;
+          if (y < h - 5 &&
+              noise3(x * 0.042, y * 0.075, z * 0.042, S.worldSeed + 611) > 0.70) continue;
+          if (y > 2 && y < 26) {
+            var rv = noise2(x * 0.030, z * 0.030, S.worldSeed + 877);
+            if (rv > 0.815 && Math.abs(noise2(x * 0.11, z * 0.11, S.worldSeed + 878) - 0.5) < 0.14)
+              continue;                                   // 협곡
+          }
+        }
 
         var b;
         if (y === h) b = surf;
@@ -149,13 +159,17 @@ export function generate(seed) {
     var vx = (rng() * WX) | 0, vz = (rng() * WZ) | 0;
     var vTop = heightMap[vz * WX + vx] - 4;
     if (vTop < 3) continue;
-    var isIron = rng() < 0.38;
-    var vyMax = isIron ? Math.min(vTop, 14) : vTop;
+    // 깊이에 따라 다른 광물이 난다 — 내려갈수록 보상이 커진다
+    var roll = rng();
+    var kind, vyMax, size;
+    if (roll < 0.030) { kind = DIAMOND; vyMax = Math.min(vTop, 7);  size = 2 + ((rng() * 4) | 0); }
+    else if (roll < 0.095) { kind = GOLD; vyMax = Math.min(vTop, 11); size = 2 + ((rng() * 5) | 0); }
+    else if (roll < 0.42)  { kind = IRON; vyMax = Math.min(vTop, 16); size = 3 + ((rng() * 6) | 0); }
+    else                   { kind = COAL; vyMax = vTop;               size = 4 + ((rng() * 9) | 0); }
     if (vyMax < 2) continue;
     var vy = 1 + ((rng() * (vyMax - 1)) | 0);
     if (get(vx, vy, vz) !== STONE) continue;
-    growVein(isIron ? IRON : COAL, vx, vy, vz,
-             isIron ? (3 + ((rng() * 6) | 0)) : (4 + ((rng() * 9) | 0)));
+    growVein(kind, vx, vy, vz, size);
   }
 
   // 용암 웅덩이 — 세계 바닥의 동굴 바닥에 고인다. 지하 탐험의 유일한 시각 목표.

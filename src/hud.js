@@ -140,6 +140,7 @@ export function facingText() {
   return FACING[((q % 4) + 4) % 4];
 }
 export var tFace = document.getElementById("t-face");
+export var tAch = document.getElementById("t-ach");
 export var tPos = document.getElementById("t-pos"),
     tTime = document.getElementById("t-time"),
     tLight = document.getElementById("t-light"),

@@ -57,5 +57,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v10 — 건축·시점·분위기 · 회귀 테스트 79항목 전부 통과.**
+**v11 — 세계와 날씨 · 회귀 테스트 88항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/

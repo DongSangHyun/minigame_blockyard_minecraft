@@ -121,6 +121,18 @@ export function setMuffle(on) {
   catch (e) { f.value = target; }
 }
 
+// 빗소리 — 날씨가 켜져 있는 동안 낮게 깔린다
+export function rainHiss(vol) {
+  crunch(0.9, 0.05 * vol, 2600);
+}
+// 천둥 — 번쩍인 뒤 거리만큼 늦게 울린다
+export function thunder(delayMs, near) {
+  setTimeout(function () {
+    crunch(1.6, near ? 0.30 : 0.16, near ? 700 : 320);
+    tone(46, 1.9, "sine", near ? 0.10 : 0.05);
+  }, delayMs);
+}
+
 // 동굴 울림 — 깊고 어두운 곳에서 가끔 낮게 울린다 (마크의 동굴 소리)
 export function caveSound(depthMix) {
   var f = 90 + Math.random() * 120;

@@ -9,9 +9,23 @@ import { toast } from "./hud.js";
 
 export var SAVE_KEY = "blockyard.save";
 export var OLD_KEY = "blockyard.save.v2";
+export var SLOTS = 3;
+
+// 슬롯 — 1번은 기존 키를 그대로 써서 예전 세계를 잃지 않는다
+export function slotKey(n) { return n <= 1 ? SAVE_KEY : SAVE_KEY + "." + n; }
+export function curKey() { return slotKey(S.slot); }
+export function slotInfo(n) {
+  try {
+    var raw = localStorage.getItem(slotKey(n));
+    if (!raw) return null;
+    var d = JSON.parse(raw);
+    return { seed: d.seed >>> 0, mins: Math.round((d.secs || 0) / 60),
+             placed: d.s ? d.s[0] : 0, mined: d.s ? d.s[1] : 0 };
+  } catch (e) { return null; }
+}
 
 export function hasSave() {
-  try { return !!(localStorage.getItem(SAVE_KEY) || localStorage.getItem(OLD_KEY)); }
+  try { return !!(localStorage.getItem(curKey()) || (S.slot <= 1 && localStorage.getItem(OLD_KEY))); }
   catch (e) { return false; }
 }
 
@@ -98,7 +112,7 @@ export function liftLegacy(src, dst, asRuns) {
 
 export function saveGame() {
   try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify({
+    localStorage.setItem(curKey(), JSON.stringify({
       v: 5, seed: S.worldSeed, w: encodeWorldB64(), sh: encodeArrB64(shape),
       wl: encodeArrB64(waterLvl),
       p: [player.pos.x, player.pos.y, player.pos.z],
@@ -119,7 +133,7 @@ export function saveGame() {
 }
 export function loadGame() {
   try {
-    var raw = localStorage.getItem(SAVE_KEY) || localStorage.getItem(OLD_KEY);
+    var raw = localStorage.getItem(curKey()) || (S.slot <= 1 ? localStorage.getItem(OLD_KEY) : null);
     if (!raw) return false;
     var d = JSON.parse(raw);
     if (!d || !d.w) return false;
@@ -152,5 +166,5 @@ export function loadGame() {
   } catch (e) { return false; }
 }
 export function clearSave() {
-  try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(OLD_KEY); } catch (e) {}
+  try { localStorage.removeItem(curKey()); if (S.slot <= 1) localStorage.removeItem(OLD_KEY); } catch (e) {}
 }

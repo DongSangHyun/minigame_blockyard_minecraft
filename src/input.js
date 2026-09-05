@@ -1,13 +1,15 @@
 // input.js — 입력 (키보드 · 마우스 · 터치)
 import { S } from "./state.js";
+import { markAllDirty, buildBudget } from "./mesh.js";
+import { relightAll } from "./light.js";
 import { IS_TOUCH } from "./boot.js";
 import { NAMES } from "./blocks.js";
 import { camera, crackMesh, renderer } from "./scene.js";
 import { applyTime } from "./daynight.js";
 import { applyOpts, opts, saveOpts } from "./settings.js";
-import { player, raycast } from "./player.js";
+import { player, raycast, spawn } from "./player.js";
 import { ac, startAmbient, tone } from "./audio.js";
-import { hasSave, saveGame } from "./save.js";
+import { SLOTS, hasSave, loadGame, saveGame, slotInfo } from "./save.js";
 import { redo, refreshStats, undo } from "./edit.js";
 import { closePicker, openPicker, refreshSlot, selectSlot, showHud, toast } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
@@ -50,7 +52,46 @@ export function advanceTut(step) {
 }
 
 
+// 저장 슬롯 — 세계를 셋까지 따로 둔다
+export var slotsEl = document.getElementById("slots");
+export function refreshSlots() {
+  if (!slotsEl) return;
+  var html = "";
+  for (var n = 1; n <= SLOTS; n++) {
+    var info = slotInfo(n);
+    html += '<button type="button" data-slot="' + n + '" aria-current="' +
+            (S.slot === n ? "true" : "false") + '"><b>' + n + '</b>' +
+            (info ? ("SEED " + info.seed + " · " + info.mins + "분") : "비어 있음") +
+            '</button>';
+  }
+  slotsEl.innerHTML = html;
+}
+if (slotsEl) {
+  slotsEl.addEventListener("click", function (e) {
+    var btn = e.target.closest("button[data-slot]");
+    if (!btn) return;
+    e.stopPropagation();
+    var n = parseInt(btn.getAttribute("data-slot"), 10);
+    if (n === S.slot) return;
+    if (S.worldDirty) saveGame();
+    S.slot = n;
+    if (hasSave() && loadGame()) {
+      relightAll(false); markAllDirty(); buildBudget(70);
+      spawn();
+      if (S.savedPos) { S.savedPos.copy(player.pos); S.savedYaw = player.yaw; S.savedPitch = player.pitch; }
+      toast("슬롯 " + n + " 을 불러왔습니다");
+    } else {
+      newWorld((Math.random() * 100000) | 0);
+      toast("슬롯 " + n + " · 새 세계");
+    }
+    refreshSlots();
+    refreshMenu();
+    refreshStats();
+  });
+}
+
 export function refreshMenu() {
+  refreshSlots();
   if (S.started) goBtn.textContent = "계속하기";
   else if (hasSave()) goBtn.textContent = "이어하기";
   else goBtn.textContent = "CLICK TO PLAY";
@@ -263,6 +304,7 @@ window.addEventListener("keydown", function (e) {
     tone(560 + S.shapeMode * 120, 0.06, "square", 0.04);
     advanceTut(3);
   }
+  if (e.code === "F2") { e.preventDefault(); S.wantShot = true; }
   if (e.code === "F5") {
     e.preventDefault();
     S.thirdPerson = (S.thirdPerson + 1) % 3;
@@ -453,6 +495,7 @@ bindOpt("s-fov", "o-fov", "fov", function (v) { return v + "°"; });
 bindOpt("s-far", "o-far", "far", function (v) { return v + "m"; });
 bindOpt("s-vol", "o-vol", "vol", function (v) { return v + "%"; });
 bindOpt("s-day", "o-day", "day", function (v) { return v === 0 ? "고정" : v + "분"; });
+bindOpt("s-bright", "o-bright", "bright", function (v) { return v + "%"; });
 (function bindInvert() {
   var el = document.getElementById("s-inv"), out = document.getElementById("o-inv");
   el.checked = !!opts.invertY;

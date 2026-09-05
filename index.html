@@ -229,6 +229,20 @@
     .slot canvas { width: 25px; height: 25px; }
   }
 
+  .slotrow {
+    display: flex; align-items: center; gap: 10px; margin-top: 12px;
+    font-family: var(--mono); font-size: 10.5px; color: var(--stone);
+    letter-spacing: .08em; text-transform: uppercase;
+  }
+  #slots { display: flex; gap: 6px; flex-wrap: wrap; }
+  #slots button {
+    font-family: var(--mono); font-size: 10px; color: var(--stone);
+    background: var(--panel-2); border: 2px solid var(--line);
+    padding: 5px 9px; cursor: pointer; text-align: left; line-height: 1.5;
+  }
+  #slots button b { display: block; font-family: var(--pixel); font-size: 9px; color: var(--bone); }
+  #slots button[aria-current="true"] { border-color: var(--moss); color: var(--bone); }
+
   /* ---------- overlay ---------- */
   #overlay {
     position: fixed; inset: 0;
@@ -462,6 +476,7 @@
   <dt>이동</dt><dd id="t-mode">걷기</dd>
   <dt>모양</dt><dd id="t-shape">전체</dd>
   <dt>블록</dt><dd id="t-blocks">놓음 <b>0</b> · 캔 <b>0</b></dd>
+  <dt>과제</dt><dd id="t-ach">—</dd>
   <dt>FPS</dt><dd id="t-fps">—</dd>
 </dl>
 
@@ -527,6 +542,7 @@
       <div><kbd>K</kbd><span>날씨 바꾸기</span></div>
       <div><kbd>F5</kbd><span>1인칭 / 3인칭</span></div>
       <div><kbd>F1</kbd><span>화면 표시 숨기기</span></div>
+      <div><kbd>F2</kbd><span>화면 저장 (PNG)</span></div>
       <div><kbd>[</kbd> <kbd>]</kbd><span>미니맵 확대 / 축소</span></div>
       <div><kbd>M</kbd><span>소리 끄기</span></div>
     </div>
@@ -539,7 +555,12 @@
         <label class="opt"><span>시야 거리</span><input type="range" id="s-far" min="40" max="220" step="5"><output id="o-far"></output></label>
         <label class="opt"><span>소리 크기</span><input type="range" id="s-vol" min="0" max="100" step="5"><output id="o-vol"></output></label>
         <label class="opt"><span>하루 길이</span><input type="range" id="s-day" min="0" max="20" step="1"><output id="o-day"></output></label>
+        <label class="opt"><span>밝기</span><input type="range" id="s-bright" min="0" max="100" step="5"><output id="o-bright"></output></label>
         <label class="opt check"><span>Y축 반전</span><input type="checkbox" id="s-inv"><output id="o-inv"></output></label>
+      </div>
+      <div class="slotrow">
+        <span>저장 슬롯</span>
+        <div id="slots"></div>
       </div>
       <div class="seedrow">
         <label for="seedin">SEED</label>

@@ -5,8 +5,8 @@ import { camera, voxUniforms } from "./scene.js";
 
 export var OPT_KEY = "blockyard.opts.v1";
 export var opts = IS_TOUCH
-  ? { sens: 100, fov: 78, far: 72, vol: 60, invertY: 0, day: 10 }
-  : { sens: 100, fov: 72, far: 120, vol: 60, invertY: 0, day: 10 };
+  ? { sens: 100, fov: 78, far: 72, vol: 60, invertY: 0, day: 10, bright: 30 }
+  : { sens: 100, fov: 72, far: 120, vol: 60, invertY: 0, day: 10, bright: 30 };
 (function loadOpts() {
   try {
     var raw = localStorage.getItem(OPT_KEY);
@@ -21,6 +21,8 @@ export function saveOpts() {
   try { localStorage.setItem(OPT_KEY, JSON.stringify(opts)); } catch (e) {}
 }
 export function applyOpts() {
+  // 밝기 — 값이 클수록 어두운 곳이 밝아진다 (감마 지수는 반대로 간다)
+  voxUniforms.uGamma.value = 1 / (0.7 + opts.bright / 100);
   camera.fov = opts.fov;
   camera.updateProjectionMatrix();
   voxUniforms.uFogFar.value = opts.far;

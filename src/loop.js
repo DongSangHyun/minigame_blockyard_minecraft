@@ -3,23 +3,23 @@ import { S } from "./state.js";
 import { Q, resetQueues } from "./queues.js";
 import { WX, WY, WZ, idx } from "./dims.js";
 import { reduceMotion } from "./boot.js";
-import { DEFAULT_BAR, ICE, LAVA, TORCH, WATER, hardnessOf, isCross, isSolid, isUnbreakable } from "./blocks.js";
+import { DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, STONE, TORCH, WATER, hardnessOf, isCross, isSolid, isUnbreakable } from "./blocks.js";
 import { animateLiquids, crackTex } from "./atlas.js";
-import { crossBase, generate, get, set, shape } from "./world.js";
+import { biomeMap, crossBase, generate, get, set, shape, topMap, world } from "./world.js";
 import { lightAtPlayer, lightSky, relightAll } from "./light.js";
 import { decayTick, dryTick, fallTick, freezeTick, waterTick } from "./fluids.js";
 import { buildBudget, markAllDirty } from "./mesh.js";
-import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateParticles, voxUniforms } from "./scene.js";
+import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { opts } from "./settings.js";
 import { EYE, moveAxis, moveHorizontal, player, raycast, spawn, stats } from "./player.js";
 import { caveSound, crunch, lavaHiss, lavaPop, miningSound, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { saveGame } from "./save.js";
-import { refreshAchList, refreshStats, unlock } from "./edit.js";
-import { airBar, airEl, drawMinimap, facingText, mmCap, refreshBar, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, underwaterEl } from "./hud.js";
+import { ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, unlock } from "./edit.js";
+import { airBar, airEl, drawMinimap, facingText, mmCap, refreshBar, tAch, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, underwaterEl } from "./hud.js";
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
 import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
-import { localBiome, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateWeather } from "./sky.js";
+import { localBiome, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather } from "./sky.js";
 
 export var GRAVITY = 26, JUMP = 8.4, WALK = 4.6, SPRINT = 6.0, FLY = 12;
 export var SNEAK_MUL = 0.32; // 웅크릴 때 이동 배율
@@ -232,6 +232,8 @@ export function step(dt) {
   updateHand(dt);
   updateSkyBodies();
   updateWeather(dt);
+  updateStorm(dt);
+  updateEdge(player.pos.x, player.pos.z);
   updateCreatures(dt);
 
   if (!reduceMotion) {
@@ -394,6 +396,28 @@ export function step(dt) {
     fallTick(200);
   }
 
+  // 눈이 오면 주변 지표에 조금씩 쌓인다 (비가 오면 다시 녹는다)
+  if (playing && S.weatherMix > 0.4) {
+    S.snowTimer -= dt;
+    if (S.snowTimer <= 0) {
+      S.snowTimer = 0.45;
+      var sx0 = Math.floor(player.pos.x), sz0 = Math.floor(player.pos.z);
+      for (var t2 = 0; t2 < 6; t2++) {
+        var ax3 = sx0 + ((Math.random() * 33) | 0) - 16;
+        var az3 = sz0 + ((Math.random() * 33) | 0) - 16;
+        if (ax3 < 0 || ax3 >= WX || az3 < 0 || az3 >= WZ) continue;
+        var ty3 = topMap[az3 * WX + ax3];
+        if (ty3 < 0 || ty3 + 1 >= WY) continue;
+        var tb3 = world[idx(ax3, ty3, az3)];
+        if (S.weather === 2 && (tb3 === GRASS || tb3 === DIRT || tb3 === STONE)) {
+          applyEdit(ax3, ty3, az3, SNOW, false);
+        } else if (S.weather === 1 && tb3 === SNOW && biomeMap[az3 * WX + ax3] !== 1) {
+          applyEdit(ax3, ty3, az3, GRASS, false);
+        }
+      }
+    }
+  }
+
   // 설원 수면은 몇 초 뒤에 언다
   S.freezeTimer += dt;
   if (S.freezeTimer > 2.2) { S.freezeTimer = 0; freezeTick(200); }
@@ -454,6 +478,18 @@ export function animate() {
   step(dt);
 
   renderer.render(scene, camera);
+  // F2 — 지금 그린 화면을 그대로 저장한다 (렌더 직후에만 버퍼가 살아 있다)
+  if (S.wantShot) {
+    S.wantShot = false;
+    try {
+      var a = document.createElement("a");
+      a.href = renderer.domElement.toDataURL("image/png");
+      a.download = "blockyard-" + Date.now() + ".png";
+      a.click();
+      toast("화면을 저장했습니다");
+    } catch (e) { toast("화면 저장에 실패했습니다"); }
+  }
+
   if (!S.thirdPerson) {
     renderer.autoClear = false;
     renderer.clearDepth();
@@ -466,6 +502,7 @@ export function animate() {
     tPos.textContent = Math.floor(player.pos.x) + " · " + Math.floor(player.pos.y) + " · " + Math.floor(player.pos.z);
     tTime.textContent = clockText();
     tFace.textContent = facingText();
+    tAch.innerHTML = "<b>" + achCount() + "</b> / " + ACHIEVEMENTS.length;
     tLight.textContent = lightAtPlayer() + " / 15";
     tMode.textContent = player.flying ? "비행" : (S.wasUnderwater ? "헤엄" : "걷기");
     tShape.textContent = ["전체", "반블록", "계단"][S.shapeMode];

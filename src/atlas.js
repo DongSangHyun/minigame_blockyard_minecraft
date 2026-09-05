@@ -157,6 +157,9 @@ paint(18, function (p, r) {  // 자갈
     p(cx, cy, tone); p(cx + 1, cy, tone); p(cx, cy + 1, tone);
   }
 });
+paint(34, orePaint("#f2c14a", "#d9a327"));   // 금
+paint(35, orePaint("#57e0d8", "#2fb9b1"));   // 다이아
+
 paint(30, function (p, r) {  // 자작나무 옆면 — 흰 껍질과 검은 옹이
   var w = ["#e8e4d8", "#dcd7c8", "#f1eee4", "#d2ccbc"];
   for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) p(x, y, pick(r, w));

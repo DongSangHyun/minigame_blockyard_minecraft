@@ -1,5 +1,5 @@
 // scene.js — three.js 씬 · 셰이더 · 파티클
-import { CH, CX, CY, CZ } from "./dims.js";
+import { CH, CX, CY, CZ, WX, WY, WZ } from "./dims.js";
 import { IS_TOUCH, bail } from "./boot.js";
 import { CROSS, SHAPE_BOXES, isSolid } from "./blocks.js";
 import { AVG_SIDE, atlasTex, crackTex, makeRng } from "./atlas.js";
@@ -56,6 +56,7 @@ export var VOX_FS = [
   "uniform vec3 uFogColor;",
   "uniform float uFogNear;",
   "uniform float uFogFar;",
+  "uniform float uGamma;",
   "varying vec3 vCol;",
   "varying vec3 vLight;",
   "varying vec2 vUvv;",
@@ -71,6 +72,7 @@ export var VOX_FS = [
   "  vec3 c = t.rgb * vCol * litness * tint;",
   "  c += t.rgb * vCol * blk * blk * vec3(0.20, 0.11, 0.02);",
   "  float f = smoothstep(uFogNear, uFogFar, vFogDepth);",
+  "  c = pow(max(c, 0.0), vec3(uGamma));",
   "  gl_FragColor = vec4(mix(c, uFogColor, f), t.a);",
   "}"
 ].join("\n");
@@ -82,7 +84,8 @@ export var voxUniforms = {
   uNight: { value: new THREE.Color(0.40, 0.50, 0.86) },
   uFogColor: { value: new THREE.Color(0x9fbecd) },
   uFogNear: { value: 42 },
-  uFogFar: { value: 120 }
+  uFogFar: { value: 120 },
+  uGamma: { value: 1 }
 };
 export function voxMaterial(extra) {
   var opts = {
@@ -288,4 +291,36 @@ export function updateParticles(dt) {
   pGeo.attributes.color.needsUpdate = true;
   pGeo.setDrawRange(0, pCount);
   particles.visible = pCount > 0;
+}
+
+// ── 세계의 끝 — 보이지 않는 벽 대신, 가까이 가면 옅은 격자벽이 보인다
+export var edgeMat = new THREE.MeshBasicMaterial({
+  color: 0x7ec850, transparent: true, opacity: 0, fog: false,
+  side: THREE.DoubleSide, depthWrite: false, wireframe: true
+});
+export var edgeGroup = new THREE.Group();
+(function () {
+  var seg = 12;
+  var planes = [
+    { w: WZ, h: WY, pos: [0, WY / 2, WZ / 2], rot: [0, Math.PI / 2, 0] },
+    { w: WZ, h: WY, pos: [WX, WY / 2, WZ / 2], rot: [0, Math.PI / 2, 0] },
+    { w: WX, h: WY, pos: [WX / 2, WY / 2, 0], rot: [0, 0, 0] },
+    { w: WX, h: WY, pos: [WX / 2, WY / 2, WZ], rot: [0, 0, 0] }
+  ];
+  planes.forEach(function (p) {
+    var m = new THREE.Mesh(new THREE.PlaneGeometry(p.w, p.h, seg, seg), edgeMat);
+    m.position.set(p.pos[0], p.pos[1], p.pos[2]);
+    m.rotation.set(p.rot[0], p.rot[1], p.rot[2]);
+    edgeGroup.add(m);
+  });
+})();
+edgeGroup.renderOrder = 5;
+scene.add(edgeGroup);
+
+// 가장자리에서 얼마나 가까운지에 따라 진해진다
+export function updateEdge(px, pz) {
+  var d = Math.min(px, WX - px, pz, WZ - pz);
+  var near = Math.max(0, 1 - d / 10);
+  edgeMat.opacity = near * near * 0.34;
+  edgeGroup.visible = edgeMat.opacity > 0.005;
 }

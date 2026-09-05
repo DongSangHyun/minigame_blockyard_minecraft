@@ -1,5 +1,6 @@
 // sky.js — 해와 달과 별 · 날씨 · 앰비언트 생물
 import { S } from "./state.js";
+import { rainHiss, thunder } from "./audio.js";
 import { WX, WZ } from "./dims.js";
 import { makeRng } from "./atlas.js";
 import { biomeMap, set, topMap } from "./world.js";
@@ -178,6 +179,18 @@ export function localBiome() {
   return biomeMap[bz * WX + bx];
 }
 
+// 번개 — 하늘이 번쩍이고 잠시 뒤 천둥이 온다
+export function updateStorm(dt) {
+  if (S.flash > 0) S.flash = Math.max(0, S.flash - dt * 3.2);
+  if (S.weather !== 1) { S.stormTimer = 6 + Math.random() * 8; return; }
+  S.stormTimer -= dt;
+  if (S.stormTimer > 0) return;
+  S.stormTimer = 7 + Math.random() * 16;
+  var near = Math.random() < 0.35;
+  S.flash = near ? 1 : 0.6;
+  thunder(near ? 260 : 900 + Math.random() * 1800, near);
+}
+
 export function updateWeather(dt) {
   S.weatherTimer -= dt;
   if (S.weatherTimer <= 0) {
@@ -185,7 +198,19 @@ export function updateWeather(dt) {
     if (S.weather !== 0) setWeather(0);
     else if (Math.random() < 0.45) setWeather(localBiome() === 1 ? 2 : 1);
   }
-  if (!S.weather) return;
+  // 날씨는 갑자기 켜졌다 꺼지지 않고 서서히 짙어지고 옅어진다
+  var wantW = S.weather ? 1 : 0;
+  S.weatherMix += (wantW - S.weatherMix) * Math.min(1, dt * 0.5);
+  wMat.opacity = 0.86 * S.weatherMix;
+  rainLines.material.opacity = 0.5 * S.weatherMix;
+
+  S.rainTimer -= dt;
+  if (S.rainTimer <= 0) {
+    S.rainTimer = 0.8;
+    if (S.weatherMix > 0.05) rainHiss(S.weatherMix);
+  }
+
+  if (!S.weather && S.weatherMix < 0.02) return;
 
   S.weatherPhase += dt;
   var fall = S.weather === 1 ? 24 : 3.4;

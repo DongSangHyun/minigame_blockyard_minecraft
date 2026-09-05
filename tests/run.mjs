@@ -1751,6 +1751,189 @@ test("v10 감각: 착지 먼지와 동굴 울림이 예외 없이 돈다", async
   eq(errors.length, before, "새 효과에서 오류: " + errors.slice(before).join(" | "));
 });
 
+
+// ══════════════════════════════════════════════════════════════
+//  개선 v11 회귀 테스트
+// ══════════════════════════════════════════════════════════════
+
+test("v11 광석: 금과 다이아가 깊은 곳에만 난다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.generate(20260904);
+    let gold = 0, dia = 0, coal = 0, goldDeep = 0, diaDeep = 0, maxGoldY = -1, maxDiaY = -1;
+    for (let y = 1; y < 40; y++) for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++) {
+      const b = B.world[B.idx(x, y, z)];
+      if (b === B.B.GOLD) { gold++; if (y <= 11) goldDeep++; if (y > maxGoldY) maxGoldY = y; }
+      else if (b === B.B.DIAMOND) { dia++; if (y <= 7) diaDeep++; if (y > maxDiaY) maxDiaY = y; }
+      else if (b === B.B.COAL) coal++;
+    }
+    return { gold, dia, coal, goldDeep, diaDeep, maxGoldY, maxDiaY };
+  });
+  assert(r.gold > 0, "금이 없다");
+  assert(r.dia > 0, "다이아가 없다");
+  assert(r.dia < r.gold && r.gold < r.coal, `귀한 순서가 뒤집혔다 — 다이아 ${r.dia} · 금 ${r.gold} · 석탄 ${r.coal}`);
+  eq(r.goldDeep, r.gold, "금이 y>11 에도 났다 (최대 " + r.maxGoldY + ")");
+  eq(r.diaDeep, r.dia, "다이아가 y>7 에도 났다 (최대 " + r.maxDiaY + ")");
+});
+
+test("v11 동굴: 좁은 굴 말고 넓은 방도 생긴다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.generate(4242);
+    // 지하 공기 칸 중 "사방이 트인" 칸의 비율 — 넓은 방이 있으면 올라간다
+    let air = 0, roomy = 0;
+    for (let y = 3; y < 24; y++) for (let z = 3; z < B.WZ - 3; z += 2) for (let x = 3; x < B.WX - 3; x += 2) {
+      if (B.world[B.idx(x, y, z)] !== 0) continue;
+      if (y >= B.topMap[z * B.WX + x]) continue;
+      air++;
+      let open = 0;
+      for (const d of [[2,0,0],[-2,0,0],[0,0,2],[0,0,-2],[0,2,0],[0,-2,0]])
+        if (B.world[B.idx(x + d[0], y + d[1], z + d[2])] === 0) open++;
+      if (open >= 5) roomy++;
+    }
+    return { air, roomy, ratio: air ? roomy / air : 0 };
+  });
+  assert(r.air > 500, "지하 공간이 너무 적다: " + r.air);
+  assert(r.ratio > 0.10, "동굴이 전부 좁은 굴이다 — 트인 칸 비율 " + r.ratio.toFixed(3));
+});
+
+test("v11 날씨: 서서히 짙어지고, 비가 오면 천둥이 친다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.setWeather(1);
+    B.S.weatherMix = 0;
+    B.updateWeather(1 / 60);
+    const first = B.S.weatherMix;
+    for (let k = 0; k < 200; k++) B.updateWeather(1 / 60);
+    const settled = B.S.weatherMix;
+    // 천둥
+    B.S.stormTimer = 0; B.S.flash = 0;
+    B.updateStorm(1 / 60);
+    const flashed = B.S.flash;
+    B.setWeather(0);
+    for (let k = 0; k < 400; k++) B.updateWeather(1 / 60);
+    const cleared = B.S.weatherMix;
+    B.setPaused(false);
+    return { first, settled, flashed, cleared };
+  });
+  assert(r.first < 0.2, "날씨가 한 프레임에 최대로 켜졌다: " + r.first.toFixed(3));
+  assert(r.settled > 0.8, "날씨가 짙어지지 않았다: " + r.settled.toFixed(3));
+  assert(r.flashed > 0, "비가 오는데 번개가 안 친다");
+  assert(r.cleared < 0.2, "날씨가 걷히지 않았다: " + r.cleared.toFixed(3));
+});
+
+test("v11 눈: 눈이 오면 지표에 쌓인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.generate(99999); B.relightAll(false);
+    // 초원 한복판을 찾는다
+    let gx = -1, gz = -1;
+    outer: for (let z = 20; z < B.WZ - 20; z++) for (let x = 20; x < B.WX - 20; x++)
+      if (B.biomeMap[z * B.WX + x] === 0 && B.world[B.idx(x, B.topMap[z * B.WX + x], z)] === B.B.GRASS)
+        { gx = x; gz = z; break outer; }
+    if (gx < 0) return { skip: true };
+    B.player.pos.set(gx + 0.5, B.topMap[gz * B.WX + gx] + 2, gz + 0.5);
+    B.beginPlay();
+    B.setWeather(2);
+    B.S.weatherMix = 1;
+    let before = 0;
+    for (let dx = -16; dx <= 16; dx++) for (let dz = -16; dz <= 16; dz++) {
+      const x = gx + dx, z = gz + dz;
+      if (x < 0 || x >= B.WX || z < 0 || z >= B.WZ) continue;
+      if (B.world[B.idx(x, B.topMap[z * B.WX + x], z)] === B.B.SNOW) before++;
+    }
+    for (let k = 0; k < 900; k++) { B.S.weatherMix = 1; B.step(1 / 60); }
+    let after = 0;
+    for (let dx = -16; dx <= 16; dx++) for (let dz = -16; dz <= 16; dz++) {
+      const x = gx + dx, z = gz + dz;
+      if (x < 0 || x >= B.WX || z < 0 || z >= B.WZ) continue;
+      if (B.world[B.idx(x, B.topMap[z * B.WX + x], z)] === B.B.SNOW) after++;
+    }
+    B.setWeather(0); B.endPlay(); B.setPaused(false);
+    return { before, after };
+  });
+  if (r.skip) return;
+  assert(r.after > r.before, `눈이 안 쌓였다 — ${r.before} → ${r.after}`);
+});
+
+test("v11 설정: 밝기 슬라이더가 셰이더에 반영된다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const keep = B.opts.bright;
+    B.opts.bright = 0; B.applyOpts();
+    const dark = B.voxUniforms.uGamma.value;
+    B.opts.bright = 100; B.applyOpts();
+    const bright = B.voxUniforms.uGamma.value;
+    B.opts.bright = keep; B.applyOpts();
+    return { dark, bright };
+  });
+  assert(r.bright < r.dark, `밝기를 올려도 감마가 안 바뀐다 — ${r.dark.toFixed(3)} → ${r.bright.toFixed(3)}`);
+});
+
+test("v11 저장 슬롯: 셋이 서로 다른 키를 쓰고 1번은 기존 키를 유지한다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const keys = [];
+    for (let n = 1; n <= B.SLOTS; n++) keys.push(B.slotKey(n));
+    const before = B.S.slot;
+    B.S.slot = 2;
+    B.saveGame();
+    const saved2 = !!localStorage.getItem(B.slotKey(2));
+    const info2 = B.slotInfo(2);
+    B.S.slot = before;
+    return { keys, unique: new Set(keys).size, first: keys[0], SAVE_KEY: B.SAVE_KEY,
+             saved2, hasInfo: !!info2 && typeof info2.seed === "number" };
+  });
+  eq(r.unique, 3, "슬롯 키가 겹친다: " + r.keys.join(","));
+  eq(r.first, r.SAVE_KEY, "1번 슬롯이 기존 키를 안 쓴다");
+  assert(r.saved2, "2번 슬롯에 저장되지 않았다");
+  assert(r.hasInfo, "슬롯 정보를 못 읽는다");
+});
+
+test("v11 세계의 끝: 가장자리에 가까이 가면 격자벽이 보인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.updateEdge(B.WX / 2, B.WZ / 2);
+    const mid = B.edgeMat.opacity;
+    B.updateEdge(1.5, B.WZ / 2);
+    const edge = B.edgeMat.opacity;
+    B.updateEdge(B.WX / 2, B.WZ / 2);
+    return { mid, edge };
+  });
+  eq(r.mid, 0, "한복판에서도 벽이 보인다");
+  assert(r.edge > 0.05, "가장자리인데 벽이 안 보인다: " + r.edge.toFixed(3));
+});
+
+test("v11 HUD: 도전 과제 진행도가 표시된다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.resetAch();
+    B.beginPlay();
+    B.step(1 / 60);
+    const el = document.getElementById("t-ach");
+    B.unlock("firstMine");
+    for (let k = 0; k < 20; k++) B.step(1 / 60);
+    const txt = el.textContent;
+    B.endPlay(); B.setPaused(false);
+    return { txt, total: B.ACHIEVEMENTS.length };
+  });
+  assert(r.txt.indexOf("/") > 0, "진행도 표시가 없다: " + r.txt);
+  assert(r.txt.indexOf(String(r.total)) >= 0, "전체 개수가 안 보인다: " + r.txt);
+});
+
+test("v11 소리: 천둥·빗소리가 예외 없이 돈다", async (page, errors) => {
+  const before = errors.length;
+  await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.rainHiss(1); B.thunder(0, true); B.thunder(0, false);
+  });
+  await page.waitForTimeout(120);
+  eq(errors.length, before, "소리에서 오류: " + errors.slice(before).join(" | "));
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

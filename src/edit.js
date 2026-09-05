@@ -171,7 +171,7 @@ export function unlock(id) {
   if (!found) return;
   S.earned[id] = 1;
   S.worldDirty = true;
-  toast("도전 과제 · " + found.name);
+  toast("도전 과제 · " + found.name + "  (" + achCount() + "/" + ACHIEVEMENTS.length + ")");
   tone(880, 0.09, "triangle", 0.05);
   setTimeout(function () { tone(1320, 0.12, "triangle", 0.045); }, 110);
   refreshAchList();

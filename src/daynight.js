@@ -33,6 +33,7 @@ export function dayLight(t) {
   return Math.max(0.13, Math.min(1, s * 1.15 + 0.42));
 }
 export var _grey = new THREE.Color(0x8b949c);
+var _white = new THREE.Color(0xf2f6ff);
 export function applyTime() {
   sampleSky(S.timeOfDay);
   var L = dayLight(S.timeOfDay);
@@ -41,6 +42,13 @@ export function applyTime() {
     L *= S.weather === 1 ? 0.68 : 0.78;
     skyUniforms.top.value.lerp(_grey, 0.45);
     skyUniforms.low.value.lerp(_grey, 0.55);
+  }
+  // 번개가 치면 하늘과 지형이 함께 번쩍인다
+  if (S.flash > 0) {
+    var f = S.flash * S.flash;
+    skyUniforms.top.value.lerp(_white, f * 0.85);
+    skyUniforms.low.value.lerp(_white, f * 0.85);
+    L = Math.min(1, L + f * 0.8);
   }
   voxUniforms.uDay.value = L;
   voxUniforms.uFogColor.value.copy(skyUniforms.low.value);
