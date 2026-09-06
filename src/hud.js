@@ -255,7 +255,8 @@ export function drawMinimap() {
   var sx = WX / spanX, sz = WZ / spanZ;
   for (var mi = 0; mi < S.marks.length; mi++) {
     var mk = S.marks[mi];
-    var mxp = (mk[0] - x0) * sx, mzp = (mk[2] - z0) * sz;
+    // marks 는 [x, z] 두 원소다 — mk[2] 를 읽으면 NaN 이 되고 캔버스가 조용히 아무것도 안 그린다
+    var mxp = (mk[0] - x0) * sx, mzp = (mk[1] - z0) * sz;
     var edge = mxp < 2 || mzp < 2 || mxp > WX - 2 || mzp > WZ - 2;
     mxp = Math.max(2, Math.min(WX - 2, mxp));
     mzp = Math.max(2, Math.min(WZ - 2, mzp));

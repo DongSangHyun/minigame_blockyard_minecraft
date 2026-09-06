@@ -4,8 +4,8 @@ import { opts } from "./settings.js";
 import { encodeArrB64, decodeArrB64, SLOTS } from "./save.js";
 import { SEA, DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
 import { SH_STAIR_N, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
-import { refreshAllTops, touched, get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
-import { relightAll, lightSky, relightLocal } from "./light.js";
+import { topMap, refreshAllTops, touched, get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
+import { relightAll, relightLocal } from "./light.js";
 import { enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
 import { markAllDirty, touch } from "./mesh.js";
 import { player, stats } from "./player.js";
@@ -382,7 +382,9 @@ function floodEnclosed(sx, sy, sz) {
     if (seen[key]) continue;
     var b = world[key];
     if (b !== AIR) continue;                           // 벽·문에 막힌다 (문도 벽으로 친다)
-    if (lightSky[key] === 15) return 0;                // 하늘이 보이면 방이 아니다
+    // 빛이 아니라 **막혀 있는가**를 본다. 유리 지붕(채광창)은 빛이 15로 그대로 내려와
+    // "야외" 로 오판됐다 — 창문 달린 집이 집이다.
+    if (topMap[cz * WX + cx] <= cy) return 0;          // 위에 아무것도 없으면 야외다
     seen[key] = 1;
     if (++n > 600) return 0;                           // 너무 크면 방이 아니라 동굴이다
     for (var d = 0; d < 6; d++)

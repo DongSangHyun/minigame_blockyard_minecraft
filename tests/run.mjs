@@ -5767,6 +5767,86 @@ test("v57 대량 편집: 묶음 기록이 객체가 아니라 타입 배열이�
   assert(r.undo < 120, "되돌리기가 느리다 — " + r.undo + "ms");
 });
 
+test("v58 미니맵: B 표식이 실제로 그려진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.player.pos.set(B.WX / 2, 30, B.WZ / 2);
+    B.markSeen(B.player.pos.x, B.player.pos.z, 30);   // 안개를 걷어 표식이 가려지지 않게
+    B.S.marks.length = 0;
+    B.drawMinimap();
+    const c = document.getElementById("mm"), ctx = c.getContext("2d");
+    function gold() {
+      const d = ctx.getImageData(0, 0, c.width, c.height).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4)
+        if (d[i] > 190 && d[i + 1] > 150 && d[i + 1] < 220 && d[i + 2] < 140) n++;
+      return n;
+    }
+    const before = gold();
+    for (let k = 0; k < 3; k++) B.S.marks.push([Math.floor(B.WX / 2) + k * 4 - 6, Math.floor(B.WZ / 2) + 3]);
+    B.drawMinimap();
+    const after = gold();
+    B.S.marks.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { before, after };
+  });
+  assert(r.after > r.before, "표식을 찍어도 지도에 한 픽셀도 안 그려진다 — " + r.before + " → " + r.after);
+  assert(r.after >= 6, "표식 세 개가 너무 흐리게 그려진다 — 금색 픽셀 " + r.after);
+});
+
+test("v58 과제: 유리 지붕(채광창)을 얹어도 '내 집' 이 뜬다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    function house(X, Z, roof) {
+      const Y = 40;
+      for (let dx = -1; dx <= 7; dx++) for (let dz = -1; dz <= 7; dz++)
+        for (let dy = -1; dy <= 7; dy++) B.set(X + dx, Y + dy, Z + dz, dy === -1 ? B.B.STONE : 0);
+      for (let dx = 0; dx < 6; dx++) for (let dz = 0; dz < 6; dz++) for (let dy = 0; dy < 5; dy++) {
+        const top = dy === 4;
+        const edge = dx === 0 || dx === 5 || dz === 0 || dz === 5 || dy === 0 || top;
+        if (!edge) { B.applyEdit(X + dx, Y + dy, Z + dz, B.B.AIR, true, 0); continue; }
+        B.applyEdit(X + dx, Y + dy, Z + dz, top ? roof : B.B.PLANKS, true, 0);
+      }
+      B.applyEdit(X + 2, Y + 1, Z, B.B.DOOR, true, B.doorShapeFor(2, false));
+      B.applyEdit(X + 2, Y + 2, Z, B.B.DOOR, true, B.doorShapeFor(2, false));
+      B.refreshAllTops(); B.relightAll(false);
+      delete B.S.earned.room;
+      B.player.pos.set(X + 2.5, Y + 1, Z + 3.5);
+      B.checkBuildAchievements();
+      return !!B.S.earned.room;
+    }
+    const wood = house(12, 40, B.B.PLANKS);
+    const glass = house(30, 40, B.B.GLASS);
+    B.endPlay(); B.setPaused(false);
+    return { wood, glass };
+  });
+  assert(r.wood, "나무 지붕 집도 '내 집' 이 안 뜬다 — 시험대가 틀렸다");
+  assert(r.glass, "유리 지붕(채광창)을 얹으면 '내 집' 이 영영 안 뜬다");
+});
+
+test("v58 시각: 새 세계는 06:00 에 시작하고 시작 화면에서는 시계가 멈춘다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.endPlay();                       // 시작 화면 상태
+    const wasStarted = B.S.started;
+    B.S.started = false;
+    B.S.timeOfDay = 0.25;
+    for (let i = 0; i < 300; i++) B.step(1 / 60);   // 5초
+    const idle = B.S.timeOfDay;
+    B.S.started = true;
+    for (let i = 0; i < 300; i++) B.step(1 / 60);
+    const playing = B.S.timeOfDay;
+    B.S.started = wasStarted;
+    B.setPaused(false);
+    return { idle, playing, dflt: B.DEFAULT_TIME };
+  });
+  near(r.idle, 0.25, 1e-9, "시작 화면에서 시계가 돈다 — 소개문 읽는 사이 낮이 사라진다");
+  assert(r.playing > 0.25, "플레이 중에는 시계가 돌아야 한다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

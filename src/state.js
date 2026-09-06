@@ -13,7 +13,7 @@ export const S = {
   wasBuried: false,
   primed: [],           // 점화된 TNT — {x,y,z,t}
   primedBeep: 0,
-  timeOfDay: 0.30,
+  timeOfDay: 0.25,      // 06:00 — newWorld 만 고쳐 놨더니 처음 온 사람은 07:12 로 시작했다
   moonDay: 0,
   bar: null,
   barAlt: null,

@@ -47,7 +47,7 @@
     --line-hi: #9fb0b6;
     --stone: #cfd8d4;
   }
-  .hc #telemetry, .hc #minimap, .hc #hotbar, .hc #toast, .hc #perf {
+  .hc #telemetry, .hc #minimap, .hc #hotbar, .hc #toast, .hc #perf, .hc #hint {
     background: rgba(9, 12, 14, .94);
   }
   .hc #reticle { opacity: 1; }
@@ -280,8 +280,12 @@
   #hint {
     position: fixed; left: 14px; bottom: 16px;
     font-family: var(--mono); font-size: 10.5px;
-    color: var(--stone); letter-spacing: .02em;
+    color: var(--bone); letter-spacing: .02em;
     pointer-events: none; max-width: 52ch; line-height: 1.7;
+    /* 배경판이 없으면 모래 위 회색 글씨라 낮에는 노이즈로 읽힌다 — 온보딩이 안 보인다 */
+    background: color-mix(in srgb, var(--panel-2) 82%, transparent);
+    border-left: 2px solid var(--line-hi);
+    padding: 6px 10px;
   }
   #hint b { color: var(--bone); font-weight: 500; }
   #toast {

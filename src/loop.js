@@ -79,7 +79,8 @@ export function step(dt) {
   var feetInWater = feetBlock === WATER || feetBlock === LAVA;   // 용암은 물보다 더 끈적하다
   var thick = feetBlock === LAVA;
 
-  if (opts.day > 0) {
+  // 시작 화면에서는 시계를 멈춘다 — 소개문 읽고 시드 넣는 2~3분이 그대로 낮에서 빠졌다
+  if (opts.day > 0 && S.started) {
     var prevDay = S.timeOfDay;
     S.timeOfDay = (S.timeOfDay + dt / (opts.day * 60)) % 1;
     if (S.timeOfDay < prevDay) S.moonDay++;      // 자정을 넘기면 달 위상이 바뀐다
