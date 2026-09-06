@@ -973,8 +973,12 @@ export function bindHold(id, onDown, onUp) {
   el.addEventListener("touchcancel", function () { el.classList.remove("on"); if (onUp) onUp(); });
 }
 bindHold("tb-mine", function () { S.touchBreak = true; }, function () { S.touchBreak = false; });
-bindHold("tb-place", function () { place(); });
+// 놓기는 눌러 두면 반복된다 — 벽 한 줄에 100번 탭하지 않게 (키보드와 같은 경로를 탄다)
+bindHold("tb-place", function () { S.touchPlace = true; S.placeCooldown = 0; S.lastPlaceCell = -1; },
+                     function () { S.touchPlace = false; });
 bindHold("tb-jump", function () { S.keys.Space = true; }, function () { S.keys.Space = false; });
+bindHold("tb-list", function () { if (S.uiOpen) closePicker(true); else openPicker(); });
+bindHold("tb-sneak", function () { S.keys.ShiftLeft = true; }, function () { S.keys.ShiftLeft = false; });
 bindHold("tb-fly", function () {
   player.flying = !player.flying; player.vel.y = 0;
   toast(player.flying ? "비행 모드" : "걷기 모드");

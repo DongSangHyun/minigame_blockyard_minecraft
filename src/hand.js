@@ -6,7 +6,10 @@ import { TILE, atlas, atlasTex, tileOrigin } from "./atlas.js";
 import { set } from "./world.js";
 import { CROSS_PLANES, FACES, FACE_UV } from "./mesh.js";
 import { scene } from "./scene.js";
-import { currentShape } from "./player.js";
+import { currentShape, player } from "./player.js";
+import { idx, inside } from "./dims.js";
+import { lightBlk, lightSky } from "./light.js";
+import { dayLight } from "./daynight.js";
 
 export var handScene = new THREE.Scene();
 export var handCam = new THREE.PerspectiveCamera(
@@ -125,7 +128,25 @@ export function updateGhost(px, py, pz, upper) {
 }
 
 export function triggerSwing() { S.swing = 1; }
+// 손과 든 블록도 서 있는 칸의 밝기를 받는다 — 캄캄한 굴에서 팔만 형광등처럼
+// 환하면 어둠의 긴장이 다 새어 나간다 (자문 2차 7번)
+export function updateHandLight(dt) {
+  var px = Math.floor(player.pos.x), pz = Math.floor(player.pos.z);
+  var py = Math.floor(player.pos.y + 1);
+  var lv = 0;
+  if (inside(px, py, pz)) {
+    var li = idx(px, py, pz);
+    lv = Math.max(lightSky[li] * dayLight(S.timeOfDay), lightBlk[li]) / 15;
+  } else lv = dayLight(S.timeOfDay);
+  var target = Math.max(0.14, Math.min(1, 0.12 + lv * 0.95));
+  S.handLight += (target - S.handLight) * Math.min(1, dt * 4);
+  var L = S.handLight;
+  handMat.color.setScalar(L);
+  armMat.color.setRGB(0.78 * L, 0.58 * L, 0.42 * L);
+}
+
 export function updateHand(dt) {
+  updateHandLight(dt);
   if (S.swing > 0) S.swing = Math.max(0, S.swing - dt * 4.2);
   var s = S.swing > 0 ? Math.sin(S.swing * Math.PI) : 0;
   var bobY = reduceMotion ? 0 : Math.sin(S.bobPhase) * 0.018 * S.bobAmount;

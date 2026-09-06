@@ -205,7 +205,7 @@ export function step(dt) {
     // 예전에는 조준한 칸이 바뀌면 쿨다운을 건너뛰었는데, 클릭하며 손이 조금만 떨려도
     // 한 번 누른 것이 여러 개로 놓였다. 간격은 항상 지킨다.
     S.placeCooldown -= dt;
-    if (S.lockMode && S.mouseDown[2]) {
+    if ((S.lockMode && S.mouseDown[2]) || S.touchPlace) {
       if (S.placeCooldown <= 0) {
         var firstTap = S.lastPlaceCell === -1;
         // 홀드로 반복될 때는 문 여닫기·점화·먹이 주기를 하지 않는다.

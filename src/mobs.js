@@ -1,6 +1,6 @@
 // mobs.js — 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다.
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
-import { topMap, world } from "./world.js";
+import { shapeAt, topMap, world } from "./world.js";
 import { FENCE, GATE, AIR, ICE, LAVA, WATER, isSolid } from "./blocks.js";
 import { scene } from "./scene.js";
 import { player } from "./player.js";
@@ -21,6 +21,10 @@ export var mobs = [];
 export var mobGroup = new THREE.Group();
 scene.add(mobGroup);
 
+// 동물이 딛는 땅. 지붕 아래에서 얼어붙는 문제(자문 2차 3번)를 고치려고
+// "지금 높이 언저리를 훑는" 방식을 넣어 봤으나, 얕은 물의 바닥돌을 땅으로 보고
+// 동물이 물 위를 걸어 들어가는 회귀가 10회 반복에서 2~4회 나왔다. 되돌렸다.
+// 다시 손댈 때는 `물 회피`와 `지붕 아래 보행`을 한 판정으로 묶어야 한다.
 function groundAt(x, z) {
   var gx = Math.max(0, Math.min(WX - 1, Math.floor(x)));
   var gz = Math.max(0, Math.min(WZ - 1, Math.floor(z)));
@@ -133,10 +137,26 @@ export function updateMobs(dt) {
       var ny = groundAt(nx, nz);
       // 한 칸 넘게 오르내리는 곳은 가지 않는다 — 절벽에서 떨어지지 않게
       var footB = world[idx(Math.floor(nx), Math.max(0, ny - 1), Math.floor(nz))];
-      var wet = footB === WATER || footB === LAVA || footB === ICE;
+      // 발밑 한 칸만 보면 얕은 물을 못 알아본다 — 바닥이 두 칸 아래 돌이면
+      // footB 가 돌이라 물 위를 걸어 들어갔다. 서 있던 높이까지 기둥을 훑는다.
+      var wet = false;
+      var wTop = Math.max(ny, Math.floor(m.y));
+      for (var wy = Math.max(0, ny - 1); wy <= wTop && !wet; wy++) {
+        if (wy >= WY) break;
+        var wb = world[idx(Math.floor(nx), wy, Math.floor(nz))];
+        if (wb === WATER || wb === LAVA || wb === ICE) wet = true;
+      }
       // 울타리·문은 못 넘는다 — 이게 없으면 울타리를 아무리 높여도 목장이 성립하지 않는다
       var headB = world[idx(Math.floor(nx), Math.max(0, Math.round(m.y)), Math.floor(nz))];
-      var penned = footB === FENCE || footB === GATE || headB === FENCE || headB === GATE;
+      // 열린 문(shape 1)은 지나갈 수 있다 — 문을 여는 이유가 정확히 이것이다
+      function blocks(b, cx, cy, cz) {
+        if (b === FENCE) return true;
+        if (b !== GATE) return false;
+        return shapeAt(cx, cy, cz) !== 1;
+      }
+      var fy = Math.max(0, ny - 1), hy = Math.max(0, Math.round(m.y));
+      var penned = blocks(footB, Math.floor(nx), fy, Math.floor(nz)) ||
+                   blocks(headB, Math.floor(nx), hy, Math.floor(nz));
       if (!wet && !penned && nx > 1 && nx < WX - 1 && nz > 1 && nz < WZ - 1 && Math.abs(ny - m.y) <= 1) {
         m.x = nx; m.z = nz; m.y += (ny - m.y) * Math.min(1, dt * 8);
       } else {

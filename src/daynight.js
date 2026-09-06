@@ -28,9 +28,16 @@ export function sampleSky(t) {
     }
   }
 }
+// 밤의 하한을 달 위상이 정한다 — 보름달 밤은 돌아다닐 만하고 그믐밤은 코앞도 안 보인다.
+// (달 위상은 v23 부터 저장되는데 그동안 순수 장식이었다)
+export function moonFullness() {
+  var phase = ((Math.floor(S.moonDay) % 8) + 8) % 8;
+  return 1 - Math.abs(phase - 4) / 4;          // 보름 1 · 그믐 0
+}
 export function dayLight(t) {
   var s = Math.sin((t - 0.25) * Math.PI * 2);
-  return Math.max(0.13, Math.min(1, s * 1.15 + 0.42));
+  var floor = 0.10 + 0.09 * moonFullness();
+  return Math.max(floor, Math.min(1, s * 1.15 + 0.42));
 }
 export var _grey = new THREE.Color(0x8b949c);
 var _white = new THREE.Color(0xf2f6ff);
