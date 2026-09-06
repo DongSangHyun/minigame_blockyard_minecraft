@@ -6104,6 +6104,8 @@ test("v62 묘목: 심어 두면 나무가 되고, 되돌리기 한 번에 사라
     B.applyEdit(X, Y, Z, B.B.SAPLING, false, 0);
     const planted = B.get(X, Y, Z) === B.B.SAPLING;
     B.S.history.length = 0; B.S.future.length = 0;
+    // 앞선 시험이 남긴 파편이 있을 수 있다 — 절대값이 아니라 늘어났는지를 본다 (v36 교훈)
+    const puffBefore = B.pCount();
     let ticks = 0;
     while (B.get(X, Y, Z) === B.B.SAPLING && ticks < 400) { B.growTick(1.0); ticks++; }
     const grew = B.get(X, Y, Z) === B.B.LOG || B.get(X, Y, Z) === B.B.BIRCH_LOG;
@@ -6122,6 +6124,9 @@ test("v62 묘목: 심어 두면 나무가 되고, 되돌리기 한 번에 사라
         const b = B.get(X + dx, Y + dy, Z + dz);
         if (b !== B.B.AIR) leftover++;
       }
+
+    // 자란 순간에 잎조각이 튄다 — 옆에 서 있다가 소리 없이 솟으면 무슨 일인지 모른다
+    const puffed = B.pCount() > puffBefore;
 
     // (2) 돌 위에서는 자라지 않는다 (마크와 같다)
     const SX = X + 4;
@@ -6163,7 +6168,7 @@ test("v62 묘목: 심어 두면 나무가 되고, 되돌리기 한 번에 사라
 
     B.S.history.length = 0; B.S.future.length = 0;
     B.endPlay(); B.setPaused(false);
-    return { planted, grew, leaves, hist, leftover, onStone, inDark, regrew, ticks, darkLv, lowLv, underRoof };
+    return { planted, grew, leaves, hist, leftover, onStone, inDark, regrew, ticks, darkLv, lowLv, underRoof, puffed };
   });
   assert(r.planted, "묘목이 안 놓인다 — 블록 등록이 빠졌다");
   assert(r.grew, `묘목이 ${r.ticks}초를 기다려도 안 자란다`);
@@ -6176,6 +6181,7 @@ test("v62 묘목: 심어 두면 나무가 되고, 되돌리기 한 번에 사라
   assert(r.lowLv >= 9, "시험대가 어둡다 — 낮은 천장만 보려는데 빛이 " + r.lowLv + " 이다");
   assert(r.underRoof, "천장이 낮은데 묘목이 자랐다 — 나무가 지붕을 뚫는다");
   assert(r.regrew, "불러온 세계의 묘목이 영영 안 자란다 — 큐를 다시 안 채웠다");
+  assert(r.puffed, "나무가 소리도 잎조각도 없이 솟았다 — 무슨 일이 난 건지 알 수 없다");
 });
 
 test("v63 청사진: 메뉴에서 목록을 보고 불러오고 지운다", async (page) => {

@@ -696,6 +696,12 @@ export function growTick(dt) {
                       AIR, WY);
     endBatch("나무 자람");
     if (!ok) { applyEdit(x, y, z, SAPLING, false, SH_FULL); keep.push(i); continue; }
+    // 옆에 서 있다가 나무가 소리 없이 솟으면 무슨 일이 난 건지 모른다.
+    // 잎이 터지는 소리와 잎조각 — 무엇이 어디서 자랐는지 눈과 귀로 알린다.
+    var voice = at(x + 0.5, y + 2, z + 0.5);
+    burst(x, y + 2, z, leafB, 12);
+    tone(180, 0.20, "triangle", 0.05, voice);
+    tone(240, 0.26, "triangle", 0.04, voice);
     grown++;
   }
   Q.growQ = keep;

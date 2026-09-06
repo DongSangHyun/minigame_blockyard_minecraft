@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { MOB_MAX, aimingAtMob, feedNearbyMob } from "./mobs.js";
 import { primeTNT, ignite } from "./fluids.js";
 import { idx, inside } from "./dims.js";
-import { DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, ALL_BLOCKS, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
+import { FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, ALL_BLOCKS, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
 import { get, shape } from "./world.js";
 import { burst } from "./scene.js";
 import { BODY, HALF, currentShape, player, raycast, stats } from "./player.js";
@@ -159,7 +159,11 @@ export function place(repeating) {
   if (!canPlaceAt(px, py, pz)) return;
 
   if (isItem(b)) { toast("부싯돌은 놓는 물건이 아닙니다 — 탈 것을 우클릭하세요"); return; }
-  if (needsFloor(b) && isLiquid(get(px, py, pz))) { toast("물속에서는 꺼집니다"); return; }
+  if (needsFloor(b) && isLiquid(get(px, py, pz))) {
+    // 꽃·묘목까지 "꺼집니다" 라고 하면 무슨 말인지 알 수가 없다
+    toast((b === TORCH || b === FIRE) ? "물속에서는 꺼집니다" : "물속에는 놓을 수 없습니다");
+    return;
+  }
   // 횃불은 벽에도 붙는다 — 옆면을 클릭했고 그 벽이 단단하면 벽 횃불
   var wallSh = 0;
   if ((b === TORCH || b === LADDER) && !onCross &&
