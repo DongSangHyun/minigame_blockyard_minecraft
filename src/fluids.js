@@ -7,7 +7,7 @@ import { topMap, isTouched, biomeMap, get, refreshTop, shape, waterLvl, world } 
 import { lightSky, lightBlk, relightLocal } from "./light.js";
 import { touch } from "./mesh.js";
 import { burst } from "./scene.js";
-import { crunch, lavaHiss, tone } from "./audio.js";
+import { at, crunch, lavaHiss, tone } from "./audio.js";
 import { playerOccupies } from "./player.js";
 import { applyEdit, beginBatch, endBatch, unlock } from "./edit.js";
 
@@ -466,7 +466,7 @@ export function primeTNT(x, y, z, fuse) {
     if (S.primed[i].x === x && S.primed[i].y === y && S.primed[i].z === z) return false;
   }
   S.primed.push({ x: x, y: y, z: z, t: (typeof fuse === "number" ? fuse : TNT_FUSE) });
-  crunch(0.25, 0.08, 1800);
+  crunch(0.25, 0.08, 1800, at(x + 0.5, y + 0.5, z + 0.5));
   return true;
 }
 // 매 프레임 도화선을 태운다. 다 타면 그 자리를 지우고 터뜨린다.
@@ -508,7 +508,9 @@ export function explode(cx, cy, cz, radius) {
     burst(cx + (Math.random() - 0.5) * R, cy + (Math.random() - 0.5) * R,
           cz + (Math.random() - 0.5) * R, STONE, 5);
   }
-  crunch(0.9, 0.34, 420);
-  tone(52, 1.2, "sine", 0.12);
+  // 폭발은 터진 자리에서 — 멀리서 들리면 어느 쪽인지 안다
+  var boomAt = at(cx + 0.5, cy + 0.5, cz + 0.5);
+  crunch(0.9, 0.34, 420, boomAt);
+  tone(52, 1.2, "sine", 0.12, boomAt);
   return removed;
 }

@@ -4,7 +4,7 @@ import { shapeAt, topMap, world } from "./world.js";
 import { FENCE, GATE, AIR, ICE, LAVA, WATER, isSolid } from "./blocks.js";
 import { scene } from "./scene.js";
 import { player } from "./player.js";
-import { crunch, tone } from "./audio.js";
+import { at, crunch, tone } from "./audio.js";
 
 export var MOB_COUNT = 14;
 export var FISH_COUNT = 18;
@@ -177,8 +177,10 @@ export function updateMobs(dt) {
       m.cry = 9 + Math.random() * 22;
       var near = Math.max(0, 1 - Math.sqrt(dx * dx + dz * dz) / 24);
       if (near > 0.05) {
-        tone(k.cry * (0.9 + Math.random() * 0.2), 0.22, "triangle", 0.045 * near);
-        crunch(0.10, 0.03 * near, 900);
+        // 동물 자리에서 난다 — 어느 쪽에 양이 있는지 귀로 안다
+        var pn = at(m.x, m.y + 0.6, m.z);
+        tone(k.cry * (0.9 + Math.random() * 0.2), 0.22, "triangle", 0.045 * near, pn);
+        crunch(0.10, 0.03 * near, 900, pn);
       }
     }
 
@@ -244,7 +246,7 @@ export function feedNearbyMob(pos) {
   if (best < 0) return false;
   var mm = mobs[best], k = MOB_KINDS[mm.kind];
   mm.follow = 22 + Math.random() * 14;
-  tone(k.cry * 1.35, 0.16, "triangle", 0.06);
+  tone(k.cry * 1.35, 0.16, "triangle", 0.06, at(m.x, m.y + 0.6, m.z));
   return true;
 }
 

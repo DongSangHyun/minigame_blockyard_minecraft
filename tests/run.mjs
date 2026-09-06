@@ -4541,6 +4541,29 @@ test("v28 이름: 블록 이름이 한국어이고 검색은 영어로도 된다
   eq(r.flint, "부싯돌", "부싯돌 이름");
 });
 
+test("v29 소리: 자리를 가진 소리가 그 자리에서 난다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const pn = B.at(12, 20, 33);
+    if (!pn) return { skipped: true };
+    const pos = pn.positionX ? [pn.positionX.value, pn.positionY.value, pn.positionZ.value] : null;
+    let threw = false;
+    try { B.tone(440, 0.05, "sine", 0.01, pn); B.crunch(0.05, 0.01, 800, pn); }
+    catch (e) { threw = true; }
+    return { skipped: false, pos, threw,
+             toneArity: B.tone.length, crunchArity: B.crunch.length,
+             ref: pn.refDistance, max: pn.maxDistance };
+  });
+  if (r.skipped) return;                       // 이 브라우저에 PannerNode 가 없다
+  assert(!r.threw, "자리를 준 tone/crunch 가 던졌다");
+  eq(r.toneArity, 5, "tone 이 자리(node)를 받지 않는다");
+  eq(r.crunchArity, 4, "crunch 가 자리(node)를 받지 않는다");
+  if (r.pos) {
+    near(r.pos[0], 12, 1e-6, "패너 x"); near(r.pos[1], 20, 1e-6, "패너 y"); near(r.pos[2], 33, 1e-6, "패너 z");
+  }
+  eq(r.ref, 4, "패너 기준 거리"); eq(r.max, 60, "패너 최대 거리");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

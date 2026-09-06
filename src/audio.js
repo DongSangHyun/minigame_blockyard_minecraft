@@ -21,7 +21,9 @@ export function ac() {
   if (S.audioCtx.state === "suspended") S.audioCtx.resume();
   return S.audioCtx;
 }
-export function tone(freq, dur, type, gain) {
+// node — 소리가 나갈 자리. 비우면 정중앙(masterGain), at(x,y,z) 를 주면 그 자리에서 난다.
+// 패너는 한 번 쓰고 버린다 — 소리가 끝나면 그래프에서 알아서 떨어진다.
+export function tone(freq, dur, type, gain, node) {
   if (S.muted || opts.vol <= 0) return;
   var c = ac(); if (!c) return;
   try {
@@ -30,11 +32,11 @@ export function tone(freq, dur, type, gain) {
     o.frequency.exponentialRampToValueAtTime(Math.max(30, freq * 0.55), c.currentTime + dur);
     g.gain.value = gain;
     g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur);
-    o.connect(g); g.connect(S.masterGain);
+    o.connect(g); g.connect(node || S.masterGain);
     o.start(); o.stop(c.currentTime + dur);
   } catch (e) {}
 }
-export function crunch(dur, gain, cutoff) {
+export function crunch(dur, gain, cutoff, node) {
   if (S.muted || opts.vol <= 0) return;
   var c = ac(); if (!c) return;
   try {
@@ -46,7 +48,7 @@ export function crunch(dur, gain, cutoff) {
     var flt = c.createBiquadFilter(); flt.type = "lowpass"; flt.frequency.value = cutoff;
     var g = c.createGain(); g.gain.value = gain;
     g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur);
-    src.connect(flt); flt.connect(g); g.connect(S.masterGain);
+    src.connect(flt); flt.connect(g); g.connect(node || S.masterGain);
     src.start();
   } catch (e) {}
 }
@@ -195,9 +197,9 @@ export function listenAt(x, y, z, fx, fz) {
   } catch (e) {}
 }
 
-export function lavaPop(vol) {
-  tone(70 + Math.random() * 50, 0.22, "sine", 0.10 * vol);
-  crunch(0.18, 0.05 * vol, 320);
+export function lavaPop(vol, node) {
+  tone(70 + Math.random() * 50, 0.22, "sine", 0.10 * vol, node);
+  crunch(0.18, 0.05 * vol, 320, node);
 }
 // 용암에 발을 담글 때의 치익 소리
 export function lavaHiss() {

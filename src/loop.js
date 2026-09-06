@@ -15,7 +15,7 @@ import { primedBoxes, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup,
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { opts } from "./settings.js";
 import { EYE, HALF, moveAxis, moveHorizontal, player, pointSolid, raycast, spawn, stats, unstick } from "./player.js";
-import { caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
+import { at, caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { saveGame } from "./save.js";
 import { ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
 import { airBar, airEl, drawMinimap, facingText, mmCap, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
@@ -433,12 +433,20 @@ export function step(dt) {
     S.lavaTimer = 0.4 + Math.random() * 0.6;
     if (playing) {
       var lx = Math.floor(player.pos.x), ly = Math.floor(player.pos.y), lz = Math.floor(player.pos.z);
-      var near = 0;
+      var near = 0, bestD = 1e9, bx = 0, by = 0, bz = 0;
       for (var ax = -5; ax <= 5; ax++)
         for (var ay = -4; ay <= 4; ay += 2)
           for (var az = -5; az <= 5; az++)
-            if (get(lx + ax, ly + ay, lz + az) === LAVA) near++;
-      if (near > 0) { lavaPop(Math.min(1, 0.25 + near / 30)); unlock("lava"); }
+            if (get(lx + ax, ly + ay, lz + az) === LAVA) {
+              near++;
+              // 가장 가까운 용암 칸을 기억한다 — 소리가 그 자리에서 나야 방향을 안다
+              var dd = ax * ax + ay * ay + az * az;
+              if (dd < bestD) { bestD = dd; bx = lx + ax; by = ly + ay; bz = lz + az; }
+            }
+      if (near > 0) {
+        lavaPop(Math.min(1, 0.25 + near / 30), at(bx + 0.5, by + 0.5, bz + 0.5));
+        unlock("lava");
+      }
     }
   }
   if (thick && !S.wasInLavaFeet) lavaHiss();
@@ -448,7 +456,11 @@ export function step(dt) {
   if (S.primed.length) {
     primeTick(dt);
     S.primedBeep -= dt;
-    if (S.primedBeep <= 0) { S.primedBeep = 0.5; crunch(0.12, 0.04, 2200); }
+    if (S.primedBeep <= 0) {
+      S.primedBeep = 0.5;
+      var p0 = S.primed[0];                 // 치직 소리는 도화선 자리에서
+      crunch(0.12, 0.04, 2200, at(p0.x + 0.5, p0.y + 0.5, p0.z + 0.5));
+    }
   } else S.primedBeep = 0;
   for (var pi = 0; pi < primedBoxes.length; pi++) {
     var pp = S.primed[pi];
