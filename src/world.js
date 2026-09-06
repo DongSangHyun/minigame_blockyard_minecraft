@@ -288,6 +288,38 @@ export function generate(seed) {
     diaCount++;
   }
 
+  // 다이아·금 광맥 하나쯤은 굴 벽에 드러나게 한다.
+  // 실측: 세계당 다이아 11~25개 중 공기에 면한 것이 0~3개뿐이라, 굴을 아무리 걸어도
+  // 눈에 보이는 보상이 없어 결국 y=5 에서 삽질을 하게 된다.
+  function exposeVeins(kind, want) {
+    var seen = 0, cand = [];
+    for (var ey = 1; ey <= 12; ey++)
+      for (var ez = 1; ez < WZ - 1; ez++)
+        for (var ex = 1; ex < WX - 1; ex++) {
+          if (world[idx(ex, ey, ez)] !== kind) continue;
+          var open = false;
+          for (var ed = 0; ed < 6 && !open; ed++)
+            if (get(ex + DIRS[ed][0], ey + DIRS[ed][1], ez + DIRS[ed][2]) === AIR) open = true;
+          if (open) seen++; else cand.push([ex, ey, ez]);
+        }
+    // 굴 벽에 붙은 돌 한 칸을 걷어 광맥을 드러낸다 (광맥 자체는 그대로 둔다)
+    for (var ci = 0; ci < cand.length && seen < want; ci++) {
+      var c = cand[ci];
+      for (var cd = 0; cd < 6; cd++) {
+        var nx3 = c[0] + DIRS[cd][0], ny3 = c[1] + DIRS[cd][1], nz3 = c[2] + DIRS[cd][2];
+        if (!inside(nx3, ny3, nz3) || ny3 < 1) continue;
+        if (world[idx(nx3, ny3, nz3)] !== STONE) continue;
+        // 그 돌 너머가 공기여야 굴 벽이다 — 통돌 한가운데를 파면 의미가 없다
+        var fx = nx3 + DIRS[cd][0], fy = ny3 + DIRS[cd][1], fz = nz3 + DIRS[cd][2];
+        if (!inside(fx, fy, fz) || get(fx, fy, fz) !== AIR) continue;
+        set(nx3, ny3, nz3, AIR); seen++; break;
+      }
+    }
+    return seen;
+  }
+  exposeVeins(DIAMOND, 6);
+  exposeVeins(GOLD, 8);
+
   // 용암 웅덩이 — 세계 바닥의 동굴 바닥에 고인다. 지하 탐험의 유일한 시각 목표.
   for (var lx2 = 0; lx2 < WX; lx2++) {
     for (var lz2 = 0; lz2 < WZ; lz2++) {

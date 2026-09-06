@@ -5227,6 +5227,32 @@ test("v44 문: 밑바닥을 캐면 문이 허공에 뜨지 않는다", async (pa
   eq(r.high, 0, "밑을 캤는데 문 윗칸이 허공에 남는다");
 });
 
+test("v45 광석: 어느 시드에도 굴 벽에 드러난 다이아·금이 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const D = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+    const rows = [];
+    for (let k = 0; k < 5; k++) {
+      B.generate(3000 + k * 7919); B.relightAll(false);
+      let diaOpen = 0, goldOpen = 0;
+      for (let y = 1; y <= 12; y++) for (let z = 1; z < B.WZ - 1; z++) for (let x = 1; x < B.WX - 1; x++) {
+        const v = B.world[B.idx(x, y, z)];
+        if (v !== B.B.DIAMOND && v !== B.B.GOLD) continue;
+        let open = false;
+        for (const d of D) if (B.world[B.idx(x + d[0], y + d[1], z + d[2])] === 0) open = true;
+        if (!open) continue;
+        if (v === B.B.DIAMOND) diaOpen++; else goldOpen++;
+      }
+      rows.push({ diaOpen, goldOpen });
+    }
+    return rows;
+  });
+  const minDia = Math.min.apply(null, r.map(o => o.diaOpen));
+  const minGold = Math.min.apply(null, r.map(o => o.goldOpen));
+  assert(minDia >= 2, "굴을 걸어도 보이는 다이아가 없다 — 최소 " + minDia + "개");
+  assert(minGold >= 2, "굴을 걸어도 보이는 금이 없다 — 최소 " + minGold + "개");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
