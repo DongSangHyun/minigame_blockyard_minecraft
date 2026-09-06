@@ -5660,6 +5660,113 @@ test("v54 붙여넣기: 90도 회전이 모양 방향까지 돌린다", async (p
   assert(!r.noClip, "복사한 게 없는데 회전이 성공했다고 한다");
 });
 
+test("v55 붙여넣기: 놓일 자리를 미리 보여 준다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 34, Y = 40, Z = 66;
+    for (let dx = -3; dx <= 8; dx++) for (let dz = -3; dz <= 8; dz++)
+      for (let dy = -1; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, dy === -1 ? B.B.STONE : 0);
+    B.refreshAllTops(); B.relightAll(false);
+    // 복사가 없으면 상자도 없다
+    B.S.clip = null;
+    B.updatePasteBox(null, null);
+    const hiddenNoClip = !B.pasteBox.visible;
+    // 3×2×4 클립을 조준 자리에 놓았을 때
+    const clip = { w: 3, h: 2, d: 4 };
+    B.updatePasteBox(clip, [X, Y, Z]);
+    const shown = B.pasteBox.visible;
+    const sc = B.pasteBox.scale, po = B.pasteBox.position;
+    B.updatePasteBox(clip, null);          // 조준한 곳이 없으면 감춘다
+    const hiddenNoAim = !B.pasteBox.visible;
+    B.S.clip = null;
+    B.endPlay(); B.setPaused(false);
+    return { hiddenNoClip, shown, hiddenNoAim,
+             sx: +sc.x.toFixed(2), sy: +sc.y.toFixed(2), sz: +sc.z.toFixed(2),
+             px: +po.x.toFixed(2), py: +po.y.toFixed(2), pz: +po.z.toFixed(2),
+             wantX: X + 1.5, wantY: Y + 1, wantZ: Z + 2 };
+  });
+  assert(r.hiddenNoClip, "복사한 게 없는데 미리보기 상자가 보인다");
+  assert(r.shown, "복사했는데 놓일 자리가 안 보인다");
+  assert(r.hiddenNoAim, "허공을 봐도 상자가 남아 있다");
+  near(r.sx, 3.04, 0.01, "미리보기 가로");
+  near(r.sy, 2.04, 0.01, "미리보기 높이");
+  near(r.sz, 4.04, 0.01, "미리보기 세로");
+  near(r.px, r.wantX, 0.01, "미리보기 x 자리");
+  near(r.py, r.wantY, 0.01, "미리보기 y 자리");
+  near(r.pz, r.wantZ, 0.01, "미리보기 z 자리");
+});
+
+test("v56 청사진: RLE 로 줄어들고, 예전 청사진도 읽는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 14, Y = 40, Z = 70, N = 16;
+    for (let dx = -1; dx <= N; dx++) for (let dz = -1; dz <= N; dz++)
+      for (let dy = -1; dy <= N; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dx = 0; dx < N; dx++) for (let dy = 0; dy < N; dy++) for (let dz = 0; dz < N; dz++)
+      B.applyEdit(X + dx, Y + dy, Z + dz, B.B.BRICK, false, 0);
+    B.refreshAllTops();
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + N - 1, Y + N - 1, Z + N - 1];
+    B.copySelection();
+    const cells = B.S.clip.w * B.S.clip.h * B.S.clip.d;
+    try { localStorage.removeItem("blockyard.blueprints"); } catch (e) {}
+    B.saveBlueprint("시험");
+    const raw = localStorage.getItem("blockyard.blueprints");
+    const bytes = raw.length;
+    // 예전 형식(숫자 배열)도 읽어야 한다
+    const old = { w: 2, h: 1, d: 1, b: [B.B.STONE, B.B.GLASS], s: [0, 0] };
+    localStorage.setItem("blockyard.blueprints", JSON.stringify({ 시험: JSON.parse(raw).시험, 옛것: old }));
+    B.S.clip = null;
+    const e1 = B.useBlueprint("시험");
+    const newOk = !e1 && B.S.clip.w === N && B.S.clip.blocks[0] === B.B.BRICK;
+    B.S.clip = null;
+    const e2 = B.useBlueprint("옛것");
+    const oldOk = !e2 && B.S.clip.w === 2 && B.S.clip.blocks[1] === B.B.GLASS;
+    const names = B.blueprintNames().length;
+    try { localStorage.removeItem("blockyard.blueprints"); } catch (e) {}
+    B.S.clip = null; B.S.selA = B.S.selB = null;
+    B.endPlay(); B.setPaused(false);
+    return { cells, bytes, newOk, oldOk, names };
+  });
+  eq(r.cells, 4096, "복사한 칸 수");
+  assert(r.bytes < 3000, "청사진이 여전히 크다 — " + r.bytes + "바이트 (RLE 가 안 먹었다)");
+  assert(r.newOk, "새 형식 청사진을 못 읽는다");
+  assert(r.oldOk, "예전 형식 청사진을 못 읽는다 — 저장해 둔 것이 사라진다");
+  eq(r.names, 2, "청사진 목록");
+});
+
+test("v57 대량 편집: 묶음 기록이 객체가 아니라 타입 배열이다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.generate(4242); B.relightAll(false); B.beginPlay();
+    B.ac();                       // 오디오를 미리 데운다 — 안 그러면 첫 소리 115ms 가 섞인다
+    B.tone(440, 0.02, "sine", 0.001);
+    const X = 56, Y = 20, Z = 20, N = 28;   // v52 와 다른 자리 (같은 곳이면 서로 남긴 블록에 걸린다)
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + N - 1, Y + N - 1, Z + N - 1];
+    B.S.history.length = 0; B.S.future.length = 0;
+    let t = performance.now();
+    B.fillSelection(B.B.GLASS, 0);
+    const fill = performance.now() - t;
+    const rec = B.S.history[B.S.history.length - 1];
+    const typed = !!(rec && rec.batch && rec.batch.x && rec.batch.x.BYTES_PER_ELEMENT);
+    const n = rec && rec.batch ? rec.batch.n : -1;
+    t = performance.now(); B.undo(); const undo = performance.now() - t;
+    let left = 0;
+    for (let dx = 0; dx < N; dx++) for (let dy = 0; dy < N; dy++) for (let dz = 0; dz < N; dz++)
+      if (B.get(X + dx, Y + dy, Z + dz) === B.B.GLASS) left++;
+    B.S.selA = B.S.selB = null; B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { typed, n, fill: +fill.toFixed(1), undo: +undo.toFixed(1), left };
+  });
+  assert(r.typed, "묶음 기록이 아직 객체 배열이다 — 3만 칸이면 객체 3만 개다");
+  // v52 가 같은 자리에 유리를 남겨 두면 "바뀐 칸" 이 몇 개 적다 — 절대값을 박지 않는다
+  assert(r.n >= 28 * 28 * 28 - 50, "묶음에 담긴 칸 수가 너무 적다 — " + r.n);
+  assert(r.left <= 50, "되돌리기가 원래대로 못 돌렸다 — 유리 " + r.left + "칸 남음");
+  assert(r.fill < 120, "채우기가 느리다 — " + r.fill + "ms");
+  assert(r.undo < 120, "되돌리기가 느리다 — " + r.undo + "ms");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

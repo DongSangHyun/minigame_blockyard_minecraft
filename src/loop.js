@@ -11,7 +11,7 @@ import { seenRatio, BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, 
 import { lightAtPlayer, lightSky, relightAll } from "./light.js";
 import { lavaFlowTick, lavaDryTick, grassTick, lavaTick, primeTick, TNT_FUSE, decayTick, dryTick, fallTick, fireTick, freezeTick, waterTick } from "./fluids.js";
 import { buildBudget, dirty, markAllDirty, opaqueMeshes, setBuildFocus } from "./mesh.js";
-import { updateOuterSea, primedBoxes, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
+import { updatePasteBox, updateOuterSea, primedBoxes, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { opts } from "./settings.js";
 import { EYE, HALF, moveAxis, moveHorizontal, player, pointSolid, raycast, spawn, stats, unstick } from "./player.js";
@@ -271,6 +271,11 @@ export function step(dt) {
   updateStorm(dt);
   updateEdge(player.pos.x, player.pos.z);
   updateSelectionBox(selectionBounds());
+  // 복사한 것이 있으면 조준한 자리에 놓일 상자를 미리 그린다
+  if (playing && S.clip) {
+    var ph2 = raycast(6);
+    updatePasteBox(S.clip, ph2 ? [ph2.x + ph2.nx, ph2.y + ph2.ny, ph2.z + ph2.nz] : null);
+  } else updatePasteBox(null, null);
   updateCreatures(dt);
   updateMobs(dt);
   if (breedTick(dt)) unlock("breed");

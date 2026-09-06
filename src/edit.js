@@ -1,7 +1,7 @@
 // edit.js — 편집 · 되돌리기 · 도전 과제
 import { S } from "./state.js";
 import { opts } from "./settings.js";
-import { SLOTS } from "./save.js";
+import { encodeArrB64, decodeArrB64, SLOTS } from "./save.js";
 import { SEA, DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
 import { SH_STAIR_N, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
 import { refreshAllTops, touched, get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
@@ -10,7 +10,7 @@ import { enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall,
 import { markAllDirty, touch } from "./mesh.js";
 import { player, stats } from "./player.js";
 import { tone } from "./audio.js";
-import { helpAchList, showAchPop, toast } from "./hud.js";
+import { helpAchList, showAchPop } from "./hud.js";
 import { setWeather, localBiome } from "./sky.js";
 
 export var HISTORY_MAX = 240;
@@ -104,8 +104,11 @@ export function applyEdit(x, y, z, to, record, sh) {
   if (record) {
     markTouched(x, y, z);          // 되돌리기에 남는 편집 = 사람이 손댄 자리
     // wl — 편집 전 물 레벨. 없으면 흐르는 물을 캔 뒤 되돌릴 때 근원(0)으로 되살아나 무한 물이 생긴다
+    if (S.batch) {                                       // 묶음 편집 중이면 모아 둔다
+      batchPush(S.batch, x, y, z, from, to, fromSh, toSh, fromWl);
+      return true;
+    }
     var rec = { x: x, y: y, z: z, from: from, to: to, fromSh: fromSh, toSh: toSh, wl: fromWl };
-    if (S.batch) { S.batch.push(rec); return true; }     // 묶음 편집 중이면 모아 둔다
     S.history.push(rec);
     if (S.history.length > (opts.undo || HISTORY_MAX)) S.history.shift();
     S.future.length = 0;
@@ -113,8 +116,32 @@ export function applyEdit(x, y, z, to, record, sh) {
   return true;
 }
 
+// 묶음 기록은 칸마다 객체를 만들면 32,768칸에 3만 개가 쌓인다 — 그 할당이 채우기 시간의 절반이었다.
+// 좌표·블록·모양·물레벨이 전부 8~16비트라 타입 배열에 그대로 담긴다.
+function makeBatch(cap) {
+  return { n: 0, cap: cap,
+           x: new Uint16Array(cap), y: new Uint16Array(cap), z: new Uint16Array(cap),
+           from: new Uint8Array(cap), to: new Uint8Array(cap),
+           fromSh: new Uint8Array(cap), toSh: new Uint8Array(cap), wl: new Uint8Array(cap) };
+}
+function batchGrow(b) {
+  var cap = b.cap * 2, keys = ["x", "y", "z", "from", "to", "fromSh", "toSh", "wl"];
+  var big = makeBatch(cap);
+  for (var k = 0; k < keys.length; k++) big[keys[k]].set(b[keys[k]]);
+  big.n = b.n;
+  for (var k2 = 0; k2 < keys.length; k2++) b[keys[k2]] = big[keys[k2]];
+  b.cap = cap;
+}
+function batchPush(b, x, y, z, from, to, fromSh, toSh, wl) {
+  if (b.n === b.cap) batchGrow(b);
+  var i = b.n++;
+  b.x[i] = x; b.y[i] = y; b.z[i] = z;
+  b.from[i] = from; b.to[i] = to;
+  b.fromSh[i] = fromSh; b.toSh[i] = toSh; b.wl[i] = wl;
+}
+
 // 대량 편집(채우기·붙여넣기)은 한 덩어리로 묶어 한 번에 되돌린다
-export function beginBatch() { S.batch = []; S.batchCells = 0; }
+export function beginBatch() { S.batch = makeBatch(1024); S.batchCells = 0; }
 // 묶음이 끝나면 조명과 기둥 높이를 한 번에 맞춘다.
 // 400칸이 넘으면 세계 전체를 다시 켜는 게 칸마다 BFS 를 도는 것보다 싸다 (relightAll 은 25ms 고정).
 export var BATCH_RELIGHT_ALL = 400;
@@ -126,24 +153,35 @@ export function settleWorld() {
 function settleBatch(cells, list) {
   if (!cells) return;
   if (cells > BATCH_RELIGHT_ALL) { settleWorld(); return; }
-  for (var i = 0; i < list.length; i++) {
-    var e = list[i];
-    touch(e.x, e.y, e.z);
-    refreshTop(e.x, e.z);
-    relightLocal(e.x, e.y, e.z);
+  for (var i = 0; i < list.n; i++) {
+    touch(list.x[i], list.y[i], list.z[i]);
+    refreshTop(list.x[i], list.z[i]);
+    relightLocal(list.x[i], list.y[i], list.z[i]);
   }
 }
 export function endBatch(label) {
   var b = S.batch;
   var cells = S.batchCells;
   S.batch = null; S.batchCells = 0;
-  settleBatch(cells, b || []);
-  if (!b || !b.length) return 0;
+  settleBatch(cells, b || { n: 0 });
+  if (!b || !b.n) return 0;
   S.history.push({ batch: b, label: label || "대량 편집" });
-  if (b.length >= 100) unlock("build100");
+  if (b.n >= 100) unlock("build100");
   if (S.history.length > (opts.undo || HISTORY_MAX)) S.history.shift();
   S.future.length = 0;
-  return b.length;
+  return b.n;
+}
+
+// 묶음(타입 배열)의 i 번째를 되돌린다 — 객체를 만들지 않는다
+function applyCellAt(b, i, toSide, defer) {
+  var x = b.x[i], y = b.y[i], z = b.z[i];
+  var w = idx(x, y, z);
+  world[w] = toSide ? b.to[i] : b.from[i];
+  shape[w] = (toSide ? b.toSh[i] : b.fromSh[i]) || SH_FULL;
+  waterLvl[w] = toSide ? 0 : b.wl[i];
+  if (!defer) { touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z); }
+  if (world[w] === AIR) enqueueWaterAround(x, y, z);
+  if (b.from[i] === WATER || b.to[i] === WATER) { enqueueDryAround(x, y, z); enqueueWaterAround(x, y, z); }
 }
 
 function applyCell(e, toSide, defer) {
@@ -163,8 +201,8 @@ export function undo() {
   var e = S.history.pop();
   if (!e) return false;
   if (e.batch) {
-    var big = e.batch.length > BATCH_RELIGHT_ALL;
-    for (var i = e.batch.length - 1; i >= 0; i--) applyCell(e.batch[i], false, big);
+    var big = e.batch.n > BATCH_RELIGHT_ALL;
+    for (var i = e.batch.n - 1; i >= 0; i--) applyCellAt(e.batch, i, false, big);
     if (big) settleWorld();
   }
   else applyCell(e, false);
@@ -176,8 +214,8 @@ export function redo() {
   var e = S.future.pop();
   if (!e) return false;
   if (e.batch) {
-    var big2 = e.batch.length > BATCH_RELIGHT_ALL;
-    for (var i = 0; i < e.batch.length; i++) applyCell(e.batch[i], true, big2);
+    var big2 = e.batch.n > BATCH_RELIGHT_ALL;
+    for (var i = 0; i < e.batch.n; i++) applyCellAt(e.batch, i, true, big2);
     if (big2) settleWorld();
   }
   else applyCell(e, true);
@@ -384,11 +422,13 @@ export function unlock(id) {
   if (!found) return;
   S.earned[id] = 1;
   S.worldDirty = true;
-  showAchPop(found.name, found.desc);
-  toast("도전 과제 " + achCount() + " / " + ACHIEVEMENTS.length);
+  // 팝업에 진척도를 같이 실어 토스트를 아낀다 — 토스트는 직전 안내를 덮어 지운다
+  showAchPop(found.name, found.desc + "  ·  " + achCount() + " / " + ACHIEVEMENTS.length);
   tone(880, 0.09, "triangle", 0.05);
   setTimeout(function () { tone(1320, 0.12, "triangle", 0.045); }, 110);
-  refreshAchList();
+  // 목록 DOM 은 여기서 다시 그리지 않는다 — 36개짜리 innerHTML 두 번이 106ms 였고,
+  // 과제를 딸 때마다 화면이 멈췄다. 목록은 H 를 눌러 열 때 갱신된다.
+  S.achListStale = true;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -729,10 +769,13 @@ export function saveBlueprint(name) {
   if (!S.clip) return "복사한 것이 없습니다";
   if (!name) return "이름을 적어 주세요";
   var all = loadBlueprints();
+  // 숫자 배열을 그대로 JSON 에 넣으면 15,376칸이 63KB 다 — 세계 저장 3슬롯과
+  // localStorage 를 나눠 쓰는데 청사진 몇 개면 밀어낸다. 세계 저장과 같은 RLE+Base64 로.
   all[name] = {
-    w: S.clip.w, h: S.clip.h, d: S.clip.d,
-    b: Array.prototype.slice.call(S.clip.blocks),
-    s: Array.prototype.slice.call(S.clip.shapes)
+    v: 2, w: S.clip.w, h: S.clip.h, d: S.clip.d,
+    be: encodeArrB64(S.clip.blocks),
+    se: encodeArrB64(S.clip.shapes),
+    le: encodeArrB64(S.clip.levels || new Uint8Array(S.clip.blocks.length))
   };
   try { localStorage.setItem(BP_KEY, JSON.stringify(all)); }
   catch (e) { return "저장 공간이 부족합니다"; }
@@ -742,8 +785,16 @@ export function useBlueprint(name) {
   var all = loadBlueprints();
   var bp = all[name];
   if (!bp) return "그런 청사진이 없습니다";
-  S.clip = { w: bp.w, h: bp.h, d: bp.d,
-             blocks: new Uint8Array(bp.b), shapes: new Uint8Array(bp.s) };
+  var n = bp.w * bp.h * bp.d;
+  var blocks = new Uint8Array(n), shapes = new Uint8Array(n), levels = new Uint8Array(n);
+  if (bp.v === 2) {                       // RLE+Base64 (v2)
+    if (!decodeArrB64(bp.be, blocks) || !decodeArrB64(bp.se, shapes)) return "청사진을 읽지 못했습니다";
+    if (bp.le) decodeArrB64(bp.le, levels);
+  } else {                                // 예전 청사진(숫자 배열) 도 그대로 읽는다
+    blocks.set(bp.b.slice(0, n));
+    shapes.set(bp.s.slice(0, n));
+  }
+  S.clip = { w: bp.w, h: bp.h, d: bp.d, blocks: blocks, shapes: shapes, levels: levels };
   return "";
 }
 export function blueprintNames() { return Object.keys(loadBlueprints()); }

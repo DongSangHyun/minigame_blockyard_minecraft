@@ -885,7 +885,7 @@ window.addEventListener("keydown", function (e) {
     S.mmZoom = zs[zi];
     toast("미니맵 ×" + S.mmZoom);
   }
-  if (e.code === S.binds.help) { toggleHelp(); setHelpTab(false); refreshAchList(); advanceTut(6); }
+  if (e.code === S.binds.help) { toggleHelp(); setHelpTab(false); refreshAchList(); S.achListStale = false; advanceTut(6); }
   if (e.code === "KeyT") cycleTime();
   if (e.code === "KeyK") {
     setWeather((S.weather + 1) % 3);

@@ -468,6 +468,23 @@ selBox.visible = false;
 selBox.renderOrder = 6;
 scene.add(selBox);
 
+// 붙여넣을 자리 미리보기 — 어디에 앉을지 안 보이면
+// 붙여넣고 → 보고 → Ctrl+Z → 조금 옮겨서 → 다시 를 반복하게 된다
+export var pasteMat = new THREE.LineBasicMaterial({ color: 0x5aa8e0, fog: false,
+  transparent: true, opacity: 0.85 });
+export var pasteBox = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)), pasteMat);
+pasteBox.visible = false;
+pasteBox.renderOrder = 6;
+scene.add(pasteBox);
+// c 는 클립보드({w,h,d}), p 는 붙여넣기 시작 칸. 둘 중 하나라도 없으면 감춘다.
+export function updatePasteBox(c, p) {
+  if (!c || !p) { pasteBox.visible = false; return; }
+  pasteBox.visible = true;
+  pasteBox.scale.set(c.w + 0.04, c.h + 0.04, c.d + 0.04);
+  pasteBox.position.set(p[0] + c.w / 2, p[1] + c.h / 2, p[2] + c.d / 2);
+}
+
 export function updateSelectionBox(b) {
   if (!b) { selBox.visible = false; return; }
   selBox.visible = true;

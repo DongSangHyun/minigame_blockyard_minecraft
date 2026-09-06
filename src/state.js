@@ -85,6 +85,7 @@ export const S = {
   buildAchTimer: 0,
   mobsRestored: false,
   batchCells: 0,
+  achListStale: false,
   lavaTimer: 0,
   caveTimer: 6,
   moodTimer: 40,
