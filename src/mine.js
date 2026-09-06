@@ -31,7 +31,7 @@ export function mineAt(hit) {
     setTimeout(function () { tone(2093, 0.18, "triangle", 0.07); }, 220);
   }
   if (stats.mined >= 100) unlock("mine100");
-  burst(hit.x, hit.y, hit.z, hit.block, 14);
+  burst(hit.x, hit.y, hit.z, hit.block, 24);
   breakSound(hit.block);
   triggerSwing();
 }

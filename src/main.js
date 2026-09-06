@@ -1,7 +1,7 @@
 // main.js — 조립과 시작
 import { S } from "./state.js";
 import { MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, mobs, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
-import { animateLiquids, atlas } from "./atlas.js";
+import { SWATCH_SIDE, animateLiquids, atlas } from "./atlas.js";
 import { Q } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
 import { AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DEFAULT_BAR2, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLINT, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, ITEMS, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, categoryOf, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isItem, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
@@ -9,7 +9,7 @@ import { biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBo
 import { WATER_DIM, lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
 import { grassTick, primeTNT, primeTick, TNT_FUSE, lavaTick, BLAST_R, FIRE_REACH, MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueFreeze, enqueueWaterAround, explode, fallTick, fireTick, freezeTick, ignite, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
 import { FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll, setBuildFocus } from "./mesh.js";
-import { FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
+import { pCol, pCount, FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { OPT_KEY, applyOpts, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, playerOccupies, pointSolid, rayBox, raycast, spawn, stats, unstick } from "./player.js";
@@ -165,6 +165,8 @@ window.__blockyard = {
   crossOffset: crossOffset, faceKindFor: faceKindFor, caveSound: caveSound,
   moonTex: moonTex, MOON_PHASES: MOON_PHASES, airEl: airEl,
   S: S, setZoom: function (z) { S.mmZoom = z; }, burst: burst,
+  SWATCH_SIDE: SWATCH_SIDE,
+  pColArray: function () { return pCol; }, pCount: function () { return pCount; },
   WATER_DIM: WATER_DIM, showHud: showHud,
   HL_CROSS: HL_CROSS, SHAPE_BOUNDS: SHAPE_BOUNDS,
   lavaPop: lavaPop, lavaHiss: lavaHiss,

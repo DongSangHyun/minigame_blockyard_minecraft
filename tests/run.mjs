@@ -4634,7 +4634,15 @@ test("v30 동물: 물속 공기 주머니에 갇히면 마른 땅으로 다시 �
     B.refreshAllTops();
     const m = B.mobs[0];
     m.x = X + 0.5; m.z = Z + 0.5; m.y = 4; m.walk = 0; m.turn = 1e9; m.follow = 0; m.dryCheck = 0;
-    for (let i = 0; i < 90; i++) B.updateMobs(1 / 60);
+    // 재배치는 0.5초에 한 번, placeMob 은 무작위 시도라 한 번에 성공하지 못할 수 있다.
+    // 물 밖으로 나갈 때까지 최대 5초 돌린다 (나가면 즉시 멈춘다).
+    for (let i = 0; i < 300; i++) {
+      B.updateMobs(1 / 60);
+      const gx0 = Math.floor(m.x), gz0 = Math.floor(m.z);
+      const t0 = B.topMap[gz0 * B.WX + gx0];
+      const s0 = B.world[B.idx(gx0, t0, gz0)];
+      if (s0 !== B.B.WATER && s0 !== B.B.ICE && m.y >= t0 - 0.01) break;
+    }
     const gx = Math.floor(m.x), gz = Math.floor(m.z);
     const top = B.topMap[gz * B.WX + gx];
     const surf = B.world[B.idx(gx, top, gz)];
@@ -4852,6 +4860,30 @@ test("v35 슬롯: 저장 시각이 실리고, 빈 슬롯이 SEED 를 따르고, 
   assert(r.had, "슬롯에 지우기 버튼이 없다");
   assert(r.armed, "한 번 눌렀는데 바로 지워졌다 (파괴적 조작은 두 번)");
   assert(r.gone, "두 번 눌러도 안 지워진다");
+});
+
+test("v36 파편: 한 블록의 파편이 여러 색으로 튄다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const sw = B.SWATCH_SIDE[B.B.GRASS];
+    const uniq = new Set(sw.map(c => c.join(",")));
+    // 실제로 튀겨 보고 색이 갈라지는지
+    B.setPaused(true);
+    B.updateParticles(5);                 // 앞선 시험이 남긴 파편을 모두 만료시킨다
+    const before = B.pCount();
+    B.burst(20, 40, 20, B.B.STONE, 24);
+    const cols = new Set();
+    const arr = B.pColArray();
+    const n = B.pCount();
+    for (let i = 0; i < n; i++)
+      cols.add([arr[i*3], arr[i*3+1], arr[i*3+2]].map(v => Math.round(v * 40)).join(","));
+    B.setPaused(false);
+    return { swatch: sw.length, uniq: uniq.size, spawned: n - before, colors: cols.size };
+  });
+  assert(r.swatch >= 8, "타일 표본이 너무 적다 — " + r.swatch);
+  assert(r.uniq >= 3, "표본이 사실상 한 색이다 — 서로 다른 색 " + r.uniq);
+  assert(r.spawned >= 20, "파편이 24개 안 나온다 — " + r.spawned);
+  assert(r.colors >= 3, "튄 파편이 한 색이다 — 서로 다른 색 " + r.colors);
 });
 
 // ── 실행 ───────────────────────────────────────────────

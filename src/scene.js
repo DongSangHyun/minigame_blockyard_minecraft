@@ -2,7 +2,7 @@
 import { CH, CX, CY, CZ, WX, WY, WZ } from "./dims.js";
 import { IS_TOUCH, bail } from "./boot.js";
 import { CROSS, SHAPE_BOXES, isSolid } from "./blocks.js";
-import { AVG_SIDE, atlasTex, crackTex, makeRng } from "./atlas.js";
+import { SWATCH_SIDE, AVG_SIDE, atlasTex, crackTex, makeRng } from "./atlas.js";
 import { get, set } from "./world.js";
 import { chunkCX, chunkCY, chunkCZ, chunkCenters, dirty, glassMeshes, opaqueMeshes } from "./mesh.js";
 
@@ -291,9 +291,12 @@ particles.frustumCulled = false;
 scene.add(particles);
 
 export function burst(x, y, z, blockId, count) {
-  var c = AVG_SIDE[blockId] || [160, 160, 160];
+  var sw = SWATCH_SIDE[blockId];
+  var avg = AVG_SIDE[blockId] || [160, 160, 160];
   for (var i = 0; i < count && pCount < PMAX; i++) {
     var k = pCount++;
+    // 파편마다 그 블록 텍스처의 다른 픽셀을 쓴다 — 재질이 튀는 느낌이 채굴 타격감의 절반이다
+    var c = (sw && sw.length) ? sw[(Math.random() * sw.length) | 0] : avg;
     pPos[k * 3] = x + 0.5 + (Math.random() - 0.5) * 0.8;
     pPos[k * 3 + 1] = y + 0.5 + (Math.random() - 0.5) * 0.8;
     pPos[k * 3 + 2] = z + 0.5 + (Math.random() - 0.5) * 0.8;

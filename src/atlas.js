@@ -403,10 +403,28 @@ export function tileAvg(i) {
   if (!n) return [140, 160, 180];
   return [r / n, g / n, b / n];
 }
-export var AVG_TOP = {}, AVG_SIDE = {};
+// 타일에서 실제 픽셀을 골라 둔다 — 파편이 한 색이면 도트로 그린 무늬가 다 사라진다.
+// 마크의 파편은 블록 텍스처를 잘라 붙인 것이라 밝은 알갱이·어두운 알갱이가 섞인다.
+export var SWATCH_N = 16;
+export function tileSwatch(i) {
+  var o = tileOrigin(i);
+  var d = actx.getImageData(o[0], o[1], TILE, TILE).data;
+  var picks = [];
+  for (var k = 0; k < d.length && picks.length < SWATCH_N * 4; k += 4) {
+    if (d[k + 3] < 12) continue;                 // 투명한 픽셀은 파편이 되지 않는다
+    picks.push([d[k], d[k + 1], d[k + 2]]);
+  }
+  if (!picks.length) return [[140, 160, 180]];
+  // 고르게 훑어 SWATCH_N 개만 남긴다 (한쪽 모서리 색만 뽑히지 않게)
+  var out = [], step = picks.length / SWATCH_N;
+  for (var q = 0; q < SWATCH_N; q++) out.push(picks[Math.floor(q * step)]);
+  return out;
+}
+export var AVG_TOP = {}, AVG_SIDE = {}, SWATCH_SIDE = {};
 Object.keys(TILES).forEach(function (id) {
   AVG_TOP[id] = tileAvg(TILES[id][0]);
   AVG_SIDE[id] = tileAvg(TILES[id][1]);
+  SWATCH_SIDE[id] = tileSwatch(TILES[id][1]);
 });
 
 export var crackTex = [];

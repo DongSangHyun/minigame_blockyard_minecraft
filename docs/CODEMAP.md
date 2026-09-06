@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-06 · 모듈 24개 · 합계 7,285줄
+생성일 2026-09-06 · 모듈 24개 · 합계 7,308줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -15,12 +15,12 @@
 | [`queues.js`](../src/queues.js) | 시뮬레이션 대기열 (의존성 없음) | 26 | — |
 | [`boot.js`](../src/boot.js) | 부팅 가드 · 환경 판별 | 26 | state |
 | [`blocks.js`](../src/blocks.js) | 블록 정의 · 모양 · 성질 | 257 | state |
-| [`atlas.js`](../src/atlas.js) | 텍스처 아틀라스 (코드로 그리는 16×16 도트) | 467 | blocks |
+| [`atlas.js`](../src/atlas.js) | 텍스처 아틀라스 (코드로 그리는 16×16 도트) | 485 | blocks |
 | [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 463 | state · queues · dims · blocks · atlas |
 | [`light.js`](../src/light.js) | 광원 — 햇빛과 블록광 BFS | 182 | state · dims · blocks · world · mesh · player |
 | [`fluids.js`](../src/fluids.js) | 물 흐름 · 낙하 블록 · 잎 부패 | 518 | state · queues · dims · blocks · world · light · mesh · scene · audio · player · edit |
 | [`mesh.js`](../src/mesh.js) | 면 데이터 + 청크 메싱 | 272 | dims · blocks · atlas · world · light |
-| [`scene.js`](../src/scene.js) | three.js 씬 · 셰이더 · 파티클 | 390 | dims · boot · blocks · atlas · world · mesh |
+| [`scene.js`](../src/scene.js) | three.js 씬 · 셰이더 · 파티클 | 393 | dims · boot · blocks · atlas · world · mesh |
 | [`daynight.js`](../src/daynight.js) | 낮과 밤 | 83 | state · world · scene |
 | [`settings.js`](../src/settings.js) | 설정 | 40 | state · boot · scene |
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 319 | state · dims · blocks · world · scene |
@@ -33,7 +33,7 @@
 | [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 169 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
 | [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 351 | state · audio · dims · atlas · world · scene · daynight · player |
 | [`loop.js`](../src/loop.js) | 게임 루프 | 684 | state · input · mobs · queues · dims · boot · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · mine · sky |
-| [`main.js`](../src/main.js) | 조립과 시작 | 204 | state · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · input · mine · sky · loop |
+| [`main.js`](../src/main.js) | 조립과 시작 | 206 | state · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · input · mine · sky · loop |
 
 ## 모듈별 공개 함수
 
@@ -108,9 +108,10 @@
 | `pick(rng, list)` | 29 |
 | `orePaint(tint1, tint2)` | 124 |
 | `tileAvg(i)` | 394 |
-| `animateLiquids(t)` | 462 |
+| `tileSwatch(i)` | 409 |
+| `animateLiquids(t)` | 480 |
 
-내보내는 값 — `TILE` · `atlas` · `actx` · `atlasTex` · `AVG_TOP` · `crackTex`
+내보내는 값 — `TILE` · `atlas` · `actx` · `atlasTex` · `SWATCH_N` · `AVG_TOP` · `crackTex`
 
 ### `world.js` — 월드 데이터 · 지형 생성
 
@@ -211,9 +212,9 @@
 | `voxMaterial(extra)` | 95 |
 | `updateChunkVisibility(farDist)` | 138 |
 | `burst(x, y, z, blockId, count)` | 293 |
-| `updateParticles(dt)` | 311 |
-| `updateEdge(px, pz)` | 368 |
-| `updateSelectionBox(b)` | 384 |
+| `updateParticles(dt)` | 314 |
+| `updateEdge(px, pz)` | 371 |
+| `updateSelectionBox(b)` | 387 |
 
 내보내는 값 — `matOpaque` · `scene` · `stage` · `VOX_VS` · `VOX_FS` · `voxUniforms` · `skyUniforms` · `sky` · `FREE_DIST` · `chunkFreed` · `cloudMat` · `cloudMatHigh` · `cloudGroup` · `cloudGroupHigh` · `HL_EDGES` · `HL_GEO` · `HL_CROSS` · `SHAPE_BOUNDS` · `PRIMED_MAX` · `primedMat` · `primedBoxes` · `highlight` · `crackMat` · `crackMesh` · `PMAX` · `pPos` · `pVel` · `pCount` · `pGeo` · `pMat` · `particles` · `edgeMat` · `edgeGroup` · `selMat` · `selBox`
 
