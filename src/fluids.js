@@ -487,6 +487,7 @@ export function primeTick(dt) {
 
 export function explode(cx, cy, cz, radius) {
   var R = radius || BLAST_R;
+  unlock("boom");                        // 도화선을 넣었으니 과제도 터지는 순간에
   beginBatch();
   var removed = 0;
   for (var dx = -R; dx <= R; dx++)

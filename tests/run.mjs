@@ -2958,7 +2958,7 @@ test("v16 통계: 지형·슬롯·블록 종류가 기록에 나온다", async (
 test("v16 튜토리얼: 새 기능까지 안내한다", async (page) => {
   const r = await page.evaluate(() => {
     const B = window.__blockyard;
-    return { steps: B.TUT.length, text: B.TUT.join(" ") };
+    return { steps: B.TUT.length, text: B.TUT.map(function (t) { return B.hintText(t); }).join(" ") };
   });
   assert(r.steps >= 6, "튜토리얼 단계: " + r.steps);
   assert(r.text.indexOf("영역") >= 0, "영역 도구 안내가 없다");
@@ -3698,7 +3698,7 @@ test("v19 조경: 동물이 옆에 있어도 꽃을 심을 수 있다", async (p
 test("v19 튜토리얼: 안내와 실제 동작이 맞는다", async (page) => {
   const r = await page.evaluate(() => {
     const B = window.__blockyard;
-    return { steps: B.TUT.length, t4: B.TUT[4], t5: B.TUT[5], t6: B.TUT[6] };
+    return { steps: B.TUT.length, t4: B.hintText(B.TUT[4]), t5: B.hintText(B.TUT[5]), t6: B.hintText(B.TUT[6]) };
   });
   eq(r.steps, 7, "튜토리얼 단계 수");
   assert(r.t4.indexOf("횃불") >= 0, "5단계가 횃불이 아니다: " + r.t4);
@@ -4078,14 +4078,21 @@ test("v23 조작키: 재배치하면 화면 안내도 따라 바뀐다", async (
     B.refreshBindLabels();
     const shown = el ? el.textContent : "";
     const hint = (document.getElementById("hint") || {}).innerHTML || "";
+    // 튜토리얼 문장도 따라가야 한다 — 3단계(모양 키)를 띄운 채 shape 를 K 로 바꿔 본다
+    const tutWas = B.S.tut, shapeWas = B.S.binds.shape;
+    B.S.tut = 3; B.S.binds.shape = "KeyK"; B.refreshBindLabels();
+    const tutHint = (document.getElementById("hint") || {}).innerHTML || "";
+    B.S.tut = tutWas; B.S.binds.shape = shapeWas;
     B.S.binds.fly = was;
     B.refreshBindLabels();
     const back = el ? el.textContent : "";
-    return { shown, back, hintHasJ: hint.indexOf(">J<") >= 0, count: document.querySelectorAll("[data-bind]").length };
+    return { shown, back, hintHasJ: hint.indexOf(">J<") >= 0, tutHasK: tutHint.indexOf(">K<") >= 0, tutHasG: tutHint.indexOf(">G<") >= 0,
+             count: document.querySelectorAll("[data-bind]").length };
   });
   assert(r.count >= 6, "재배치를 반영할 자리가 표시돼 있지 않다");
   eq(r.shown, "J", "재배치해도 도움말이 옛 키를 보여 준다");
   eq(r.back, "F", "되돌렸을 때 원래 키로 안 돌아온다");
+  assert(r.tutHasK && !r.tutHasG, "튜토리얼 문장이 재배치한 모양 키를 보여 주지 않는다");
 });
 
 test("v23 명령: undo/redo 를 여러 단계 한 번에", async (page) => {
@@ -4604,7 +4611,14 @@ test("v30 동물: 물속 공기 주머니에 갇히면 마른 땅으로 다시 �
     const B = window.__blockyard;
     B.setPaused(true); B.beginPlay();
     if (!B.mobs.length) B.seedMobs();
-    B.player.pos.set(48.5, 30, 48.5);
+    // 플레이어 주변 8~30칸이 전부 마른 돌판이어야 다시 놓을 자리가 확실히 있다
+    const PX = 48, PZ = 48, PY = 30;
+    for (let dx = -32; dx <= 32; dx++) for (let dz = -32; dz <= 32; dz++) {
+      const x = PX + dx, z = PZ + dz;
+      if (x < 1 || x >= B.WX - 1 || z < 1 || z >= B.WZ - 1) continue;
+      for (let y = PY - 1; y <= PY + 3; y++) B.set(x, y, z, y === PY - 1 ? B.B.STONE : 0);
+    }
+    B.player.pos.set(PX + 0.5, PY, PZ + 0.5);
     // 해저 공기 주머니: 바닥 y=3, 공기 4~5, 그 위 6~SEA 물
     const X = 10, Z = 10;
     for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
@@ -4626,6 +4640,65 @@ test("v30 동물: 물속 공기 주머니에 갇히면 마른 땅으로 다시 �
   assert(r.moved, "해저 공기 주머니에 그대로 남아 있다");
   assert(r.dry, "다시 놓인 자리의 기둥 겉면이 물이다");
   assert(r.above, "기둥 겉면보다 아래에 놓였다");
+});
+
+test("v31 되돌리기: 물 근원을 되돌리면 퍼진 물이 마르고, 흐르던 물은 근원이 되지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 40, Y = 42, Z = 70;
+    for (let dx = -9; dx <= 9; dx++) for (let dz = -9; dz <= 9; dz++) {
+      for (let dy = 0; dy <= 3; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    B.S.history.length = 0; B.S.future.length = 0;
+    function count() { let n = 0;
+      for (let dx = -9; dx <= 9; dx++) for (let dz = -9; dz <= 9; dz++) if (B.get(X + dx, Y, Z + dz) === B.B.WATER) n++;
+      return n; }
+    function settle() { for (let k = 0; k < 120; k++) { B.waterTick(600); B.dryTick(600); } }
+    B.applyEdit(X, Y, Z, B.B.WATER, true, 0); settle();
+    const spread = count();
+    B.undo(); settle();
+    const afterUndo = count();
+    // 흐르던 물(레벨 3) 한 칸을 캐고 되돌린다 — 레벨이 3 으로 돌아와야 한다
+    B.redo(); settle();
+    const fx = X + 3;
+    const lvlBefore = B.waterLvl[B.idx(fx, Y, Z)];
+    B.applyEdit(fx, Y, Z, B.B.AIR, true, 0);
+    B.undo();
+    const lvlAfter = B.waterLvl[B.idx(fx, Y, Z)];
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { spread, afterUndo, lvlBefore, lvlAfter };
+  });
+  assert(r.spread > 20, "시험대 물이 퍼지지 않았다 — " + r.spread);
+  eq(r.afterUndo, 0, "근원을 되돌렸는데 퍼진 물이 남아 있다");
+  assert(r.lvlBefore > 0, "시험 칸이 흐르는 물이 아니다 — 레벨 " + r.lvlBefore);
+  eq(r.lvlAfter, r.lvlBefore, "되돌리기 한 번에 흐르는 물이 근원(0)이 됐다 — 무한 물이 생긴다");
+});
+
+test("v31 과제: '쾅' 은 부싯돌을 댈 때가 아니라 터질 때 뜬다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 84, Y = 42, Z = 84;
+    for (let dx = -6; dx <= 6; dx++) for (let dy = -3; dy <= 5; dy++) for (let dz = -6; dz <= 6; dz++)
+      B.set(X + dx, Y + dy, Z + dz, dy < 0 ? B.B.STONE : 0);
+    B.applyEdit(X, Y, Z, B.B.TNT, false, 0);
+    B.refreshAllTops(); B.relightAll(false);
+    delete B.S.earned.boom;
+    B.S.primed.length = 0;
+    B.primeTNT(X, Y, Z);
+    const atPrime = !!B.S.earned.boom;
+    B.primeTick(B.TNT_FUSE + 0.5);
+    const atBoom = !!B.S.earned.boom;
+    B.S.primed.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { atPrime, atBoom };
+  });
+  assert(!r.atPrime, "부싯돌을 대는 순간 과제가 떴다 (아직 안 터졌다)");
+  assert(r.atBoom, "터졌는데 과제가 뜨지 않았다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

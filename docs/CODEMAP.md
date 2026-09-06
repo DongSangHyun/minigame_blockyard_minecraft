@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-06 · 모듈 24개 · 합계 7,158줄
+생성일 2026-09-06 · 모듈 24개 · 합계 7,163줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -18,7 +18,7 @@
 | [`atlas.js`](../src/atlas.js) | 텍스처 아틀라스 (코드로 그리는 16×16 도트) | 467 | blocks |
 | [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 417 | state · queues · dims · blocks · atlas |
 | [`light.js`](../src/light.js) | 광원 — 햇빛과 블록광 BFS | 182 | state · dims · blocks · world · mesh · player |
-| [`fluids.js`](../src/fluids.js) | 물 흐름 · 낙하 블록 · 잎 부패 | 517 | state · queues · dims · blocks · world · light · mesh · scene · audio · player · edit |
+| [`fluids.js`](../src/fluids.js) | 물 흐름 · 낙하 블록 · 잎 부패 | 518 | state · queues · dims · blocks · world · light · mesh · scene · audio · player · edit |
 | [`mesh.js`](../src/mesh.js) | 면 데이터 + 청크 메싱 | 272 | dims · blocks · atlas · world · light |
 | [`scene.js`](../src/scene.js) | three.js 씬 · 셰이더 · 파티클 | 390 | dims · boot · blocks · atlas · world · mesh |
 | [`daynight.js`](../src/daynight.js) | 낮과 밤 | 83 | state · world · scene |
@@ -26,11 +26,11 @@
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 299 | state · dims · blocks · world · scene |
 | [`audio.js`](../src/audio.js) | 소리 | 222 | state · blocks · daynight · settings |
 | [`save.js`](../src/save.js) | 저장 · 불러오기 | 234 | state · dims · blocks · world · player · hud |
-| [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 485 | state · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
+| [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 490 | state · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
 | [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 425 | state · version · dims · blocks · atlas · world · player · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 157 | state · boot · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
 | [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1109 | state · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
-| [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 162 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
+| [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 161 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
 | [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 351 | state · audio · dims · atlas · world · scene · daynight · player |
 | [`loop.js`](../src/loop.js) | 게임 루프 | 684 | state · input · mobs · queues · dims · boot · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · mine · sky |
 | [`main.js`](../src/main.js) | 조립과 시작 | 212 | state · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · input · mine · sky · loop |
@@ -314,27 +314,27 @@
 | 함수 | 줄 |
 |---|---:|
 | `applyEdit(x, y, z, to, record, sh)` | 48 |
-| `beginBatch()` | 96 |
-| `endBatch(label)` | 97 |
-| `undo()` | 116 |
-| `redo()` | 125 |
-| `refreshAchList()` | 168 |
-| `refreshStats()` | 180 |
-| `achCount()` | 198 |
-| `unlock(id)` | 203 |
-| `selectionBounds()` | 228 |
-| `selectionSize()` | 229 |
-| `fillSelection(block, sh)` | 236 |
-| `clearSelection()` | 251 |
-| `copySelection()` | 263 |
-| `pasteClip(px, py, pz)` | 280 |
-| `completeCommand(prefix)` | 325 |
-| `runCommand(line)` | 332 |
-| `loadBlueprints()` | 441 |
-| `saveBlueprint(name)` | 444 |
-| `useBlueprint(name)` | 457 |
-| `blueprintNames()` | 465 |
-| `selectionCounts()` | 468 |
+| `beginBatch()` | 97 |
+| `endBatch(label)` | 98 |
+| `undo()` | 121 |
+| `redo()` | 130 |
+| `refreshAchList()` | 173 |
+| `refreshStats()` | 185 |
+| `achCount()` | 203 |
+| `unlock(id)` | 208 |
+| `selectionBounds()` | 233 |
+| `selectionSize()` | 234 |
+| `fillSelection(block, sh)` | 241 |
+| `clearSelection()` | 256 |
+| `copySelection()` | 268 |
+| `pasteClip(px, py, pz)` | 285 |
+| `completeCommand(prefix)` | 330 |
+| `runCommand(line)` | 337 |
+| `loadBlueprints()` | 446 |
+| `saveBlueprint(name)` | 449 |
+| `useBlueprint(name)` | 462 |
+| `blueprintNames()` | 470 |
+| `selectionCounts()` | 473 |
 
 내보내는 값 — `HISTORY_MAX` · `ACHIEVEMENTS` · `achGrid` · `statGrid` · `REGION_MAX` · `CMD_HELP` · `CMD_LIST` · `BP_KEY`
 
@@ -420,7 +420,7 @@
 | `upperFromHit(hit)` | 32 |
 | `canPlaceAt(px, py, pz)` | 39 |
 | `tryInteract(hit)` | 51 |
-| `place(repeating)` | 95 |
+| `place(repeating)` | 94 |
 
 ### `sky.js` — 해와 달과 별 · 날씨 · 앰비언트 생물
 

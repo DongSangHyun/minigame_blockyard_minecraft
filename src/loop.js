@@ -50,7 +50,7 @@ export function newWorld(seed) {
   seedMobs();
   seedFlocks();
   refreshAchList(); refreshStats();
-  S.timeOfDay = 0.30;
+  S.timeOfDay = 0.25;      // 06:00 — 첫 노을까지 10분(하루 20분 기준). 07:12 시작은 튜토리얼 도중 밤이 왔다
   applyTime();
   spawn();
   if (S.savedPos) { S.savedPos.copy(player.pos); S.savedYaw = player.yaw; S.savedPitch = player.pitch; }

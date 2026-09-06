@@ -50,7 +50,7 @@ export function applyEdit(x, y, z, to, record, sh) {
   if (y === 0) return false;                 // 바닥은 손대지 않는다
   if (isUnbreakable(world[idx(x, y, z)])) return false;
   var i = idx(x, y, z);
-  var from = world[i], fromSh = shape[i];
+  var from = world[i], fromSh = shape[i], fromWl = waterLvl[i];
   var toSh = (to === AIR) ? SH_FULL : (sh || SH_FULL);
   if (from === to && fromSh === toSh) return false;
   if (isItem(to)) return false;        // 도구는 세계에 놓이지 않는다 (fill·명령도 막는다)
@@ -83,7 +83,8 @@ export function applyEdit(x, y, z, to, record, sh) {
 
   if (record) {
     markTouched(x, y, z);          // 되돌리기에 남는 편집 = 사람이 손댄 자리
-    var rec = { x: x, y: y, z: z, from: from, to: to, fromSh: fromSh, toSh: toSh };
+    // wl — 편집 전 물 레벨. 없으면 흐르는 물을 캔 뒤 되돌릴 때 근원(0)으로 되살아나 무한 물이 생긴다
+    var rec = { x: x, y: y, z: z, from: from, to: to, fromSh: fromSh, toSh: toSh, wl: fromWl };
     if (S.batch) { S.batch.push(rec); return true; }     // 묶음 편집 중이면 모아 둔다
     S.history.push(rec);
     if (S.history.length > (opts.undo || HISTORY_MAX)) S.history.shift();
@@ -109,8 +110,12 @@ function applyCell(e, toSide) {
   var i = idx(e.x, e.y, e.z);
   world[i] = toSide ? e.to : e.from;
   shape[i] = (toSide ? e.toSh : e.fromSh) || SH_FULL;
+  // 물 레벨도 그 순간으로 — 되돌리기가 세계를 딴 상태로 두면 되돌리기를 못 믿게 된다
+  waterLvl[i] = toSide ? 0 : (e.wl || 0);
   touch(e.x, e.y, e.z); refreshTop(e.x, e.z); relightLocal(e.x, e.y, e.z);
   if (world[i] === AIR) enqueueWaterAround(e.x, e.y, e.z);
+  // 근원을 되돌려 없애면 거기서 퍼진 물이 말라야 하고, 되살리면 다시 퍼져야 한다
+  if (e.from === WATER || e.to === WATER) { enqueueDryAround(e.x, e.y, e.z); enqueueWaterAround(e.x, e.y, e.z); }
 }
 
 export function undo() {

@@ -39,13 +39,13 @@ export var TUT = [
   '먼저 <b>좌클릭을 길게</b> 눌러 블록을 캐보세요',
   '이번엔 <b>우클릭</b>으로 블록을 놓아보세요',
   '<b>E</b> 를 눌러 블록 목록에서 다른 재료를 골라보세요',
-  '<b>G</b> 로 반블록·계단으로 바꿔 지어보세요',
+  '<b>{shape}</b> 로 반블록·계단으로 바꿔 지어보세요',
   '<b>9</b> 번 <b>횃불</b>로 어두운 굴을 밝혀보세요',
   '<b>Alt</b>+클릭으로 영역을 고르고 <b>Ctrl</b>+<b>F</b> 로 한 번에 채워보세요',
-  '<b>H</b> 를 누르면 나머지 조작이 전부 나옵니다'
+  '<b>{help}</b> 를 누르면 나머지 조작이 전부 나옵니다'
 ];
 export function refreshHint() {
-  hintEl.innerHTML = S.tut < TUT.length ? TUT[S.tut] : hintText(S.lockMode ? HINT_LOCK : HINT_DRAG);
+  hintEl.innerHTML = hintText(S.tut < TUT.length ? TUT[S.tut] : (S.lockMode ? HINT_LOCK : HINT_DRAG));
 }
 export function advanceTut(step) {
   if (S.tut !== step) return;
@@ -400,7 +400,7 @@ export function refreshMenu() {
   refreshCloud();
   if (S.started) goBtn.textContent = "계속하기";
   else if (hasSave()) goBtn.textContent = "이어하기";
-  else goBtn.textContent = "CLICK TO PLAY";
+  else goBtn.textContent = "플레이";
   altBtn.textContent = "새 세계";
 }
 

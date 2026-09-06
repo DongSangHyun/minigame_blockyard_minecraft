@@ -139,7 +139,8 @@ export function updateMobs(dt) {
     m.dryCheck = (m.dryCheck || 0) - dt;
     if (m.dryCheck <= 0) {
       m.dryCheck = 0.5;
-      if (strandedAt(m)) { placeMob(m, false); continue; }
+      // 가까운 자리(18~30칸)를 못 찾으면 더 넓게(8~30칸) 한 번 더 — 물가에선 24번이 다 물에 떨어질 수 있다
+      if (strandedAt(m)) { if (!placeMob(m, false)) placeMob(m, true); continue; }
     }
 
     // 먹이를 받은 동물은 플레이어 쪽을 본다

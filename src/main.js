@@ -19,7 +19,7 @@ import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, 
 import { ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
 import { airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toast, toggleHelp } from "./hud.js";
 import { updateHandLight, handMat, makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
-import { RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink } from "./input.js";
+import { hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink } from "./input.js";
 import { canPlaceAt, mineAt, place, tryInteract, upperFromHit } from "./mine.js";
 import { HIDE_Y, MOON_PHASES, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
 import { PLACE_DELAY, PLACE_REPEAT, SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, farNow, refreshPerf, step } from "./loop.js";
@@ -143,7 +143,7 @@ window.__blockyard = {
   drawPreview: drawPreview, showAchPop: showAchPop, cmdIn: cmdIn, cmdEl: cmdEl,
   refreshStats: refreshStats, categoryOf: categoryOf, noteBlockUse: noteBlockUse,
   sortPickByRecent: sortPickByRecent, refreshPickFilter: refreshPickFilter,
-  refreshKeyButtons: refreshKeyButtons, bindConflict: bindConflict, refreshBindLabels: refreshBindLabels, RESERVED: RESERVED, TUT: TUT, chunkCX: chunkCX, chunkCZ: chunkCZ,
+  refreshKeyButtons: refreshKeyButtons, bindConflict: bindConflict, hintText: hintText, refreshBindLabels: refreshBindLabels, RESERVED: RESERVED, TUT: TUT, chunkCX: chunkCX, chunkCZ: chunkCZ,
   explode: explode, ignite: ignite, fireTick: fireTick, BLAST_R: BLAST_R,
   isFlammable: isFlammable, seedFlocks: seedFlocks, updateFlocks: updateFlocks,
   fish: fish, birds: birds, moodChord: moodChord, listenAt: listenAt,
