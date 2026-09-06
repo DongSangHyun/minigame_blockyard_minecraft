@@ -24,6 +24,8 @@ import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
 import { localBiome, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather } from "./sky.js";
 
 export var GRAVITY = 26, JUMP = 8.4, WALK = 4.6, SPRINT = 6.0, FLY = 12;
+// 우클릭을 누르고 있을 때 — 두 번째가 나가기까지 뜸(초) · 그 뒤 반복 간격(초)
+export var PLACE_DELAY = 0.50, PLACE_REPEAT = 0.35;
 export var SNEAK_MUL = 0.32; // 웅크릴 때 이동 배율
 export var AIR_CONTROL = 0.24; // 공중에서는 방향을 거의 못 바꾼다
 export var fwd = new THREE.Vector3(), right = new THREE.Vector3();
@@ -197,18 +199,18 @@ export function step(dt) {
     }
     S.bobPhase = S.stepPhase;
 
-    // 마크처럼 드래그로 줄을 긋는다 — 조준한 칸이 바뀌면 쿨다운을 기다리지 않는다
+    // 우클릭 홀드 — 키보드 자동 반복처럼 "한 번 놓고 · 뜸을 들이고 · 천천히 반복"
+    // 예전에는 조준한 칸이 바뀌면 쿨다운을 건너뛰었는데, 클릭하며 손이 조금만 떨려도
+    // 한 번 누른 것이 여러 개로 놓였다. 간격은 항상 지킨다.
     S.placeCooldown -= dt;
     if (S.lockMode && S.mouseDown[2]) {
-      var ph = raycast(6);
-      // WY=64 · WZ=96 이라 4096/64 자리올림이 겹쳤다 — 세계 인덱스를 그대로 쓴다
-      var key = ph ? idx(ph.x + ph.nx, ph.y + ph.ny, ph.z + ph.nz) : -1;
-      if (key !== S.lastPlaceCell || S.placeCooldown <= 0) {
+      if (S.placeCooldown <= 0) {
+        var firstTap = S.lastPlaceCell === -1;
         // 홀드로 반복될 때는 문 여닫기·점화·먹이 주기를 하지 않는다.
-        // 그러지 않으면 문 앞에서 우클릭을 누르고 있는 동안 초당 5.5회 여닫힌다.
-        place(S.lastPlaceCell !== -1);
-        S.lastPlaceCell = key;
-        S.placeCooldown = 0.18;
+        // 그러지 않으면 문 앞에서 우클릭을 누르고 있는 동안 계속 여닫힌다.
+        place(!firstTap);
+        S.lastPlaceCell = 0;                     // 누르고 있는 중이라는 표시
+        S.placeCooldown = firstTap ? PLACE_DELAY : PLACE_REPEAT;
       }
     } else S.lastPlaceCell = -1;
   }

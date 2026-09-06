@@ -3934,6 +3934,59 @@ test("v21 클라우드: 토큰이 없으면 아무것도 부르지 않는다", a
   assert(!r.linked, "연결 해제가 되지 않았다");
 });
 
+test("v22 우클릭: 한 번 누르면 하나만, 홀드는 천천히 반복된다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const X = 26, Y = 44, Z = 26;
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -8; dz <= 4; dz++)
+      for (let dy = -3; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -8; dz <= 4; dz++)
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false);
+    B.setPaused(true); B.beginPlay();
+    B.player.pos.set(X + 0.5, Y + 4, Z + 0.5);   // 발밑이 아니라 아래를 내려다본다
+    B.player.vel.set(0, 0, 0);
+    B.player.flying = true;              // 지형에 흔들리지 않게
+    B.player.yaw = 0; B.player.pitch = -Math.PI / 2 + 0.01;   // 발밑을 본다
+    B.camera.rotation.set(-Math.PI / 2 + 0.01, 0, 0);
+    B.getBar()[B.getSelected()] = B.B.STONE;
+    B.S.lockMode = true;
+
+    function count() {
+      let n = 0;
+      for (let dx = -4; dx <= 4; dx++) for (let dz = -8; dz <= 4; dz++)
+        for (let dy = -3; dy <= 4; dy++)
+          if (dy !== -1 && B.get(X + dx, Y + dy, Z + dz) !== 0) n++;
+      return n;
+    }
+    // 짧게 눌렀다 뗀다 (0.15초) — 하나만 놓여야 한다
+    B.S.mouseDown[2] = true; B.S.placeCooldown = 0; B.S.lastPlaceCell = -1;
+    for (let k = 0; k < 9; k++) B.step(1 / 60);
+    B.S.mouseDown[2] = false;
+    B.step(1 / 60);
+    const tap = count();
+
+    // 3초 동안 계속 누르고 있는다 — 조준한 칸은 계속 바뀐다 (드래그로 줄 긋기)
+    B.S.mouseDown[2] = true; B.S.placeCooldown = 0; B.S.lastPlaceCell = -1;
+    for (let k = 0; k < 180; k++) {
+      B.step(1 / 60);
+      B.player.pos.set(X + 0.5 + Math.sin(k * 0.035) * 1.5, Y + 4,
+                       Z + 0.5 + Math.cos(k * 0.035) * 1.5);
+    }
+    B.S.mouseDown[2] = false;
+    const held = count() - tap;
+
+    B.S.lockMode = false;
+    B.endPlay(); B.setPaused(false);
+    return { tap, held, delay: B.PLACE_DELAY, repeat: B.PLACE_REPEAT };
+  });
+  eq(r.tap, 1, "한 번 클릭했는데 여러 개가 놓였다");
+  assert(r.delay >= 0.4, "홀드 첫 반복까지의 뜸이 너무 짧다");
+  assert(r.repeat >= 0.3, "홀드 반복 간격이 너무 짧다");
+  // 3초 = 첫 하나 + 뜸 0.5초 뒤부터 0.35초 간격 → 7~8개
+  assert(r.held >= 5 && r.held <= 10, "홀드 3초에 " + r.held + "개 — 예상은 5~10개");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

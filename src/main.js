@@ -22,7 +22,7 @@ import { makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
 import { TUT, beginPlay, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink } from "./input.js";
 import { canPlaceAt, place, tryInteract, upperFromHit } from "./mine.js";
 import { HIDE_Y, MOON_PHASES, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
-import { SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, farNow, refreshPerf, step } from "./loop.js";
+import { PLACE_DELAY, PLACE_REPEAT, SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, farNow, refreshPerf, step } from "./loop.js";
 
 // 주소에 ?seed=1234&t=2 가 있으면 그 세계로 연다 — 링크 하나로 같은 세계를 나눈다
 (function fromUrl() {
@@ -86,6 +86,7 @@ window.__blockyard = {
   opaqueMeshes: opaqueMeshes, glassMeshes: glassMeshes, dirty: dirty,
   raycast: raycast, boxHitsWorld: boxHitsWorld, moveAxis: moveAxis, moveHorizontal: moveHorizontal,
   unstick: unstick, pointSolid: pointSolid, playerOccupies: playerOccupies,
+  PLACE_DELAY: PLACE_DELAY, PLACE_REPEAT: PLACE_REPEAT,
   player: player, camera: camera, spawn: spawn, refreshTop: refreshTop, refreshAllTops: refreshAllTops,
   applyEdit: applyEdit, undo: undo, redo: redo, history: S.history, future: S.future,
   encodeWorld: encodeWorld, decodeWorld: decodeWorld,
