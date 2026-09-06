@@ -105,6 +105,24 @@ export function moveAxisStep(axis, amount) {
   }
 }
 
+// 한 점이 단단한 블록 안에 있는가 — 눈이 블록에 파묻혔는지 보는 데 쓴다
+export function pointSolid(px, py, pz) {
+  var x = Math.floor(px), y = Math.floor(py), z = Math.floor(pz);
+  if (!inside(x, y, z)) return false;
+  var b = world[idx(x, y, z)];
+  if (!isSolid(b)) return false;
+  var sh = shapeAt(x, y, z);
+  if (sh === SH_FULL && !hasDynamicBoxes(b)) return true;
+  var boxes = boxesAt(b, sh, x, y, z);
+  for (var k = 0; k < boxes.length; k++) {
+    var q = boxes[k];
+    if (px > x + q[0] && px < x + q[3] &&
+        py > y + q[1] && py < y + q[4] &&
+        pz > z + q[2] && pz < z + q[5]) return true;
+  }
+  return false;
+}
+
 // 플레이어 몸이 이 칸을 차지하고 있는가 — 물이 얼거나 모래가 내려앉을 때 몸을 덮지 않게 한다
 export function playerOccupies(x, y, z) {
   if (!S.active) return false;

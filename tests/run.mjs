@@ -3818,6 +3818,122 @@ test("v20 이동: 빠르게 떨어져도 얇은 바닥을 뚫지 않는다", asy
   assert(r.y >= 20.9 && r.y <= 21.1, "바닥을 뚫고 내려갔다 — y=" + r.y.toFixed(2));
 });
 
+test("v21 렌더: 여섯 면이 모두 앞면으로 그려진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.world.fill(0); B.shape.fill(0); B.waterLvl.fill(0);
+    const X = 48, Y = 32, Z = 48;
+    B.set(X, Y, Z, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false); B.rebuildAll();
+    for (var i = 0; i < B.opaqueMeshes.length; i++) {
+      var g = B.opaqueMeshes[i].geometry;
+      if (g.attributes.position) g.computeBoundingSphere();
+    }
+    const rc = new THREE.Raycaster();
+    const dirs = { "+x": [1,0,0], "-x": [-1,0,0], "+y": [0,1,0],
+                   "-y": [0,-1,0], "+z": [0,0,1], "-z": [0,0,-1] };
+    const out = {};
+    for (const n in dirs) {
+      const d = dirs[n];
+      // 면 바깥 5칸에서 블록 한가운데를 향해 쏜다 — 가까운 면(4.5칸)에 맞아야 한다
+      rc.set(new THREE.Vector3(X + 0.5 + d[0] * 5, Y + 0.5 + d[1] * 5, Z + 0.5 + d[2] * 5),
+             new THREE.Vector3(-d[0], -d[1], -d[2]));
+      rc.far = 20;
+      const hits = rc.intersectObjects(B.opaqueMeshes, false);
+      out[n] = hits.length ? +hits[0].distance.toFixed(2) : -1;
+    }
+    B.setPaused(false);
+    return out;
+  });
+  for (const n in r) {
+    assert(r[n] > 0, n + " 면이 아예 그려지지 않았다");
+    near(r[n], 4.5, 0.05, n + " 면이 뒤집혀 있다 (뒷면 제거에 걸려 안 보인다) — 맞은 거리 " + r[n]);
+  }
+});
+
+test("v21 클라우드: 올리고 내려받고, 다른 기기의 판을 덮지 않는다", async (page) => {
+  const r = await page.evaluate(async () => {
+    const B = window.__blockyard, C = B.cloud;
+    B.setPaused(true); B.beginPlay();
+    // 가짜 GitHub — 진짜 API 는 부르지 않는다
+    const store = { id: "g1", files: {}, calls: [] };
+    B.S.netFetch = function (url, init) {
+      store.calls.push(init.method + " " + url);
+      const body = init.body ? JSON.parse(init.body) : null;
+      function ok(o) { return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(o) }); }
+      if (/\/user$/.test(url)) return ok({ login: "tester" });
+      if (/\/gists\?/.test(url)) return ok([]);
+      if (/\/gists$/.test(url) && init.method === "POST") {
+        for (const k in body.files) store.files[k] = { content: body.files[k].content, truncated: false };
+        return ok({ id: store.id, files: store.files });
+      }
+      if (/\/gists\/g1$/.test(url) && init.method === "PATCH") {
+        for (const k in body.files) store.files[k] = { content: body.files[k].content, truncated: false };
+        return ok({ id: store.id, files: store.files });
+      }
+      if (/\/gists\/g1$/.test(url)) return ok({ id: store.id, files: store.files });
+      return Promise.resolve({ ok: false, status: 404 });
+    };
+    try { localStorage.removeItem("blockyard.cloud.gist");
+          localStorage.removeItem("blockyard.cloud.base"); } catch (e) {}
+    C.setToken("t0k");
+    C.setWorldName("Test World!!");           // 이름표는 다듬어져야 한다
+    const name = C.worldName();
+    const login = await C.checkToken();
+
+    B.generate(31337); B.relightAll(false);
+    B.player.pos.set(20, 30, 20);
+    const up1 = await C.pushWorld(false);
+    const list = await C.listWorlds();
+
+    // 다른 기기가 먼저 올린 상황을 흉내 낸다 — 판 번호만 올려 둔다
+    const ix = JSON.parse(store.files["index.json"].content);
+    ix.worlds[name].rev = 9;
+    ix.worlds[name].device = "다른기기";
+    store.files["index.json"].content = JSON.stringify(ix);
+    const clash = await C.pushWorld(false);
+    const forced = await C.pushWorld(true);
+
+    // 내려받기 — 세계가 실제로 바뀌는지 씨앗으로 확인
+    const seedBefore = B.seed();
+    B.generate(999); B.relightAll(false);
+    const pulled = await C.pullWorld(name);
+    const seedAfter = B.seed();
+
+    B.S.netFetch = null;
+    C.unlink();
+    B.endPlay(); B.setPaused(false);
+    return { name, login, up1, list, clash, forced, pulled, seedBefore, seedAfter,
+             bytes: (store.files[name + ".json"] || {}).content.length };
+  });
+  eq(r.name, "testworld", "세계 이름을 다듬지 않았다");
+  eq(r.login, "tester", "토큰 확인 실패");
+  eq(r.up1.rev, 1, "첫 올리기 판 번호");
+  eq(r.list.length, 1, "세계 목록");
+  assert(r.clash.conflict === true, "다른 기기가 올린 판을 덮으려 했다");
+  eq(r.forced.rev, 10, "덮어쓰기 판 번호");
+  eq(r.pulled.rev, 10, "내려받은 판 번호");
+  eq(r.seedAfter, r.seedBefore, "내려받아도 세계가 돌아오지 않았다");
+  assert(r.bytes > 1000, "올린 세계가 너무 작다");
+});
+
+test("v21 클라우드: 토큰이 없으면 아무것도 부르지 않는다", async (page) => {
+  const r = await page.evaluate(async () => {
+    const B = window.__blockyard, C = B.cloud;
+    let called = 0;
+    B.S.netFetch = function () { called++; return Promise.reject(new Error("불러선 안 된다")); };
+    C.unlink();
+    let msg = "";
+    try { await C.pushWorld(false); } catch (e) { msg = e.message; }
+    B.S.netFetch = null;
+    return { called, msg, linked: C.isLinked() };
+  });
+  eq(r.called, 0, "토큰도 없이 네트워크를 불렀다");
+  assert(r.msg.indexOf("토큰") >= 0, "토큰 안내가 나오지 않았다: " + r.msg);
+  assert(!r.linked, "연결 해제가 되지 않았다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

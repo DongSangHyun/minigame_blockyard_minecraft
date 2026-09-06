@@ -12,9 +12,10 @@ import { FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFille
 import { FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { OPT_KEY, applyOpts, opts } from "./settings.js";
-import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, rayBox, raycast, spawn, stats } from "./player.js";
+import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, playerOccupies, pointSolid, rayBox, raycast, spawn, stats, unstick } from "./player.js";
 import { breakSound, caveSound, lavaHiss, lavaPop, listenAt, miningSound, moodChord, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
 import { OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
+import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName, baseRev, setBaseRev, ensureGist, req } from "./cloud.js";
 import { ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, completeCommand, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
 import { airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toast, toggleHelp } from "./hud.js";
 import { makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
@@ -84,6 +85,7 @@ window.__blockyard = {
   buildChunk: buildChunk, chunkId: chunkId, chunkCX: chunkCX, chunkCY: chunkCY, chunkCZ: chunkCZ,
   opaqueMeshes: opaqueMeshes, glassMeshes: glassMeshes, dirty: dirty,
   raycast: raycast, boxHitsWorld: boxHitsWorld, moveAxis: moveAxis, moveHorizontal: moveHorizontal,
+  unstick: unstick, pointSolid: pointSolid, playerOccupies: playerOccupies,
   player: player, camera: camera, spawn: spawn, refreshTop: refreshTop, refreshAllTops: refreshAllTops,
   applyEdit: applyEdit, undo: undo, redo: redo, history: S.history, future: S.future,
   encodeWorld: encodeWorld, decodeWorld: decodeWorld,
@@ -117,6 +119,11 @@ window.__blockyard = {
   isUnbreakable: isUnbreakable, columnTop: columnTop, facingText: facingText,
   isCross: isCross, isLiquid: isLiquid, isTransparent: isTransparent,
   atlas: atlas, crossBase: crossBase, surfaceTop: surfaceTop,
+  cloud: { checkToken: checkToken, isLinked: isLinked, listWorlds: listWorlds,
+           normalizeName: normalizeName, pullWorld: pullWorld, pushWorld: pushWorld,
+           setToken: setToken, setWorldName: setWorldName, unlink: unlink,
+           worldName: worldName, baseRev: baseRev, setBaseRev: setBaseRev,
+           ensureGist: ensureGist, req: req },
   freezeTick: freezeTick, enqueueFreeze: enqueueFreeze, animateLiquids: animateLiquids, setMuffle: setMuffle,
   isLog: isLog, isLeaf: isLeaf, isWallShape: isWallShape, wallShapeFor: wallShapeFor,
   updateStorm: updateStorm, updateEdge: updateEdge, edgeMat: edgeMat,

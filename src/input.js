@@ -10,6 +10,7 @@ import { applyOpts, opts, saveOpts } from "./settings.js";
 import { player, raycast, spawn, stats } from "./player.js";
 import { ac, startAmbient, tone } from "./audio.js";
 import { SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
+import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
 import { REGION_MAX, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
 import { closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
@@ -146,6 +147,126 @@ if (resBtn) resBtn.addEventListener("click", function (e) {
   else toast("백업을 읽지 못했습니다");
 });
 
+// ── 클라우드 이어하기 — 기기가 달라도 같은 세계를 잇는다
+// DOM 은 여기서 직접 잡는다 (모듈 순환에 걸려 조용히 건너뛰는 사고를 피한다 · v17)
+var cTok = document.getElementById("c-token");
+var cWorld = document.getElementById("c-world");
+var cState = document.getElementById("c-state");
+var cConnect = document.getElementById("c-connect");
+var cPush = document.getElementById("c-push");
+var cPull = document.getElementById("c-pull");
+var cList = document.getElementById("c-list");
+var cOff = document.getElementById("c-off");
+var MASK = "········";
+
+export function cloudSay(msg, kind) {
+  if (!cState) return;
+  cState.textContent = msg;
+  cState.className = "cloudnote" + (kind ? " " + kind : "");
+}
+export function refreshCloud() {
+  if (!cWorld) return;
+  cWorld.value = worldName();
+  if (cTok) cTok.value = isLinked() ? MASK : "";
+  cloudSay(isLinked() ? "연결됨 — 세계 '" + worldName() + "'" : "연결되지 않음",
+           isLinked() ? "on" : "");
+}
+function cloudBusy(on) {
+  S.cloudBusy = on;
+  var bs = [cConnect, cPush, cPull, cList, cOff];
+  for (var i = 0; i < bs.length; i++) if (bs[i]) bs[i].disabled = on;
+}
+function cloudFail(e) {
+  cloudBusy(false);
+  var msg = (e && e.message) ? e.message : "알 수 없는 오류";
+  cloudSay(msg, "bad");
+  toast(msg);
+}
+
+if (cWorld) cWorld.addEventListener("change", function (e) {
+  e.stopPropagation();
+  cWorld.value = setWorldName(cWorld.value);
+  cloudSay("세계 이름 '" + cWorld.value + "'", isLinked() ? "on" : "");
+});
+if (cWorld) cWorld.addEventListener("click", function (e) { e.stopPropagation(); });
+if (cTok) cTok.addEventListener("click", function (e) { e.stopPropagation(); });
+
+if (cConnect) cConnect.addEventListener("click", function (e) {
+  e.stopPropagation();
+  var v = String((cTok && cTok.value) || "").trim();
+  if (!v || v === MASK) { cloudSay("토큰을 붙여 넣으세요 (gist 권한)", "bad"); return; }
+  setToken(v);
+  cloudBusy(true);
+  cloudSay("확인하는 중…");
+  checkToken().then(function (login) {
+    cloudBusy(false);
+    if (cTok) cTok.value = MASK;
+    cloudSay("연결됨 — " + login + " · 세계 '" + worldName() + "'", "on");
+    toast("클라우드에 연결했습니다");
+  }).catch(function (err) { setToken(""); cloudFail(err); });
+});
+
+if (cPush) cPush.addEventListener("click", function (e) {
+  e.stopPropagation();
+  cloudBusy(true); cloudSay("올리는 중…");
+  pushWorld(false).then(function (r) {
+    cloudBusy(false);
+    if (r.conflict) {
+      var when = String(r.at).slice(0, 16).replace("T", " ");
+      var ok = window.confirm("다른 기기(" + (r.device || "?") + ")가 " + when +
+        " 에 올린 판이 있습니다.\n덮어쓸까요? (이전 판은 gist 기록에 남습니다)");
+      if (!ok) { cloudSay("올리지 않았습니다 — 먼저 내려받으세요", "bad"); return; }
+      cloudBusy(true); cloudSay("덮어쓰는 중…");
+      return pushWorld(true).then(function (r2) {
+        cloudBusy(false);
+        cloudSay("올렸습니다 — 판 " + r2.rev, "on");
+        toast("세계를 올렸습니다 (판 " + r2.rev + ")");
+      });
+    }
+    cloudSay("올렸습니다 — 판 " + r.rev + " · " + Math.round(r.bytes / 1024) + "KB", "on");
+    toast("세계를 올렸습니다 (판 " + r.rev + ")");
+  }).catch(cloudFail);
+});
+
+if (cPull) cPull.addEventListener("click", function (e) {
+  e.stopPropagation();
+  var name = normalizeName(cWorld ? cWorld.value : "");
+  if (!window.confirm("클라우드의 '" + name + "' 세계로 지금 슬롯을 덮어씁니다.\n" +
+                      "직전 내용은 백업에 남습니다. 계속할까요?")) return;
+  cloudBusy(true); cloudSay("내려받는 중…");
+  pullWorld(name).then(function (r) {
+    cloudBusy(false);
+    cloudSay("내려받았습니다 — 판 " + r.rev + " (" + (r.device || "?") + ")", "on");
+    afterWorldSwap("클라우드에서 '" + r.name + "' 세계를 불러왔습니다");
+    refreshCloud();
+  }).catch(cloudFail);
+});
+
+if (cList) cList.addEventListener("click", function (e) {
+  e.stopPropagation();
+  cloudBusy(true); cloudSay("목록을 읽는 중…");
+  listWorlds().then(function (ws) {
+    cloudBusy(false);
+    if (!ws.length) { cloudSay("클라우드에 올린 세계가 없습니다"); return; }
+    var lines = [];
+    for (var i = 0; i < ws.length; i++) {
+      var w = ws[i];
+      lines.push(w.name + " · 판 " + w.rev + " · " + w.mins + "분 · " +
+                 (w.device || "?") + " · " + String(w.at).slice(0, 16).replace("T", " "));
+    }
+    cloudSay(lines.join("  /  "));
+  }).catch(cloudFail);
+});
+
+if (cOff) cOff.addEventListener("click", function (e) {
+  e.stopPropagation();
+  if (!window.confirm("이 기기에서 토큰을 지웁니다. 클라우드의 세계는 그대로 남습니다.")) return;
+  unlink();
+  if (cTok) cTok.value = "";
+  cloudSay("연결을 해제했습니다");
+  toast("클라우드 연결을 해제했습니다");
+});
+
 // 지형 유형 고르기 — 다음 "새 세계" 부터 적용된다
 export var terrainEl = document.getElementById("terrain");
 export function refreshTerrain() {
@@ -230,6 +351,7 @@ export function refreshMenu() {
   drawPreview();
   refreshTerrain();
   refreshKeyButtons();
+  refreshCloud();
   if (S.started) goBtn.textContent = "계속하기";
   else if (hasSave()) goBtn.textContent = "이어하기";
   else goBtn.textContent = "CLICK TO PLAY";

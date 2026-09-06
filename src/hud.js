@@ -171,6 +171,7 @@ export var tPos = document.getElementById("t-pos"),
     tFps = document.getElementById("t-fps");
 
 export var underwaterEl = document.getElementById("underwater");
+export var inblockEl = document.getElementById("inblock");
 export var airEl = document.getElementById("air");
 export var perfEl = document.getElementById("perf");
 export var airBar = airEl ? airEl.querySelector("i") : null;

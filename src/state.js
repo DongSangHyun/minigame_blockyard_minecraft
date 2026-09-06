@@ -8,6 +8,9 @@ export const S = {
   slot: 1,
   worldDirty: false,
   saveTimer: 0,
+  netFetch: null,          // 클라우드 통신 갈아 끼우기 (테스트용)
+  cloudBusy: false,
+  wasBuried: false,
   timeOfDay: 0.30,
   moonDay: 0,
   bar: null,

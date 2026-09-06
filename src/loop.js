@@ -14,11 +14,11 @@ import { buildBudget, dirty, markAllDirty, opaqueMeshes, setBuildFocus } from ".
 import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { opts } from "./settings.js";
-import { EYE, HALF, moveAxis, moveHorizontal, player, raycast, spawn, stats, unstick } from "./player.js";
+import { EYE, HALF, moveAxis, moveHorizontal, player, pointSolid, raycast, spawn, stats, unstick } from "./player.js";
 import { caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { saveGame } from "./save.js";
 import { ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
-import { airBar, airEl, drawMinimap, facingText, mmCap, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, underwaterEl } from "./hud.js";
+import { airBar, airEl, drawMinimap, facingText, mmCap, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
 import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
 import { localBiome, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather } from "./sky.js";
@@ -276,6 +276,13 @@ export function step(dt) {
     if (cloudGroup.position.x > 220) cloudGroup.position.x -= 440;
     cloudGroupHigh.position.x += dt * 2.1;      // 높은 층이 더 빨리 흐른다
     if (cloudGroupHigh.position.x > 220) cloudGroupHigh.position.x -= 440;
+  }
+
+  // 눈이 블록에 파묻혔을 때 — 세계의 뒷면(옆이 뚫려 보이는 화면) 대신 어둠으로 덮는다
+  var eyeBuried = S.active && pointSolid(player.pos.x, player.pos.y + EYE, player.pos.z);
+  if (eyeBuried !== S.wasBuried) {
+    inblockEl.hidden = !eyeBuried;
+    S.wasBuried = eyeBuried;
   }
 
   // 물속
