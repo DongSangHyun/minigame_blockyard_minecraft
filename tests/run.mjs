@@ -4886,6 +4886,49 @@ test("v36 파편: 한 블록의 파편이 여러 색으로 튄다", async (page)
   assert(r.colors >= 3, "튄 파편이 한 색이다 — 서로 다른 색 " + r.colors);
 });
 
+test("v37 게임패드: 베드락 배치로 바뀌고 놓기가 홀드로 반복된다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    // 가짜 패드 — navigator.getGamepads 를 갈아 끼운다
+    const btn = new Array(17).fill(0).map(() => ({ pressed: false }));
+    const pad = { connected: true, axes: [0, 0, 0, 0], buttons: btn };
+    const real = navigator.getGamepads;
+    navigator.getGamepads = function () { return [pad]; };
+    function poll(n) { for (let i = 0; i < (n || 1); i++) B.pollGamepad(1 / 60); }
+    const was = B.getSelected();
+    btn[5].pressed = true; poll(); btn[5].pressed = false; poll();   // RB — 핫바 오른쪽
+    const rbMoved = B.getSelected() !== was;
+    btn[4].pressed = true; poll(); btn[4].pressed = false; poll();   // LB — 되돌아옴
+    const lbBack = B.getSelected() === was;
+    btn[7].pressed = true; poll();                                    // RT — 캐기
+    const mining = B.S.mouseDown[0] === true;
+    btn[7].pressed = false; poll();
+    btn[6].pressed = true; poll(3);                                   // LT — 놓기(홀드)
+    const placingHeld = B.S.touchPlace === true;
+    btn[6].pressed = false; poll();
+    const placingOff = B.S.touchPlace === false;
+    btn[10].pressed = true; poll();                                   // L스틱 클릭 — 달리기
+    const sprint = B.S.keys.ControlLeft === true;
+    btn[10].pressed = false; poll();
+    const uiWas = B.S.uiOpen;
+    btn[3].pressed = true; poll(); btn[3].pressed = false; poll();    // Y — 목록
+    const listToggled = B.S.uiOpen !== uiWas;
+    if (B.S.uiOpen) { btn[3].pressed = true; poll(); btn[3].pressed = false; poll(); }   // Y 로 다시 닫는다
+    navigator.getGamepads = real;
+    B.endPlay(); B.setPaused(false);
+    return { rbMoved, lbBack, mining, placingHeld, placingOff, sprint, listToggled,
+             hasMenuPoll: typeof B.pollGamepadMenu === "function" };
+  });
+  assert(r.rbMoved && r.lbBack, "LB/RB 가 핫바를 옮기지 않는다 (트리거와 중복이었다)");
+  assert(r.mining, "RT 로 캐지 못한다");
+  assert(r.placingHeld, "LT 를 누르고 있어도 놓기가 반복되지 않는다");
+  assert(r.placingOff, "LT 를 떼도 놓기가 멈추지 않는다");
+  assert(r.sprint, "L스틱 클릭이 달리기가 아니다");
+  assert(r.listToggled, "Y 가 블록 목록을 열지 않는다");
+  assert(r.hasMenuPoll, "시작 화면에서 패드를 읽지 않는다 — A 를 눌러도 못 들어온다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

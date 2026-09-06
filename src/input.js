@@ -1113,6 +1113,18 @@ export var padState = { on: false, lx: 0, ly: 0, rx: 0, ry: 0 };
 var padPrev = {};
 var padHeld = {};   // 패드가 지난 프레임에 실제로 누르고 있었는가
 
+// 시작 화면에서도 패드를 읽는다 — A 를 눌러도 아무 일이 없으면 패드만으로는 못 들어온다.
+// 여기서는 A 하나만 본다 (시점·이동은 플레이 중에만).
+export function pollGamepadMenu() {
+  if (S.active || !navigator.getGamepads) return;
+  var pads = navigator.getGamepads(), g = null;
+  for (var i = 0; i < pads.length; i++) if (pads[i] && pads[i].connected) { g = pads[i]; break; }
+  if (!g) { padPrev[0] = false; return; }
+  var now = !!(g.buttons[0] && g.buttons[0].pressed), was = padPrev[0];
+  padPrev[0] = now;
+  if (now && !was) requestPlay();
+}
+
 export function pollGamepad(dt) {
   if (!navigator.getGamepads) return false;
   var pads = navigator.getGamepads();
@@ -1144,16 +1156,33 @@ export function pollGamepad(dt) {
   else if (padHeld[0]) S.keys.Space = false;
   if (pressed(1)) S.keys.ShiftLeft = true;
   else if (padHeld[1]) S.keys.ShiftLeft = false;
-  var mine = pressed(7) || pressed(5);             // RT/RB — 캐기
+  // 베드락 기본 배치에 맞춘다 — RT 캐기 · LT 놓기 · LB/RB 핫바 · Y 목록 · 메뉴 일시정지
+  var mine = pressed(7);                           // RT — 캐기 (RB 는 핫바로 넘겼다)
   if (mine) S.mouseDown[0] = true;
-  else if (padHeld[7] || padHeld[5]) S.mouseDown[0] = false;
+  else if (padHeld[7]) S.mouseDown[0] = false;
+  // 놓기는 누르고 있으면 반복된다 — 마우스·터치와 같은 PLACE_DELAY/REPEAT 경로를 탄다
+  var lay = pressed(6);
+  if (lay && !padHeld[6]) { S.placeCooldown = 0; S.lastPlaceCell = -1; }
+  if (lay) S.touchPlace = true;
+  else if (padHeld[6]) S.touchPlace = false;
+  // 왼스틱 클릭 — 달리기
+  if (pressed(10)) S.keys.ControlLeft = true;
+  else if (padHeld[10]) S.keys.ControlLeft = false;
   padHeld[0] = pressed(0); padHeld[1] = pressed(1);
-  padHeld[5] = pressed(5); padHeld[7] = pressed(7);
-  if (tapped(6) || tapped(4)) place();             // LT/LB — 놓기
+  padHeld[6] = lay; padHeld[7] = pressed(7); padHeld[10] = pressed(10);
+
+  if (tapped(4)) selectSlot(S.selected - 1);       // LB — 핫바 왼쪽
+  if (tapped(5)) selectSlot(S.selected + 1);       // RB — 핫바 오른쪽
   if (tapped(2)) pickBlock();                      // X — 복사
-  if (tapped(3)) { player.flying = !player.flying; player.vel.y = 0; }  // Y — 비행
+  if (tapped(3)) { if (S.uiOpen) closePicker(true); else openPicker(); }   // Y — 블록 목록
   if (tapped(14)) selectSlot(S.selected - 1);      // 십자 좌
   if (tapped(15)) selectSlot(S.selected + 1);      // 십자 우
-  if (tapped(9)) { if (S.uiOpen) closePicker(true); else openPicker(); }  // 시작 — 블록 목록
+  // A 두 번 — 비행 토글 (마우스의 Space×2 와 같은 300ms 판정)
+  if (tapped(0)) {
+    var nowA = (window.performance && performance.now) ? performance.now() : Date.now();
+    if (nowA - (S.padFlyTap || 0) < 300) { player.flying = !player.flying; player.vel.y = 0; S.padFlyTap = 0; }
+    else S.padFlyTap = nowA;
+  }
+  if (tapped(9)) endPlay();                        // 메뉴 — 시작 화면으로
   return true;
 }

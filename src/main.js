@@ -19,7 +19,7 @@ import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, 
 import { ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
 import { airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp } from "./hud.js";
 import { updateHandLight, handMat, makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
-import { agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink } from "./input.js";
+import { pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink } from "./input.js";
 import { canPlaceAt, mineAt, place, tryInteract, upperFromHit } from "./mine.js";
 import { HIDE_Y, MOON_PHASES, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
 import { PLACE_DELAY, PLACE_REPEAT, SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, farNow, refreshPerf, step } from "./loop.js";
@@ -137,7 +137,7 @@ window.__blockyard = {
   isTouched: isTouched, markTouched: markTouched, OPT_KEY: OPT_KEY,
   FIRE_REACH: FIRE_REACH, aimingAtMob: aimingAtMob,
   runCommand: runCommand, CMD_HELP: CMD_HELP, completeCommand: completeCommand, CMD_LIST: CMD_LIST, openCmd: openCmd, closeCmd: closeCmd,
-  stats: stats, DEFAULT_BAR2: DEFAULT_BAR2, ITEMS: ITEMS, isItem: isItem, touched: touched, pollGamepad: pollGamepad, padState: padState, clockText: clockText,
+  stats: stats, DEFAULT_BAR2: DEFAULT_BAR2, ITEMS: ITEMS, isItem: isItem, touched: touched, pollGamepad: pollGamepad, pollGamepadMenu: pollGamepadMenu, padState: padState, clockText: clockText,
   saveBlueprint: saveBlueprint, useBlueprint: useBlueprint, blueprintNames: blueprintNames,
   selectionCounts: selectionCounts, feedNearbyMob: feedNearbyMob, shareLink: shareLink,
   drawPreview: drawPreview, showAchPop: showAchPop, cmdIn: cmdIn, cmdEl: cmdEl,

@@ -1,6 +1,6 @@
 // loop.js — 게임 루프
 import { S } from "./state.js";
-import { padState, pollGamepad } from "./input.js";
+import { padState, pollGamepad, pollGamepadMenu } from "./input.js";
 import { pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, WX, WY, WZ, idx } from "./dims.js";
@@ -573,6 +573,7 @@ export function animate() {
   requestAnimationFrame(animate);
   var dt = Math.min(clock.getDelta(), 0.05);
   if (S.loopPaused) return;
+  pollGamepadMenu();          // 시작 화면에서 A 로 들어올 수 있게
   step(dt);
 
   renderer.render(scene, camera);

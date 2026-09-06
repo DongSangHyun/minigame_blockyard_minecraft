@@ -63,6 +63,7 @@ export const S = {
   grassTimer: 0,
   handLight: 1,
   touchPlace: false,
+  padFlyTap: 0,
   delArm: 0,
   delArmAt: 0,      // 불을 붙인 자리들 — 번짐 상한을 불마다 따로 잰다
   wantShot: false,
