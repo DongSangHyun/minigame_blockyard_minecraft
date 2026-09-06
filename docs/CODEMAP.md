@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-06 · 모듈 27개 · 합계 8,347줄
+생성일 2026-09-06 · 모듈 27개 · 합계 8,471줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -10,7 +10,7 @@
 
 | 모듈 | 하는 일 | 줄 | 기대는 곳 |
 |---|---|---:|---|
-| [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 134 | — |
+| [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 135 | — |
 | [`dims.js`](../src/dims.js) | 세계 치수와 좌표 계산 (의존성 없음) | 10 | — |
 | [`queues.js`](../src/queues.js) | 시뮬레이션 대기열 (의존성 없음) | 33 | — |
 | [`boot.js`](../src/boot.js) | 부팅 가드 · 환경 판별 | 26 | state |
@@ -26,7 +26,7 @@
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 319 | state · dims · blocks · world · scene |
 | [`audio.js`](../src/audio.js) | 소리 | 222 | state · blocks · daynight · settings |
 | [`save.js`](../src/save.js) | 저장 · 불러오기 | 238 | state · dims · blocks · world · player · hud |
-| [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 558 | state · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
+| [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 677 | state · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
 | [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 425 | state · version · dims · blocks · atlas · world · player · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 157 | state · boot · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
 | [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1213 | state · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
@@ -34,9 +34,9 @@
 | [`mobs.js`](../src/mobs.js) | 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다. | 444 | dims · world · blocks · scene · player · audio |
 | [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 351 | state · audio · dims · atlas · world · scene · daynight · player |
 | [`cloud.js`](../src/cloud.js) | 기기 사이 이어하기 (GitHub Gist 에 세계를 올리고 내려받는다) | 226 | state · save |
-| [`loop.js`](../src/loop.js) | 게임 루프 | 691 | state · input · mobs · queues · dims · boot · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · mine · sky |
+| [`loop.js`](../src/loop.js) | 게임 루프 | 694 | state · input · mobs · queues · dims · boot · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · mine · sky |
 | [`version.js`](../src/version.js) | 빌드 도장 (자동 생성) | 8 | — |
-| [`main.js`](../src/main.js) | 조립과 시작 | 215 | state · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · input · mine · sky · loop |
+| [`main.js`](../src/main.js) | 조립과 시작 | 216 | state · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · input · mine · sky · loop |
 
 ## 모듈별 공개 함수
 
@@ -332,25 +332,26 @@
 | `endBatch(label)` | 117 |
 | `undo()` | 140 |
 | `redo()` | 149 |
-| `refreshAchList()` | 195 |
-| `refreshStats()` | 207 |
-| `achCount()` | 225 |
-| `unlock(id)` | 230 |
-| `selectionBounds()` | 255 |
-| `selectionSize()` | 256 |
-| `fillSelection(block, sh)` | 263 |
-| `clearSelection()` | 278 |
-| `copySelection()` | 290 |
-| `pasteClip(px, py, pz)` | 310 |
-| `completeCommand(prefix)` | 361 |
-| `runCommand(line)` | 368 |
-| `loadBlueprints()` | 514 |
-| `saveBlueprint(name)` | 517 |
-| `useBlueprint(name)` | 530 |
-| `blueprintNames()` | 538 |
-| `selectionCounts()` | 541 |
+| `refreshAchList()` | 202 |
+| `checkBuildAchievements()` | 226 |
+| `refreshStats()` | 326 |
+| `achCount()` | 344 |
+| `unlock(id)` | 349 |
+| `selectionBounds()` | 374 |
+| `selectionSize()` | 375 |
+| `fillSelection(block, sh)` | 382 |
+| `clearSelection()` | 397 |
+| `copySelection()` | 409 |
+| `pasteClip(px, py, pz)` | 429 |
+| `completeCommand(prefix)` | 480 |
+| `runCommand(line)` | 487 |
+| `loadBlueprints()` | 633 |
+| `saveBlueprint(name)` | 636 |
+| `useBlueprint(name)` | 649 |
+| `blueprintNames()` | 657 |
+| `selectionCounts()` | 660 |
 
-내보내는 값 — `HISTORY_MAX` · `ACHIEVEMENTS` · `achGrid` · `statGrid` · `REGION_MAX` · `CMD_HELP` · `CMD_LIST` · `BP_KEY`
+내보내는 값 — `HISTORY_MAX` · `ACHIEVEMENTS` · `achGrid` · `BUILD_R` · `BUILD_IDS` · `statGrid` · `REGION_MAX` · `CMD_HELP` · `CMD_LIST` · `BP_KEY`
 
 ### `hud.js` — HUD · 핫바 · 블록 고르기 · 미니맵
 
@@ -510,10 +511,10 @@
 |---|---:|
 | `newWorld(seed)` | 34 |
 | `step(dt)` | 68 |
-| `animate()` | 578 |
-| `autoTuneFar(fps)` | 655 |
-| `farNow()` | 673 |
-| `refreshPerf()` | 675 |
+| `animate()` | 581 |
+| `autoTuneFar(fps)` | 658 |
+| `farNow()` | 676 |
+| `refreshPerf()` | 678 |
 
 내보내는 값 — `GRAVITY` · `PLACE_DELAY` · `SNEAK_MUL` · `AIR_CONTROL` · `fwd` · `clock`
 

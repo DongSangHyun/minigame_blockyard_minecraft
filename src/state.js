@@ -82,6 +82,7 @@ export const S = {
   fpsFrames: 0,
   waterTimer: 0,
   achTimer: 0,
+  buildAchTimer: 0,
   lavaTimer: 0,
   caveTimer: 6,
   moodTimer: 40,

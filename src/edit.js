@@ -2,10 +2,10 @@
 import { S } from "./state.js";
 import { opts } from "./settings.js";
 import { SLOTS } from "./save.js";
-import { DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
-import { DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
-import { get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
-import { relightLocal } from "./light.js";
+import { SEA, DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
+import { TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
+import { touched, get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
+import { lightSky, relightLocal } from "./light.js";
 import { enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
 import { touch } from "./mesh.js";
 import { player, stats } from "./player.js";
@@ -188,12 +188,28 @@ export var ACHIEVEMENTS = [
   { id: "photo", name: "사진사", desc: "사진 모드로 화면을 저장한다" },
   { id: "gold", name: "금맥", desc: "금 광석을 캔다" },
   { id: "diamond", name: "다이아몬드!", desc: "다이아몬드 광석을 캔다" },
-  { id: "breed", name: "목장주", desc: "동물 둘에게 꽃을 주어 새끼를 얻는다" }
+  { id: "breed", name: "목장주", desc: "동물 둘에게 꽃을 주어 새끼를 얻는다" },
+  // 여기부터는 "기능을 만져 봤나" 가 아니라 **지은 것**을 본다.
+  // 크리에이티브에서 "다음에 뭐 하지" 를 막아 주는 건 이것뿐이다.
+  { id: "room", name: "내 집", desc: "문이 달린 방을 짓는다 (27칸 이상 · 밖이 안 보이게)" },
+  { id: "tower", name: "전망대", desc: "20칸 높이로 쌓아 올린다" },
+  { id: "bridge", name: "다리", desc: "물 위로 20칸을 잇는다" },
+  { id: "mineshaft", name: "갱도", desc: "지하 깊이 200칸을 파고 횃불 10개를 단다" },
+  { id: "palette", name: "색칠", desc: "한자리에 양털 여덟 빛깔을 쓴다" }
 ];
 export var achGrid = document.getElementById("achgrid");
 
 export function refreshAchList() {
   var html = "";
+  // 아직 안 딴 것 셋을 맨 위에 "다음에 해 볼 것" 으로 보여 준다 —
+  // 30개를 거의 다 딴 사람이 화면에서 목표를 잃지 않게
+  var todo = [];
+  for (var t = 0; t < ACHIEVEMENTS.length && todo.length < 3; t++)
+    if (!S.earned[ACHIEVEMENTS[t].id]) todo.push(ACHIEVEMENTS[t]);
+  if (todo.length) {
+    html += '<div class="ach next"><b>\u25b8</b><span>다음에 해 볼 것 — ' +
+            todo.map(function (a) { return a.name; }).join(" · ") + '</span></div>';
+  }
   for (var i = 0; i < ACHIEVEMENTS.length; i++) {
     var a = ACHIEVEMENTS[i];
     html += '<div class="ach' + (S.earned[a.id] ? " got" : "") + '">' +
@@ -203,6 +219,109 @@ export function refreshAchList() {
   achGrid.innerHTML = html;
   if (helpAchList) helpAchList.innerHTML = html;
 }
+// ── 지은 것을 보는 과제 — 사람이 손댄 칸(touched)만 센다.
+// 자연 지형이 우연히 조건을 채워 과제를 주면 "내가 지었다" 는 느낌이 사라진다.
+export var BUILD_R = 32;          // 플레이어 주변 이만큼만 본다 (44만 칸을 다 볼 이유가 없다)
+export var BUILD_IDS = ["room", "tower", "bridge", "mineshaft", "palette"];
+export function checkBuildAchievements() {
+  // 다섯을 다 땄으면 아예 돌지 않는다 — 이 검사는 10초에 한 번이지만 최악 8ms 다
+  var left = false;
+  for (var q = 0; q < BUILD_IDS.length && !left; q++) if (!S.earned[BUILD_IDS[q]]) left = true;
+  if (!left) return;
+
+  var px = Math.floor(player.pos.x), pz = Math.floor(player.pos.z);
+  var x0 = Math.max(1, px - BUILD_R), x1 = Math.min(WX - 2, px + BUILD_R);
+  var z0 = Math.max(1, pz - BUILD_R), z1 = Math.min(WZ - 2, pz + BUILD_R);
+  var x, y, z, i;
+
+  // 탑 — 한 기둥에 사람이 쌓은 블록이 20칸 연속
+  // 다리 — 물 위(해수면 위)로 사람이 놓은 블록이 20칸 이어짐
+  var wools = {}, woolN = 0;
+  for (x = x0; x <= x1; x++) {
+    for (z = z0; z <= z1; z++) {
+      var run = 0, bridgeRun = 0;
+      for (y = 1; y < WY - 1; y++) {
+        i = idx(x, y, z);
+        var b = world[i];
+        var mine = touched[i] === 1 && b !== AIR;
+        run = mine ? run + 1 : 0;
+        if (run >= 20) unlock("tower");
+        if (isWool(b) && touched[i] === 1 && !wools[b]) { wools[b] = 1; woolN++; }
+      }
+      // 다리는 가로로 잰다 — 이 기둥의 해수면 위 첫 사람 블록이 물 위에 떠 있는가
+      var over = false;
+      for (y = SEA + 2; y < WY - 1 && !over; y++) {
+        i = idx(x, y, z);
+        if (touched[i] !== 1 || world[i] === AIR) continue;
+        // 아래로 훑어 바닥이 물이면 물 위에 놓인 것이다
+        for (var dy = y - 1; dy > 0; dy--) {
+          var ub = world[idx(x, dy, z)];
+          if (ub === WATER) { over = true; break; }
+          if (ub !== AIR) break;
+        }
+      }
+      bridgeSpan = over ? bridgeSpan + 1 : 0;
+      if (bridgeSpan >= 20) unlock("bridge");
+    }
+    bridgeSpan = 0;                       // 기둥 줄이 바뀌면 이어짐이 끊긴다
+  }
+  if (woolN >= 8) unlock("palette");
+
+  // 갱도 — 지하(y ≤ 8)에서 사람이 파낸 칸 200개 + 횃불 10개
+  var dug = 0, torches = 0;
+  if (!S.earned.mineshaft)
+  for (y = 1; y <= 8; y++)
+    for (x = x0; x <= x1; x++)
+      for (z = z0; z <= z1; z++) {
+        i = idx(x, y, z);
+        if (touched[i] !== 1) continue;
+        if (world[i] === AIR) dug++;
+        else if (world[i] === TORCH) torches++;
+      }
+  if (dug >= 200 && torches >= 10) unlock("mineshaft");
+
+  // 방 — 문이 있고, 그 문에서 시작한 공기가 밖으로 새지 않는 27칸 이상의 공간
+  checkRoom(x0, x1, z0, z1);
+}
+var bridgeSpan = 0;
+
+// 문 옆 공기에서 6방향으로 번져 본다. 상한(600칸) 안에서 갇히면 방이다.
+function checkRoom(x0, x1, z0, z1) {
+  if (S.earned.room) return;
+  for (var x = x0; x <= x1; x++)
+    for (var z = z0; z <= z1; z++)
+      for (var y = 1; y < WY - 2; y++) {
+        if (world[idx(x, y, z)] !== DOOR) continue;
+        // DIRS 는 앞 4개에 수직이 섞여 있다 — 6개를 다 훑고 수직만 건너뛴다.
+        // 4개만 돌면 문의 ±z 이웃을 아예 못 봐서 방을 영영 못 찾는다.
+        for (var d = 0; d < 6; d++) {
+          if (DIRS[d][1] !== 0) continue;             // 문 양옆(수평)에서 시작한다
+          var sx = x + DIRS[d][0], sy = y, sz = z + DIRS[d][2];
+          if (!inside(sx, sy, sz) || world[idx(sx, sy, sz)] !== AIR) continue;
+          if (floodEnclosed(sx, sy, sz) >= 27) { unlock("room"); return; }
+        }
+      }
+}
+// 밖으로 새지 않으면 칸 수를, 새면 0 을 돌려준다
+function floodEnclosed(sx, sy, sz) {
+  var seen = {}, stack = [[sx, sy, sz]], n = 0;
+  while (stack.length) {
+    var c = stack.pop();
+    var cx = c[0], cy = c[1], cz = c[2];
+    if (!inside(cx, cy, cz)) return 0;                 // 세계 밖으로 샜다
+    var key = idx(cx, cy, cz);
+    if (seen[key]) continue;
+    var b = world[key];
+    if (b !== AIR) continue;                           // 벽·문에 막힌다 (문도 벽으로 친다)
+    if (lightSky[key] === 15) return 0;                // 하늘이 보이면 방이 아니다
+    seen[key] = 1;
+    if (++n > 600) return 0;                           // 너무 크면 방이 아니라 동굴이다
+    for (var d = 0; d < 6; d++)
+      stack.push([cx + DIRS[d][0], cy + DIRS[d][1], cz + DIRS[d][2]]);
+  }
+  return n;
+}
+
 export var statGrid = document.getElementById("statgrid");
 export function refreshStats() {
   var mm = Math.floor(S.playSeconds / 60), ss = Math.floor(S.playSeconds % 60);

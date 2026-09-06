@@ -5333,6 +5333,66 @@ test("v47 명령: expand 로 영역을 여섯 방향으로 늘린다", async (pa
   assert(r.top < r.WY, "세계 밖으로 넘어갔다 — y1=" + r.top);
 });
 
+test("v48 과제: 지은 것을 보는 과제 다섯이 실제로 뜬다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const ids = B.ACHIEVEMENTS.map(a => a.id);
+    for (const k of ["room", "tower", "bridge", "mineshaft", "palette"]) delete B.S.earned[k];
+    const X = 30, Y = 40, Z = 30;
+    // 넓은 빈 시험대
+    for (let dx = -20; dx <= 20; dx++) for (let dz = -20; dz <= 20; dz++)
+      for (let dy = -2; dy <= 26; dy++) B.set(X + dx, Y + dy, Z + dz, dy === -2 ? B.B.STONE : 0);
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+
+    // 탑 — 20칸 기둥 (record=true 라야 touched 가 찍힌다)
+    for (let dy = 0; dy < 20; dy++) B.applyEdit(X + 10, Y + dy, Z + 10, B.B.COBBLE, true, 0);
+    // 색칠 — 양털 8색
+    for (let c = 0; c < 8; c++) B.applyEdit(X - 6 + c, Y, Z - 6, B.WOOL0 + c, true, 0);
+    B.checkBuildAchievements();
+    const tower = !!B.S.earned.tower, palette = !!B.S.earned.palette;
+
+    // 방 — 6×5×6 껍데기, 안쪽 4×3×4 = 48칸 (기준 27칸)
+    const RX = X - 12, RY = Y, RZ = Z + 8;
+    for (let dx = 0; dx < 6; dx++) for (let dz = 0; dz < 6; dz++) for (let dy = 0; dy < 5; dy++) {
+      const edge = dx === 0 || dx === 5 || dz === 0 || dz === 5 || dy === 0 || dy === 4;
+      B.applyEdit(RX + dx, RY + dy, RZ + dz, edge ? B.B.PLANKS : B.B.AIR, true, 0);
+    }
+    B.applyEdit(RX + 2, RY + 1, RZ, B.B.DOOR, true, B.doorShapeFor(2, false));
+    B.applyEdit(RX + 2, RY + 2, RZ, B.B.DOOR, true, B.doorShapeFor(2, false));
+    B.refreshAllTops(); B.relightAll(false);
+    B.checkBuildAchievements();
+    const room = !!B.S.earned.room;
+    B.endPlay(); B.setPaused(false);
+    return { ids, tower, palette, room,
+             has: ["room","tower","bridge","mineshaft","palette"].every(k => ids.indexOf(k) >= 0) };
+  });
+  assert(r.has, "건축 과제 다섯이 목록에 없다");
+  assert(r.tower, "20칸을 쌓았는데 '전망대' 가 안 뜬다");
+  assert(r.palette, "양털 8색을 썼는데 '색칠' 이 안 뜬다");
+  assert(r.room, "문 달린 방을 지었는데 '내 집' 이 안 뜬다");
+});
+
+test("v48 과제: 자연 지형만으로는 건축 과제가 뜨지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.generate(777); B.relightAll(false);          // 사람이 손댄 칸 0
+    for (const k of ["room", "tower", "bridge", "mineshaft", "palette"]) delete B.S.earned[k];
+    // 산·동굴이 많은 자리를 몇 군데 훑는다
+    const spots = [[20, 20], [48, 48], [70, 30], [30, 70]];
+    for (const [x, z] of spots) {
+      B.player.pos.set(x + 0.5, B.topMap[z * B.WX + x] + 1, z + 0.5);
+      B.checkBuildAchievements();
+    }
+    const got = ["room", "tower", "bridge", "mineshaft", "palette"].filter(k => B.S.earned[k]);
+    B.endPlay(); B.setPaused(false);
+    return { got };
+  });
+  eq(r.got.length, 0, "자연 지형이 건축 과제를 줬다: " + r.got.join(", "));
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

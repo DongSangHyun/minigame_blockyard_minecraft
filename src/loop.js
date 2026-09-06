@@ -17,7 +17,7 @@ import { opts } from "./settings.js";
 import { EYE, HALF, moveAxis, moveHorizontal, player, pointSolid, raycast, spawn, stats, unstick } from "./player.js";
 import { at, caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { saveGame } from "./save.js";
-import { ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
+import { checkBuildAchievements, ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
 import { airBar, airEl, drawMinimap, facingText, mmCap, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
 import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
@@ -555,6 +555,9 @@ export function step(dt) {
       var lb = localBiome();
       if (lb === 1) unlock("snow");
       if (lb === 2) unlock("desert");
+      // 지은 것을 보는 과제는 훨씬 무거우니 10초에 한 번만
+      S.buildAchTimer = (S.buildAchTimer || 0) + 0.5;
+      if (S.buildAchTimer >= 10) { S.buildAchTimer = 0; checkBuildAchievements(); }
       if (dayLight(S.timeOfDay) < 0.2) {
         var ax2 = Math.max(0, Math.min(WX - 1, Math.floor(player.pos.x)));
         var az2 = Math.max(0, Math.min(WZ - 1, Math.floor(player.pos.z)));
