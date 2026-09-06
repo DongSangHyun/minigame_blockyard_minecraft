@@ -193,7 +193,7 @@ window.__blockyard = {
   HL_CROSS: HL_CROSS, SHAPE_BOUNDS: SHAPE_BOUNDS,
   lavaPop: lavaPop, lavaHiss: lavaHiss,
   waterLvl: waterLvl, MAXFLOW: MAXFLOW, dryTick: dryTick, enqueueDryAround: enqueueDryAround,
-  decayTick: decayTick, queueLeafDecay: queueLeafDecay, decayQ: Q.decayQ,
+  decayTick: decayTick, queueLeafDecay: queueLeafDecay, decayQ: Q.decayQ, Q: Q,
   decayPending: function () { return Q.decayQ.length - Q.decayHead; },
   CROSS: CROSS, SHAPE_NAMES: SHAPE_NAMES, upperFromHit: upperFromHit,
   liftLegacy: liftLegacy, LEGACY_WY: LEGACY_WY, blocksLight: blocksLight,

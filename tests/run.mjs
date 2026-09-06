@@ -6166,6 +6166,19 @@ test("v62 묘목: 심어 두면 나무가 되고, 되돌리기 한 번에 사라
     while (B.get(RX, Y, RZ) === B.B.SAPLING && ticks2 < 400) { B.growTick(1.0); ticks2++; }
     const regrew = B.get(RX, Y, RZ) !== B.B.SAPLING;
 
+    // (5b) 진짜 프레임으로도 시계가 제 속도로 간다.
+    // growTick 을 직접 부르는 시험만 있으면, 이걸 0.15초짜리 블록 안에 두어
+    // 9배 느려져도 아무도 모른다 (실제로 그랬다).
+    const TX = X + 8, TZ = Z;
+    for (let dy = 0; dy <= 10; dy++) B.set(TX, Y + dy, TZ, 0);
+    B.set(TX, Y - 1, TZ, B.B.GRASS);
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.pos.set(TX + 9.5, Y, TZ + 9.5);
+    B.applyEdit(TX, Y, TZ, B.B.SAPLING, false, 0);
+    B.Q.growTimer = 0;
+    for (let k = 0; k < 60; k++) B.step(1 / 60);      // 1초
+    const clock = B.Q.growTimer;
+
     // (6) 사람이 그 자리에 서 있으면 자라지 않는다 — 줄기 속에 갇히면 나갈 수가 없다
     const PX = X, PZ = Z + 8;
     for (let dy = 0; dy <= 10; dy++) B.set(PX, Y + dy, PZ, 0);
@@ -6185,7 +6198,7 @@ test("v62 묘목: 심어 두면 나무가 되고, 되돌리기 한 번에 사라
 
     B.S.history.length = 0; B.S.future.length = 0;
     B.endPlay(); B.setPaused(false);
-    return { planted, grew, leaves, hist, leftover, onStone, inDark, regrew, ticks, darkLv, lowLv, underRoof, puffed, onPlayer, afterStepAside };
+    return { planted, grew, leaves, hist, leftover, onStone, inDark, regrew, ticks, darkLv, lowLv, underRoof, puffed, onPlayer, afterStepAside, clock };
   });
   assert(r.planted, "묘목이 안 놓인다 — 블록 등록이 빠졌다");
   assert(r.grew, `묘목이 ${r.ticks}초를 기다려도 안 자란다`);
@@ -6201,6 +6214,9 @@ test("v62 묘목: 심어 두면 나무가 되고, 되돌리기 한 번에 사라
   assert(r.puffed, "나무가 소리도 잎조각도 없이 솟았다 — 무슨 일이 난 건지 알 수 없다");
   assert(r.onPlayer, "사람이 선 자리에서 나무가 자랐다 — 줄기 속에 갇힌다");
   assert(r.afterStepAside, "비켜섰는데도 안 자란다");
+  // 1초를 돌렸으면 시계도 1초 가 있어야 한다. 자라 버렸으면 0으로 돌아가 있으니 그것도 통과.
+  assert(r.clock > 0.8 || r.clock === 0,
+         "1초를 돌렸는데 자람 시계가 " + r.clock.toFixed(2) + "초만 갔다 — 묘목이 그만큼 느리게 자란다");
 });
 
 test("v63 청사진: 메뉴에서 목록을 보고 불러오고 지운다", async (page) => {

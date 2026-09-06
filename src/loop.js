@@ -508,8 +508,12 @@ export function step(dt) {
     }
     waterTick(300);
     fallTick(200);
-    growTick(dt);          // 심어 둔 묘목이 나무가 된다
   }
+
+  // 묘목은 프레임마다 부른다. 위의 0.15초 블록 안에 두면 dt 가 그 안에서만 쌓여
+  // 실제로는 9배 느려진다 (평균 12초로 잡은 것이 110초가 됐다).
+  // 큐가 비어 있으면 바로 돌아오니 프레임마다 불러도 공짜다.
+  if (playing) growTick(dt);
 
   // 눈이 오면 주변 지표에 조금씩 쌓인다 (비가 오면 다시 녹는다)
   if (playing && S.weatherMix > 0.4) {
