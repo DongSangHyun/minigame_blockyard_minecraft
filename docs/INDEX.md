@@ -58,5 +58,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v58 — 만들어 놓고 화면까지 못 간 것들 · 회귀 테스트 250항목 전부 통과.**
+**v59 — 되돌리기의 구멍과 배려 설정 · 회귀 테스트 250항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/
