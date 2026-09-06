@@ -82,10 +82,22 @@ function placeMob(m, far) {
     if (x < 2 || x > WX - 2 || z < 2 || z > WZ - 2) continue;
     var y = groundAt(x, z);
     if (y < 2 || y >= WY - 2) continue;
-    var below = world[idx(Math.floor(x), y - 1, Math.floor(z))];
+    var gx = Math.floor(x), gz = Math.floor(z);
+    var below = world[idx(gx, y - 1, gz)];
     if (!isSolid(below)) continue;
     if (below === WATER || below === LAVA || below === ICE) continue;   // 물·용암은 피한다
-    if (world[idx(Math.floor(x), y, Math.floor(z))] !== AIR) continue;
+    if (world[idx(gx, y, gz)] !== AIR || world[idx(gx, y + 1, gz)] !== AIR) continue;
+    // 기둥의 겉면이 젖어 있으면 그 기둥은 바다다 — topMap 이 아직 물을 못 받은 순간에
+    // 바다 밑 모래를 "마른 땅" 으로 보고 양을 해저에 놓는 일이 있었다 (v30 진단)
+    var surf = world[idx(gx, topMap[gz * WX + gx], gz)];
+    if (surf === WATER || surf === LAVA || surf === ICE) continue;
+    var sea = SEA;
+    if (y <= sea) {                          // 해수면 아래면 위로 하늘까지 물이 없어야 한다
+      var wetAbove = false;
+      for (var wy2 = y; wy2 <= sea + 1 && !wetAbove; wy2++)
+        if (world[idx(gx, wy2, gz)] === WATER) wetAbove = true;
+      if (wetAbove) continue;
+    }
     m.x = x; m.y = y; m.z = z;
     m.yaw = Math.random() * Math.PI * 2;
     m.turn = 1 + Math.random() * 3;
@@ -106,11 +118,29 @@ export function anyMobNear(px, pz, r) {
   return false;
 }
 
+// 서 있는 기둥이 물·용암·얼음이거나 기둥 겉면보다 아래(물속 공기 주머니·해저)에 있으면
+// 그 자리는 동물이 있을 곳이 아니다 — 놓인 뒤에 물이 차거나 topMap 이 늦게 갱신된 경우다
+function strandedAt(m) {
+  var gx = Math.floor(m.x), gz = Math.floor(m.z);
+  if (gx < 0 || gx >= WX || gz < 0 || gz >= WZ) return true;
+  var top = topMap[gz * WX + gx];
+  var tb = world[idx(gx, top, gz)];
+  if (tb === WATER || tb === LAVA || tb === ICE) return true;
+  return m.y < top - 0.01;
+}
+
 export function updateMobs(dt) {
   if (!mobs.length) return;
   var px = player.pos.x, pz = player.pos.z;
   for (var i = 0; i < mobs.length; i++) {
     var m = mobs[i], k = MOB_KINDS[m.kind];
+
+    // 물속·해저·얼음 위에 서 있으면 마른 땅으로 다시 놓는다 (0.5초마다 한 번만 본다)
+    m.dryCheck = (m.dryCheck || 0) - dt;
+    if (m.dryCheck <= 0) {
+      m.dryCheck = 0.5;
+      if (strandedAt(m)) { placeMob(m, false); continue; }
+    }
 
     // 먹이를 받은 동물은 플레이어 쪽을 본다
     if (m.follow > 0) {
@@ -134,7 +164,18 @@ export function updateMobs(dt) {
     if (m.walk) {
       var sp = 1.15 * dt;
       var nx = m.x - Math.sin(m.yaw) * sp, nz = m.z - Math.cos(m.yaw) * sp;
-      var ny = groundAt(nx, nz);
+      // 딛을 자리를 지금 높이 언저리에서 찾는다 — topMap(기둥 최고점) 을 쓰면 지붕·나뭇잎이
+      // "땅" 이 되어 헛간 안에서 얼어붙는다. 단, 딛는 돌 위의 몸 칸이 물·용암·얼음이거나
+      // 딛는 것이 얼음이면 땅이 아니다 — 지난번엔 이 조건이 없어 얕은 물의 바닥돌을 땅으로 봤다.
+      var cx = Math.floor(nx), cz = Math.floor(nz), ny = -1;
+      for (var sy = Math.floor(m.y) + 1; sy >= Math.floor(m.y) - 2; sy--) {
+        if (sy < 1 || sy + 1 >= WY) continue;
+        var gb = world[idx(cx, sy, cz)], ab = world[idx(cx, sy + 1, cz)];
+        if (!isSolid(gb) || gb === ICE) continue;
+        if (isSolid(ab) || ab === WATER || ab === LAVA || ab === ICE) continue;
+        ny = sy + 1; break;
+      }
+      if (ny < 0) { m.yaw += 1.6 + Math.random(); m.phase += dt * 7; continue; }
       // 한 칸 넘게 오르내리는 곳은 가지 않는다 — 절벽에서 떨어지지 않게
       var footB = world[idx(Math.floor(nx), Math.max(0, ny - 1), Math.floor(nz))];
       // 발밑 한 칸만 보면 얕은 물을 못 알아본다 — 바닥이 두 칸 아래 돌이면

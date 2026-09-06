@@ -4374,7 +4374,7 @@ test("v25 불: 두 번째 불을 붙여도 첫 불이 멈추지 않는다", asyn
   assert(r.nearC <= r.reach, "두 번째 불의 원점이 잊혀 번짐이 막힌다");
 });
 
-test("v26 동물: 평지를 걷고, 열린 문 시험대가 선다", async (page) => {
+test("v26 동물: 지붕을 얹어도 걸어 다니고, 열린 문 시험대가 선다", async (page) => {
   const r = await page.evaluate(() => {
     const B = window.__blockyard;
     const X = 20, Z = 20, Y = 46;
@@ -4408,7 +4408,7 @@ test("v26 동물: 평지를 걷고, 열린 문 시험대가 선다", async (page
     return { open, roofed, gateOpen };
   });
   assert(r.open > 1, "지붕이 없는데도 동물이 안 걷는다 — " + r.open.toFixed(2));
-  // 지붕 아래 보행은 아직 미해결 — 물 회피와 충돌해 되돌렸다 (docs/BACKLOG.md)
+  assert(r.roofed > 1, "지붕을 얹으니 동물이 얼어붙었다 — " + r.roofed.toFixed(2) + "칸");
   assert(r.gateOpen, "열린 문 시험대가 안 세워졌다");
 });
 
@@ -4562,6 +4562,70 @@ test("v29 소리: 자리를 가진 소리가 그 자리에서 난다", async (pa
     near(r.pos[0], 12, 1e-6, "패너 x"); near(r.pos[1], 20, 1e-6, "패너 y"); near(r.pos[2], 33, 1e-6, "패너 z");
   }
   eq(r.ref, 4, "패너 기준 거리"); eq(r.max, 60, "패너 최대 거리");
+});
+
+// 지붕 아래 보행을 다시 손댈 때의 방어선 — 지난번엔 이 시험이 없어서 10회 반복이 결함을 찾아 줘야 했다.
+test("v30 동물: 얕은 물(1칸·2칸)로는 걸어 들어가지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    if (!B.mobs.length) B.seedMobs();
+    const Y = 46;
+    function pool(x0, z0, depth) {
+      // x0-6..x0+6 평지, x0+2 부터 동쪽은 depth 칸 깊이의 물
+      for (let dx = -6; dx <= 6; dx++) for (let dz = -3; dz <= 3; dz++) {
+        for (let dy = -4; dy <= 4; dy++) B.set(x0 + dx, Y + dy, z0 + dz, 0);
+        const floor = dx >= 2 ? Y - 1 - depth : Y - 1;
+        for (let y = Y - 4; y <= floor; y++) B.set(x0 + dx, y, z0 + dz, B.B.STONE);
+        if (dx >= 2) for (let y = floor + 1; y <= Y - 1; y++) B.set(x0 + dx, y, z0 + dz, B.B.WATER);
+      }
+      B.refreshAllTops(); B.relightAll(false);
+      const m = B.mobs[0];
+      m.x = x0 - 3.5; m.z = z0 + 0.5; m.y = Y; m.follow = 0;
+      m.walk = 1; m.turn = 1e9; m.yaw = -Math.PI / 2;      // +x 로 직진 (물 쪽)
+      let maxX = m.x;
+      for (let i = 0; i < 8 * 60; i++) {
+        B.updateMobs(1 / 60);
+        m.walk = 1; m.turn = 1e9; m.yaw = -Math.PI / 2;    // 방향을 계속 물 쪽으로 강제
+        if (m.x > maxX) maxX = m.x;
+      }
+      return +(maxX - x0).toFixed(2);                       // 물가(2.0) 를 넘으면 실패
+    }
+    const one = pool(30, 20, 1), two = pool(30, 40, 2);
+    B.endPlay(); B.setPaused(false);
+    return { one, two };
+  });
+  assert(r.one < 2.0, "1칸 깊이 물로 걸어 들어갔다 — x=" + r.one);
+  assert(r.two < 2.0, "2칸 깊이 물로 걸어 들어갔다 — x=" + r.two);
+});
+
+test("v30 동물: 물속 공기 주머니에 갇히면 마른 땅으로 다시 놓인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    if (!B.mobs.length) B.seedMobs();
+    B.player.pos.set(48.5, 30, 48.5);
+    // 해저 공기 주머니: 바닥 y=3, 공기 4~5, 그 위 6~SEA 물
+    const X = 10, Z = 10;
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+      for (let y = 1; y <= 3; y++) B.set(X + dx, y, Z + dz, B.B.STONE);
+      B.set(X + dx, 4, Z + dz, 0); B.set(X + dx, 5, Z + dz, 0);
+      for (let y = 6; y <= B.SEA; y++) B.set(X + dx, y, Z + dz, B.B.WATER);
+    }
+    B.refreshAllTops();
+    const m = B.mobs[0];
+    m.x = X + 0.5; m.z = Z + 0.5; m.y = 4; m.walk = 0; m.turn = 1e9; m.follow = 0; m.dryCheck = 0;
+    for (let i = 0; i < 90; i++) B.updateMobs(1 / 60);
+    const gx = Math.floor(m.x), gz = Math.floor(m.z);
+    const top = B.topMap[gz * B.WX + gx];
+    const surf = B.world[B.idx(gx, top, gz)];
+    B.endPlay(); B.setPaused(false);
+    return { moved: Math.hypot(m.x - (X + 0.5), m.z - (Z + 0.5)) > 3, dry: surf !== B.B.WATER && surf !== B.B.ICE,
+             above: m.y >= top - 0.01 };
+  });
+  assert(r.moved, "해저 공기 주머니에 그대로 남아 있다");
+  assert(r.dry, "다시 놓인 자리의 기둥 겉면이 물이다");
+  assert(r.above, "기둥 겉면보다 아래에 놓였다");
 });
 
 // ── 실행 ───────────────────────────────────────────────
