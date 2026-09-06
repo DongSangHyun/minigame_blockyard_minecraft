@@ -12,6 +12,7 @@ export var AIR = 0, GRASS = 1, DIRT = 2, STONE = 3, SAND = 4, LOG = 5, LEAVES = 
     FENCE = 32, GATE = 33, PANE = 34, LADDER = 35;
 // 양털 16색 — 건축의 팔레트. 36~51 을 연속으로 쓴다.
 export var TNT = 52, FIRE = 53, FLINT = 54;
+export var DOOR = 55;      // 2칸짜리 진짜 문 — 아래위 두 칸을 함께 쓴다
 export var WOOL0 = 36, WOOL_COUNT = 16;
 export var WOOL_COLORS = [
   ["흰색", "#e9ecec"], ["연회색", "#8e8e86"], ["회색", "#3e4447"], ["검정", "#1d1c21"],
@@ -57,6 +58,7 @@ TILES[FENCE]     = [8, 8, 8];      // 나무판자 결을 그대로 쓴다
 TILES[GATE]      = [8, 8, 8];
 TILES[PANE]      = [9, 9, 9];      // 유리
 TILES[LADDER]    = [36, 36, 36];
+TILES[DOOR]      = [57, 57, 57];
 TILES[TNT]       = [54, 53, 54];
 TILES[FIRE]      = [55, 55, 55];
 TILES[FLINT]     = [56, 56, 56];
@@ -81,7 +83,7 @@ nm(BIRCH_LOG, "자작나무 원목", "BIRCH"); nm(BIRCH_LEAVES, "자작나무 �
 nm(SPRUCE_LEAVES, "가문비 잎", "SPRUCE LEAVES");
 nm(GOLD, "금 광석", "GOLD"); nm(DIAMOND, "다이아 광석", "DIAMOND");
 nm(TNT, "TNT", "TNT"); nm(FIRE, "불", "FIRE"); nm(FLINT, "부싯돌", "FLINT");
-nm(FENCE, "울타리", "FENCE"); nm(GATE, "울타리 문", "GATE");
+nm(FENCE, "울타리", "FENCE"); nm(GATE, "울타리 문", "GATE"); nm(DOOR, "문", "DOOR");
 nm(PANE, "유리판", "GLASS PANE"); nm(LADDER, "사다리", "LADDER");
 
 // 캐는 데 걸리는 시간(초)
@@ -97,7 +99,7 @@ HARDNESS[FLOWER_Y] = 0.05; HARDNESS[TORCH] = 0.06;
 HARDNESS[CACTUS] = 0.34; HARDNESS[DEADBUSH] = 0.05; HARDNESS[DRYGRASS] = 0.05;
 HARDNESS[GOLD] = 2.35; HARDNESS[DIAMOND] = 2.9;
 HARDNESS[TNT] = 0.30; HARDNESS[FIRE] = 0.02; HARDNESS[FLINT] = 0.20;
-HARDNESS[FENCE] = 0.55; HARDNESS[GATE] = 0.55;
+HARDNESS[FENCE] = 0.55; HARDNESS[GATE] = 0.55; HARDNESS[DOOR] = 0.62;
 HARDNESS[PANE] = 0.20; HARDNESS[LADDER] = 0.24;
 HARDNESS[BIRCH_LOG] = 0.78; HARDNESS[BIRCH_LEAVES] = 0.18; HARDNESS[SPRUCE_LEAVES] = 0.18;
 // 양털 16색을 표·이름·굳기에 한꺼번에 등록한다
@@ -130,13 +132,13 @@ CROSS[DEADBUSH]  = { w: 0.44, h: 0.86, sway: 0.30 };
 CROSS[DRYGRASS]  = { w: 0.46, h: 0.80, sway: 0.50 };
 CROSS[FIRE]      = { w: 0.50, h: 0.96, sway: 0.85 };
 export function isCross(b) { return CROSS[b] !== undefined; }
-export function needsFloor(b) { return isCross(b); }
+export function needsFloor(b) { return isCross(b) || b === DOOR; }
 
 export var ALL_BLOCKS = [GRASS, DIRT, STONE, COBBLE, SAND, GRAVEL, SNOW, LOG,
                   LEAVES, PLANKS, GLASS, BRICK, LAMP, TORCH, COAL, IRON, ICE,
                   WATER, LAVA, CACTUS, TALLGRASS, FLOWER_R, FLOWER_Y,
                   DEADBUSH, DRYGRASS, BIRCH_LOG, BIRCH_LEAVES, SPRUCE_LEAVES,
-                  GOLD, DIAMOND, FENCE, GATE, PANE, LADDER, TNT];
+                  GOLD, DIAMOND, FENCE, GATE, DOOR, PANE, LADDER, TNT];
 
 // 도구 — 목록에는 나오지만 "놓는 블록" 이 아니다.
 // ALL_BLOCKS 에 넣으면 "수집가"(모든 블록 놓기) 과제가 영영 불가능해진다.
@@ -149,7 +151,7 @@ export function isConnecting(b) { return b === FENCE || b === PANE; }
 // 얇지만 통과할 수 있는 블록 (사다리)
 export function isClimbable(b) { return b === LADDER; }
 // 우클릭으로 여닫는 블록
-export function isOpenable(b) { return b === GATE; }
+export function isOpenable(b) { return b === GATE || b === DOOR; }
 // 불에 타는 것들 — 불이 옮겨 붙는다
 export function isFlammable(b) {
   return b === LOG || b === BIRCH_LOG || b === PLANKS || b === LEAVES ||
@@ -181,6 +183,16 @@ export var SH_AXIS_X = 11, SH_AXIS_Z = 12;
 // 13~16 은 벽에 붙은 얇은 블록 — 벽이 어느 쪽에 있는지를 담는다
 export var SH_WALL_N = 13, SH_WALL_E = 14, SH_WALL_S = 15, SH_WALL_W = 16;
 export var WALL_DIR = { 13: [0, 0, -1], 14: [1, 0, 0], 15: [0, 0, 1], 16: [-1, 0, 0] };
+// 17~24 는 문 — 17~20 닫힘(N·E·S·W), 21~24 는 같은 방향의 열림.
+// 아래위 어느 칸인지는 밑칸이 문인지로 판별한다 (상태를 더 만들지 않는다).
+export var SH_DOOR_N = 17, SH_DOOR_E = 18, SH_DOOR_S = 19, SH_DOOR_W = 20;
+export var SH_DOOR_OPEN_OFF = 4;
+export function isDoorShape(sh) { return sh >= SH_DOOR_N && sh <= SH_DOOR_W + SH_DOOR_OPEN_OFF; }
+export function doorOpen(sh) { return sh >= SH_DOOR_N + SH_DOOR_OPEN_OFF; }
+export function doorFacing(sh) { return (sh - SH_DOOR_N) % SH_DOOR_OPEN_OFF; }   // 0 N · 1 E · 2 S · 3 W
+export function doorShapeFor(facing, open) {
+  return SH_DOOR_N + (facing & 3) + (open ? SH_DOOR_OPEN_OFF : 0);
+}
 export function isWallShape(sh) { return sh >= SH_WALL_N && sh <= SH_WALL_W; }
 // 계단 갈래인가 — 아래 계단(2~5)과 반전 계단(7~10) 을 한꺼번에 본다
 export function isStairShape(sh) {
@@ -236,7 +248,7 @@ export function isSolid(b) { return b !== AIR && !isLiquid(b) && !isCross(b) && 
 export function blocksLight(b) { return b !== AIR && !isTransparent(b) && !isCross(b); }
 export function lightPass(b) {
   return b === AIR || b === WATER || b === GLASS || b === ICE || b === PANE ||
-         b === FENCE || b === GATE || b === LADDER || isCross(b);
+         b === FENCE || b === GATE || b === DOOR || b === LADDER || isCross(b);
 }
 
 

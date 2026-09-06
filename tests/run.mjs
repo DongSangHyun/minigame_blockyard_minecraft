@@ -4969,6 +4969,44 @@ test("v38 용암: 흐르고, 물에 닿으면 굳고, 근원을 캐면 물러난
   assert(r.cobble > 0, "용암과 물이 만났는데 조약돌이 안 생긴다");
 });
 
+test("v39 문: 두 칸으로 서고, 함께 열리고, 반쪽만 남지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 60, Y = 44, Z = 20;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+      for (let dy = 0; dy <= 5; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    // 놓기 — 플레이어가 남쪽(+z)에 서서 발밑 앞 칸을 본다
+    B.player.pos.set(X + 0.5, Y, Z + 2.5);
+    B.getBar()[B.getSelected()] = B.B.DOOR;
+    B.applyEdit(X, Y, Z, B.B.DOOR, true, B.doorShapeFor(2, false));
+    B.applyEdit(X, Y + 1, Z, B.B.DOOR, true, B.doorShapeFor(2, false));
+    const two = B.get(X, Y, Z) === B.B.DOOR && B.get(X, Y + 1, Z) === B.B.DOOR;
+    const closedSolid = B.boxHitsWorld(X + 0.5, Y, Z + 0.85);   // 닫힌 문 앞은 막힌다
+    // 열기 — 두 칸이 함께 열려야 한다
+    B.tryInteract({ x: X, y: Y, z: Z, block: B.B.DOOR, nx: 0, ny: 0, nz: 1, shape: B.shapeAt(X, Y, Z) });
+    const lowOpen = B.doorOpen(B.shapeAt(X, Y, Z));
+    const highOpen = B.doorOpen(B.shapeAt(X, Y + 1, Z));
+    const openPass = !B.boxHitsWorld(X + 0.5, Y, Z + 0.5);      // 열면 지나갈 수 있다
+    // 한쪽을 캐면 나머지도 사라진다
+    B.mineAt({ x: X, y: Y, z: Z, block: B.B.DOOR });
+    const bothGone = B.get(X, Y, Z) === 0 && B.get(X, Y + 1, Z) === 0;
+    B.endPlay(); B.setPaused(false);
+    return { two, closedSolid, lowOpen, highOpen, openPass, bothGone,
+             named: B.NAMES[B.B.DOOR], listed: B.ALL_BLOCKS.indexOf(B.B.DOOR) >= 0 };
+  });
+  assert(r.two, "문이 두 칸으로 서지 않는다");
+  assert(r.closedSolid, "닫힌 문을 그냥 통과한다");
+  assert(r.lowOpen && r.highOpen, "두 칸이 함께 열리지 않는다 (반쪽만 열리면 문이 아니다)");
+  assert(r.openPass, "열었는데 지나갈 수 없다");
+  assert(r.bothGone, "반쪽을 캤는데 나머지가 허공에 남는다");
+  eq(r.named, "문", "문 이름");
+  assert(r.listed, "블록 목록에 문이 없다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

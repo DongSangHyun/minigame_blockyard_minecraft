@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { resetQueues } from "./queues.js";
 import { DIRS, N, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, CACTUS, COAL, COBBLE, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAVA, LEAVES, LOG, PANE, PLANKS, SAND, SHAPE_BOXES, SH_FULL, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TORCH, WALL_DIR, WATER, connectsTo, isCross, isSolid } from "./blocks.js";
+import { DOOR, doorFacing, doorOpen, AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, CACTUS, COAL, COBBLE, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAVA, LEAVES, LOG, PANE, PLANKS, SAND, SHAPE_BOXES, SH_FULL, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TORCH, WALL_DIR, WATER, connectsTo, isCross, isSolid } from "./blocks.js";
 import { makeRng } from "./atlas.js";
 
 export var world = new Uint8Array(N);
@@ -87,6 +87,18 @@ export function dynamicBoxes(b, x, y, z) {
     else _dynBoxes.push([0.437, 0.25, 0, 0.563, 1, 1]);
     return _dynBoxes;
   }
+  if (b === DOOR) {
+    var dsh = shape[idx(x, y, z)];
+    var face = doorFacing(dsh), open2 = doorOpen(dsh);
+    // 열리면 90도 돌아 옆벽에 붙는다 — 닫힌 면의 다음 방향으로 접힌다
+    var eff = open2 ? ((face + 3) & 3) : face;
+    var T = 0.19;
+    if (eff === 0) _dynBoxes.push([0, 0, 0, 1, 1, T]);            // 북쪽 면
+    else if (eff === 1) _dynBoxes.push([1 - T, 0, 0, 1, 1, 1]);   // 동쪽
+    else if (eff === 2) _dynBoxes.push([0, 0, 1 - T, 1, 1, 1]);   // 남쪽
+    else _dynBoxes.push([0, 0, 0, T, 1, 1]);                      // 서쪽
+    return _dynBoxes;
+  }
   if (b === LADDER) {
     var d = WALL_DIR[shape[idx(x, y, z)]] || [0, 0, -1];
     if (d[0]) return _dynBoxes.push(d[0] > 0 ? [0.86, 0, 0, 1, 1, 1] : [0, 0, 0, 0.14, 1, 1]), _dynBoxes;
@@ -95,7 +107,7 @@ export function dynamicBoxes(b, x, y, z) {
   return null;
 }
 export function hasDynamicBoxes(b) {
-  return b === FENCE || b === PANE || b === GATE || b === LADDER;
+  return b === FENCE || b === PANE || b === GATE || b === DOOR || b === LADDER;
 }
 // 충돌·조준·메싱이 함께 쓰는 단일 진입점
 export function boxesAt(b, sh, x, y, z) {

@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { aimingAtMob, feedNearbyMob } from "./mobs.js";
 import { primeTNT, ignite } from "./fluids.js";
 import { idx, inside } from "./dims.js";
-import { GOLD, DIAMOND, ICE, WATER, AIR, ALL_BLOCKS, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
+import { DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, ALL_BLOCKS, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
 import { get, shape } from "./world.js";
 import { burst } from "./scene.js";
 import { BODY, HALF, currentShape, player, raycast, stats } from "./player.js";
@@ -16,6 +16,11 @@ import { advanceTut } from "./input.js";
 export function mineAt(hit) {
   // 얼음을 깨면 물이 남는다 (마크) — 언 호수를 뚫고 들어가는 그림이 나온다
   var leaves = (hit.block === ICE) ? WATER : AIR;
+  // 문은 반쪽만 남으면 안 된다 — 나머지 칸도 함께 걷는다
+  if (hit.block === DOOR) {
+    var doy = doorOther(hit.x, hit.y, hit.z);
+    if (doy >= 0) applyEdit(hit.x, doy, hit.z, AIR, true);
+  }
   if (!applyEdit(hit.x, hit.y, hit.z, leaves, true)) return;
   stats.mined++;
   unlock("firstMine");
@@ -87,10 +92,28 @@ export function tryInteract(hit) {
   return tryInteractGate(hit);
 }
 
+// 문의 다른 쪽 반쪽 — 밑칸이 문이면 내가 위쪽이다
+export function doorOther(x, y, z) {
+  if (get(x, y - 1, z) === DOOR) return y - 1;
+  if (get(x, y + 1, z) === DOOR) return y + 1;
+  return -1;
+}
+
 function tryInteractGate(hit) {
   if (!hit || S.sneaking) return false;
   if (!isOpenable(hit.block)) return false;
   var i = idx(hit.x, hit.y, hit.z);
+  if (hit.block === DOOR) {
+    // 두 칸이 함께 열리고 닫힌다 — 반쪽만 열리면 문이 아니다
+    var sh0 = shape[i];
+    var want = doorShapeFor(doorFacing(sh0), !doorOpen(sh0));
+    var oy = doorOther(hit.x, hit.y, hit.z);
+    applyEdit(hit.x, hit.y, hit.z, DOOR, true, want);
+    if (oy >= 0) applyEdit(hit.x, oy, hit.z, DOOR, true, want);
+    tone(doorOpen(sh0) ? 300 : 420, 0.10, "square", 0.05);
+    triggerSwing();
+    return true;
+  }
   applyEdit(hit.x, hit.y, hit.z, hit.block, true, shape[i] === 1 ? 0 : 1);
   tone(shape[i] === 1 ? 420 : 300, 0.09, "square", 0.05);
   triggerSwing();
@@ -147,6 +170,15 @@ export function place(repeating) {
     else if (hit.nz !== 0) sh = SH_AXIS_Z;
   }
   if (wallSh) sh = wallSh;
+  // 문은 두 칸을 함께 쓴다 — 위칸이 비어 있어야 하고, 서 있는 쪽을 바라보게 놓인다
+  if (b === DOOR) {
+    if (!canPlaceAt(px, py + 1, pz)) { toast("문은 두 칸이 필요합니다"); return; }
+    var ddx = player.pos.x - (px + 0.5), ddz = player.pos.z - (pz + 0.5);
+    var facing = (Math.abs(ddx) > Math.abs(ddz)) ? (ddx > 0 ? 1 : 3) : (ddz > 0 ? 2 : 0);
+    sh = doorShapeFor(facing, false);
+    if (!applyEdit(px, py, pz, DOOR, true, sh)) return;
+    applyEdit(px, py + 1, pz, DOOR, true, sh);
+  } else
   if (!applyEdit(px, py, pz, b, true, sh)) return;
   stats.placed++;
   unlock("firstPlace");

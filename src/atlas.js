@@ -179,6 +179,17 @@ WOOL_COLORS.forEach(function (wc, wi) {
   });
 });
 
+paint(57, function (p, r) {  // 문 — 세로 널 두 장과 손잡이
+  var wood = ["#8a6134", "#96693a", "#7d572e", "#a0723f"];
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) p(x, y, pick(r, wood));
+  // 테두리를 한 톤 어둡게 — 문짝의 윤곽이 보이게
+  for (var e = 0; e < 16; e++) { p(e, 0, "#5e4022"); p(e, 15, "#5e4022"); p(0, e, "#5e4022"); p(15, e, "#5e4022"); }
+  // 널 두 장을 가르는 세로 홈
+  for (var g = 1; g < 15; g++) { p(7, g, "#5e4022"); p(8, g, "#6b4a28"); }
+  // 손잡이 — 오른쪽 널 가운데
+  p(12, 8, "#e0c060"); p(12, 7, "#c8a648"); p(11, 8, "#8a6134");
+});
+
 paint(56, function (p, r) {  // 부싯돌 — 강철 조각과 부싯돌
   for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) p(x, y, "rgba(0,0,0,0)");
   var steel = ["#8d968f", "#a7b0a8", "#6f7872"];

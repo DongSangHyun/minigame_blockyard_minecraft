@@ -1,7 +1,7 @@
 // mobs.js — 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다.
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
 import { shapeAt, topMap, world } from "./world.js";
-import { FENCE, GATE, AIR, ICE, LAVA, WATER, isSolid } from "./blocks.js";
+import { DOOR, doorOpen, FENCE, GATE, AIR, ICE, LAVA, WATER, isSolid } from "./blocks.js";
 import { scene } from "./scene.js";
 import { player } from "./player.js";
 import { at, crunch, tone } from "./audio.js";
@@ -200,6 +200,7 @@ export function updateMobs(dt) {
       // 열린 문(shape 1)은 지나갈 수 있다 — 문을 여는 이유가 정확히 이것이다
       function blocks(b, cx, cy, cz) {
         if (b === FENCE) return true;
+        if (b === DOOR) return !doorOpen(shapeAt(cx, cy, cz));   // 닫힌 문도 동물을 막는다
         if (b !== GATE) return false;
         return shapeAt(cx, cy, cz) !== 1;
       }
