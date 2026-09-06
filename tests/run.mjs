@@ -5534,6 +5534,45 @@ test("v51 바다: 세계 밖으로 수평선이 이어지고, 물속에서는 �
   assert(r.verts <= 32, "판이 너무 잘게 쪼개져 있다 — " + r.verts + "정점");
 });
 
+test("v52 대량 편집: 조명을 칸마다 돌리지 않아 되돌리기가 빨라진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.generate(4242); B.relightAll(false); B.beginPlay();
+    const X = 20, Y = 20, Z = 20, N = 28;
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + N - 1, Y + N - 1, Z + N - 1];
+    B.S.history.length = 0; B.S.future.length = 0;
+    let t = performance.now();
+    const cells = B.fillSelection(B.B.GLASS, 0);
+    const fill = performance.now() - t;
+    t = performance.now(); B.undo(); const undo = performance.now() - t;
+    t = performance.now(); B.redo(); const redo = performance.now() - t;
+    // 결과가 맞아야 한다 — 빠르기만 하고 틀리면 소용없다
+    let filled = 0;
+    for (let dx = 0; dx < N; dx++) for (let dy = 0; dy < N; dy++) for (let dz = 0; dz < N; dz++)
+      if (B.get(X + dx, Y + dy, Z + dz) === B.B.GLASS) filled++;
+    B.undo();
+    let back = 0;
+    for (let dx = 0; dx < N; dx++) for (let dy = 0; dy < N; dy++) for (let dz = 0; dz < N; dz++)
+      if (B.get(X + dx, Y + dy, Z + dz) === B.B.GLASS) back++;
+    // 조명이 실제로 맞춰졌는가 — 유리 안쪽이 어둡지 않아야 한다(유리는 빛을 통과시킨다)
+    B.redo();
+    const lit = B.lightSky[B.idx(X + 1, Y + N - 2, Z + 1)];
+    B.S.selA = B.S.selB = null; B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { cells, fill: +fill.toFixed(1), undo: +undo.toFixed(1), redo: +redo.toFixed(1),
+             filled, back, lit, threshold: B.BATCH_RELIGHT_ALL };
+  });
+  // 앞 시험이 그 자리에 같은 블록을 남겨 두면 "바뀐 칸 수" 는 몇 개 적을 수 있다.
+  // 중요한 건 **끝난 상태** — 전부 유리인가, 되돌리면 전부 사라지는가.
+  eq(r.filled, 28 * 28 * 28, "채우기 뒤 전부 유리가 아니다");
+  assert(r.cells >= 28 * 28 * 28 - 50, "바뀐 칸 수가 너무 적다 — " + r.cells);
+  assert(r.back <= 50, "되돌리기가 원래대로 돌리지 못했다 — 유리 " + r.back + "칸 남음");
+  assert(r.lit > 0, "묶음 뒤 조명이 안 맞춰졌다 — settleWorld 가 안 돌았다");
+  assert(r.undo < 120, "큰 묶음 되돌리기가 느리다 — " + r.undo + "ms (칸마다 조명을 돌리고 있다)");
+  assert(r.redo < 120, "큰 묶음 다시하기가 느리다 — " + r.redo + "ms");
+  assert(r.threshold > 0, "묶음 임계값이 없다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

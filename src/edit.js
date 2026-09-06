@@ -4,10 +4,10 @@ import { opts } from "./settings.js";
 import { SLOTS } from "./save.js";
 import { SEA, DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
 import { TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
-import { touched, get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
-import { lightSky, relightLocal } from "./light.js";
+import { refreshAllTops, touched, get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
+import { relightAll, lightSky, relightLocal } from "./light.js";
 import { enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
-import { touch } from "./mesh.js";
+import { markAllDirty, touch } from "./mesh.js";
 import { player, stats } from "./player.js";
 import { tone } from "./audio.js";
 import { helpAchList, showAchPop, toast } from "./hud.js";
@@ -82,9 +82,10 @@ export function applyEdit(x, y, z, to, record, sh) {
   if (to === AIR) enqueueLavaAround(x, y, z);
   enqueueFall(x, y, z);        // 놓은 블록 자신도 떨어질 수 있다
   enqueueFall(x, y + 1, z);    // 위에 얹혀 있던 것도
-  touch(x, y, z);
-  refreshTop(x, z);
-  relightLocal(x, y, z);
+  // 묶음 편집(채우기·비우기·붙여넣기·폭발) 중에는 칸마다 조명 BFS·기둥 스캔·메시 표시를 하지 않는다.
+  // 32,768칸을 채울 때 그것들이 411ms 중 대부분이었다 — 끝에 한 번만 한다 (endBatch).
+  if (S.batch) S.batchCells++;
+  else { touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z); }
   if (to === AIR) enqueueWaterAround(x, y, z);
   // 밝은 광원 옆의 얼음은 녹아 물이 된다
   if ((EMIT[to] || 0) >= 12) meltIceAround(x, y, z);
@@ -113,10 +114,30 @@ export function applyEdit(x, y, z, to, record, sh) {
 }
 
 // 대량 편집(채우기·붙여넣기)은 한 덩어리로 묶어 한 번에 되돌린다
-export function beginBatch() { S.batch = []; }
+export function beginBatch() { S.batch = []; S.batchCells = 0; }
+// 묶음이 끝나면 조명과 기둥 높이를 한 번에 맞춘다.
+// 400칸이 넘으면 세계 전체를 다시 켜는 게 칸마다 BFS 를 도는 것보다 싸다 (relightAll 은 25ms 고정).
+export var BATCH_RELIGHT_ALL = 400;
+export function settleWorld() {
+  refreshAllTops();
+  relightAll(true);
+  markAllDirty();          // 조명이 통째로 바뀌었으니 메시도 전부 다시 굽는다
+}
+function settleBatch(cells, list) {
+  if (!cells) return;
+  if (cells > BATCH_RELIGHT_ALL) { settleWorld(); return; }
+  for (var i = 0; i < list.length; i++) {
+    var e = list[i];
+    touch(e.x, e.y, e.z);
+    refreshTop(e.x, e.z);
+    relightLocal(e.x, e.y, e.z);
+  }
+}
 export function endBatch(label) {
   var b = S.batch;
-  S.batch = null;
+  var cells = S.batchCells;
+  S.batch = null; S.batchCells = 0;
+  settleBatch(cells, b || []);
   if (!b || !b.length) return 0;
   S.history.push({ batch: b, label: label || "대량 편집" });
   if (b.length >= 100) unlock("build100");
@@ -125,13 +146,14 @@ export function endBatch(label) {
   return b.length;
 }
 
-function applyCell(e, toSide) {
+function applyCell(e, toSide, defer) {
   var i = idx(e.x, e.y, e.z);
   world[i] = toSide ? e.to : e.from;
   shape[i] = (toSide ? e.toSh : e.fromSh) || SH_FULL;
   // 물 레벨도 그 순간으로 — 되돌리기가 세계를 딴 상태로 두면 되돌리기를 못 믿게 된다
   waterLvl[i] = toSide ? 0 : (e.wl || 0);
-  touch(e.x, e.y, e.z); refreshTop(e.x, e.z); relightLocal(e.x, e.y, e.z);
+  // defer — 큰 묶음을 되돌릴 때는 조명·기둥·메시를 칸마다 하지 않는다 (끝에 한 번)
+  if (!defer) { touch(e.x, e.y, e.z); refreshTop(e.x, e.z); relightLocal(e.x, e.y, e.z); }
   if (world[i] === AIR) enqueueWaterAround(e.x, e.y, e.z);
   // 근원을 되돌려 없애면 거기서 퍼진 물이 말라야 하고, 되살리면 다시 퍼져야 한다
   if (e.from === WATER || e.to === WATER) { enqueueDryAround(e.x, e.y, e.z); enqueueWaterAround(e.x, e.y, e.z); }
@@ -140,7 +162,11 @@ function applyCell(e, toSide) {
 export function undo() {
   var e = S.history.pop();
   if (!e) return false;
-  if (e.batch) { for (var i = e.batch.length - 1; i >= 0; i--) applyCell(e.batch[i], false); }
+  if (e.batch) {
+    var big = e.batch.length > BATCH_RELIGHT_ALL;
+    for (var i = e.batch.length - 1; i >= 0; i--) applyCell(e.batch[i], false, big);
+    if (big) settleWorld();
+  }
   else applyCell(e, false);
   S.future.push(e);
   S.worldDirty = true;
@@ -149,7 +175,11 @@ export function undo() {
 export function redo() {
   var e = S.future.pop();
   if (!e) return false;
-  if (e.batch) { for (var i = 0; i < e.batch.length; i++) applyCell(e.batch[i], true); }
+  if (e.batch) {
+    var big2 = e.batch.length > BATCH_RELIGHT_ALL;
+    for (var i = 0; i < e.batch.length; i++) applyCell(e.batch[i], true, big2);
+    if (big2) settleWorld();
+  }
   else applyCell(e, true);
   S.history.push(e);
   S.worldDirty = true;

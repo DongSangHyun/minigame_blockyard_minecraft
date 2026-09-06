@@ -737,6 +737,9 @@ window.addEventListener("keydown", function (e) {
       e.preventDefault();
       // Shift 를 같이 누르면 채우는 대신 비운다 — 산을 깎을 때 쓴다
       var wipe = e.shiftKey;
+      // 큰 영역은 한 프레임을 통째로 먹는다 — 왜 멈췄는지는 보여 준다
+      var size = selectionSize();
+      if (size > 6000) toast(size.toLocaleString("ko-KR") + "칸 " + (wipe ? "비우는" : "채우는") + " 중…");
       var n = wipe ? clearSelection() : fillSelection(S.bar[S.selected], currentShape(false));
       toast(n < 0 ? ("영역이 너무 큽니다 (최대 " + REGION_MAX.toLocaleString("ko-KR") + "칸)")
                   : (n ? n.toLocaleString("ko-KR") + "칸을 " + (wipe ? "비웠습니다" : "채웠습니다")

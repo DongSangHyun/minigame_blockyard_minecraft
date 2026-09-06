@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-06 · 모듈 27개 · 합계 8,639줄
+생성일 2026-09-06 · 모듈 27개 · 합계 8,673줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -10,7 +10,7 @@
 
 | 모듈 | 하는 일 | 줄 | 기대는 곳 |
 |---|---|---:|---|
-| [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 136 | — |
+| [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 137 | — |
 | [`dims.js`](../src/dims.js) | 세계 치수와 좌표 계산 (의존성 없음) | 10 | — |
 | [`queues.js`](../src/queues.js) | 시뮬레이션 대기열 (의존성 없음) | 33 | — |
 | [`boot.js`](../src/boot.js) | 부팅 가드 · 환경 판별 | 26 | state |
@@ -26,10 +26,10 @@
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 319 | state · dims · blocks · world · scene |
 | [`audio.js`](../src/audio.js) | 소리 | 222 | state · blocks · daynight · settings |
 | [`save.js`](../src/save.js) | 저장 · 불러오기 | 242 | state · dims · blocks · world · player · mobs · hud |
-| [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 677 | state · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
+| [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 707 | state · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
 | [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 425 | state · version · dims · blocks · atlas · world · player · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 157 | state · boot · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
-| [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1225 | state · queues · mobs · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
+| [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1228 | state · queues · mobs · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
 | [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 207 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
 | [`mobs.js`](../src/mobs.js) | 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다. | 502 | dims · world · blocks · scene · player · audio |
 | [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 351 | state · audio · dims · atlas · world · scene · daynight · player |
@@ -329,30 +329,31 @@
 | 함수 | 줄 |
 |---|---:|
 | `applyEdit(x, y, z, to, record, sh)` | 63 |
-| `beginBatch()` | 116 |
-| `endBatch(label)` | 117 |
-| `undo()` | 140 |
-| `redo()` | 149 |
-| `refreshAchList()` | 202 |
-| `checkBuildAchievements()` | 226 |
-| `refreshStats()` | 326 |
-| `achCount()` | 344 |
-| `unlock(id)` | 349 |
-| `selectionBounds()` | 374 |
-| `selectionSize()` | 375 |
-| `fillSelection(block, sh)` | 382 |
-| `clearSelection()` | 397 |
-| `copySelection()` | 409 |
-| `pasteClip(px, py, pz)` | 429 |
-| `completeCommand(prefix)` | 480 |
-| `runCommand(line)` | 487 |
-| `loadBlueprints()` | 633 |
-| `saveBlueprint(name)` | 636 |
-| `useBlueprint(name)` | 649 |
-| `blueprintNames()` | 657 |
-| `selectionCounts()` | 660 |
+| `beginBatch()` | 117 |
+| `settleWorld()` | 121 |
+| `endBatch(label)` | 136 |
+| `undo()` | 162 |
+| `redo()` | 175 |
+| `refreshAchList()` | 232 |
+| `checkBuildAchievements()` | 256 |
+| `refreshStats()` | 356 |
+| `achCount()` | 374 |
+| `unlock(id)` | 379 |
+| `selectionBounds()` | 404 |
+| `selectionSize()` | 405 |
+| `fillSelection(block, sh)` | 412 |
+| `clearSelection()` | 427 |
+| `copySelection()` | 439 |
+| `pasteClip(px, py, pz)` | 459 |
+| `completeCommand(prefix)` | 510 |
+| `runCommand(line)` | 517 |
+| `loadBlueprints()` | 663 |
+| `saveBlueprint(name)` | 666 |
+| `useBlueprint(name)` | 679 |
+| `blueprintNames()` | 687 |
+| `selectionCounts()` | 690 |
 
-내보내는 값 — `HISTORY_MAX` · `ACHIEVEMENTS` · `achGrid` · `BUILD_R` · `BUILD_IDS` · `statGrid` · `REGION_MAX` · `CMD_HELP` · `CMD_LIST` · `BP_KEY`
+내보내는 값 — `HISTORY_MAX` · `BATCH_RELIGHT_ALL` · `ACHIEVEMENTS` · `achGrid` · `BUILD_R` · `BUILD_IDS` · `statGrid` · `REGION_MAX` · `CMD_HELP` · `CMD_LIST` · `BP_KEY`
 
 ### `hud.js` — HUD · 핫바 · 블록 고르기 · 미니맵
 
@@ -426,11 +427,11 @@
 | `applyLook(dx, dy)` | 605 |
 | `cycleTime()` | 625 |
 | `pickBlock()` | 637 |
-| `setStick(dx, dy)` | 956 |
-| `bindHold(id, onDown, onUp)` | 1056 |
-| `bindOpt(inputId, outId, key, fmt)` | 1089 |
-| `pollGamepadMenu()` | 1154 |
-| `pollGamepad(dt)` | 1164 |
+| `setStick(dx, dy)` | 959 |
+| `bindHold(id, onDown, onUp)` | 1059 |
+| `bindOpt(inputId, outId, key, fmt)` | 1092 |
+| `pollGamepadMenu()` | 1157 |
+| `pollGamepad(dt)` | 1167 |
 
 내보내는 값 — `overlay` · `goBtn` · `altBtn` · `seedIn` · `canvas` · `isTouch` · `HINT_LOCK` · `HINT_DRAG` · `hintEl` · `TUT` · `TUT_TOUCH` · `slotsEl` · `copySeedBtn` · `expBtn` · `impBtn` · `resBtn` · `fileIn` · `terrainEl` · `KEY_LABEL` · `keysEl` · `RESERVED` · `copyLinkBtn` · `lookLast` · `stickZone` · `stickBase` · `stickKnob` · `STICK_R` · `padState`
 
