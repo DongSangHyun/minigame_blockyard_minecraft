@@ -126,7 +126,7 @@ export function saveGame() {
       secs: Math.round(S.playSeconds), tut: S.tut, at: Date.now(),   // at — 슬롯 목록의 "3시간 전"
       tc: encodeArrB64(touched),   // 사람이 손댄 칸 — 없으면 이어하기 때 날씨·잔디가 내 건축물을 다시 건드린다
       mb: dumpMobs(),              // 동물 — 없으면 목장이 탭 하나 닫으면 빈 우리가 된다
-      mm: encodeArrB64(seenMap),   // 걸어서 밝힌 지도 — 0/1 이라 몇 백 바이트다
+      mm: encodeArrB64(seenMap),   // 걸어서 밝힌 지도 — 칸마다 0~3 이라 몇 백 바이트다
       sp: S.spawnPoint, marks: S.marks, bar2: S.barAlt, fly: S.flySpeed, tt: S.terrain
     }));
     try { localStorage.removeItem(OLD_KEY); } catch (e2) {}

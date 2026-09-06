@@ -1,12 +1,12 @@
 // settings.js — 설정
 import { S } from "./state.js";
-import { IS_TOUCH } from "./boot.js";
+import { IS_TOUCH, reduceMotion } from "./boot.js";
 import { camera, voxUniforms } from "./scene.js";
 
 export var OPT_KEY = "blockyard.opts.v1";
 export var opts = IS_TOUCH
-  ? { sens: 100, fov: 78, far: 72, vol: 60, invertY: 0, day: 20, bright: 30, ui: 110, contrast: 0, lefty: 0, tbtn: 100, autosave: 20, undo: 240 }
-  : { sens: 100, fov: 72, far: 120, vol: 60, invertY: 0, day: 20, bright: 30, ui: 100, contrast: 0, lefty: 0, tbtn: 100, autosave: 20, undo: 240 };
+  ? { sens: 100, fov: 78, far: 72, vol: 60, invertY: 0, day: 20, bright: 30, ui: 110, contrast: 0, lefty: 0, tbtn: 100, autosave: 20, undo: 240, steady: 0, sneaktog: 0 }
+  : { sens: 100, fov: 72, far: 120, vol: 60, invertY: 0, day: 20, bright: 30, ui: 100, contrast: 0, lefty: 0, tbtn: 100, autosave: 20, undo: 240, steady: 0, sneaktog: 0 };
 (function loadOpts() {
   try {
     var raw = localStorage.getItem(OPT_KEY);
@@ -18,6 +18,9 @@ export var opts = IS_TOUCH
     });
   } catch (e) { /* 기본값 사용 */ }
 })();
+// 화면이 흔들려도 되는가 — OS 의 "동작 줄이기" 와 게임 안 설정을 한자리에서 본다.
+// 흩어져 있으면 새 흔들림을 넣을 때마다 한쪽을 빠뜨린다.
+export function calmMotion() { return reduceMotion || !!opts.steady; }
 export function saveOpts() {
   try { localStorage.setItem(OPT_KEY, JSON.stringify(opts)); } catch (e) {}
 }

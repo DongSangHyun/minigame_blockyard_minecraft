@@ -16,24 +16,25 @@ import { setWeather, localBiome } from "./sky.js";
 export var HISTORY_MAX = 240;
 
 // 광원 주변 2칸 안의 얼음을 물로 되돌린다
-function meltIceAround(x, y, z) {
+function meltIceAround(x, y, z, record, depth) {
   for (var dx = -2; dx <= 2; dx++)
     for (var dy = -2; dy <= 2; dy++)
       for (var dz = -2; dz <= 2; dz++) {
         if (!inside(x + dx, y + dy, z + dz)) continue;
         var i = idx(x + dx, y + dy, z + dz);
         if (world[i] !== ICE) continue;
-        world[i] = WATER;
-        touch(x + dx, y + dy, z + dz);
-        refreshTop(x + dx, z + dz);
-        relightLocal(x + dx, y + dy, z + dz);
-        enqueueWaterAround(x + dx, y + dy, z + dz);
+        applyEdit(x + dx, y + dy, z + dz, WATER, record, SH_FULL, (depth || 0) + 1);
       }
 }
 
 // 받침이 사라진 얇은 블록을 떨군다. wall 이 주어지면 그 방향 벽에 붙은 것만.
-function dropCross(x, y, z, wall) {
+// record — 사람의 편집 때문에 딸려 사라지는 것도 되돌리기에 남는다.
+// 예전에는 world[] 를 직접 써서, 받침돌을 캐고 Ctrl+Z 하면 돌만 돌아오고 횃불은 영영 사라졌다.
+// (CLAUDE.md 6절 1번이 경고하는 바로 그 실수였다)
+// depth — applyEdit → dropCross → applyEdit 재귀의 상한. 사다리 탑이 아무리 높아도 8이면 넉넉하다.
+function dropCross(x, y, z, wall, record, depth) {
   if (!inside(x, y, z)) return;
+  if ((depth || 0) > 8) return;
   var i = idx(x, y, z);
   // 사다리도 벽 횃불과 같은 규칙이다 — 벽이 사라지면 같이 떨어진다.
   // 문도 받칠 바닥이 필요하다(needsFloor) — 밑을 캐면 허공에 뜨면 안 된다.
@@ -44,23 +45,20 @@ function dropCross(x, y, z, wall) {
     if (world[idx(x, y - 1, z)] === DOOR) return;   // 아래가 문이면 내가 윗쪽 — 아래가 판단한다
     if (isSolid(get(x, y - 1, z))) return;
     if (get(x, y + 1, z) === DOOR) {           // 윗칸도 함께 걷는다
-      var ui = idx(x, y + 1, z);
-      world[ui] = AIR; shape[ui] = SH_FULL;
-      touch(x, y + 1, z); refreshTop(x, z); relightLocal(x, y + 1, z);
+      applyEdit(x, y + 1, z, AIR, record, SH_FULL, (depth || 0) + 1);
     }
-    world[i] = AIR; shape[i] = SH_FULL;
-    touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z);
+    applyEdit(x, y, z, AIR, record, SH_FULL, (depth || 0) + 1);
     return;
   }
   if (wall) {
     var d = WALL_DIR[shape[i]];
     if (!d || d[0] !== wall[0] || d[2] !== wall[2]) return;
   } else if (isWallShape(shape[i])) return;   // 벽 횃불은 아래가 비어도 남는다
-  world[i] = AIR; shape[i] = SH_FULL;
-  touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z);
+  applyEdit(x, y, z, AIR, record, SH_FULL, (depth || 0) + 1);
 }
 
-export function applyEdit(x, y, z, to, record, sh) {
+// depth — 딸려 사라지는 것들(dropCross·meltIce)이 다시 applyEdit 을 부르는 재귀의 깊이
+export function applyEdit(x, y, z, to, record, sh, depth) {
   if (!inside(x, y, z)) return false;
   if (y === 0) return false;                 // 바닥은 손대지 않는다
   if (isUnbreakable(world[idx(x, y, z)])) return false;
@@ -69,6 +67,11 @@ export function applyEdit(x, y, z, to, record, sh) {
   var toSh = (to === AIR) ? SH_FULL : (sh || SH_FULL);
   if (from === to && fromSh === toSh) return false;
   if (isItem(to)) return false;        // 도구는 세계에 놓이지 않는다 (fill·명령도 막는다)
+
+  // 사람의 편집 하나 = 되돌리기 하나. 딸려 사라지는 것(dropCross·meltIceAround)이 따로 기록되면
+  // Ctrl+Z 를 한 번 눌렀을 때 받침만 돌아오고 위에 얹혔던 횃불은 잃는다 — 한 묶음으로 담는다.
+  var ownBatch = false;
+  if (record && !S.batch && !depth) { beginBatch(8); ownBatch = true; }
 
   world[i] = to;
   shape[i] = toSh;
@@ -88,15 +91,15 @@ export function applyEdit(x, y, z, to, record, sh) {
   else { touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z); }
   if (to === AIR) enqueueWaterAround(x, y, z);
   // 밝은 광원 옆의 얼음은 녹아 물이 된다
-  if ((EMIT[to] || 0) >= 12) meltIceAround(x, y, z);
+  if ((EMIT[to] || 0) >= 12) meltIceAround(x, y, z, record, depth);
   if (isLog(from) && from !== to) queueLeafDecay(x, y, z);
   // 받치던 바닥이 사라지면 위에 얹힌 풀·꽃·횃불도 함께 사라진다
   if (!isSolid(to)) {
-    if (inside(x, y + 1, z)) dropCross(x, y + 1, z, null);
+    if (inside(x, y + 1, z)) dropCross(x, y + 1, z, null, record, depth);
     // 옆에 붙어 있던 벽 횃불도 함께 떨어진다
     for (var wd = 0; wd < 6; wd++) {
       if (DIRS[wd][1] !== 0) continue;
-      dropCross(x + DIRS[wd][0], y, z + DIRS[wd][2], [-DIRS[wd][0], 0, -DIRS[wd][2]]);
+      dropCross(x + DIRS[wd][0], y, z + DIRS[wd][2], [-DIRS[wd][0], 0, -DIRS[wd][2]], record, depth);
     }
   }
   S.worldDirty = true;
@@ -104,15 +107,15 @@ export function applyEdit(x, y, z, to, record, sh) {
   if (record) {
     markTouched(x, y, z);          // 되돌리기에 남는 편집 = 사람이 손댄 자리
     // wl — 편집 전 물 레벨. 없으면 흐르는 물을 캔 뒤 되돌릴 때 근원(0)으로 되살아나 무한 물이 생긴다
-    if (S.batch) {                                       // 묶음 편집 중이면 모아 둔다
-      batchPush(S.batch, x, y, z, from, to, fromSh, toSh, fromWl);
-      return true;
+    if (S.batch) batchPush(S.batch, x, y, z, from, to, fromSh, toSh, fromWl);  // 묶음 중이면 모아 둔다
+    else {
+      var rec = { x: x, y: y, z: z, from: from, to: to, fromSh: fromSh, toSh: toSh, wl: fromWl };
+      S.history.push(rec);
+      if (S.history.length > (opts.undo || HISTORY_MAX)) S.history.shift();
+      S.future.length = 0;
     }
-    var rec = { x: x, y: y, z: z, from: from, to: to, fromSh: fromSh, toSh: toSh, wl: fromWl };
-    S.history.push(rec);
-    if (S.history.length > (opts.undo || HISTORY_MAX)) S.history.shift();
-    S.future.length = 0;
   }
+  if (ownBatch) endBatch("편집");
   return true;
 }
 
@@ -141,7 +144,7 @@ function batchPush(b, x, y, z, from, to, fromSh, toSh, wl) {
 }
 
 // 대량 편집(채우기·붙여넣기)은 한 덩어리로 묶어 한 번에 되돌린다
-export function beginBatch() { S.batch = makeBatch(1024); S.batchCells = 0; }
+export function beginBatch(cap) { S.batch = makeBatch(cap || 1024); S.batchCells = 0; }
 // 묶음이 끝나면 조명과 기둥 높이를 한 번에 맞춘다.
 // 400칸이 넘으면 세계 전체를 다시 켜는 게 칸마다 BFS 를 도는 것보다 싸다 (relightAll 은 25ms 고정).
 export var BATCH_RELIGHT_ALL = 400;

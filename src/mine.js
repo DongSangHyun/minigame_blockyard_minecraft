@@ -8,7 +8,7 @@ import { get, shape } from "./world.js";
 import { burst } from "./scene.js";
 import { BODY, HALF, currentShape, player, raycast, stats } from "./player.js";
 import { breakSound, crunch, placeSound, tone } from "./audio.js";
-import { applyEdit, unlock } from "./edit.js";
+import { applyEdit, beginBatch, endBatch, unlock } from "./edit.js";
 import { noteBlockUse, toast } from "./hud.js";
 import { triggerSwing } from "./hand.js";
 import { advanceTut } from "./input.js";
@@ -17,11 +17,13 @@ export function mineAt(hit) {
   // 얼음을 깨면 물이 남는다 (마크) — 언 호수를 뚫고 들어가는 그림이 나온다
   var leaves = (hit.block === ICE) ? WATER : AIR;
   // 문은 반쪽만 남으면 안 된다 — 나머지 칸도 함께 걷는다
-  if (hit.block === DOOR) {
-    var doy = doorOther(hit.x, hit.y, hit.z);
-    if (doy >= 0) applyEdit(hit.x, doy, hit.z, AIR, true);
-  }
-  if (!applyEdit(hit.x, hit.y, hit.z, leaves, true)) return;
+  // 문의 두 칸은 한 묶음이다 — Ctrl+Z 한 번에 반쪽만 돌아오면 문이 아니다
+  var doy = (hit.block === DOOR) ? doorOther(hit.x, hit.y, hit.z) : -1;
+  if (doy >= 0) beginBatch(8);
+  var mined = applyEdit(hit.x, hit.y, hit.z, leaves, true);
+  if (mined && doy >= 0) applyEdit(hit.x, doy, hit.z, AIR, true);
+  if (doy >= 0) endBatch("문 캐기");
+  if (!mined) return;
   stats.mined++;
   unlock("firstMine");
   advanceTut(0);
@@ -182,8 +184,11 @@ export function place(repeating) {
     var ddx = player.pos.x - (px + 0.5), ddz = player.pos.z - (pz + 0.5);
     var facing = (Math.abs(ddx) > Math.abs(ddz)) ? (ddx > 0 ? 1 : 3) : (ddz > 0 ? 2 : 0);
     sh = doorShapeFor(facing, false);
-    if (!applyEdit(px, py, pz, DOOR, true, sh)) return;
-    applyEdit(px, py + 1, pz, DOOR, true, sh);
+    beginBatch(8);
+    var put = applyEdit(px, py, pz, DOOR, true, sh);
+    if (put) applyEdit(px, py + 1, pz, DOOR, true, sh);
+    endBatch("문 놓기");
+    if (!put) return;
   } else
   if (!applyEdit(px, py, pz, b, true, sh)) return;
   stats.placed++;

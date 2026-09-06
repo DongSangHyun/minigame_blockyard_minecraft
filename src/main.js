@@ -5,13 +5,13 @@ import { SWATCH_SIDE, animateLiquids, atlas } from "./atlas.js";
 import { Q } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
 import { doorOpen, doorFacing, doorShapeFor, DOOR, AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DEFAULT_BAR2, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLINT, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, ITEMS, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, categoryOf, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isItem, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
-import { seenMap, seenRatio, markSeen, biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBoxes, heightMap, isTouched, markTouched, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, touched, waterLvl, world } from "./world.js";
+import { SEEN_TOP, SEEN_UNDER, seenMap, seenRatio, markSeen, biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBoxes, heightMap, isTouched, markTouched, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, touched, waterLvl, world } from "./world.js";
 import { WATER_DIM, lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
 import { lavaFlowTick, lavaDryTick, LAVA_FLOW, grassTick, primeTNT, primeTick, TNT_FUSE, lavaTick, BLAST_R, FIRE_REACH, MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueFreeze, enqueueWaterAround, explode, fallTick, fireTick, freezeTick, ignite, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
 import { markDirty, FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll, setBuildFocus } from "./mesh.js";
 import { pasteBox, updatePasteBox, outerSea, updateOuterSea, OUTER_SEA_Y, pCol, pCount, FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
-import { OPT_KEY, applyOpts, opts } from "./settings.js";
+import { OPT_KEY, applyOpts, calmMotion, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, playerOccupies, pointSolid, rayBox, raycast, spawn, stats, unstick } from "./player.js";
 import { ac, at, tone, crunch, breakSound, caveSound, lavaHiss, lavaPop, listenAt, miningSound, moodChord, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
 import { OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
@@ -94,7 +94,7 @@ window.__blockyard = {
   raycast: raycast, boxHitsWorld: boxHitsWorld, moveAxis: moveAxis, moveHorizontal: moveHorizontal,
   unstick: unstick, pointSolid: pointSolid, playerOccupies: playerOccupies,
   PLACE_DELAY: PLACE_DELAY, PLACE_REPEAT: PLACE_REPEAT,
-  player: player, camera: camera, spawn: spawn, refreshTop: refreshTop, refreshAllTops: refreshAllTops,
+  player: player, camera: camera, EYE: EYE, spawn: spawn, refreshTop: refreshTop, refreshAllTops: refreshAllTops,
   applyEdit: applyEdit, undo: undo, redo: redo, history: S.history, future: S.future,
   encodeWorld: encodeWorld, decodeWorld: decodeWorld,
   encodeWorldB64: encodeWorldB64, decodeWorldB64: decodeWorldB64,
@@ -109,6 +109,7 @@ window.__blockyard = {
   updateChunkVisibility: updateChunkVisibility, drawMinimap: drawMinimap,
   outerSea: outerSea, updateOuterSea: updateOuterSea, OUTER_SEA_Y: OUTER_SEA_Y,
   seenMap: seenMap, seenRatio: seenRatio, markSeen: markSeen,
+  SEEN_TOP: SEEN_TOP, SEEN_UNDER: SEEN_UNDER,
   pasteBox: pasteBox, updatePasteBox: updatePasteBox,
   ACHIEVEMENTS: ACHIEVEMENTS, unlock: unlock, achCount: achCount,
   checkBuildAchievements: checkBuildAchievements, BATCH_RELIGHT_ALL: BATCH_RELIGHT_ALL,
@@ -125,7 +126,7 @@ window.__blockyard = {
   getBar: function () { return S.bar; },
   setTime: function (t) { S.timeOfDay = t; applyTime(); },
   seed: function () { return S.worldSeed; },
-  opts: opts, applyOpts: applyOpts, voxUniforms: voxUniforms,
+  opts: opts, applyOpts: applyOpts, calmMotion: calmMotion, voxUniforms: voxUniforms,
 
   // ── 개선 v5 에서 추가된 것들
   isUnbreakable: isUnbreakable, columnTop: columnTop, facingText: facingText,

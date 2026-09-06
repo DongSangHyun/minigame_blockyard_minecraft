@@ -2669,19 +2669,29 @@ test("v15 동물: 물과 얼음 위로는 걸어가지 않는다", async (page) 
     const B = window.__blockyard;
     B.generate(777); B.relightAll(false);
     B.spawn();
+    // seedMobs 는 모자란 만큼만 채운다 — 앞선 시험이 번식으로 24마리를 남겨 두면
+    // 여기서도 24마리가 1200프레임을 돌아 물가에 닿을 확률이 껑충 뛴다 (10회 중 1회 실패)
+    B.mobs.length = 0;
     B.seedMobs();
     for (let k = 0; k < 1200; k++) B.updateMobs(1 / 60);
+    // v42 에서 "발목 물은 좌초가 아니다" 로 정했다 — 마크의 소도 얕은 물에 서 있고,
+    // 우리 안 물구유 하나로 동물이 튀어 나가면 목장을 지을 수가 없다.
+    // 그래서 여기서 보는 것은 "바다 위를 걸어 다니는가"(몸이 잠겼는가)다.
     let wet = 0;
     B.mobs.forEach(m => {
       const x = Math.floor(m.x), z = Math.floor(m.z);
       if (x < 0 || x >= B.WX || z < 0 || z >= B.WZ) return;
       const gy = B.topMap[z * B.WX + x];
-      const b = B.world[B.idx(x, gy, z)];
-      if (b === B.B.WATER || b === B.B.ICE || b === B.B.LAVA) wet++;
+      const top = B.world[B.idx(x, gy, z)];
+      // 기둥 겉면이 물·용암·얼음이고 그 아래에 몸이 있다 = 물속 (mobs.js strandedAt 과 같은 잣대)
+      if ((top === B.B.WATER || top === B.B.LAVA || top === B.B.ICE) && m.y < gy + 1) wet++;
+      const by = Math.min(B.WY - 1, Math.floor(m.y));
+      const body = B.world[B.idx(x, by, z)];
+      if (body === B.B.WATER || body === B.B.LAVA) wet++;
     });
     return { wet, total: B.mobs.length };
   });
-  eq(r.wet, 0, r.wet + "마리가 물·얼음 위에 있다");
+  eq(r.wet, 0, r.wet + "마리가 물·용암에 잠겨 있다 — 바다 위를 걸어 다닌다");
 });
 
 test("v15 지형: 평지·산악·군도가 서로 다른 세계를 만든다", async (page) => {
@@ -5845,6 +5855,170 @@ test("v58 시각: 새 세계는 06:00 에 시작하고 시작 화면에서는 �
   });
   near(r.idle, 0.25, 1e-9, "시작 화면에서 시계가 돈다 — 소개문 읽는 사이 낮이 사라진다");
   assert(r.playing > 0.25, "플레이 중에는 시계가 돌아야 한다");
+});
+
+test("v59 되돌리기: 딸려 사라진 것도 함께 되살아난다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 76, Y = 44, Z = 76;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy <= 5; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false);
+
+    // (1) 받침돌 위 횃불 — 돌을 캐면 횃불도 사라진다. 되돌리면 둘 다 돌아와야 한다
+    for (let k = -1; k <= 1; k++) B.applyEdit(X + k, Y, Z, B.B.STONE, false, 0);
+    for (let k = -1; k <= 1; k++) B.applyEdit(X + k, Y + 1, Z, B.B.TORCH, false, 0);
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.applyEdit(X, Y, Z, B.B.AIR, true);          // 가운데 받침돌을 캔다
+    const torchGone = B.get(X, Y + 1, Z) === 0;
+    B.undo();
+    const stoneBack = B.get(X, Y, Z) === B.B.STONE;
+    const torchBack = B.get(X, Y + 1, Z) === B.B.TORCH;
+
+    // (2) 문 아랫칸만 비우면 두 칸이 사라진다 — 되돌리면 두 칸 다 돌아와야 한다
+    for (let dy = 0; dy <= 3; dy++) B.set(X + 2, Y + dy, Z + 2, 0);
+    B.set(X + 2, Y - 1, Z + 2, B.B.STONE);
+    B.refreshAllTops();
+    B.applyEdit(X + 2, Y, Z + 2, B.B.DOOR, false, B.doorShapeFor(2, false));
+    B.applyEdit(X + 2, Y + 1, Z + 2, B.B.DOOR, false, B.doorShapeFor(2, false));
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.applyEdit(X + 2, Y - 1, Z + 2, B.B.AIR, true);   // 문 밑바닥을 캔다
+    const bothGone = B.get(X + 2, Y, Z + 2) === 0 && B.get(X + 2, Y + 1, Z + 2) === 0;
+    B.undo();
+    const lowBack = B.get(X + 2, Y, Z + 2) === B.B.DOOR;
+    const highBack = B.get(X + 2, Y + 1, Z + 2) === B.B.DOOR;
+
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { torchGone, stoneBack, torchBack, bothGone, lowBack, highBack };
+  });
+  assert(r.torchGone, "받침돌을 캤는데 횃불이 안 사라졌다 — 시험대가 틀렸다");
+  assert(r.stoneBack, "되돌렸는데 돌이 안 돌아왔다");
+  assert(r.torchBack, "딸려 사라진 횃불이 안 돌아온다 — 되돌리기로 물건을 잃는다");
+  assert(r.bothGone, "문 밑을 캤는데 두 칸이 안 사라졌다");
+  assert(r.lowBack && r.highBack, "되돌리니 반쪽 문만 돌아왔다 — 허공에 반쪽이 남는다");
+});
+
+test("v60 배려 설정: 흔들림 줄이기와 웅크리기 전환", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const keepSteady = B.opts.steady, keepTog = B.opts.sneaktog, keepFov = B.opts.fov;
+    B.setPaused(true); B.beginPlay();
+
+    // (1) 흔들림 줄이기 — 달려도 시야각이 움직이지 않는다
+    B.opts.steady = 0;
+    const calmOff = B.calmMotion();
+    B.opts.steady = 1;
+    const calmOn = B.calmMotion();
+    B.S.bobAmount = 1; B.S.sprintingNow = true;
+    B.S.fovNow = B.opts.fov;
+    for (let k = 0; k < 40; k++) B.step(1 / 60);
+    const fovDrift = Math.abs(B.camera.fov - B.opts.fov);
+    const bobDrift = Math.abs(B.camera.position.y - (B.player.pos.y + B.EYE - B.S.sneakEye));
+    B.opts.steady = 0;
+
+    // (2) 웅크리기 전환 — Shift 를 떼어도 웅크린 채로 남는다
+    B.opts.sneaktog = 1;
+    B.S.keys.ShiftLeft = false; B.S.crouchWas = false; B.S.sneakLatch = false;
+    B.player.flying = false;
+    B.S.keys.ShiftLeft = true;  B.step(1 / 60);
+    const onWhileHeld = B.getSneak();
+    B.S.keys.ShiftLeft = false; B.step(1 / 60);
+    const stillOn = B.getSneak();                 // 손을 떼도 유지
+    B.S.keys.ShiftLeft = true;  B.step(1 / 60);
+    B.S.keys.ShiftLeft = false; B.step(1 / 60);
+    const offAgain = B.getSneak();                // 한 번 더 누르면 풀린다
+
+    // (3) 전환을 끄면 예전처럼 누르고 있는 동안만
+    B.opts.sneaktog = 0;
+    B.S.keys.ShiftLeft = true;  B.step(1 / 60);
+    const holdOn = B.getSneak();
+    B.S.keys.ShiftLeft = false; B.step(1 / 60);
+    const holdOff = B.getSneak();
+
+    B.opts.steady = keepSteady; B.opts.sneaktog = keepTog; B.opts.fov = keepFov;
+    B.S.keys.ShiftLeft = false; B.S.sneakLatch = false; B.S.crouchWas = false;
+    B.S.bobAmount = 0; B.S.sprintingNow = false;
+    B.endPlay(); B.setPaused(false);
+    return { calmOff, calmOn, fovDrift, bobDrift, onWhileHeld, stillOn, offAgain, holdOn, holdOff };
+  });
+  eq(r.calmOff, false, "흔들림 줄이기를 껐는데 켜진 것으로 읽힌다");
+  eq(r.calmOn, true, "흔들림 줄이기를 켰는데 안 먹는다");
+  assert(r.fovDrift < 0.05, "흔들림을 줄였는데 달릴 때 시야각이 움직인다: " + r.fovDrift);
+  assert(r.bobDrift < 1e-6, "흔들림을 줄였는데 머리가 위아래로 흔들린다: " + r.bobDrift);
+  assert(r.onWhileHeld, "전환식인데 Shift 를 눌러도 안 웅크린다");
+  assert(r.stillOn, "전환식인데 Shift 를 떼자 풀렸다 — 전환이 아니다");
+  eq(r.offAgain, false, "전환식인데 한 번 더 눌러도 안 풀린다");
+  assert(r.holdOn, "전환을 껐는데 Shift 로 안 웅크린다");
+  eq(r.holdOff, false, "전환을 껐는데 Shift 를 떼도 웅크린 채로 남는다");
+});
+
+test("v60 과제: 가만히 서 있기만 해서는 발밑 과제가 안 열린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 20, Y = 44, Z = 76;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = -1; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.applyEdit(X, Y - 1, Z, B.B.ICE, false, 0);
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    B.player.vel.set(0, 0, 0); B.player.flying = false;
+
+    delete B.S.earned.ice;
+    B.S.walked = 0; B.S.achPrevX = null; B.S.achPrevZ = null;
+    for (let k = 0; k < 60; k++) B.step(1 / 60);      // 1초 — 과제 타이머가 두 번 돈다
+    const idleEarned = !!B.S.earned.ice;
+
+    B.S.walked = 20;                                   // 실제로 걸어 다녔다면
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    for (let k = 0; k < 60; k++) B.step(1 / 60);
+    const walkedEarned = !!B.S.earned.ice;
+
+    B.endPlay(); B.setPaused(false);
+    return { idleEarned, walkedEarned };
+  });
+  eq(r.idleEarned, false, "스폰 자리에 가만히 서 있었는데 첫 과제가 열렸다");
+  assert(r.walkedEarned, "8칸을 걸었는데도 발밑 과제가 안 열린다");
+});
+
+test("v60 미니맵: 지하를 걸었다고 지상 지도가 밝혀지지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 40, Z = 40;
+    // 지붕을 두껍게 덮은 굴 — 여기 서면 미니맵이 "지하" 로 넘어간다
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+      for (let dy = 0; dy <= 3; dy++) B.set(X + dx, 20 + dy, Z + dz, 0);
+      for (let dy = 6; dy <= 12; dy++) B.set(X + dx, 20 + dy, Z + dz, B.B.STONE);
+    }
+    B.refreshAllTops();
+    B.seenMap.fill(0);
+    B.player.pos.set(X + 0.5, 21, Z + 0.5);
+    B.player.vel.set(0, 0, 0); B.player.flying = true;
+    B.drawMinimap();
+    const under = B.S.mmUnder;
+    const cell = B.seenMap[Z * B.WX + X];
+    const ratioUnder = B.seenRatio();
+
+    // 지상으로 올라오면 그제야 지상 비트가 켜진다
+    B.player.pos.set(X + 0.5, 40, Z + 0.5);
+    B.drawMinimap();
+    const cell2 = B.seenMap[Z * B.WX + X];
+    const ratioTop = B.seenRatio();
+
+    B.player.flying = false;
+    B.endPlay(); B.setPaused(false);
+    return { under, cell, ratioUnder, cell2, ratioTop,
+             TOP: B.SEEN_TOP, UNDER: B.SEEN_UNDER };
+  });
+  assert(r.under, "지붕 아래인데 미니맵이 지하로 안 넘어갔다 — 시험대가 틀렸다");
+  eq(r.cell & r.UNDER, r.UNDER, "지하를 걸었는데 지하 지도가 안 밝혀졌다");
+  eq(r.cell & r.TOP, 0, "굴만 파고 다녔는데 지상 지도가 밝혀졌다 — 가 본 적 없는 산이 보인다");
+  eq(r.ratioUnder, 0, "지도장이 과제가 지하만 걸어도 올라간다");
+  eq(r.cell2 & r.TOP, r.TOP, "지상으로 올라왔는데 지상 지도가 안 밝혀졌다");
+  assert(r.ratioTop > 0, "지상을 걸었는데 지도장이 진척이 0이다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

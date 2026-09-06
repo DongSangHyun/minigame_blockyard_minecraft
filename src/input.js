@@ -1125,39 +1125,28 @@ bindOpt("s-ui", "o-ui", "ui", function (v) { return v + "%"; });
 bindOpt("s-tbtn", "o-tbtn", "tbtn", function (v) { return v + "%"; });
 bindOpt("s-save", "o-save", "autosave", function (v) { return v + "초"; });
 bindOpt("s-undo", "o-undo", "undo", function (v) { return v + "단계"; });
-(function bindLefty() {
-  var el = document.getElementById("s-lefty"), out = document.getElementById("o-lefty");
+// 켬/끔 설정 하나를 붙인다. 같은 다섯 줄을 설정마다 베껴 쓰면 새 설정에서 한 줄을 빠뜨린다.
+// needApply — 화면에 바로 반영해야 하는 것(고대비·왼손잡이)만 applyOpts 를 부른다.
+function bindCheck(id, outId, key, needApply) {
+  var el = document.getElementById(id), out = document.getElementById(outId);
   if (!el) return;
-  el.checked = !!opts.lefty;
-  if (out) out.textContent = opts.lefty ? "켬" : "끔";
+  el.checked = !!opts[key];
+  if (out) out.textContent = opts[key] ? "켬" : "끔";
   el.addEventListener("change", function () {
-    opts.lefty = el.checked ? 1 : 0;
+    opts[key] = el.checked ? 1 : 0;
     if (out) out.textContent = el.checked ? "켬" : "끔";
-    applyOpts(); saveOpts();
-  });
-})();
-(function bindContrast() {
-  var el = document.getElementById("s-hc"), out = document.getElementById("o-hc");
-  if (!el) return;
-  el.checked = !!opts.contrast;
-  if (out) out.textContent = opts.contrast ? "켬" : "끔";
-  el.addEventListener("change", function () {
-    opts.contrast = el.checked ? 1 : 0;
-    if (out) out.textContent = el.checked ? "켬" : "끔";
-    applyOpts(); saveOpts();
-  });
-})();
-(function bindInvert() {
-  var el = document.getElementById("s-inv"), out = document.getElementById("o-inv");
-  el.checked = !!opts.invertY;
-  out.textContent = opts.invertY ? "켬" : "끔";
-  el.addEventListener("change", function () {
-    opts.invertY = el.checked ? 1 : 0;
-    out.textContent = opts.invertY ? "켬" : "끔";
+    if (needApply) applyOpts();
     saveOpts();
   });
   el.addEventListener("click", function (e) { e.stopPropagation(); });
-})();
+}
+bindCheck("s-inv", "o-inv", "invertY", false);
+bindCheck("s-lefty", "o-lefty", "lefty", true);
+bindCheck("s-hc", "o-hc", "contrast", true);
+// 멀미 배려 — 머리 흔들림·달리기 시야각·구름 흐름을 한꺼번에 멈춘다
+bindCheck("s-steady", "o-steady", "steady", false);
+// 손목 배려 — Shift 를 붙들지 않고 눌러서 켜고 끈다
+bindCheck("s-sneaktog", "o-sneaktog", "sneaktog", false);
 
 // ══════════════════════════════════════════════════════════════
 //  게임패드 — 마우스·키보드가 어려운 사람도 놀 수 있게

@@ -4,7 +4,7 @@ import { BUILD } from "./version.js";
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
 import { AIR, ALL_BLOCKS, GLASS, ITEMS, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross } from "./blocks.js";
 import { AVG_TOP, TILE, atlas, tileOrigin } from "./atlas.js";
-import { seenMap, markSeen, topMap, world } from "./world.js";
+import { SEEN_TOP, SEEN_UNDER, seenMap, markSeen, topMap, world } from "./world.js";
 import { player } from "./player.js";
 import { updateHandBlock } from "./hand.js";
 import { advanceTut, canvas, isTouch } from "./input.js";
@@ -199,12 +199,14 @@ export var mmImage = mmCtx.createImageData(WX, WZ);
 
 export function drawMinimap() {
   var d = mmImage.data;
-  // 걸어온 만큼 지도가 열린다. 지하에서는 시야가 좁다.
-  markSeen(player.pos.x, player.pos.z, S.mmUnder ? 6 : 14);
+  // 걸어온 만큼 지도가 열린다. 지하에서는 시야가 좁고, 밝히는 층도 따로다.
   var pxc = Math.max(0, Math.min(WX - 1, Math.floor(player.pos.x)));
   var pzc = Math.max(0, Math.min(WZ - 1, Math.floor(player.pos.z)));
   var py = Math.max(0, Math.min(WY - 1, Math.floor(player.pos.y)));
+  // 지상인지 지하인지를 먼저 정한다 — 뒤에 정하면 한 프레임 늦은 값으로 엉뚱한 층을 밝힌다
   S.mmUnder = topMap[pzc * WX + pxc] > player.pos.y + 2.5;
+  var seenBit = S.mmUnder ? SEEN_UNDER : SEEN_TOP;
+  markSeen(player.pos.x, player.pos.z, S.mmUnder ? 6 : 14, seenBit);
 
   // 확대 — 보이는 칸 수를 줄이고 한 칸을 여러 픽셀로 그린다
   var zoom = S.mmZoom;
@@ -220,7 +222,7 @@ export function drawMinimap() {
       var o = (oz * WX + ox) * 4;
       d[o + 3] = 255;
       // 안 가 본 칸은 흰 종이로 둔다 — 지도는 걸어서 채운다
-      if (!seenMap[z * WX + x]) { d[o] = 12; d[o + 1] = 16; d[o + 2] = 20; continue; }
+      if (!(seenMap[z * WX + x] & seenBit)) { d[o] = 12; d[o + 1] = 16; d[o + 2] = 20; continue; }
       var b = AIR, shade = 1;
       if (S.mmUnder) {
         // 지하에서는 지금 높이의 단면을 본다

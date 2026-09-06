@@ -119,8 +119,13 @@ export function boxesAt(b, sh, x, y, z) {
 export var touched = new Uint8Array(N);
 // 미니맵에 밝혀진 칸 — 가 본 곳만 지도에 남는다.
 // 부팅 3초에 섬 전체가 드러나면 "저 언덕 너머에 뭐가 있지" 가 사라진다.
+// 걸어서 밝힌 지도. 한 칸에 두 비트를 쓴다 —
+// SEEN_TOP(1) 지상에서 본 자리 · SEEN_UNDER(2) 지하에서 본 자리.
+// 한 배열로 쓰면 굴을 파고 지나간 자리의 지상 지형까지 밝혀져, 걸어 본 적 없는 산이 지도에 뜬다.
+export var SEEN_TOP = 1, SEEN_UNDER = 2;
 export var seenMap = new Uint8Array(WX * WZ);
-export function markSeen(px, pz, r) {
+export function markSeen(px, pz, r, bit) {
+  var b = bit || SEEN_TOP;
   var cx = Math.floor(px), cz = Math.floor(pz), r2 = r * r, n = 0;
   var x0 = Math.max(0, cx - r), x1 = Math.min(WX - 1, cx + r);
   var z0 = Math.max(0, cz - r), z1 = Math.min(WZ - 1, cz + r);
@@ -129,13 +134,14 @@ export function markSeen(px, pz, r) {
       var dx = x - cx, dz = z - cz;
       if (dx * dx + dz * dz > r2) continue;
       var i = z * WX + x;
-      if (!seenMap[i]) { seenMap[i] = 1; n++; }
+      if (!(seenMap[i] & b)) { seenMap[i] |= b; n++; }
     }
   return n;
 }
+// 지도장이 과제는 "걸어서 밝힌 지상" 만 센다 — 굴만 파고 다녀서 받는 상이 아니다
 export function seenRatio() {
   var n = 0;
-  for (var i = 0; i < seenMap.length; i++) if (seenMap[i]) n++;
+  for (var i = 0; i < seenMap.length; i++) if (seenMap[i] & SEEN_TOP) n++;
   return n / seenMap.length;
 }
 

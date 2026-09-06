@@ -1,6 +1,6 @@
 // hand.js — 1인칭 손과 들고 있는 블록
 import { S } from "./state.js";
-import { reduceMotion } from "./boot.js";
+import { calmMotion } from "./settings.js";
 import { CROSS, SHAPE_BOXES, SH_FULL, TILES, faceKindFor, isCross } from "./blocks.js";
 import { TILE, atlas, atlasTex, tileOrigin } from "./atlas.js";
 import { set } from "./world.js";
@@ -149,8 +149,9 @@ export function updateHand(dt) {
   updateHandLight(dt);
   if (S.swing > 0) S.swing = Math.max(0, S.swing - dt * 4.2);
   var s = S.swing > 0 ? Math.sin(S.swing * Math.PI) : 0;
-  var bobY = reduceMotion ? 0 : Math.sin(S.bobPhase) * 0.018 * S.bobAmount;
-  var bobX = reduceMotion ? 0 : Math.cos(S.bobPhase * 0.5) * 0.02 * S.bobAmount;
+  var calm = calmMotion();
+  var bobY = calm ? 0 : Math.sin(S.bobPhase) * 0.018 * S.bobAmount;
+  var bobX = calm ? 0 : Math.cos(S.bobPhase * 0.5) * 0.02 * S.bobAmount;
   handGroup.position.set(bobX, bobY - s * 0.16, s * 0.10);
   handGroup.rotation.set(-s * 0.62, 0, 0);
 }

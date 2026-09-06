@@ -4,7 +4,6 @@ import { padState, pollGamepad, pollGamepadMenu } from "./input.js";
 import { breedTick, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, WX, WY, WZ, idx } from "./dims.js";
-import { reduceMotion } from "./boot.js";
 import { SH_SLAB, AIR, DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isSolid, isUnbreakable } from "./blocks.js";
 import { animateLiquids, crackTex } from "./atlas.js";
 import { seenRatio, BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, set, shape, topMap, world } from "./world.js";
@@ -13,7 +12,7 @@ import { lavaFlowTick, lavaDryTick, grassTick, lavaTick, primeTick, TNT_FUSE, de
 import { buildBudget, dirty, markAllDirty, opaqueMeshes, setBuildFocus } from "./mesh.js";
 import { updatePasteBox, updateOuterSea, primedBoxes, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
-import { opts } from "./settings.js";
+import { calmMotion, opts } from "./settings.js";
 import { EYE, HALF, moveAxis, moveHorizontal, player, pointSolid, raycast, spawn, stats, unstick } from "./player.js";
 import { at, caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { saveGame } from "./save.js";
@@ -103,7 +102,15 @@ export function step(dt) {
     if (padOn && (padState.lx || padState.ly)) { ix = padState.lx; iz = -padState.ly; }
     // Shift 는 웅크리기(마크식) · 달리기는 Ctrl 또는 W 더블탭
     var crouchKey = !!(S.keys.ShiftLeft || S.keys.ShiftRight);
-    S.sneaking = crouchKey && !player.flying;
+    if (opts.sneaktog) {
+      // 전환식 — 누를 때마다 켜고 끈다. Shift 를 계속 붙들고 다리를 놓는 건 손목이 버틴다.
+      if (crouchKey && !S.crouchWas) S.sneakLatch = !S.sneakLatch;
+      S.sneaking = S.sneakLatch && !player.flying;
+    } else {
+      S.sneakLatch = false;
+      S.sneaking = crouchKey && !player.flying;
+    }
+    S.crouchWas = crouchKey;
     if (iz <= 0.1) S.sprintTap = false;                    // 전진을 멈추면 더블탭 달리기 해제
     var sprinting = !S.sneaking && iz > 0.1 &&
                     (S.sprintTap || !!(S.keys.ControlLeft || S.keys.ControlRight));
@@ -218,11 +225,12 @@ export function step(dt) {
     } else S.lastPlaceCell = -1;
   }
 
-  if (!playing) { S.sneaking = false; S.sprintingNow = false; }
+  if (!playing) { S.sneaking = false; S.sneakLatch = false; S.sprintingNow = false; }
 
   // 카메라
+  var calm = calmMotion();
   var bobY = 0, bobX = 0;
-  if (!reduceMotion && S.bobAmount > 0.001) {
+  if (!calm && S.bobAmount > 0.001) {
     bobY = Math.sin(S.bobPhase) * 0.055 * S.bobAmount;
     bobX = Math.cos(S.bobPhase * 0.5) * 0.035 * S.bobAmount;
   }
@@ -230,7 +238,7 @@ export function step(dt) {
   S.sneakEye += (sneakTarget - S.sneakEye) * Math.min(1, dt * 12);
 
   // 달리는 중이라는 유일한 시각 신호 — 시야각이 살짝 넓어진다
-  var fovTarget = opts.fov + (S.sprintingNow ? 5.5 : 0);
+  var fovTarget = opts.fov + ((S.sprintingNow && !calm) ? 5.5 : 0);
   if (S.fovNow === 0) S.fovNow = camera.fov;
   if (Math.abs(S.fovNow - fovTarget) > 0.02) {
     S.fovNow += (fovTarget - S.fovNow) * Math.min(1, dt * 8);
@@ -282,7 +290,7 @@ export function step(dt) {
   if (breedTick(dt)) unlock("breed");
   updateFlocks(dt);
 
-  if (!reduceMotion) {
+  if (!calmMotion()) {
     cloudGroup.position.x += dt * 0.9;
     if (cloudGroup.position.x > 220) cloudGroup.position.x -= 440;
     cloudGroupHigh.position.x += dt * 2.1;      // 높은 층이 더 빨리 흐른다
@@ -555,14 +563,25 @@ export function step(dt) {
     S.achTimer -= dt;
     if (S.achTimer <= 0) {
       S.achTimer = 0.5;
+      // 걸은 거리를 0.5초마다 모은다. 20칸이 넘는 도약은 순간이동이라 세지 않는다.
+      if (S.achPrevX !== null) {
+        var mvx = player.pos.x - S.achPrevX, mvz = player.pos.z - S.achPrevZ;
+        var mvd = Math.sqrt(mvx * mvx + mvz * mvz);
+        if (mvd < 20) S.walked += mvd;
+      }
+      S.achPrevX = player.pos.x; S.achPrevZ = player.pos.z;
+      // 첫 과제가 "가만히 서 있었더니 열렸다" 면 과제를 안 믿게 된다 —
+      // 발밑을 보는 과제는 스폰 자리에서 8칸은 움직인 뒤부터 센다
+      var moved = S.walked >= 8;
+
       if (player.pos.y < 3) unlock("deep");
-      if (get(Math.floor(player.pos.x), Math.floor(player.pos.y - 0.1),
+      if (moved && get(Math.floor(player.pos.x), Math.floor(player.pos.y - 0.1),
               Math.floor(player.pos.z)) === ICE) unlock("ice");
       if (player.pos.y > 50) unlock("high");
       if (!S.earned.cartographer && seenRatio() > 0.8) unlock("cartographer");
       var lb = localBiome();
-      if (lb === 1) unlock("snow");
-      if (lb === 2) unlock("desert");
+      if (moved && lb === 1) unlock("snow");
+      if (moved && lb === 2) unlock("desert");
       // 지은 것을 보는 과제는 훨씬 무거우니 10초에 한 번만
       S.buildAchTimer = (S.buildAchTimer || 0) + 0.5;
       if (S.buildAchTimer >= 10) { S.buildAchTimer = 0; checkBuildAchievements(); }

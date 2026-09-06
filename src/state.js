@@ -49,6 +49,8 @@ export const S = {
   keys: Object.create(null),
   weather: 0,
   sneaking: false,
+  sneakLatch: false,        // 전환식 웅크리기가 켜져 있나
+  crouchWas: false,         // 지난 프레임에 Shift 가 눌려 있었나 (누른 순간만 잡는다)
   sprintTap: false, // W 더블탭으로 걸린 달리기
   sprintingNow: false,
   lastFwdTap: 0,
@@ -83,6 +85,10 @@ export const S = {
   waterTimer: 0,
   achTimer: 0,
   buildAchTimer: 0,
+  // 걸은 거리 — "발을 딛는다" 류 과제가 스폰 자리에 서 있기만 해도 열리는 걸 막는다
+  walked: 0,
+  achPrevX: null,
+  achPrevZ: null,
   mobsRestored: false,
   batchCells: 0,
   achListStale: false,

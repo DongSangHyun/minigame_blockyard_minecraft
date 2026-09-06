@@ -93,5 +93,28 @@ patch("docs/INDEX.md", [
    "**v" + (lastVer || "?") + " — " + (lastTitle || "최신") +
    " · 회귀 테스트 " + tests + "항목 전부 통과.**"]
 ]);
+// docs/TESTING.md 의 항목 표 — 손으로 적은 숫자는 반드시 어긋난다(v58 교훈).
+// 이름 앞머리(vNN · 개선N · 부팅 …)로 묶어 세어 다시 쓴다.
+const names = (fs.readFileSync(path.join(ROOT, "tests", "run.mjs"), "utf8")
+  .match(/^test\("([^"]*)"/gm) || []).map((m) => m.slice(6, -1));
+const groups = new Map();
+for (const n of names) {
+  const m = n.match(/^(개선\s*v?\d+|v\d+)/);
+  const key = m ? m[1].replace(/\s+/g, " ") : (n.split(/[ :]/)[0] || "기타");
+  if (!groups.has(key)) groups.set(key, []);
+  groups.get(key).push(n.slice(key.length).replace(/^[ :]+/, ""));
+}
+// vNN 은 번호 순, 나머지는 뒤에
+function ord(k) { const m = k.match(/(\d+)/); return m ? +m[1] : 1e9; }
+const keys = [...groups.keys()].sort((a, b) => ord(a) - ord(b) || a.localeCompare(b));
+let table = "## 현재 항목 (" + tests + "개)\n\n| 묶음 | 개수 |\n|---|---:|\n";
+for (const k of keys) table += "| " + k + " | " + groups.get(k).length + " |\n";
+table += "\n항목 이름 전체는 `grep -n '^test(' tests/run.mjs` 로 봅니다.\n";
+patch("docs/TESTING.md", [
+  [/<!-- stamp:tests[^>]*-->[\s\S]*?<!-- \/stamp:tests -->/,
+   "<!-- stamp:tests — 아래 표는 tools/stamp.mjs 가 tests/run.mjs 에서 세어 다시 씁니다. 손으로 고치지 마세요 -->\n" +
+   table + "<!-- /stamp:tests -->"]
+]);
+
 console.log("문서 숫자 갱신 — 모듈 " + src.modules + " · " + src.lines + "줄 · 저장 v" + SAVE_V +
             " · 시험 " + tests + "항목");
