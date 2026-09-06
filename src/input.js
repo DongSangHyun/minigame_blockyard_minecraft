@@ -188,6 +188,7 @@ export function afterWorldSwap(msg, loaded) {
   S.clip = null; S.selA = null; S.selB = null;
   S.primed.length = 0; S.fireOrigins.length = 0;
   S.walked = 0; S.achPrevX = null; S.achPrevZ = null;   // 걸은 거리도 이 세계 것부터 다시 센다
+  S.growDirty = true;                                   // 불러온 세계의 묘목을 큐에 다시 담는다
   resetQueues();
 
   relightAll(false); markAllDirty(); buildBudget(70);

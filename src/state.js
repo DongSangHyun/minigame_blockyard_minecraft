@@ -90,6 +90,9 @@ export const S = {
   achPrevX: null,
   achPrevZ: null,
   mobsRestored: false,
+  // 묘목 큐를 세계 전체에서 다시 채워야 하나 — 저장을 불러오거나 세계를 갈아탄 뒤 한 번.
+  // 큐는 저장하지 않으므로, 이 신호가 없으면 불러온 세계의 묘목이 영영 안 자란다.
+  growDirty: false,
   batchCells: 0,
   achListStale: false,
   lavaTimer: 0,

@@ -8,7 +8,7 @@ import { SH_SLAB, AIR, DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, TORCH, WATER, 
 import { animateLiquids, crackTex } from "./atlas.js";
 import { seenRatio, BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, set, shape, topMap, world } from "./world.js";
 import { lightAtPlayer, lightSky, relightAll } from "./light.js";
-import { lavaFlowTick, lavaDryTick, grassTick, lavaTick, primeTick, TNT_FUSE, decayTick, dryTick, fallTick, fireTick, freezeTick, waterTick } from "./fluids.js";
+import { growTick, lavaFlowTick, lavaDryTick, grassTick, lavaTick, primeTick, TNT_FUSE, decayTick, dryTick, fallTick, fireTick, freezeTick, waterTick } from "./fluids.js";
 import { buildBudget, dirty, markAllDirty, opaqueMeshes, setBuildFocus } from "./mesh.js";
 import { updatePasteBox, updateOuterSea, primedBoxes, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
@@ -44,6 +44,7 @@ export function newWorld(seed) {
   // 걸은 거리도 새 세계에서 다시 센다 — 안 지우면 지난 세계에서 걸은 거리 때문에
   // 새 사막에 스폰하자마자 "사막" 이 뜬다 (v60 에서 막은 그 장면이 두 번째 세계에서 되살아난다)
   S.walked = 0; S.achPrevX = null; S.achPrevZ = null;
+  S.growDirty = true;      // 새 세계의 묘목을 큐에 다시 담는다
   S.shapeMode = 0;
   S.spawnPoint = null;
   S.marks = [];
@@ -507,6 +508,7 @@ export function step(dt) {
     }
     waterTick(300);
     fallTick(200);
+    growTick(dt);          // 심어 둔 묘목이 나무가 된다
   }
 
   // 눈이 오면 주변 지표에 조금씩 쌓인다 (비가 오면 다시 녹는다)

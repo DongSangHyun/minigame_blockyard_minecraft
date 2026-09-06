@@ -3,10 +3,10 @@ import { S } from "./state.js";
 import { opts } from "./settings.js";
 import { encodeArrB64, decodeArrB64, SLOTS } from "./save.js";
 import { SEA, DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
-import { SH_STAIR_N, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
+import { SAPLING, SH_STAIR_N, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
 import { topMap, refreshAllTops, touched, get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightAll, relightLocal } from "./light.js";
-import { enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
+import { enqueueGrow, enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
 import { markAllDirty, touch } from "./mesh.js";
 import { player, stats } from "./player.js";
 import { tone } from "./audio.js";
@@ -83,6 +83,7 @@ export function applyEdit(x, y, z, to, record, sh, depth) {
   if (to === LAVA) { waterLvl[i] = 0; enqueueLavaAround(x, y, z); }
   if (from === LAVA && to !== LAVA) enqueueLavaDryAround(x, y, z);
   if (to === AIR) enqueueLavaAround(x, y, z);
+  if (to === SAPLING) enqueueGrow(x, y, z);   // 심은 묘목은 자라기를 기다린다
   enqueueFall(x, y, z);        // 놓은 블록 자신도 떨어질 수 있다
   enqueueFall(x, y + 1, z);    // 위에 얹혀 있던 것도
   // 묶음 편집(채우기·비우기·붙여넣기·폭발) 중에는 칸마다 조명 BFS·기둥 스캔·메시 표시를 하지 않는다.
@@ -260,6 +261,7 @@ export var ACHIEVEMENTS = [
   { id: "gold", name: "금맥", desc: "금 광석을 캔다" },
   { id: "diamond", name: "다이아몬드!", desc: "다이아몬드 광석을 캔다" },
   { id: "breed", name: "목장주", desc: "동물 둘에게 꽃을 주어 새끼를 얻는다" },
+  { id: "sapling", name: "숲지기", desc: "심은 묘목이 나무로 자란다" },
   // 여기부터는 "기능을 만져 봤나" 가 아니라 **지은 것**을 본다.
   // 크리에이티브에서 "다음에 뭐 하지" 를 막아 주는 건 이것뿐이다.
   { id: "room", name: "내 집", desc: "문이 달린 방을 짓는다 (27칸 이상 · 밖이 안 보이게)" },

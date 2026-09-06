@@ -13,6 +13,7 @@ export var AIR = 0, GRASS = 1, DIRT = 2, STONE = 3, SAND = 4, LOG = 5, LEAVES = 
 // 양털 16색 — 건축의 팔레트. 36~51 을 연속으로 쓴다.
 export var TNT = 52, FIRE = 53, FLINT = 54;
 export var DOOR = 55;      // 2칸짜리 진짜 문 — 아래위 두 칸을 함께 쓴다
+export var SAPLING = 56;   // 묘목 — 심어 두면 나무로 자란다 (베어 낸 숲을 되살릴 유일한 방법)
 export var WOOL0 = 36, WOOL_COUNT = 16;
 export var WOOL_COLORS = [
   ["흰색", "#e9ecec"], ["연회색", "#8e8e86"], ["회색", "#3e4447"], ["검정", "#1d1c21"],
@@ -48,6 +49,7 @@ TILES[FLOWER_Y]  = [24, 24, 24];
 TILES[TORCH]     = [25, 25, 25];
 TILES[CACTUS]    = [27, 26, 27];
 TILES[DEADBUSH]  = [28, 28, 28];
+TILES[SAPLING]   = [58, 58, 58];
 TILES[DRYGRASS]  = [29, 29, 29];
 TILES[BIRCH_LOG]    = [31, 30, 31];
 TILES[BIRCH_LEAVES] = [32, 32, 32];
@@ -78,6 +80,7 @@ nm(LAVA, "용암", "LAVA"); nm(ICE, "얼음", "ICE");
 nm(TALLGRASS, "풀", "GRASS TUFT"); nm(FLOWER_R, "양귀비", "POPPY");
 nm(FLOWER_Y, "민들레", "DANDELION"); nm(TORCH, "횃불", "TORCH");
 nm(CACTUS, "선인장", "CACTUS"); nm(DEADBUSH, "죽은 덤불", "DEAD BUSH");
+nm(SAPLING, "묘목", "SAPLING");
 nm(DRYGRASS, "마른 풀", "DRY GRASS");
 nm(BIRCH_LOG, "자작나무 원목", "BIRCH"); nm(BIRCH_LEAVES, "자작나무 잎", "BIRCH LEAVES");
 nm(SPRUCE_LEAVES, "가문비 잎", "SPRUCE LEAVES");
@@ -97,6 +100,7 @@ HARDNESS[ICE] = 0.40;
 HARDNESS[TALLGRASS] = 0.05; HARDNESS[FLOWER_R] = 0.05;
 HARDNESS[FLOWER_Y] = 0.05; HARDNESS[TORCH] = 0.06;
 HARDNESS[CACTUS] = 0.34; HARDNESS[DEADBUSH] = 0.05; HARDNESS[DRYGRASS] = 0.05;
+HARDNESS[SAPLING] = 0.05;
 HARDNESS[GOLD] = 2.35; HARDNESS[DIAMOND] = 2.9;
 HARDNESS[TNT] = 0.30; HARDNESS[FIRE] = 0.02; HARDNESS[FLINT] = 0.20;
 HARDNESS[FENCE] = 0.55; HARDNESS[GATE] = 0.55; HARDNESS[DOOR] = 0.62;
@@ -129,6 +133,7 @@ CROSS[FLOWER_R]  = { w: 0.42, h: 0.82, sway: 0.40 };
 CROSS[FLOWER_Y]  = { w: 0.42, h: 0.82, sway: 0.40 };
 CROSS[TORCH]     = { w: 0.26, h: 0.62, sway: 0 };
 CROSS[DEADBUSH]  = { w: 0.44, h: 0.86, sway: 0.30 };
+CROSS[SAPLING]   = { w: 0.40, h: 0.66, sway: 0.28 };   // 어린 싹이라 풀보다 작고 덜 흔들린다
 CROSS[DRYGRASS]  = { w: 0.46, h: 0.80, sway: 0.50 };
 CROSS[FIRE]      = { w: 0.50, h: 0.96, sway: 0.85 };
 export function isCross(b) { return CROSS[b] !== undefined; }
@@ -137,7 +142,7 @@ export function needsFloor(b) { return isCross(b) || b === DOOR; }
 export var ALL_BLOCKS = [GRASS, DIRT, STONE, COBBLE, SAND, GRAVEL, SNOW, LOG,
                   LEAVES, PLANKS, GLASS, BRICK, LAMP, TORCH, COAL, IRON, ICE,
                   WATER, LAVA, CACTUS, TALLGRASS, FLOWER_R, FLOWER_Y,
-                  DEADBUSH, DRYGRASS, BIRCH_LOG, BIRCH_LEAVES, SPRUCE_LEAVES,
+                  DEADBUSH, DRYGRASS, SAPLING, BIRCH_LOG, BIRCH_LEAVES, SPRUCE_LEAVES,
                   GOLD, DIAMOND, FENCE, GATE, DOOR, PANE, LADDER, TNT];
 
 // 도구 — 목록에는 나오지만 "놓는 블록" 이 아니다.
@@ -156,7 +161,7 @@ export function isOpenable(b) { return b === GATE || b === DOOR; }
 export function isFlammable(b) {
   return b === LOG || b === BIRCH_LOG || b === PLANKS || b === LEAVES ||
          b === BIRCH_LEAVES || b === SPRUCE_LEAVES || b === TALLGRASS ||
-         b === DRYGRASS || b === DEADBUSH || b === FENCE || b === GATE || isWool(b);
+         b === DRYGRASS || b === DEADBUSH || b === SAPLING || b === FENCE || b === GATE || isWool(b);
 }
 // 울타리·유리판이 이어 붙는 상대인가
 export function connectsTo(self, other) {

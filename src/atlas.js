@@ -287,6 +287,23 @@ paint(27, function (p, r) {  // 선인장 윗면
   for (var y2 = 4; y2 < 12; y2++) for (var x2 = 4; x2 < 12; x2++) p(x2, y2, "#2e5c26");
 });
 
+paint(58, function (p, r) {  // 묘목 — 가는 줄기에 어린 잎 두어 장
+  var stem = ["#6b5230", "#7a5e38"];
+  var leaf = ["#4e7d31", "#5d8f3a", "#3f6b28"];
+  // 줄기는 가운데 두 칸 폭으로 아래 절반만 (교차 쿼드라 아래가 땅에 닿는다)
+  for (var y = 15; y >= 8; y--) { p(7, y, pick(r, stem)); p(8, y, pick(r, stem)); }
+  // 잎덩이 — 위쪽에 둥글게. 가장자리는 절반쯤 비워 어린 티를 낸다
+  for (var ly = 2; ly <= 9; ly++) {
+    var rad = ly < 4 ? 2 : (ly < 8 ? 4 : 3);
+    for (var lx = -rad; lx <= rad; lx++) {
+      if (Math.abs(lx) === rad && r() < 0.5) continue;
+      p(7 + lx, ly, pick(r, leaf));
+    }
+  }
+  // 새싹 두 장 — 줄기 옆으로 삐죽
+  p(5, 10, pick(r, leaf)); p(10, 11, pick(r, leaf));
+});
+
 paint(28, function (p, r) {  // 죽은 덤불 — 마른 가지
   var b = ["#7a5a2e", "#8d6a37", "#694d27"];
   for (var k = 0; k < 5; k++) {

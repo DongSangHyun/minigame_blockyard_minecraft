@@ -1,9 +1,10 @@
 // fluids.js — 물 흐름 · 낙하 블록 · 잎 부패
 import { S } from "./state.js";
 import { Q } from "./queues.js";
-import { DIRS, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { DIRT, GRASS, blocksLight, AIR, COBBLE, FIRE, GRAVEL, ICE, LAVA, SAND, SH_FULL, STONE, TNT, WATER, isCross, isFlammable, isLeaf, isLiquid, isLog, isSolid, isUnbreakable } from "./blocks.js";
+import { DIRS, N, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
+import { BIRCH_LEAVES, BIRCH_LOG, LEAVES, LOG, SAPLING, SNOW, SPRUCE_LEAVES, DIRT, GRASS, blocksLight, AIR, COBBLE, FIRE, GRAVEL, ICE, LAVA, SAND, SH_FULL, STONE, TNT, WATER, isCross, isFlammable, isLeaf, isLiquid, isLog, isSolid, isUnbreakable } from "./blocks.js";
 import { topMap, isTouched, biomeMap, get, refreshTop, shape, waterLvl, world } from "./world.js";
+import { growTree } from "./tree.js";
 import { lightSky, lightBlk, relightLocal } from "./light.js";
 import { touch } from "./mesh.js";
 import { burst } from "./scene.js";
@@ -629,4 +630,75 @@ export function explode(cx, cy, cz, radius) {
   crunch(0.9, 0.34, 420, boomAt);
   tone(52, 1.2, "sine", 0.12, boomAt);
   return removed;
+}
+
+// ── 묘목 ─────────────────────────────────────────────────────
+// 나무를 베면 끝이던 것을 되돌린다 — 심어 두면 자란다.
+// 마크의 뼛가루가 없으니(도구 체계가 없다) 시간만이 자라게 하는 유일한 방법이다.
+export var GROW_EVERY = 1.0;      // 1초에 한 번 큐를 돌아본다
+export var GROW_CHANCE = 0.08;    // 한 번에 8% — 평균 12초쯤이면 심고 돌아설 만하다
+export var GROW_LIGHT = 9;        // 마크와 같이 빛 9 이상이어야 자란다
+
+export function enqueueGrow(x, y, z) {
+  if (!inside(x, y, z)) return;
+  if (world[idx(x, y, z)] !== SAPLING) return;
+  Q.growQ.push(idx(x, y, z));
+}
+
+// 저장을 불러오거나 세계를 갈아타면 큐가 비어 있다 — 세계에서 묘목을 다시 주워 담는다.
+// 큐를 저장 포맷에 넣지 않는 대신 여기서 한 번 훑는다 (589,824칸에 1ms 남짓).
+function reseedGrow() {
+  Q.growQ.length = 0;
+  for (var i = 0; i < N; i++) if (world[i] === SAPLING) Q.growQ.push(i);
+  S.growDirty = false;
+}
+
+// 이 자리에서 자랄 나무의 종류 — 그 땅에 원래 서 있던 나무를 따른다.
+// 심는 사람이 종류를 고르게 하려면 묘목이 세 종류여야 하는데,
+// 크리에이티브에서 목록만 세 칸 늘고 얻는 게 없다 (자문 7차).
+function saplingKind(x, z) {
+  if (biomeMap[z * WX + x] === 1) return 2;          // 설원 → 가문비
+  return (Math.random() < 0.34) ? 1 : 0;             // 초원 → 자작 34% · 참나무
+}
+
+export function growTick(dt) {
+  if (S.growDirty) reseedGrow();
+  if (!Q.growQ.length) return 0;
+  Q.growTimer += dt;
+  if (Q.growTimer < GROW_EVERY) return 0;
+  Q.growTimer = 0;
+  var grown = 0, keep = [];
+  for (var k = 0; k < Q.growQ.length; k++) {
+    var i = Q.growQ[k];
+    if (world[i] !== SAPLING) continue;              // 캐 갔거나 덮였다 — 큐에서 빠진다
+    var y = (i / PLANE) | 0, rem = i - y * PLANE;
+    var z = (rem / WX) | 0, x = rem - z * WX;
+    var floorB = get(x, y - 1, z);
+    // 흙 위에서만 자란다. 돌·유리 위의 묘목은 남아 있되 자라지 않는다 (마크와 같다)
+    if (floorB !== GRASS && floorB !== DIRT && floorB !== SAND && floorB !== SNOW) { keep.push(i); continue; }
+    if (lightSky[i] < GROW_LIGHT && lightBlk[i] < GROW_LIGHT) { keep.push(i); continue; }
+    // 위가 막혀 있으면 자라지 않는다 — 천장을 뚫고 올라오면 지어 둔 집이 부서진다.
+    // 가장 짧은 나무가 줄기 4칸 + 잎이라, 6칸이 비어 있는지만 본다 (마크도 비슷하게 본다)
+    var clear = true;
+    for (var uy = 1; uy <= 6 && clear; uy++)
+      if (!inside(x, y + uy, z) || get(x, y + uy, z) !== AIR) clear = false;
+    if (!clear) { keep.push(i); continue; }
+    if (Math.random() > GROW_CHANCE) { keep.push(i); continue; }
+    var kind = saplingKind(x, z);
+    var logB = (kind === 1) ? BIRCH_LOG : LOG;
+    var leafB = (kind === 2) ? SPRUCE_LEAVES : (kind === 1 ? BIRCH_LEAVES : LEAVES);
+    // 묘목 자리를 먼저 비운다 — 줄기 첫 칸이 여기 서야 한다
+    applyEdit(x, y, z, AIR, false, SH_FULL);
+    // 한 그루가 한 번에 되돌려지도록 묶는다 (Ctrl+Z 한 번에 나무 하나)
+    beginBatch(64);
+    var ok = growTree(x, y - 1, z, kind, logB, leafB, Math.random,
+                      get, function (bx, by, bz, b) { applyEdit(bx, by, bz, b, true, SH_FULL); },
+                      AIR, WY);
+    endBatch("나무 자람");
+    if (!ok) { applyEdit(x, y, z, SAPLING, false, SH_FULL); keep.push(i); continue; }
+    grown++;
+  }
+  Q.growQ = keep;
+  if (grown) { S.worldDirty = true; unlock("sapling"); }
+  return grown;
 }

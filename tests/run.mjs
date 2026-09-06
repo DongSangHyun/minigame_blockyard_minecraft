@@ -6089,6 +6089,95 @@ test("v61 나무: 세계 생성과 묘목이 같은 그림을 쓴다", async (pa
   eq(r.tall, false, "천장에 닿는 자리인데도 나무를 심었다");
 });
 
+test("v62 묘목: 심어 두면 나무가 되고, 되돌리기 한 번에 사라진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 84, Y = 46, Z = 20;
+    for (let dx = -5; dx <= 5; dx++) for (let dz = -5; dz <= 5; dz++)
+      for (let dy = -1; dy <= 16; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dx = -5; dx <= 5; dx++) for (let dz = -5; dz <= 5; dz++)
+      B.set(X + dx, Y - 1, Z + dz, B.B.GRASS);
+    B.refreshAllTops(); B.relightAll(false);
+
+    // (1) 흙 위에 심으면 자란다
+    B.applyEdit(X, Y, Z, B.B.SAPLING, false, 0);
+    const planted = B.get(X, Y, Z) === B.B.SAPLING;
+    B.S.history.length = 0; B.S.future.length = 0;
+    let ticks = 0;
+    while (B.get(X, Y, Z) === B.B.SAPLING && ticks < 400) { B.growTick(1.0); ticks++; }
+    const grew = B.get(X, Y, Z) === B.B.LOG || B.get(X, Y, Z) === B.B.BIRCH_LOG;
+    let leaves = 0;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = 0; dy <= 12; dy++) {
+        const b = B.get(X + dx, Y + dy, Z + dz);
+        if (b === B.B.LEAVES || b === B.B.BIRCH_LEAVES || b === B.B.SPRUCE_LEAVES) leaves++;
+      }
+    // 자란 나무는 한 번에 되돌아온다 (묶음 한 개)
+    const hist = B.S.history.length;
+    B.undo();
+    let leftover = 0;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = 0; dy <= 12; dy++) {
+        const b = B.get(X + dx, Y + dy, Z + dz);
+        if (b !== B.B.AIR) leftover++;
+      }
+
+    // (2) 돌 위에서는 자라지 않는다 (마크와 같다)
+    const SX = X + 4;
+    B.applyEdit(SX, Y - 1, Z, B.B.STONE, false, 0);
+    B.applyEdit(SX, Y, Z, B.B.SAPLING, false, 0);
+    for (let k = 0; k < 200; k++) B.growTick(1.0);
+    const onStone = B.get(SX, Y, Z) === B.B.SAPLING;
+
+    // (3) 어두운 방에서는 자라지 않는다 — 사방을 막은 방을 짓는다
+    const DX = X - 4;
+    B.applyEdit(DX, Y, Z, B.B.SAPLING, false, 0);
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+      B.applyEdit(DX + dx, Y + 8, Z + dz, B.B.STONE, false, 0);       // 지붕
+      if (Math.abs(dx) === 2 || Math.abs(dz) === 2)
+        for (let dy = 0; dy < 8; dy++) B.applyEdit(DX + dx, Y + dy, Z + dz, B.B.STONE, false, 0);
+    }
+    B.relightAll(false);
+    const darkLv = Math.max(B.lightSky[B.idx(DX, Y, Z)], B.lightBlk[B.idx(DX, Y, Z)]);
+    for (let k = 0; k < 200; k++) B.growTick(1.0);
+    const inDark = B.get(DX, Y, Z) === B.B.SAPLING;
+
+    // (5) 밝아도 천장이 낮으면 자라지 않는다 — 뚫고 올라오면 지어 둔 것이 부서진다
+    const LX = X, LZ = Z - 4;
+    B.applyEdit(LX, Y, LZ, B.B.SAPLING, false, 0);
+    B.applyEdit(LX, Y + 3, LZ, B.B.GLASS, false, 0);      // 유리라 빛은 그대로 든다
+    B.relightAll(false);
+    const lowLv = Math.max(B.lightSky[B.idx(LX, Y, LZ)], B.lightBlk[B.idx(LX, Y, LZ)]);
+    for (let k = 0; k < 200; k++) B.growTick(1.0);
+    const underRoof = B.get(LX, Y, LZ) === B.B.SAPLING && B.get(LX, Y + 3, LZ) === B.B.GLASS;
+
+    // (4) 저장을 불러온 뒤에도 자란다 — 큐는 저장하지 않으므로 다시 채워져야 한다
+    const RX = X, RZ = Z + 4;
+    B.applyEdit(RX, Y, RZ, B.B.SAPLING, false, 0);
+    B.resetQueues();                 // 세계 전환·불러오기가 하는 것과 같은 청소
+    B.S.growDirty = true;
+    let ticks2 = 0;
+    while (B.get(RX, Y, RZ) === B.B.SAPLING && ticks2 < 400) { B.growTick(1.0); ticks2++; }
+    const regrew = B.get(RX, Y, RZ) !== B.B.SAPLING;
+
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { planted, grew, leaves, hist, leftover, onStone, inDark, regrew, ticks, darkLv, lowLv, underRoof };
+  });
+  assert(r.planted, "묘목이 안 놓인다 — 블록 등록이 빠졌다");
+  assert(r.grew, `묘목이 ${r.ticks}초를 기다려도 안 자란다`);
+  assert(r.leaves > 8, "자란 나무에 잎이 " + r.leaves + "장뿐이다");
+  eq(r.hist, 1, "나무 한 그루가 되돌리기 " + r.hist + "개를 먹었다 — Ctrl+Z 한 번이어야 한다");
+  eq(r.leftover, 0, "되돌렸는데 " + r.leftover + "칸이 남았다 — 나무가 반쯤 지워졌다");
+  assert(r.onStone, "돌 위의 묘목이 자랐다 — 마크에서는 안 자란다");
+  assert(r.darkLv < 9, "시험대가 안 어둡다 — 빛이 " + r.darkLv + " 이다");
+  assert(r.inDark, "어두운 방인데 묘목이 자랐다 — 빛 조건이 안 걸린다");
+  assert(r.lowLv >= 9, "시험대가 어둡다 — 낮은 천장만 보려는데 빛이 " + r.lowLv + " 이다");
+  assert(r.underRoof, "천장이 낮은데 묘목이 자랐다 — 나무가 지붕을 뚫는다");
+  assert(r.regrew, "불러온 세계의 묘목이 영영 안 자란다 — 큐를 다시 안 채웠다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
