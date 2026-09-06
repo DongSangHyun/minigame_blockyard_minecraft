@@ -388,6 +388,9 @@ export function lavaTick(px, py, pz, tries) {
 export function fireTick(budget) {
   budget = budget || 60;
   var acted = 0;
+  // 비가 오면 하늘이 뚫린 자리의 불은 꺼지고 새로 붙지도 않는다 —
+  // 방화 실수를 하늘이 수습해 준다. 지하 굴의 불은 그대로 산다 (마크와 같다).
+  var raining = S.weather === 1;
   var end = Q.fireQ.length;
   while (Q.fireHead < end && budget-- > 0) {
     var i = Q.fireQ[Q.fireHead++];
@@ -402,6 +405,7 @@ export function fireTick(budget) {
       if (!inside(nx, ny, nz)) continue;
       if (!isFlammable(get(nx, ny, nz))) continue;
       if (Math.random() > 0.30) continue;
+      if (raining && ny > topMap[nz * WX + nx] - 0.5) continue;   // 비 맞는 자리엔 안 붙는다
       // 처음 붙인 자리에서 너무 멀리 번지지 않게 — 집이 통째로 사라지면 복구가 없다
       if (S.fireOrigins.length) {
         var od = 1e9;                       // 가장 가까운 원점까지의 거리로 잰다
@@ -435,6 +439,7 @@ export function fireTick(budget) {
     for (var qd = 0; qd < 6 && !doused; qd++) {
       if (get(x + DIRS[qd][0], y + DIRS[qd][1], z + DIRS[qd][2]) === WATER) doused = true;
     }
+    if (raining && y > topMap[z * WX + x] - 0.5 && Math.random() < 0.25) doused = true;
     if (doused || (!fuel && Math.random() < 0.5)) {
       applyEdit(x, y, z, AIR, true);
       burst(x, y, z, FIRE, 3);

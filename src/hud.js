@@ -244,6 +244,23 @@ export function drawMinimap() {
   }
   mmCtx.putImageData(mmImage, 0, 0);
 
+  // 표식(B) — 찍어 놓고 화면에 안 보이면 있으나 마나다
+  var sx = WX / spanX, sz = WZ / spanZ;
+  for (var mi = 0; mi < S.marks.length; mi++) {
+    var mk = S.marks[mi];
+    var mxp = (mk[0] - x0) * sx, mzp = (mk[2] - z0) * sz;
+    var edge = mxp < 2 || mzp < 2 || mxp > WX - 2 || mzp > WZ - 2;
+    mxp = Math.max(2, Math.min(WX - 2, mxp));
+    mzp = Math.max(2, Math.min(WZ - 2, mzp));
+    mmCtx.beginPath();
+    mmCtx.arc(mxp, mzp, edge ? 1.6 : 2.4, 0, Math.PI * 2);
+    mmCtx.fillStyle = "#e0c060";
+    mmCtx.fill();
+    mmCtx.lineWidth = 1;
+    mmCtx.strokeStyle = "rgba(255,255,255,.85)";
+    mmCtx.stroke();
+  }
+
   var px = (player.pos.x - x0) * (WX / spanX);
   var pz = (player.pos.z - z0) * (WZ / spanZ);
   var arrow = 3.2 * Math.min(3, zoom);

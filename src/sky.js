@@ -231,7 +231,12 @@ export function updateWeather(dt) {
   S.rainTimer -= dt;
   if (S.rainTimer <= 0) {
     S.rainTimer = 0.8;
-    if (S.weatherMix > 0.05) rainHiss(S.weatherMix);
+    // 실내·지하에서는 빗소리가 잦아든다 — 문을 닫으면 소리가 끊기는 것이
+    // "안에 있다" 는 감각을 만든다. 완전히 끊지 않고 12% 만 남긴다.
+    if (S.weatherMix > 0.05) {
+      var openSky = player.pos.y > columnTop(player.pos.x, player.pos.z) - 0.5;
+      rainHiss(S.weatherMix * (openSky ? 1 : 0.12));
+    }
   }
 
   if (!S.weather && S.weatherMix < 0.02) return;

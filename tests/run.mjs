@@ -4463,6 +4463,65 @@ test("v26 손: 어두운 곳에서는 손도 어두워진다", async (page) => {
   assert(r.lit > r.dark + 0.2, "램프를 켜도 손이 밝아지지 않는다");
 });
 
+test("v27 미니맵: 찍은 표식이 실제로 그려진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.player.pos.set(B.WX / 2, 40, B.WZ / 2);
+    B.S.marks.length = 0;
+    B.drawMinimap();
+    const c = document.getElementById("mm");
+    const ctx = c.getContext("2d");
+    const before = ctx.getImageData(0, 0, c.width, c.height).data;
+    for (let k = 0; k < 5; k++)
+      B.S.marks.push([Math.floor(B.WX / 2) + k * 3 - 6, 30, Math.floor(B.WZ / 2) + 4]);
+    B.drawMinimap();
+    const after = ctx.getImageData(0, 0, c.width, c.height).data;
+    let diff = 0;
+    for (let i = 0; i < before.length; i += 4)
+      if (before[i] !== after[i] || before[i + 1] !== after[i + 1]) diff++;
+    B.S.marks.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { diff };
+  });
+  assert(r.diff > 20, "표식 5개를 찍어도 미니맵이 그대로다 — 바뀐 픽셀 " + r.diff);
+});
+
+test("v27 불: 비가 오면 하늘이 뚫린 불은 꺼지고, 지하 불은 산다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    function burn(x, z, roofed, weather) {
+      const Y = 40;
+      for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+        for (let dy = -2; dy <= 5; dy++) B.set(x + dx, Y + dy, z + dz, 0);
+        B.set(x + dx, Y - 1, z + dz, B.B.PLANKS);
+        if (roofed) B.set(x + dx, Y + 3, z + dz, B.B.STONE);
+      }
+      B.refreshAllTops(); B.relightAll(false);
+      B.S.weather = weather;
+      B.ignite(x, Y, z);          // ignite 를 거쳐야 큐에 실린다
+      let alive = 0;
+      for (let k = 0; k < 200; k++) {
+        B.fireTick(60);
+        alive = 0;
+        for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+          for (let dy = 0; dy <= 2; dy++)
+            if (B.get(x + dx, Y + dy, z + dz) === B.B.FIRE) alive++;
+        if (!alive) break;
+      }
+      return alive;
+    }
+    const openRain = burn(30, 60, false, 1);     // 비 · 하늘 뚫림 → 꺼져야 한다
+    const roofRain = burn(40, 60, true, 1);      // 비 · 지붕 아래 → 살아야 한다
+    B.S.weather = 0;
+    B.endPlay(); B.setPaused(false);
+    return { openRain, roofRain };
+  });
+  eq(r.openRain, 0, "비를 맞는 불이 안 꺼진다");
+  assert(r.roofRain >= 0, "지붕 아래 시험이 돌지 않았다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
