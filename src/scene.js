@@ -1,5 +1,5 @@
 // scene.js — three.js 씬 · 셰이더 · 파티클
-import { CH, CX, CY, CZ, WX, WY, WZ } from "./dims.js";
+import { SEA, CH, CX, CY, CZ, WX, WY, WZ } from "./dims.js";
 import { IS_TOUCH, bail } from "./boot.js";
 import { CROSS, SHAPE_BOXES, isSolid } from "./blocks.js";
 import { SWATCH_SIDE, AVG_SIDE, atlasTex, crackTex, makeRng } from "./atlas.js";
@@ -119,6 +119,90 @@ export var sky = new THREE.Mesh(
   })
 );
 scene.add(sky);
+
+// 위치 속성만 가진 두 지오메트리를 잇는다 (three r128 에는 mergeBufferGeometries 가 번들에 없다)
+function mergeGeo(a, b) {
+  var pa = a.attributes.position.array, pb = b.attributes.position.array;
+  var ia = a.index ? a.index.array : null, ib = b.index ? b.index.array : null;
+  var pos = new Float32Array(pa.length + pb.length);
+  pos.set(pa, 0); pos.set(pb, pa.length);
+  var out = new THREE.BufferGeometry();
+  out.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  if (ia && ib) {
+    var off = pa.length / 3;
+    var idxArr = new Uint32Array(ia.length + ib.length);
+    idxArr.set(ia, 0);
+    for (var k = 0; k < ib.length; k++) idxArr[ia.length + k] = ib[k] + off;
+    out.setIndex(new THREE.BufferAttribute(idxArr, 1));
+  }
+  return out;
+}
+
+// ── 바깥 바다 — 세계 끝에서 물이 일직선으로 잘리고 그 위가 안개판이면
+// 섬이 아니라 디오라마가 된다. 수평선을 만들어 준다.
+// 가운데를 뚫어 두어 진짜 물 블록과 z-fighting 이 없다.
+export var OUTER_SEA_Y = SEA + 1 - 0.12;      // 물 윗면 보정은 mesh.js 와 같은 값
+export var outerSea = (function () {
+  // 구멍 뚫린 Shape 은 삼각분할이 겹쳐 동일 평면 z-fighting(대각선 줄무늬)을 낸다.
+  // 섬을 둘러싸는 판 네 장으로 만든다 — 겹치지 않고 삼각형도 8장뿐이다.
+  var R = 700;
+  var geos = [];
+  function strip(x0, z0, x1, z1) {
+    var g = new THREE.PlaneGeometry(x1 - x0, z1 - z0);
+    g.rotateX(-Math.PI / 2);
+    g.translate((x0 + x1) / 2, 0, (z0 + z1) / 2);
+    geos.push(g);
+  }
+  strip(-R, -R, R, 0);                        // 북
+  strip(-R, WZ, R, R);                        // 남
+  strip(-R, 0, 0, WZ);                        // 서
+  strip(WX, 0, R, WZ);                        // 동
+  var geo = geos[0];
+  for (var gi = 1; gi < geos.length; gi++) {  // 하나로 합친다 (three r128 에 merge 유틸이 없다)
+    geo = mergeGeo(geo, geos[gi]);
+  }
+  var mat = new THREE.ShaderMaterial({
+    uniforms: voxUniforms,                    // 안개는 지형과 같은 값을 그대로 쓴다
+    fog: false, depthWrite: true,
+    // 안개를 정점에서 보간하면 700칸짜리 삼각형 몇 장에 이음새가 줄무늬로 드러난다.
+    // 픽셀마다 카메라와의 거리를 직접 잰다.
+    vertexShader: [
+      "varying vec3 vW;",
+      "void main() {",
+      "  vec4 wp = modelMatrix * vec4(position, 1.0);",
+      "  vW = wp.xyz;",
+      "  gl_Position = projectionMatrix * viewMatrix * wp;",
+      "}"
+    ].join("\n"),
+    fragmentShader: [
+      "uniform vec3 uFogColor;",
+      "uniform float uFogNear;",
+      "uniform float uFogFar;",
+      "uniform float uDay;",
+      "uniform float uTime;",
+      "varying vec3 vW;",
+      "void main() {",
+      "  float d = length(vW - cameraPosition);",
+      "  vec3 water = vec3(0.13, 0.30, 0.47) * (0.35 + 0.65 * uDay);",
+      // 잔물결 — 완전히 평평하면 판때기로 보인다. 가까울수록만 보이게 한다
+      "  float w = sin(vW.x * 0.09 + uTime * 0.7) * sin(vW.z * 0.11 - uTime * 0.5);",
+      "  water += vec3(0.020, 0.028, 0.034) * w * (1.0 - smoothstep(0.0, 90.0, d));",
+      "  float f = smoothstep(uFogNear, uFogFar, d);",
+      "  gl_FragColor = vec4(mix(water, uFogColor, f), 1.0);",
+      "}"
+    ].join("\n")
+  });
+  var m = new THREE.Mesh(geo, mat);
+  m.position.y = OUTER_SEA_Y;
+  m.frustumCulled = false;
+  m.renderOrder = 1;                          // 하늘 뒤 · 반투명(유리 2) 앞
+  scene.add(m);
+  return m;
+})();
+// 물 아래에서는 그리지 않는다 — 잠수 중에 머리 위로 판이 지나가면 안 된다
+export function updateOuterSea(camY) {
+  outerSea.visible = camY > OUTER_SEA_Y;
+}
 
 for (var mi = 0; mi < CX * CY * CZ; mi++) {
   var mo = new THREE.Mesh(new THREE.BufferGeometry(), matOpaque);

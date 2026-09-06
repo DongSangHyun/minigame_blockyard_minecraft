@@ -5502,6 +5502,38 @@ test("v50 날씨: /weather 가 하늘에도 반영된다", async (page) => {
   assert(r.rainMix >= 0, "setWeather 를 거치지 않아 화면 상태가 안 따라온다");
 });
 
+test("v51 바다: 세계 밖으로 수평선이 이어지고, 물속에서는 감춰진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const y = B.OUTER_SEA_Y;
+    // 물 윗면과 같은 높이여야 진짜 물과 이어져 보인다 (mesh.js 의 0.12 보정과 같은 값)
+    const alignsWithWater = Math.abs(y - (B.SEA + 1 - 0.12)) < 1e-6;
+    B.updateOuterSea(y + 5);
+    const aboveVisible = B.outerSea.visible;
+    B.updateOuterSea(y - 5);
+    const belowHidden = !B.outerSea.visible;
+    // 섬 자리에는 판이 없어야 한다 (겹치면 z-fighting 이 난다)
+    const pos = B.outerSea.geometry.attributes.position.array;
+    let insideIsland = 0, far = 0;
+    for (let i = 0; i < pos.length; i += 3) {
+      const px = pos[i], pz = pos[i + 2];
+      if (px > 1 && px < B.WX - 1 && pz > 1 && pz < B.WZ - 1) insideIsland++;
+      if (Math.abs(px) > 300 || Math.abs(pz) > 300) far++;
+    }
+    B.updateOuterSea(y + 5);
+    B.endPlay(); B.setPaused(false);
+    return { alignsWithWater, aboveVisible, belowHidden, insideIsland, far,
+             verts: pos.length / 3 };
+  });
+  assert(r.alignsWithWater, "바깥 바다 높이가 물 윗면과 어긋난다 — 이음새가 보인다");
+  assert(r.aboveVisible, "물 위에서 바깥 바다가 안 보인다");
+  assert(r.belowHidden, "물속에서 바깥 바다 판이 머리 위로 지나간다");
+  eq(r.insideIsland, 0, "섬 자리에도 판이 깔려 있다 — 진짜 물과 z-fighting 이 난다");
+  assert(r.far > 0, "판이 시야 밖까지 뻗지 않는다 — 수평선이 안 생긴다");
+  assert(r.verts <= 32, "판이 너무 잘게 쪼개져 있다 — " + r.verts + "정점");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

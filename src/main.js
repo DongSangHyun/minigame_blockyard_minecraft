@@ -9,7 +9,7 @@ import { biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBo
 import { WATER_DIM, lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
 import { lavaFlowTick, lavaDryTick, LAVA_FLOW, grassTick, primeTNT, primeTick, TNT_FUSE, lavaTick, BLAST_R, FIRE_REACH, MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueFreeze, enqueueWaterAround, explode, fallTick, fireTick, freezeTick, ignite, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
 import { FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll, setBuildFocus } from "./mesh.js";
-import { pCol, pCount, FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
+import { outerSea, updateOuterSea, OUTER_SEA_Y, pCol, pCount, FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { OPT_KEY, applyOpts, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, playerOccupies, pointSolid, rayBox, raycast, spawn, stats, unstick } from "./player.js";
@@ -106,6 +106,7 @@ window.__blockyard = {
   fallTick: fallTick, enqueueFall: enqueueFall, isFalling: isFalling,
   rayBox: rayBox, canPlaceAt: canPlaceAt, chunkFilled: chunkFilled,
   updateChunkVisibility: updateChunkVisibility, drawMinimap: drawMinimap,
+  outerSea: outerSea, updateOuterSea: updateOuterSea, OUTER_SEA_Y: OUTER_SEA_Y,
   ACHIEVEMENTS: ACHIEVEMENTS, unlock: unlock, achCount: achCount,
   checkBuildAchievements: checkBuildAchievements,
   getEarned: function () { return S.earned; },
