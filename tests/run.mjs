@@ -6021,6 +6021,50 @@ test("v60 미니맵: 지하를 걸었다고 지상 지도가 밝혀지지 않는
   assert(r.ratioTop > 0, "지상을 걸었는데 지도장이 진척이 0이다");
 });
 
+test("v61 나무: 세계 생성과 묘목이 같은 그림을 쓴다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 12, Y = 40, Z = 12;
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++)
+      for (let dy = 0; dy <= 14; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.set(X, Y, Z, B.B.GRASS);
+    B.refreshAllTops();
+
+    // tree.js 를 직접 불러 심는다 — 묘목이 자랄 때 탈 바로 그 길이다
+    let n = 0;
+    const ok = B.growTree(X, Y, Z, 0, B.B.LOG, B.B.LEAVES,
+      () => { n++; return 0.5; },                    // 난수를 고정해 결과를 못 박는다
+      (x, y, z) => B.get(x, y, z),
+      (x, y, z, b) => B.applyEdit(x, y, z, b, false, 0),
+      B.B.AIR, B.WY);
+
+    let logs = 0, leaves = 0;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = 1; dy <= 12; dy++) {
+        const b = B.get(X + dx, Y + dy, Z + dz);
+        if (b === B.B.LOG) logs++;
+        if (b === B.B.LEAVES) leaves++;
+      }
+    const trunkOnSoil = B.get(X, Y + 1, Z) === B.B.LOG;
+    // 잎이 줄기 위에 있는가 — 우듬지가 땅에 박히면 나무가 아니다
+    const crownAbove = B.get(X, Y + logs, Z) === B.B.LOG && leaves > 0;
+
+    // 천장에 붙은 자리에는 심지 않는다 (묘목이 동굴 천장 밑에서 자라면 안 된다)
+    const tall = B.growTree(X, B.WY - 3, Z, 0, B.B.LOG, B.B.LEAVES,
+      () => 0.5, (x, y, z) => B.get(x, y, z), () => {}, B.B.AIR, B.WY);
+
+    B.endPlay(); B.setPaused(false);
+    return { ok, logs, leaves, trunkOnSoil, crownAbove, tall, rolls: n };
+  });
+  assert(r.ok, "평지에 나무를 못 심었다");
+  assert(r.trunkOnSoil, "줄기가 땅 바로 위에서 시작하지 않는다");
+  assert(r.logs >= 4 && r.logs <= 7, "줄기 높이가 4~7 을 벗어난다: " + r.logs);
+  assert(r.leaves > 8, "잎이 " + r.leaves + "장뿐이다 — 우듬지가 안 생겼다");
+  assert(r.crownAbove, "잎이 줄기 위에 얹히지 않았다");
+  eq(r.tall, false, "천장에 닿는 자리인데도 나무를 심었다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

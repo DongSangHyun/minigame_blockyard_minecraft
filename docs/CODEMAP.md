@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-06 · 모듈 27개 · 합계 8,911줄
+생성일 2026-09-06 · 모듈 28개 · 합계 8,938줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -15,8 +15,9 @@
 | [`queues.js`](../src/queues.js) | 시뮬레이션 대기열 (의존성 없음) | 33 | — |
 | [`boot.js`](../src/boot.js) | 부팅 가드 · 환경 판별 | 26 | state |
 | [`blocks.js`](../src/blocks.js) | 블록 정의 · 모양 · 성질 | 269 | state |
+| [`tree.js`](../src/tree.js) | 나무 한 그루의 모양 | 47 | — |
 | [`atlas.js`](../src/atlas.js) | 텍스처 아틀라스 (코드로 그리는 16×16 도트) | 496 | blocks |
-| [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 536 | state · queues · dims · blocks · atlas |
+| [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 514 | state · tree · queues · dims · blocks · atlas |
 | [`light.js`](../src/light.js) | 광원 — 햇빛과 블록광 BFS | 182 | state · dims · blocks · world · mesh · player |
 | [`fluids.js`](../src/fluids.js) | 물 흐름 · 낙하 블록 · 잎 부패 | 633 | state · queues · dims · blocks · world · light · mesh · scene · audio · player · edit |
 | [`mesh.js`](../src/mesh.js) | 면 데이터 + 청크 메싱 | 272 | dims · blocks · atlas · world · light |
@@ -36,7 +37,7 @@
 | [`cloud.js`](../src/cloud.js) | 기기 사이 이어하기 (GitHub Gist 에 세계를 올리고 내려받는다) | 226 | state · save |
 | [`loop.js`](../src/loop.js) | 게임 루프 | 721 | state · input · mobs · queues · dims · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · mine · sky |
 | [`version.js`](../src/version.js) | 빌드 도장 (자동 생성) | 8 | — |
-| [`main.js`](../src/main.js) | 조립과 시작 | 224 | state · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · input · mine · sky · loop |
+| [`main.js`](../src/main.js) | 조립과 시작 | 226 | state · tree · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · input · mine · sky · loop |
 
 ## 모듈별 공개 함수
 
@@ -105,6 +106,12 @@
 
 내보내는 값 — `AIR` · `TNT` · `DOOR` · `WOOL0` · `WOOL_COLORS` · `TILES` · `NAMES` · `NAMES_EN` · `HARDNESS` · `EMIT` · `CROSS` · `ALL_BLOCKS` · `ITEMS` · `DEFAULT_BAR` · `DEFAULT_BAR2` · `SH_FULL` · `SH_UP_OFF` · `SH_SLAB_UP` · `SH_AXIS_X` · `SH_WALL_N` · `WALL_DIR` · `SH_DOOR_N` · `SH_DOOR_OPEN_OFF` · `SHAPE_BOXES` · `SHAPE_NAMES`
 
+### `tree.js` — 나무 한 그루의 모양
+
+| 함수 | 줄 |
+|---|---:|
+| `growTree(x, y, z, kind, logB, leafB, rnd, peek, put, air, maxY)` | 15 |
+
 ### `atlas.js` — 텍스처 아틀라스 (코드로 그리는 16×16 도트)
 
 | 함수 | 줄 |
@@ -124,27 +131,27 @@
 
 | 함수 | 줄 |
 |---|---:|
-| `get(x, y, z)` | 17 |
-| `set(x, y, z, b)` | 22 |
-| `shapeAt(x, y, z)` | 25 |
-| `refreshTop(x, z)` | 27 |
-| `surfaceTop(x, y, z)` | 36 |
-| `crossBase(x, y, z)` | 45 |
-| `dynamicBoxes(b, x, y, z)` | 52 |
-| `hasDynamicBoxes(b)` | 109 |
-| `boxesAt(b, sh, x, y, z)` | 113 |
-| `markSeen(px, pz, r, bit)` | 127 |
-| `seenRatio()` | 142 |
-| `markTouched(x, y, z)` | 148 |
-| `isTouched(x, y, z)` | 151 |
-| `refreshAllTops()` | 155 |
-| `hash2(x, y, seed)` | 159 |
-| `hash3(x, y, z, seed)` | 164 |
-| `smooth(t)` | 170 |
-| `lerp(a, b, t)` | 171 |
-| `noise2(x, y, seed)` | 173 |
-| `noise3(x, y, z, seed)` | 180 |
-| `generate(seed)` | 190 |
+| `get(x, y, z)` | 18 |
+| `set(x, y, z, b)` | 23 |
+| `shapeAt(x, y, z)` | 26 |
+| `refreshTop(x, z)` | 28 |
+| `surfaceTop(x, y, z)` | 37 |
+| `crossBase(x, y, z)` | 46 |
+| `dynamicBoxes(b, x, y, z)` | 53 |
+| `hasDynamicBoxes(b)` | 110 |
+| `boxesAt(b, sh, x, y, z)` | 114 |
+| `markSeen(px, pz, r, bit)` | 128 |
+| `seenRatio()` | 143 |
+| `markTouched(x, y, z)` | 149 |
+| `isTouched(x, y, z)` | 152 |
+| `refreshAllTops()` | 156 |
+| `hash2(x, y, seed)` | 160 |
+| `hash3(x, y, z, seed)` | 165 |
+| `smooth(t)` | 171 |
+| `lerp(a, b, t)` | 172 |
+| `noise2(x, y, seed)` | 174 |
+| `noise3(x, y, z, seed)` | 181 |
+| `generate(seed)` | 191 |
 
 내보내는 값 — `world` · `shape` · `heightMap` · `topMap` · `biomeMap` · `waterLvl` · `BIOME_NAMES` · `touched` · `SEEN_TOP` · `seenMap`
 

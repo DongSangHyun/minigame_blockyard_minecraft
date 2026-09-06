@@ -38,7 +38,7 @@ node tools/tidy-imports.mjs   # 안 쓰는 import 정리
    단독으로는 통과하는데 `run.mjs 10` 에서만 1~2회 깨지면 대개 이 부류입니다.
 
 <!-- stamp:tests — 아래 표는 tools/stamp.mjs 가 tests/run.mjs 에서 세어 다시 씁니다. 손으로 고치지 마세요 -->
-## 현재 항목 (250개)
+## 현재 항목 (251개)
 
 | 묶음 | 개수 |
 |---|---:|
@@ -106,6 +106,7 @@ node tools/tidy-imports.mjs   # 안 쓰는 import 정리
 | v58 | 3 |
 | v59 | 1 |
 | v60 | 3 |
+| v61 | 1 |
 | topMap | 1 |
 | UI | 1 |
 | 도전 | 1 |

@@ -1,5 +1,6 @@
 // main.js — 조립과 시작
 import { S } from "./state.js";
+import { growTree } from "./tree.js";
 import { breedTick, MOB_MAX, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, mobs, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { SWATCH_SIDE, animateLiquids, atlas } from "./atlas.js";
 import { Q } from "./queues.js";
@@ -108,6 +109,7 @@ window.__blockyard = {
   rayBox: rayBox, canPlaceAt: canPlaceAt, chunkFilled: chunkFilled,
   updateChunkVisibility: updateChunkVisibility, drawMinimap: drawMinimap,
   outerSea: outerSea, updateOuterSea: updateOuterSea, OUTER_SEA_Y: OUTER_SEA_Y,
+  growTree: growTree,
   seenMap: seenMap, seenRatio: seenRatio, markSeen: markSeen,
   SEEN_TOP: SEEN_TOP, SEEN_UNDER: SEEN_UNDER,
   pasteBox: pasteBox, updatePasteBox: updatePasteBox,

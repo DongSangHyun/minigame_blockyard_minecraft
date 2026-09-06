@@ -1,5 +1,6 @@
 // world.js — 월드 데이터 · 지형 생성
 import { S } from "./state.js";
+import { growTree } from "./tree.js";
 import { resetQueues } from "./queues.js";
 import { DIRS, N, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
 import { DOOR, doorFacing, doorOpen, AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, CACTUS, COAL, COBBLE, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAVA, LEAVES, LOG, PANE, PLANKS, SAND, SHAPE_BOXES, SH_FULL, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TORCH, WALL_DIR, WATER, connectsTo, isCross, isSolid } from "./blocks.js";
@@ -387,35 +388,12 @@ export function generate(seed) {
       // 종류 — 설원은 가문비나무(짙은 잎·뾰족한 수형), 초원은 참나무와 자작나무가 섞인다
       var spruce = tb === 1;
       var birch = !spruce && rng() < 0.34;
-      var logB = birch ? BIRCH_LOG : LOG;
-      var leafB = spruce ? SPRUCE_LEAVES : (birch ? BIRCH_LEAVES : LEAVES);
-      var trunk = spruce ? 5 + Math.floor(rng() * 3)
-                : (birch ? 5 + Math.floor(rng() * 3) : 4 + Math.floor(rng() * 3));
-      if (th + trunk + 4 >= WY) continue;
-      var crown = th + trunk;
-      if (spruce) {
-        // 아래로 갈수록 넓어지는 원뿔
-        for (var sy = 0; sy <= 4; sy++) {
-          var srad = sy >= 3 ? 0 : (sy >= 1 ? 1 : 2);
-          for (var sx2 = -srad; sx2 <= srad; sx2++)
-            for (var sz2 = -srad; sz2 <= srad; sz2++) {
-              if (Math.abs(sx2) === srad && Math.abs(sz2) === srad && srad > 1) continue;
-              var cy2 = crown - 2 + sy;
-              if (get(tx + sx2, cy2, tz + sz2) === AIR) set(tx + sx2, cy2, tz + sz2, leafB);
-            }
-        }
-      } else {
-        for (var ly = -2; ly <= 1; ly++) {
-          var rad = (ly >= 0) ? 1 : 2;
-          for (var lx = -rad; lx <= rad; lx++) {
-            for (var lz = -rad; lz <= rad; lz++) {
-              if (Math.abs(lx) === rad && Math.abs(lz) === rad && rng() < 0.65) continue;
-              if (get(tx + lx, crown + ly, tz + lz) === AIR) set(tx + lx, crown + ly, tz + lz, leafB);
-            }
-          }
-        }
-      }
-      for (var k = 1; k <= trunk; k++) set(tx, th + k, tz, logB);
+      // 나무 모양은 tree.js 한 곳에만 둔다 — 묘목이 들어와도 같은 그림을 심는다.
+      // rng 부르는 차례가 곧 시드다. 순서를 바꾸면 같은 시드가 다른 세계가 된다.
+      growTree(tx, th, tz, spruce ? 2 : (birch ? 1 : 0),
+               birch ? BIRCH_LOG : LOG,
+               spruce ? SPRUCE_LEAVES : (birch ? BIRCH_LEAVES : LEAVES),
+               rng, get, set, AIR, WY);
     }
   }
 
