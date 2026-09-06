@@ -505,6 +505,21 @@
     display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
     gap: 5px; margin-top: 14px;
   }
+  /* ---------- 청사진 목록 ---------- */
+  #bpgrid { display: grid; gap: 5px; margin-top: 14px; }
+  .bp {
+    display: flex; align-items: baseline; gap: 8px;
+    padding: 6px 8px; border: 2px solid var(--line); background: var(--panel-2);
+  }
+  .bp b { font-size: 12px; color: var(--bone); font-weight: 400; }
+  .bp span { flex: 1; font-family: var(--mono); font-size: 10px; color: var(--stone); }
+  .bp button {
+    font-family: var(--mono); font-size: 10px; color: var(--stone);
+    background: none; border: 2px solid var(--line); padding: 3px 7px; cursor: pointer;
+  }
+  .bp button:hover { color: var(--bone); border-color: var(--line-hi); }
+  .bp button.del:hover { color: var(--ember); border-color: var(--ember); }
+  #bpgrid .empty { font-size: 12px; color: var(--stone); }
   .ach {
     display: flex; align-items: baseline; gap: 6px;
     padding: 5px 7px; border: 2px solid var(--line);
@@ -769,6 +784,7 @@
         <dd><kbd>Alt</kbd>+좌클릭 시작 모서리 · <kbd>Alt</kbd>+우클릭 끝 모서리</dd>
         <dd><kbd>Ctrl</kbd>+<kbd>F</kbd> 채우기 · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> 비우기 · <kbd>Ctrl</kbd>+<kbd>C</kbd> 복사 · <kbd>Ctrl</kbd>+<kbd>V</kbd> 붙여넣기 · <kbd>Ctrl</kbd>+<kbd>R</kbd> 90° 회전 · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> 거울</dd>
         <dd>명령창에서는 <kbd>/</kbd><b>fill 공기</b> 로도 비웁니다 — 되돌리기는 한 번에</dd>
+        <dd>복사한 것은 <kbd>/</kbd><b>bp save 이름</b> 으로 남깁니다 — <kbd>ESC</kbd> 메뉴의 <b>청사진</b> 에서 다시 꺼냅니다</dd>
         <dd><kbd>Ctrl</kbd>+<kbd>D</kbd> 선택 해제 — 대량 편집도 한 번에 되돌립니다</dd>
         <dt>동물</dt>
         <dd>꽃이나 <b>키큰풀</b>을 들고 동물에게 <b>우클릭</b> — 잠시 따라옵니다</dd>
@@ -943,6 +959,16 @@
         <button class="copyseed" id="copyseed" type="button">시드 복사</button>
         <button class="copyseed" id="copylink" type="button">공유 링크 복사</button>
       </div>
+    </details>
+
+    <details class="opts">
+      <summary>청사진</summary>
+      <div id="bpgrid"></div>
+      <p class="fineprint" style="margin-top:10px">
+        영역을 <kbd>Ctrl</kbd>+<kbd>C</kbd> 로 복사한 뒤 명령창에서
+        <kbd>/</kbd><b>bp save 이름</b> 으로 저장합니다 ·
+        여기서 불러오면 <kbd>Ctrl</kbd>+<kbd>V</kbd> 로 붙여넣습니다
+      </p>
     </details>
 
     <details class="opts">

@@ -6178,6 +6178,65 @@ test("v62 묘목: 심어 두면 나무가 되고, 되돌리기 한 번에 사라
   assert(r.regrew, "불러온 세계의 묘목이 영영 안 자란다 — 큐를 다시 안 채웠다");
 });
 
+test("v63 청사진: 메뉴에서 목록을 보고 불러오고 지운다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const before = localStorage.getItem("blockyard.blueprints");
+    localStorage.removeItem("blockyard.blueprints");
+
+    const X = 30, Y = 44, Z = 62;
+    for (let dx = 0; dx < 3; dx++) for (let dy = 0; dy < 2; dy++) for (let dz = 0; dz < 4; dz++)
+      B.applyEdit(X + dx, Y + dy, Z + dz, B.B.BRICK, false, 0);
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 2, Y + 1, Z + 3];
+    B.copySelection();
+    const saved = B.saveBlueprint("작은 집");
+    // 이름을 마크업으로 지어도 글자로만 보여야 한다
+    B.saveBlueprint("<b>굵게</b>");
+
+    B.refreshBlueprints();
+    const grid = document.getElementById("bpgrid");
+    const rows = grid.querySelectorAll(".bp");
+    const names = [].map.call(grid.querySelectorAll(".bp b"), (e) => e.textContent);
+    const injected = grid.querySelectorAll(".bp b b").length;   // 마크업으로 새면 0이 아니다
+    const sizeText = grid.querySelector(".bp span").textContent;
+
+    // 불러오기 단추가 실제로 클립보드를 채운다
+    B.S.clip = null;
+    const useBtn = [].filter.call(grid.querySelectorAll(".bp"),
+      (e) => e.querySelector("b").textContent === "작은 집")[0].querySelectorAll("button")[0];
+    useBtn.click();
+    const clipW = B.S.clip ? B.S.clip.w : -1;
+    const clipD = B.S.clip ? B.S.clip.d : -1;
+
+    // 지우면 목록에서 빠진다
+    B.deleteBlueprint("<b>굵게</b>");
+    B.refreshBlueprints();
+    const after = grid.querySelectorAll(".bp").length;
+
+    // 하나도 없으면 안내 문구가 뜬다
+    B.deleteBlueprint("작은 집");
+    B.refreshBlueprints();
+    const emptyText = (grid.querySelector(".empty") || {}).textContent || "";
+
+    if (before === null) localStorage.removeItem("blockyard.blueprints");
+    else localStorage.setItem("blockyard.blueprints", before);
+    B.S.selA = B.S.selB = null; B.S.clip = null;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { saved, rows: rows.length, names, injected, sizeText, clipW, clipD, after, emptyText };
+  });
+  eq(r.saved, "", "청사진 저장이 실패했다: " + r.saved);
+  eq(r.rows, 2, "메뉴에 청사진이 " + r.rows + "줄 떴다 — 2줄이어야 한다");
+  assert(r.names.indexOf("작은 집") >= 0, "저장한 이름이 목록에 없다: " + r.names.join(", "));
+  eq(r.injected, 0, "청사진 이름이 마크업으로 새어 들어갔다 — textContent 로 넣어야 한다");
+  assert(/3×2×4/.test(r.sizeText), "크기가 안 보인다 — 이름만으로는 어느 건물인지 모른다: " + r.sizeText);
+  eq(r.clipW, 3, "불러오기 단추가 클립보드를 안 채운다");
+  eq(r.clipD, 4, "불러온 청사진의 깊이가 다르다");
+  eq(r.after, 1, "지웠는데 목록이 " + r.after + "줄이다");
+  assert(/없습니다/.test(r.emptyText), "청사진이 없을 때 안내 문구가 안 뜬다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

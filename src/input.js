@@ -14,7 +14,7 @@ import { EYE, player, raycast, spawn, stats } from "./player.js";
 import { ac, startAmbient, tone } from "./audio.js";
 import { clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
-import { mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
+import { blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
 import { closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
 import { place } from "./mine.js";
@@ -472,8 +472,54 @@ if (copyLinkBtn) copyLinkBtn.addEventListener("click", function (e) {
   } catch (err) { toast(url); }
 });
 
+// 청사진 목록 — 저장해 놓고 /bp list 를 쳐야만 보이면 저장한 보람이 없다
+export function refreshBlueprints() {
+  var grid = document.getElementById("bpgrid");
+  if (!grid) return;
+  var list = blueprintList();
+  grid.textContent = "";
+  if (!list.length) {
+    var p0 = document.createElement("p");
+    p0.className = "empty";
+    p0.textContent = "저장된 청사진이 없습니다";
+    grid.appendChild(p0);
+    return;
+  }
+  for (var i = 0; i < list.length; i++) grid.appendChild(bpRow(list[i]));
+}
+// 한 줄을 만든다. innerHTML 로 이름을 끼워 넣으면 사람이 지은 이름이 마크업이 된다.
+function bpRow(bp) {
+  var row = document.createElement("div");
+  row.className = "bp";
+  var nameEl = document.createElement("b");
+  nameEl.textContent = bp.name;
+  var sizeEl = document.createElement("span");
+  sizeEl.textContent = bp.w + "×" + bp.h + "×" + bp.d + " · " + bp.cells.toLocaleString("en-US") + "칸";
+  var use = document.createElement("button");
+  use.type = "button"; use.textContent = "불러오기";
+  use.addEventListener("click", function (e) {
+    e.stopPropagation();
+    var err = useBlueprint(bp.name);
+    toast(err || ("청사진 준비됨: " + bp.name + " — Ctrl+V 로 붙여넣기"));
+  });
+  var del = document.createElement("button");
+  del.type = "button"; del.className = "del"; del.textContent = "지우기";
+  del.addEventListener("click", function (e) {
+    e.stopPropagation();
+    // 되돌릴 수 없는 삭제다 — 단추 하나로 사라지면 안 된다 (CLAUDE.md 2절 8번)
+    if (!window.confirm("청사진 '" + bp.name + "' 을(를) 지웁니다. 되돌릴 수 없습니다.")) return;
+    var err = deleteBlueprint(bp.name);
+    toast(err || ("청사진 지움: " + bp.name));
+    refreshBlueprints();
+  });
+  row.appendChild(nameEl); row.appendChild(sizeEl);
+  row.appendChild(use); row.appendChild(del);
+  return row;
+}
+
 export function refreshMenu() {
   refreshSlots();
+  refreshBlueprints();
   drawPreview();
   refreshTerrain();
   refreshKeyButtons();

@@ -590,7 +590,7 @@ export function pasteClip(px, py, pz) {
 // ── 명령 처리 — 짧은 이름 하나로 알아듣게
 export var CMD_HELP =
   "tp <x> <y> <z> · time <아침|정오|노을|밤|0~1> · weather <맑음|비|눈> · " +
-  "fill <블록|공기> · expand <±dx> <±dy> <±dz> · clone <dx> <dy> <dz> · give <블록> · count · bp <save|use|list> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
+  "fill <블록|공기> · expand <±dx> <±dy> <±dz> · clone <dx> <dy> <dz> · give <블록> · count · bp <save|use|list|del> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
 
 // 한국어 이름과 영어 이름을 둘 다 알아듣는다 — "조약돌" 도 "cobble" 도 된다
 function findBlock(name) {
@@ -699,7 +699,8 @@ export function runCommand(line) {
     if (sub === "save") { var e1 = saveBlueprint(nm); return e1 || ("청사진 저장: " + nm); }
     if (sub === "use") { var e2 = useBlueprint(nm); return e2 || ("청사진 준비됨: " + nm + " — Ctrl+V 로 붙여넣기"); }
     if (sub === "list") { var ns = blueprintNames(); return ns.length ? ns.join(", ") : "저장된 청사진이 없습니다"; }
-    return "bp <save|use|list> <이름>";
+    if (sub === "del") { var e3 = deleteBlueprint(nm); return e3 || ("청사진 지움: " + nm); }
+    return "bp <save|use|list|del> <이름>";
   }
 
   if (cmd === "count") {
@@ -805,6 +806,26 @@ export function useBlueprint(name) {
   return "";
 }
 export function blueprintNames() { return Object.keys(loadBlueprints()); }
+
+// 메뉴 목록용 — 이름만으로는 어느 게 어느 건물인지 모른다. 크기를 같이 준다.
+export function blueprintList() {
+  var all = loadBlueprints(), out = [];
+  var names = Object.keys(all).sort();
+  for (var i = 0; i < names.length; i++) {
+    var b = all[names[i]];
+    out.push({ name: names[i], w: b.w | 0, h: b.h | 0, d: b.d | 0,
+               cells: (b.w | 0) * (b.h | 0) * (b.d | 0) });
+  }
+  return out;
+}
+export function deleteBlueprint(name) {
+  var all = loadBlueprints();
+  if (!(name in all)) return "그런 청사진이 없습니다";
+  delete all[name];
+  try { localStorage.setItem(BP_KEY, JSON.stringify(all)); }
+  catch (e) { return "지우지 못했습니다"; }
+  return "";
+}
 
 // ── 영역 안 블록 통계 — 무엇으로 지었는지 세어 준다
 export function selectionCounts() {
