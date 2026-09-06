@@ -5,6 +5,7 @@ import { DEFAULT_BAR, SH_FULL } from "./blocks.js";
 import { touched, refreshAllTops, set, shape, world, waterLvl } from "./world.js";
 
 import { player, stats } from "./player.js";
+import { dumpMobs, loadMobs } from "./mobs.js";
 import { toast } from "./hud.js";
 
 export var SAVE_KEY = "blockyard.save";
@@ -124,6 +125,7 @@ export function saveGame() {
       ach: S.earned, kinds: S.placedKinds, lamps: S.lampsPlaced, torches: S.torchesPlaced,
       secs: Math.round(S.playSeconds), tut: S.tut, at: Date.now(),   // at — 슬롯 목록의 "3시간 전"
       tc: encodeArrB64(touched),   // 사람이 손댄 칸 — 없으면 이어하기 때 날씨·잔디가 내 건축물을 다시 건드린다
+      mb: dumpMobs(),              // 동물 — 없으면 목장이 탭 하나 닫으면 빈 우리가 된다
       sp: S.spawnPoint, marks: S.marks, bar2: S.barAlt, fly: S.flySpeed, tt: S.terrain
     }));
     try { localStorage.removeItem(OLD_KEY); } catch (e2) {}
@@ -161,6 +163,8 @@ export function loadGame() {
     S.moonDay = (d.md | 0) || 0;          // 달 위상 — 없던 저장은 0(보름달)에서 시작한다
     touched.fill(0);
     if (d.tc) decodeArrB64(d.tc, touched);   // 0/1 이라 RLE 가 잘 먹어 몇 KB 안 된다
+    // 예전 저장(mb 없음)은 부를 때 새로 뿌린다 — 호출부가 판단하게 결과를 남긴다
+    S.mobsRestored = loadMobs(d.mb);
     player.flying = !!d.f;
     if (Array.isArray(d.bar) && d.bar.length === DEFAULT_BAR.length) S.bar = d.bar.slice();
     S.earned = (d.ach && typeof d.ach === "object") ? d.ach : {};

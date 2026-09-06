@@ -83,6 +83,7 @@ export const S = {
   waterTimer: 0,
   achTimer: 0,
   buildAchTimer: 0,
+  mobsRestored: false,
   lavaTimer: 0,
   caveTimer: 6,
   moodTimer: 40,

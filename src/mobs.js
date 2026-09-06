@@ -71,6 +71,34 @@ function makeMob(kind) {
            follow: 0, love: 0, baby: 0 };
 }
 
+// ── 저장 · 복원 — 동물이 저장에 없어서, 목장을 만들어도 탭을 닫으면 빈 우리가 됐다.
+// 좌표는 0.25칸 단위로 반올림해 담는다 (24마리 × 6수 ≈ 200바이트)
+export function dumpMobs() {
+  var out = [];
+  for (var i = 0; i < mobs.length; i++) {
+    var m = mobs[i];
+    out.push([Math.round(m.x * 4), Math.round(m.y * 4), Math.round(m.z * 4),
+              m.kind, Math.round(m.yaw * 100), Math.round(m.baby || 0)]);
+  }
+  return out;
+}
+export function loadMobs(arr) {
+  if (!Array.isArray(arr) || !arr.length) return false;
+  while (mobs.length) { mobGroup.remove(mobs.pop().g); }
+  for (var i = 0; i < arr.length && mobs.length < MOB_MAX; i++) {
+    var a = arr[i];
+    if (!a || a.length < 4) continue;
+    var kind = a[3] | 0;
+    if (kind < 0 || kind >= MOB_KINDS.length) kind = 0;
+    var m = makeMob(kind);
+    m.x = a[0] / 4; m.y = a[1] / 4; m.z = a[2] / 4;
+    m.yaw = (a[4] || 0) / 100;
+    m.baby = a[5] || 0;
+    mobs.push(m);
+  }
+  return mobs.length > 0;
+}
+
 export function seedMobs() {
   while (mobs.length < MOB_COUNT) mobs.push(makeMob((Math.random() * MOB_KINDS.length) | 0));
   for (var i = 0; i < mobs.length; i++) placeMob(mobs[i], true);
@@ -126,6 +154,25 @@ function nearPen(m) {
   return false;
 }
 
+// 우리 안에서 마른 자리를 찾아 한 칸 밀어 준다 (못 찾으면 false)
+function nudgeToDry(m) {
+  var gy = Math.max(1, Math.floor(m.y));
+  for (var r = 1; r <= 4; r++)
+    for (var dx = -r; dx <= r; dx++)
+      for (var dz = -r; dz <= r; dz++) {
+        if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+        var nx = Math.floor(m.x) + dx, nz = Math.floor(m.z) + dz;
+        if (nx < 1 || nx >= WX - 1 || nz < 1 || nz >= WZ - 1) continue;
+        var below = world[idx(nx, gy - 1, nz)];
+        if (!isSolid(below) || below === ICE) continue;
+        if (world[idx(nx, gy, nz)] !== AIR) continue;
+        if (gy + 1 < WY && world[idx(nx, gy + 1, nz)] !== AIR) continue;
+        m.x = nx + 0.5; m.z = nz + 0.5; m.y = gy;
+        return true;
+      }
+  return false;
+}
+
 // 플레이어 주변에 동물이 한 마리라도 있는가
 export function anyMobNear(px, pz, r) {
   var r2 = r * r;
@@ -145,10 +192,12 @@ function strandedAt(m) {
   var tb = world[idx(gx, top, gz)];
   // 기둥 겉면이 물·용암·얼음이고 그 아래에 있다 = 물속(해저 공기 주머니 포함)
   if ((tb === WATER || tb === LAVA || tb === ICE) && m.y < top + 1) return true;
-  // 몸이나 발이 액체·얼음에 잠겼다
+  // 발밑 한 칸이 물인 것은 좌초가 아니다 — 마크의 소는 발목 물에 서 있고,
+  // 우리 안 물구유 하나로 동물이 20칸 밖으로 날아가면 목장을 지을 수가 없다.
+  // 몸이 잠겼거나 발밑이 용암·얼음일 때만 좌초로 본다.
   var fy = Math.max(0, Math.floor(m.y) - 1), by = Math.min(WY - 1, Math.floor(m.y));
   var fb = world[idx(gx, fy, gz)], bb = world[idx(gx, by, gz)];
-  if (fb === WATER || fb === LAVA || fb === ICE) return true;
+  if (fb === LAVA || fb === ICE) return true;
   if (bb === WATER || bb === LAVA) return true;
   // 단단한 지붕 아래는 갇힌 게 아니다 — 여기서 true 를 돌리면 헛간의 양이 0.5초마다 밖으로 튄다
   return false;
@@ -165,7 +214,13 @@ export function updateMobs(dt) {
     if (m.dryCheck <= 0) {
       m.dryCheck = 0.5;
       // 가까운 자리(18~30칸)를 못 찾으면 더 넓게(8~30칸) 한 번 더 — 물가에선 24번이 다 물에 떨어질 수 있다
-      if (strandedAt(m)) { if (!placeMob(m, false)) placeMob(m, true); continue; }
+      if (strandedAt(m)) {
+        // 가둬 둔 동물은 멀리 보내지 않는다 — 주변 4칸의 마른 자리로 한 칸만 밀어 준다.
+        // v42 가 "데려가기" 에만 울타리 예외를 넣고 좌초 재배치에는 안 넣었다.
+        if (nearPen(m) || m.pennedAt > 0) { if (nudgeToDry(m)) continue; }
+        if (!placeMob(m, false)) placeMob(m, true);
+        continue;
+      }
     }
 
     // 먹이를 받은 동물은 플레이어 쪽을 본다
@@ -314,6 +369,9 @@ export function aimingAtMob() {
 
 // 먹이를 주면 잠깐 따라온다
 export function feedNearbyMob(pos) {
+  // 상한에 걸리면 하트도 소리도 내지 않는다 — 안 그러면 "짝이 안 맞았나" 하며 꽃만 계속 준다.
+  // -1 을 돌려 부른 쪽(mine.js)이 안내하게 한다 (v46 에서 unlock 을 부른 쪽에 맡긴 것과 같다)
+  if (mobs.length >= MOB_MAX) return -1;
   var best = -1, bestD = 25;
   for (var i = 0; i < mobs.length; i++) {
     var m = mobs[i];

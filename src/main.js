@@ -19,7 +19,7 @@ import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, 
 import { checkBuildAchievements, ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
 import { airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp } from "./hud.js";
 import { updateHandLight, handMat, makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
-import { aimCell, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink } from "./input.js";
+import { afterWorldSwap, aimCell, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink } from "./input.js";
 import { canPlaceAt, mineAt, place, tryInteract, upperFromHit } from "./mine.js";
 import { HIDE_Y, MOON_PHASES, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
 import { PLACE_DELAY, PLACE_REPEAT, SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, farNow, refreshPerf, step } from "./loop.js";
@@ -62,7 +62,8 @@ S.savedPos = player.pos.clone(); S.savedYaw = player.yaw; S.savedPitch = player.
 // 동물·물고기·새는 newWorld() 안에서만 뿌려지고 있었다 — 즉 R 로 새 세계를 만든 세션에만
 // 살아 있고, 새로고침하거나 저장에서 이어하면 죽은 섬이었다. 시작 자리에서 한 번 뿌린다.
 // (시점을 시작 화면으로 옮기기 전에 — placeMob 이 플레이어 주변에 놓기 때문)
-seedMobs();
+// 저장에서 되살아났으면 새로 뿌리지 않는다 — 그러면 목장이 매번 흩어진다
+if (!S.mobsRestored) seedMobs();
 seedFlocks();
 seedCreatures();
 
@@ -170,6 +171,7 @@ window.__blockyard = {
   connectsTo: connectsTo, tryInteract: tryInteract, perfEl: perfEl,
   refreshPerf: refreshPerf,
   slotKey: slotKey, slotInfo: slotInfo, SLOTS: SLOTS, refreshSlots: refreshSlots, agoText: agoText,
+  afterWorldSwap: afterWorldSwap,
   aimCell: aimCell, selectionText: selectionText,
   thunder: thunder, rainHiss: rainHiss,
   crossOffset: crossOffset, faceKindFor: faceKindFor, caveSound: caveSound,

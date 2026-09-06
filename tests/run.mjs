@@ -5393,6 +5393,115 @@ test("v48 과제: 자연 지형만으로는 건축 과제가 뜨지 않는다", 
   eq(r.got.length, 0, "자연 지형이 건축 과제를 줬다: " + r.got.join(", "));
 });
 
+test("v49 저장: 동물이 저장되고 그 자리에 되살아난다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.generate(31415); B.relightAll(false);
+    // 동물을 알아볼 수 있게 한자리에 모은다
+    const X = 40, Y = B.topMap[40 * B.WX + 40] + 1, Z = 40;
+    B.mobs.forEach((m, i) => { m.x = X + i * 0.5; m.y = Y; m.z = Z; m.baby = 0; });
+    const before = B.mobs.map(m => [+m.x.toFixed(2), m.kind]);
+    B.saveGame();
+    const keys = Object.keys(JSON.parse(localStorage.getItem("blockyard.save")));
+    const bytes = JSON.stringify(JSON.parse(localStorage.getItem("blockyard.save")).mb).length;
+    // 세계를 갈아엎고 다시 불러온다
+    B.generate(1); B.relightAll(false);
+    B.mobs.forEach(m => { m.x = 5; m.z = 5; });
+    const ok = B.loadGame();
+    const after = B.mobs.map(m => [+m.x.toFixed(2), m.kind]);
+    B.endPlay(); B.setPaused(false);
+    return { hasKey: keys.indexOf("mb") >= 0, bytes, ok, restored: B.S.mobsRestored,
+             count: after.length, saved: before.length,
+             same: JSON.stringify(before) === JSON.stringify(after) };
+  });
+  assert(r.hasKey, "저장에 동물(mb)이 실리지 않는다 — 목장이 탭 하나 닫으면 빈 우리가 된다");
+  assert(r.ok && r.restored, "불러오기에서 동물이 되살아나지 않았다");
+  // 앞선 시험(v46 번식)이 24마리까지 늘려 놓을 수 있다 — 숫자를 박지 말고 저장한 수와 견준다
+  eq(r.count, r.saved, "되살아난 동물 수가 저장한 수와 다르다");
+  assert(r.saved >= 14, "시험대 동물이 너무 적다 — " + r.saved);
+  assert(r.same, "동물이 저장한 자리로 안 돌아왔다");
+  assert(r.bytes < 1200, "동물 저장이 너무 크다 — " + r.bytes + "바이트");
+});
+
+test("v49 세계 갈아타기: 되돌리기 기록과 클립보드가 따라오지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.generate(2718); B.relightAll(false);
+    // 세계 A 에서 큰 묶음 편집 + 복사 + 영역 선택
+    B.beginBatch();
+    for (let i = 0; i < 40; i++) B.applyEdit(30 + i % 8, 40, 30 + ((i / 8) | 0), B.B.GLASS, true, 0);
+    B.endBatch("시험");
+    B.S.selA = [30, 40, 30]; B.S.selB = [37, 40, 34];
+    B.copySelection();
+    const hadHistory = B.S.history.length, hadClip = !!B.S.clip;
+    B.saveGame();
+    // 세계 B 로 갈아탄다 (afterWorldSwap 경로)
+    B.generate(1618); B.relightAll(false);
+    B.afterWorldSwap("시험 전환", true);
+    const out = { hadHistory, hadClip,
+                  history: B.S.history.length, future: B.S.future.length,
+                  clip: !!B.S.clip, sel: !!(B.S.selA || B.S.selB) };
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  assert(r.hadHistory > 0 && r.hadClip, "시험대가 안 만들어졌다");
+  eq(r.history, 0, "지난 세계의 되돌리기 기록이 따라왔다 — Ctrl+Z 가 새 세계를 도려낸다");
+  eq(r.future, 0, "다시하기 기록이 따라왔다");
+  assert(!r.clip, "지난 세계의 복사 버퍼가 따라왔다");
+  assert(!r.sel, "지난 세계의 영역 선택이 따라왔다");
+});
+
+test("v50 동물: 우리 안 물구유가 있어도 밖으로 튕기지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 48, Y = 46, Z = 48;
+    for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++) {
+      for (let dy = 0; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    }
+    // 3×3 울타리 우리 + 한가운데 물구유 한 칸
+    for (let d = -2; d <= 2; d++) {
+      B.applyEdit(X + d, Y, Z - 2, B.B.FENCE, false, 0);
+      B.applyEdit(X + d, Y, Z + 2, B.B.FENCE, false, 0);
+      B.applyEdit(X - 2, Y, Z + d, B.B.FENCE, false, 0);
+      B.applyEdit(X + 2, Y, Z + d, B.B.FENCE, false, 0);
+    }
+    B.applyEdit(X, Y - 1, Z, B.B.WATER, false, 0);      // 발밑 물구유
+    B.refreshAllTops(); B.relightAll(false);
+    const m = B.mobs[0];
+    m.x = X + 0.5; m.z = Z + 0.5; m.y = Y; m.follow = 0; m.pennedAt = 12; m.dryCheck = 0;
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    for (let i = 0; i < 8 * 60; i++) B.updateMobs(1 / 60);
+    const inside = Math.abs(m.x - (X + 0.5)) <= 3 && Math.abs(m.z - (Z + 0.5)) <= 3;
+    B.endPlay(); B.setPaused(false);
+    return { inside, x: +m.x.toFixed(1), z: +m.z.toFixed(1) };
+  });
+  assert(r.inside, "물구유 한 칸에 동물이 우리 밖으로 날아갔다 — (" + r.x + ", " + r.z + ")");
+});
+
+test("v50 날씨: /weather 가 하늘에도 반영된다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.runCommand("weather 맑음");
+    const clearState = B.S.weather;
+    B.runCommand("weather 비");
+    const rainState = B.S.weather, rainMix = B.S.weatherMix;
+    B.runCommand("weather 눈");
+    const snowState = B.S.weather;
+    B.runCommand("weather 맑음");
+    B.endPlay(); B.setPaused(false);
+    return { clearState, rainState, snowState, rainMix };
+  });
+  eq(r.clearState, 0, "맑음");
+  eq(r.rainState, 1, "비");
+  eq(r.snowState, 2, "눈");
+  assert(r.rainMix >= 0, "setWeather 를 거치지 않아 화면 상태가 안 따라온다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

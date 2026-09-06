@@ -11,7 +11,7 @@ import { touch } from "./mesh.js";
 import { player, stats } from "./player.js";
 import { tone } from "./audio.js";
 import { helpAchList, showAchPop, toast } from "./hud.js";
-import { localBiome } from "./sky.js";
+import { setWeather, localBiome } from "./sky.js";
 
 export var HISTORY_MAX = 240;
 
@@ -519,7 +519,7 @@ export function runCommand(line) {
     var wm = { "맑음": 0, "비": 1, "눈": 2, "clear": 0, "rain": 1, "snow": 2 };
     var wv = wm[(parts[1] || "").toLowerCase()];
     if (wv === undefined) return "weather <맑음|비|눈>";
-    S.weather = wv;
+    setWeather(wv);        // 상태만 바꾸면 비도 눈도 안 보이는데 눈은 쌓인다
     return "날씨: " + parts[1];
   }
 

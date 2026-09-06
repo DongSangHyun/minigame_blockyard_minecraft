@@ -1,6 +1,6 @@
 // mine.js — 캐기 · 놓기
 import { S } from "./state.js";
-import { aimingAtMob, feedNearbyMob } from "./mobs.js";
+import { MOB_MAX, aimingAtMob, feedNearbyMob } from "./mobs.js";
 import { primeTNT, ignite } from "./fluids.js";
 import { idx, inside } from "./dims.js";
 import { DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, ALL_BLOCKS, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
@@ -66,10 +66,15 @@ export function tryInteract(hit) {
   // 꽃을 들고 동물에게 우클릭하면 잠시 따라온다
   // 조준선이 실제로 동물을 향할 때만 — 그러지 않으면 양 옆에서 꽃을 아예 못 심는다
   if ((S.bar[S.selected] === FLOWER_R || S.bar[S.selected] === FLOWER_Y ||
-       S.bar[S.selected] === TALLGRASS) && aimingAtMob() && feedNearbyMob(player.pos)) {
-    triggerSwing();
-    unlock("feed");
-    return true;
+       S.bar[S.selected] === TALLGRASS) && aimingAtMob()) {
+    var fed = feedNearbyMob(player.pos);
+    // -1 은 "상한이라 못 받는다" — JS 에서 -1 은 참이라 그냥 두면 과제까지 뜬다
+    if (fed === -1) { toast("동물이 " + MOB_MAX + "마리로 꽉 찼습니다"); return true; }
+    if (fed) {
+      triggerSwing();
+      unlock("feed");
+      return true;
+    }
   }
   // 여닫는 블록이 먼저다 — 횃불을 들었다고 문에 불을 붙이면 문을 쓸 수가 없다
   if (isOpenable(hit.block)) return tryInteractGate(hit);

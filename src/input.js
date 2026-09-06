@@ -1,5 +1,7 @@
 // input.js — 입력 (키보드 · 마우스 · 터치)
 import { S } from "./state.js";
+import { resetQueues } from "./queues.js";
+import { seedMobs } from "./mobs.js";
 import { WX, WY, WZ } from "./dims.js";
 import { markAllDirty, buildBudget } from "./mesh.js";
 import { relightAll } from "./light.js";
@@ -120,10 +122,7 @@ if (slotsEl) {
     if (S.worldDirty) saveGame();
     S.slot = n;
     if (hasSave() && loadGame()) {
-      relightAll(false); markAllDirty(); buildBudget(70);
-      spawn();
-      if (S.savedPos) { S.savedPos.copy(player.pos); S.savedYaw = player.yaw; S.savedPitch = player.pitch; }
-      toast("슬롯 " + n + " 을 불러왔습니다");
+      afterWorldSwap("슬롯 " + n + " 을 불러왔습니다", true);
     } else {
       // 빈 슬롯도 SEED 칸에 적어 둔 값을 쓴다 — 예전엔 무조건 무작위였다
       var typed = (seedIn && seedIn.value || "").trim();
@@ -180,9 +179,22 @@ export var impBtn = document.getElementById("w-import");
 export var resBtn = document.getElementById("w-restore");
 export var fileIn = document.getElementById("w-file");
 
-function afterWorldSwap(msg) {
+// 세계를 갈아타는 **모든** 경로(슬롯 · 파일 가져오기 · 클라우드 내려받기 · 백업 복원)가
+// 여기 하나를 거친다. 예전에는 넷이 각자 반쪽씩 해서, 세계 A 의 되돌리기 기록이
+// 세계 B 로 따라와 Ctrl+Z 한 번에 599칸을 도려내는 일이 있었다 (자문 6차 실측).
+export function afterWorldSwap(msg, loaded) {
+  // 지난 세계의 세션 상태를 전부 버린다 — newWorld() 가 하는 것과 같은 청소다
+  S.history.length = 0; S.future.length = 0;
+  S.clip = null; S.selA = null; S.selB = null;
+  S.primed.length = 0; S.fireOrigins.length = 0;
+  resetQueues();
+
   relightAll(false); markAllDirty(); buildBudget(70);
-  spawn();
+  // 예전 저장에는 동물이 없다 — 그때만 새로 뿌린다
+  if (!S.mobsRestored) seedMobs();
+  // 저장에서 불러왔으면 그 자리를 지킨다 — 짓던 탑 꼭대기에 있었든 갱도 바닥이었든
+  // 섬 한가운데 지표로 떨어뜨리면 집을 매번 다시 찾아야 한다
+  if (!loaded) spawn();
   if (S.savedPos) { S.savedPos.copy(player.pos); S.savedYaw = player.yaw; S.savedPitch = player.pitch; }
   refreshBar(); refreshSlots(); refreshMenu(); refreshStats(); refreshAchList();
   drawMinimap();
@@ -202,14 +214,14 @@ if (fileIn) fileIn.addEventListener("change", function () {
     var err = importWorldText(String(rd.result));
     fileIn.value = "";
     if (err) { toast(err); return; }
-    afterWorldSwap("세계를 가져왔습니다");
+    afterWorldSwap("세계를 가져왔습니다", true);
   };
   rd.readAsText(f);
 });
 if (resBtn) resBtn.addEventListener("click", function (e) {
   e.stopPropagation();
   if (!hasBackup()) { toast("되돌릴 백업이 없습니다"); return; }
-  if (restoreBackup()) afterWorldSwap("직전 저장으로 되돌렸습니다");
+  if (restoreBackup()) afterWorldSwap("직전 저장으로 되돌렸습니다", true);
   else toast("백업을 읽지 못했습니다");
 });
 
@@ -303,7 +315,7 @@ if (cPull) cPull.addEventListener("click", function (e) {
   pullWorld(name).then(function (r) {
     cloudBusy(false);
     cloudSay("내려받았습니다 — 판 " + r.rev + " (" + (r.device || "?") + ")", "on");
-    afterWorldSwap("클라우드에서 '" + r.name + "' 세계를 불러왔습니다");
+    afterWorldSwap("클라우드에서 '" + r.name + "' 세계를 불러왔습니다", true);
     refreshCloud();
   }).catch(cloudFail);
 });
