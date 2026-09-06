@@ -4,7 +4,7 @@ import { BUILD } from "./version.js";
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
 import { AIR, ALL_BLOCKS, GLASS, ITEMS, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross } from "./blocks.js";
 import { AVG_TOP, TILE, atlas, tileOrigin } from "./atlas.js";
-import { topMap, world } from "./world.js";
+import { seenMap, markSeen, topMap, world } from "./world.js";
 import { player } from "./player.js";
 import { updateHandBlock } from "./hand.js";
 import { advanceTut, canvas, isTouch } from "./input.js";
@@ -199,6 +199,8 @@ export var mmImage = mmCtx.createImageData(WX, WZ);
 
 export function drawMinimap() {
   var d = mmImage.data;
+  // 걸어온 만큼 지도가 열린다. 지하에서는 시야가 좁다.
+  markSeen(player.pos.x, player.pos.z, S.mmUnder ? 6 : 14);
   var pxc = Math.max(0, Math.min(WX - 1, Math.floor(player.pos.x)));
   var pzc = Math.max(0, Math.min(WZ - 1, Math.floor(player.pos.z)));
   var py = Math.max(0, Math.min(WY - 1, Math.floor(player.pos.y)));
@@ -217,6 +219,8 @@ export function drawMinimap() {
       var x = x0 + Math.floor(ox * spanX / WX);
       var o = (oz * WX + ox) * 4;
       d[o + 3] = 255;
+      // 안 가 본 칸은 흰 종이로 둔다 — 지도는 걸어서 채운다
+      if (!seenMap[z * WX + x]) { d[o] = 12; d[o + 1] = 16; d[o + 2] = 20; continue; }
       var b = AIR, shade = 1;
       if (S.mmUnder) {
         // 지하에서는 지금 높이의 단면을 본다
@@ -262,6 +266,20 @@ export function drawMinimap() {
     mmCtx.lineWidth = 1;
     mmCtx.strokeStyle = "rgba(255,255,255,.85)";
     mmCtx.stroke();
+  }
+
+  // 직접 정한 시작 지점(V) — 집 자리를 찍어 놨는데 지도에 안 나오면 찍은 보람이 없다
+  if (S.spawnPoint) {
+    var hx = (S.spawnPoint[0] - x0) * sx, hz = (S.spawnPoint[2] - z0) * sz;
+    if (hx > -2 && hz > -2 && hx < WX + 2 && hz < WZ + 2) {
+      mmCtx.beginPath();
+      mmCtx.arc(Math.max(2, Math.min(WX - 2, hx)), Math.max(2, Math.min(WZ - 2, hz)), 2.6, 0, Math.PI * 2);
+      mmCtx.fillStyle = "#5aa8e0";
+      mmCtx.fill();
+      mmCtx.lineWidth = 1;
+      mmCtx.strokeStyle = "rgba(255,255,255,.9)";
+      mmCtx.stroke();
+    }
   }
 
   var px = (player.pos.x - x0) * (WX / spanX);

@@ -7,7 +7,7 @@ import { CH, WX, WY, WZ, idx } from "./dims.js";
 import { reduceMotion } from "./boot.js";
 import { SH_SLAB, AIR, DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isSolid, isUnbreakable } from "./blocks.js";
 import { animateLiquids, crackTex } from "./atlas.js";
-import { BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, set, shape, topMap, world } from "./world.js";
+import { seenRatio, BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, set, shape, topMap, world } from "./world.js";
 import { lightAtPlayer, lightSky, relightAll } from "./light.js";
 import { lavaFlowTick, lavaDryTick, grassTick, lavaTick, primeTick, TNT_FUSE, decayTick, dryTick, fallTick, fireTick, freezeTick, waterTick } from "./fluids.js";
 import { buildBudget, dirty, markAllDirty, opaqueMeshes, setBuildFocus } from "./mesh.js";
@@ -553,6 +553,7 @@ export function step(dt) {
       if (get(Math.floor(player.pos.x), Math.floor(player.pos.y - 0.1),
               Math.floor(player.pos.z)) === ICE) unlock("ice");
       if (player.pos.y > 50) unlock("high");
+      if (!S.earned.cartographer && seenRatio() > 0.8) unlock("cartographer");
       var lb = localBiome();
       if (lb === 1) unlock("snow");
       if (lb === 2) unlock("desert");

@@ -117,6 +117,28 @@ export function boxesAt(b, sh, x, y, z) {
 
 // 사람이 손댄 칸을 기억한다 — 날씨·자동 변화가 건축물을 건드리지 않게
 export var touched = new Uint8Array(N);
+// 미니맵에 밝혀진 칸 — 가 본 곳만 지도에 남는다.
+// 부팅 3초에 섬 전체가 드러나면 "저 언덕 너머에 뭐가 있지" 가 사라진다.
+export var seenMap = new Uint8Array(WX * WZ);
+export function markSeen(px, pz, r) {
+  var cx = Math.floor(px), cz = Math.floor(pz), r2 = r * r, n = 0;
+  var x0 = Math.max(0, cx - r), x1 = Math.min(WX - 1, cx + r);
+  var z0 = Math.max(0, cz - r), z1 = Math.min(WZ - 1, cz + r);
+  for (var z = z0; z <= z1; z++)
+    for (var x = x0; x <= x1; x++) {
+      var dx = x - cx, dz = z - cz;
+      if (dx * dx + dz * dz > r2) continue;
+      var i = z * WX + x;
+      if (!seenMap[i]) { seenMap[i] = 1; n++; }
+    }
+  return n;
+}
+export function seenRatio() {
+  var n = 0;
+  for (var i = 0; i < seenMap.length; i++) if (seenMap[i]) n++;
+  return n / seenMap.length;
+}
+
 export function markTouched(x, y, z) {
   if (inside(x, y, z)) touched[idx(x, y, z)] = 1;
 }
@@ -165,6 +187,7 @@ export function generate(seed) {
   shape.fill(SH_FULL);
   waterLvl.fill(0);
   touched.fill(0);
+  seenMap.fill(0);          // 새 세계는 다시 흰 종이에서 시작한다
   resetQueues();
   var rng = makeRng(S.worldSeed);
 

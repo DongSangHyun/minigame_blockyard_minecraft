@@ -5573,6 +5573,40 @@ test("v52 대량 편집: 조명을 칸마다 돌리지 않아 되돌리기가 �
   assert(r.threshold > 0, "묶음 임계값이 없다");
 });
 
+test("v53 미니맵: 걸어야 지도가 열리고, 저장에 남는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.generate(24680); B.relightAll(false);      // 새 세계는 흰 종이
+    const fresh = B.seenRatio();
+    B.player.pos.set(B.WX / 2, 30, B.WZ / 2);
+    B.drawMinimap();
+    const afterOne = B.seenRatio();
+    // 섬을 가로질러 걸으면 더 열린다
+    for (let x = 6; x < B.WX - 6; x += 6) {
+      B.player.pos.set(x, 30, B.WZ / 2);
+      B.drawMinimap();
+    }
+    const afterWalk = B.seenRatio();
+    // 저장 왕복
+    B.saveGame();
+    const keys = Object.keys(JSON.parse(localStorage.getItem("blockyard.save")));
+    const kept = afterWalk;
+    B.generate(1); B.relightAll(false);
+    const wiped = B.seenRatio();
+    B.loadGame();
+    const restored = B.seenRatio();
+    B.endPlay(); B.setPaused(false);
+    return { fresh, afterOne, afterWalk, hasKey: keys.indexOf("mm") >= 0, wiped, restored, kept };
+  });
+  eq(r.fresh, 0, "새 세계가 이미 밝혀져 있다 — 저 언덕 너머가 없다");
+  assert(r.afterOne > 0 && r.afterOne < 0.25, "한자리에서 너무 많이/적게 열린다 — " + r.afterOne.toFixed(3));
+  assert(r.afterWalk > r.afterOne, "걸어도 지도가 안 열린다");
+  assert(r.hasKey, "밝힌 지도가 저장에 안 실린다");
+  eq(r.wiped, 0, "새 세계가 지도를 안 지운다");
+  near(r.restored, r.kept, 0.001, "불러오기 뒤 밝힌 지도가 안 돌아온다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

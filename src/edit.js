@@ -225,7 +225,8 @@ export var ACHIEVEMENTS = [
   { id: "tower", name: "전망대", desc: "20칸 높이로 쌓아 올린다" },
   { id: "bridge", name: "다리", desc: "물 위로 20칸을 잇는다" },
   { id: "mineshaft", name: "갱도", desc: "지하 깊이 200칸을 파고 횃불 10개를 단다" },
-  { id: "palette", name: "색칠", desc: "한자리에 양털 여덟 빛깔을 쓴다" }
+  { id: "palette", name: "색칠", desc: "한자리에 양털 여덟 빛깔을 쓴다" },
+  { id: "cartographer", name: "지도장이", desc: "섬의 8할을 걸어서 지도에 밝힌다" }
 ];
 export var achGrid = document.getElementById("achgrid");
 
