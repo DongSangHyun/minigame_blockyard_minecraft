@@ -59,6 +59,11 @@ refreshMenu();
 if (!S.loadedFromSave) spawn();
 
 S.savedPos = player.pos.clone(); S.savedYaw = player.yaw; S.savedPitch = player.pitch;
+// 동물·물고기·새는 newWorld() 안에서만 뿌려지고 있었다 — 즉 R 로 새 세계를 만든 세션에만
+// 살아 있고, 새로고침하거나 저장에서 이어하면 죽은 섬이었다. 시작 자리에서 한 번 뿌린다.
+// (시점을 시작 화면으로 옮기기 전에 — placeMob 이 플레이어 주변에 놓기 때문)
+seedMobs();
+seedFlocks();
 seedCreatures();
 
 // 시작 화면 뒤로 보이는 풍경 — 섬을 내려다보는 위치

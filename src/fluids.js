@@ -538,7 +538,7 @@ export function fireTick(budget) {
       }
       if (wet) continue;
       var ni = idx(nx, ny, nz);
-      applyEdit(nx, ny, nz, FIRE, true);
+      applyEdit(nx, ny, nz, FIRE, false);      // 번짐은 세계가 하는 일 — 되돌리기 기록을 먹지 않는다
       Q.fireQ.push(ni);
       burned = true;
       acted++;
@@ -556,7 +556,7 @@ export function fireTick(budget) {
     }
     if (raining && y > topMap[z * WX + x] - 0.5 && Math.random() < 0.25) doused = true;
     if (doused || (!fuel && Math.random() < 0.5)) {
-      applyEdit(x, y, z, AIR, true);
+      applyEdit(x, y, z, AIR, false);        // 꺼지는 것도 마찬가지
       burst(x, y, z, FIRE, 3);
       if (doused) crunch(0.3, 0.10, 1800);
       acted++;

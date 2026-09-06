@@ -510,9 +510,11 @@ export function step(dt) {
         if (S.weather === 2 && (tb3 === GRASS || tb3 === DIRT)) {
           // 위에 얹는다 (덮어쓰지 않는다)
           if (ty3 + 1 < WY && world[idx(ax3, ty3 + 1, az3)] === AIR)
-            applyEdit(ax3, ty3 + 1, az3, SNOW, true, SH_SLAB)   // 반블록 두께 — 걸어서 넘는다;
+            // record=false — 날씨가 되돌리기 기록을 먹으면 안 되고, markTouched 를 찍으면
+            // 자기가 쌓은 눈을 자기가 "사람이 손댄 칸" 으로 보고 영영 못 녹인다
+            applyEdit(ax3, ty3 + 1, az3, SNOW, false, SH_SLAB);   // 반블록 두께 — 걸어서 넘는다
         } else if (S.weather === 1 && tb3 === SNOW && biomeMap[az3 * WX + ax3] !== 1) {
-          applyEdit(ax3, ty3, az3, AIR, true);      // 쌓인 눈만 녹는다
+          applyEdit(ax3, ty3, az3, AIR, false);      // 쌓인 눈만 녹는다
         }
       }
     }

@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { LEGACY_WY, WX, WZ, idx } from "./dims.js";
 import { DEFAULT_BAR, SH_FULL } from "./blocks.js";
-import { refreshAllTops, set, shape, world, waterLvl } from "./world.js";
+import { touched, refreshAllTops, set, shape, world, waterLvl } from "./world.js";
 
 import { player, stats } from "./player.js";
 import { toast } from "./hud.js";
@@ -123,6 +123,7 @@ export function saveGame() {
       t: S.timeOfDay, md: S.moonDay, f: player.flying, bar: S.bar,
       ach: S.earned, kinds: S.placedKinds, lamps: S.lampsPlaced, torches: S.torchesPlaced,
       secs: Math.round(S.playSeconds), tut: S.tut, at: Date.now(),   // at — 슬롯 목록의 "3시간 전"
+      tc: encodeArrB64(touched),   // 사람이 손댄 칸 — 없으면 이어하기 때 날씨·잔디가 내 건축물을 다시 건드린다
       sp: S.spawnPoint, marks: S.marks, bar2: S.barAlt, fly: S.flySpeed, tt: S.terrain
     }));
     try { localStorage.removeItem(OLD_KEY); } catch (e2) {}
@@ -158,6 +159,8 @@ export function loadGame() {
     stats.placed = d.s[0]; stats.mined = d.s[1];
     S.timeOfDay = typeof d.t === "number" ? d.t : 0.3;
     S.moonDay = (d.md | 0) || 0;          // 달 위상 — 없던 저장은 0(보름달)에서 시작한다
+    touched.fill(0);
+    if (d.tc) decodeArrB64(d.tc, touched);   // 0/1 이라 RLE 가 잘 먹어 몇 KB 안 된다
     player.flying = !!d.f;
     if (Array.isArray(d.bar) && d.bar.length === DEFAULT_BAR.length) S.bar = d.bar.slice();
     S.earned = (d.ach && typeof d.ach === "object") ? d.ach : {};

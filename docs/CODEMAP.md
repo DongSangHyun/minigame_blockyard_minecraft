@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-06 · 모듈 24개 · 합계 7,551줄
+생성일 2026-09-06 · 모듈 24개 · 합계 7,562줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -25,15 +25,15 @@
 | [`settings.js`](../src/settings.js) | 설정 | 40 | state · boot · scene |
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 319 | state · dims · blocks · world · scene |
 | [`audio.js`](../src/audio.js) | 소리 | 222 | state · blocks · daynight · settings |
-| [`save.js`](../src/save.js) | 저장 · 불러오기 | 235 | state · dims · blocks · world · player · hud |
+| [`save.js`](../src/save.js) | 저장 · 불러오기 | 238 | state · dims · blocks · world · player · hud |
 | [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 510 | state · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
 | [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 425 | state · version · dims · blocks · atlas · world · player · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 157 | state · boot · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
 | [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1189 | state · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
-| [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 201 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
+| [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 202 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
 | [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 351 | state · audio · dims · atlas · world · scene · daynight · player |
-| [`loop.js`](../src/loop.js) | 게임 루프 | 688 | state · input · mobs · queues · dims · boot · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · mine · sky |
-| [`main.js`](../src/main.js) | 조립과 시작 | 208 | state · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · input · mine · sky · loop |
+| [`loop.js`](../src/loop.js) | 게임 루프 | 690 | state · input · mobs · queues · dims · boot · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · mine · sky |
+| [`main.js`](../src/main.js) | 조립과 시작 | 213 | state · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · input · mine · sky · loop |
 
 ## 모듈별 공개 함수
 
@@ -309,14 +309,14 @@
 | `decodeWorld(runs, dst, len)` | 84 |
 | `liftLegacy(src, dst, asRuns)` | 99 |
 | `saveGame()` | 114 |
-| `loadGame()` | 137 |
-| `clearSave()` | 178 |
-| `backupKey(n)` | 185 |
-| `pushBackup()` | 188 |
-| `hasBackup()` | 195 |
-| `restoreBackup()` | 198 |
-| `exportWorld()` | 208 |
-| `importWorldText(text)` | 224 |
+| `loadGame()` | 138 |
+| `clearSave()` | 181 |
+| `backupKey(n)` | 188 |
+| `pushBackup()` | 191 |
+| `hasBackup()` | 198 |
+| `restoreBackup()` | 201 |
+| `exportWorld()` | 211 |
+| `importWorldText(text)` | 227 |
 
 내보내는 값 — `SAVE_KEY` · `OLD_KEY` · `SLOTS`
 
@@ -435,7 +435,7 @@
 | `canPlaceAt(px, py, pz)` | 52 |
 | `tryInteract(hit)` | 64 |
 | `doorOther(x, y, z)` | 96 |
-| `place(repeating)` | 125 |
+| `place(repeating)` | 126 |
 
 ### `sky.js` — 해와 달과 별 · 날씨 · 앰비언트 생물
 
@@ -461,9 +461,9 @@
 |---|---:|
 | `newWorld(seed)` | 34 |
 | `step(dt)` | 68 |
-| `animate()` | 575 |
-| `autoTuneFar(fps)` | 652 |
-| `farNow()` | 670 |
-| `refreshPerf()` | 672 |
+| `animate()` | 577 |
+| `autoTuneFar(fps)` | 654 |
+| `farNow()` | 672 |
+| `refreshPerf()` | 674 |
 
 내보내는 값 — `GRAVITY` · `PLACE_DELAY` · `SNEAK_MUL` · `AIR_CONTROL` · `fwd` · `clock`

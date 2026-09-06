@@ -5052,6 +5052,68 @@ test("v40 명령: clone 이 고른 영역을 그대로 한 벌 더 만든다", a
   assert(r.known, "clone 이 명령 목록(자동완성)에 없다");
 });
 
+test("v41 세계: 새로고침해도 동물·물고기·새가 살아 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    // seedMobs 를 부르지 않는다 — 부팅만으로 있어야 한다 (시험이 구멍을 덮지 않게)
+    return { mobs: B.mobs.length, fish: B.fish ? 1 : 0, birds: B.birds ? 1 : 0 };
+  });
+  assert(r.mobs > 0, "부팅 직후 동물이 0마리 — newWorld() 안에서만 뿌리고 있다");
+  eq(r.mobs, 14, "동물 수");
+});
+
+test("v41 되돌리기: 문 여닫기·눈·불이 기록을 먹지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 24, Y = 42, Z = 74;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = -1; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, dy === -1 ? B.B.STONE : 0);
+    B.refreshAllTops(); B.relightAll(false);
+    B.applyEdit(X, Y, Z, B.B.DOOR, false, B.doorShapeFor(2, false));
+    B.applyEdit(X, Y + 1, Z, B.B.DOOR, false, B.doorShapeFor(2, false));
+    B.S.history.length = 0; B.S.future.length = 0;
+    for (let k = 0; k < 10; k++)
+      B.tryInteract({ x: X, y: Y, z: Z, block: B.B.DOOR, nx: 0, ny: 0, nz: 1, shape: B.shapeAt(X, Y, Z) });
+    const afterDoor = B.S.history.length;
+    // 불 번짐도 기록을 먹지 않아야 한다
+    B.S.weather = 0;
+    for (let i = 0; i < 5; i++) B.applyEdit(X - 1 + i % 2, Y, Z + 2, B.B.PLANKS, false, 0);
+    B.ignite(X, Y + 1, Z + 2);          // 사람이 직접 붙인 첫 불은 되돌릴 수 있어야 한다 (v19)
+    const litByHand = B.S.history.length;
+    B.S.history.length = 0;             // 그 뒤 번짐·꺼짐만 센다
+    for (let k = 0; k < 200; k++) B.fireTick(80);
+    const afterFire = B.S.history.length;
+    B.endPlay(); B.setPaused(false);
+    return { afterDoor, afterFire, litByHand };
+  });
+  eq(r.afterDoor, 0, "문을 10번 여닫자 되돌리기 기록이 " + r.afterDoor + "개 쌓였다");
+  eq(r.litByHand, 1, "사람이 붙인 불은 되돌릴 수 있어야 한다 (v19)");
+  eq(r.afterFire, 0, "불이 번지고 꺼지며 되돌리기 기록을 " + r.afterFire + "개 먹었다");
+});
+
+test("v41 저장: 사람이 손댄 칸(touched)이 이어하기까지 살아남는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 34, Y = 42, Z = 74;
+    B.set(X, Y, Z, 0);
+    B.applyEdit(X, Y, Z, B.B.PLANKS, true, 0);      // record=true → touched
+    const before = B.isTouched(X, Y, Z);
+    B.saveGame();
+    B.touched.fill(0);                               // 새로고침을 흉내
+    const wiped = B.isTouched(X, Y, Z);
+    const ok = B.loadGame();
+    const after = B.isTouched(X, Y, Z);
+    B.endPlay(); B.setPaused(false);
+    return { before, wiped, ok, after };
+  });
+  assert(r.before, "시험대가 touched 를 안 남겼다");
+  assert(!r.wiped, "지우기가 안 됐다");
+  assert(r.ok, "불러오기 실패");
+  assert(r.after, "이어하기하니 내 건축물 보호가 풀렸다 (날씨·잔디가 다시 건드린다)");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

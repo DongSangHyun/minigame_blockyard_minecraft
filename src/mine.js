@@ -108,13 +108,14 @@ function tryInteractGate(hit) {
     var sh0 = shape[i];
     var want = doorShapeFor(doorFacing(sh0), !doorOpen(sh0));
     var oy = doorOther(hit.x, hit.y, hit.z);
-    applyEdit(hit.x, hit.y, hit.z, DOOR, true, want);
-    if (oy >= 0) applyEdit(hit.x, oy, hit.z, DOOR, true, want);
+    // 여닫기는 편집이 아니라 상태 토글이다 — 되돌리기 기록을 먹으면 안 된다
+    applyEdit(hit.x, hit.y, hit.z, DOOR, false, want);
+    if (oy >= 0) applyEdit(hit.x, oy, hit.z, DOOR, false, want);
     tone(doorOpen(sh0) ? 300 : 420, 0.10, "square", 0.05);
     triggerSwing();
     return true;
   }
-  applyEdit(hit.x, hit.y, hit.z, hit.block, true, shape[i] === 1 ? 0 : 1);
+  applyEdit(hit.x, hit.y, hit.z, hit.block, false, shape[i] === 1 ? 0 : 1);
   tone(shape[i] === 1 ? 420 : 300, 0.09, "square", 0.05);
   triggerSwing();
   return true;
