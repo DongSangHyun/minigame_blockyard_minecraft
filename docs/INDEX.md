@@ -58,5 +58,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v63 — 도장 갱신 · 회귀 테스트 254항목 전부 통과.**
+**v63 — 나머지 타이머도 전부 훑었다 · 회귀 테스트 254항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/
