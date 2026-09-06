@@ -1,7 +1,7 @@
 // loop.js — 게임 루프
 import { S } from "./state.js";
 import { padState, pollGamepad, pollGamepadMenu } from "./input.js";
-import { pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
+import { breedTick, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, WX, WY, WZ, idx } from "./dims.js";
 import { reduceMotion } from "./boot.js";
@@ -273,6 +273,7 @@ export function step(dt) {
   updateSelectionBox(selectionBounds());
   updateCreatures(dt);
   updateMobs(dt);
+  if (breedTick(dt)) unlock("breed");
   updateFlocks(dt);
 
   if (!reduceMotion) {

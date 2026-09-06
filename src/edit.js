@@ -187,7 +187,8 @@ export var ACHIEVEMENTS = [
   { id: "feed", name: "친구", desc: "동물에게 꽃을 준다" },
   { id: "photo", name: "사진사", desc: "사진 모드로 화면을 저장한다" },
   { id: "gold", name: "금맥", desc: "금 광석을 캔다" },
-  { id: "diamond", name: "다이아몬드!", desc: "다이아몬드 광석을 캔다" }
+  { id: "diamond", name: "다이아몬드!", desc: "다이아몬드 광석을 캔다" },
+  { id: "breed", name: "목장주", desc: "동물 둘에게 꽃을 주어 새끼를 얻는다" }
 ];
 export var achGrid = document.getElementById("achgrid");
 

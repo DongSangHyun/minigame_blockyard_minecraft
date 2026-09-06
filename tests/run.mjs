@@ -5253,6 +5253,57 @@ test("v45 광석: 어느 시드에도 굴 벽에 드러난 다이아·금이 있
   assert(minGold >= 2, "굴을 걸어도 보이는 금이 없다 — 최소 " + minGold + "개");
 });
 
+test("v46 번식: 꽃을 준 두 마리가 가까이 있으면 새끼가 난다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 50, Y = 46, Z = 12;
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++) {
+      for (let dy = 0; dy <= 3; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    delete B.S.earned.breed;
+    // 같은 종 두 마리를 나란히 놓고 둘 다 꽃을 준다
+    const a = B.mobs[0];
+    let b2 = null;
+    for (let i = 1; i < B.mobs.length; i++) if (B.mobs[i].kind === a.kind) { b2 = B.mobs[i]; break; }
+    if (!b2) return { skipped: true };
+    a.x = X + 0.5; a.z = Z + 0.5; a.y = Y; a.follow = 0; a.love = 0; a.baby = 0;
+    b2.x = X + 1.5; b2.z = Z + 0.5; b2.y = Y; b2.follow = 0; b2.love = 0; b2.baby = 0;
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    const before = B.mobs.length;
+    B.feedNearbyMob({ x: a.x, y: a.y, z: a.z });
+    B.player.pos.set(X + 1.5, Y, Z + 0.5);
+    B.feedNearbyMob({ x: b2.x, y: b2.y, z: b2.z });
+    const bothInLove = a.love > 0 && b2.love > 0;
+    const born = B.breedTick(1 / 60);      // 과제는 부른 쪽(loop)이 준다 — 여기선 반환값을 본다
+    const after = B.mobs.length;
+    const kid = B.mobs[B.mobs.length - 1];
+    if (born) B.unlock("breed");
+    const earned = !!B.S.earned.breed;
+    // 새끼는 처음엔 작다
+    B.updateMobs(1 / 60);
+    const small = kid.g.scale.x < 0.8;
+    // 상한을 넘지 않는다
+    for (let k = 0; k < 60; k++) {
+      for (const m of B.mobs) { m.love = 5; m.baby = 0; m.x = X + 0.5; m.z = Z + 0.5; m.y = Y; }
+      B.breedTick(1 / 60);
+    }
+    const capped = B.mobs.length <= B.MOB_MAX;
+    B.endPlay(); B.setPaused(false);
+    return { skipped: false, bothInLove, before, after, earned, small, capped,
+             cap: B.MOB_MAX, total: B.mobs.length, babyKind: kid.kind === a.kind };
+  });
+  if (r.skipped) return;
+  assert(r.bothInLove, "꽃을 줬는데 사랑에 빠지지 않는다");
+  eq(r.after, r.before + 1, "새끼가 나지 않았다");
+  assert(r.babyKind, "다른 종이 태어났다");
+  assert(r.earned, "'목장주' 과제가 안 뜬다 (breedTick 이 태어난 수를 안 돌려준다)");
+  assert(r.small, "새끼가 처음부터 어른 크기다");
+  assert(r.capped, "상한 " + r.cap + "을 넘어 " + r.total + "마리가 됐다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

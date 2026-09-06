@@ -1,6 +1,6 @@
 // main.js — 조립과 시작
 import { S } from "./state.js";
-import { MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, mobs, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
+import { breedTick, MOB_MAX, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, mobs, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { SWATCH_SIDE, animateLiquids, atlas } from "./atlas.js";
 import { Q } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
@@ -162,6 +162,7 @@ window.__blockyard = {
   selectionBounds: selectionBounds, selectionSize: selectionSize, REGION_MAX: REGION_MAX,
   beginBatch: beginBatch, endBatch: endBatch, updateSelectionBox: updateSelectionBox,
   mobs: mobs, updateMobs: updateMobs, seedMobs: seedMobs, MOB_KINDS: MOB_KINDS,
+  breedTick: breedTick, MOB_MAX: MOB_MAX,
   toggleHelp: toggleHelp, helpEl: helpEl,
   isConnecting: isConnecting, isClimbable: isClimbable, isOpenable: isOpenable,
   doorOpen: doorOpen, doorFacing: doorFacing, doorShapeFor: doorShapeFor,

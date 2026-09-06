@@ -1,12 +1,15 @@
 // mobs.js — 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다.
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
 import { shapeAt, topMap, world } from "./world.js";
-import { DOOR, doorOpen, FENCE, GATE, AIR, ICE, LAVA, WATER, isSolid } from "./blocks.js";
-import { scene } from "./scene.js";
+import { WOOL0, DOOR, doorOpen, FENCE, GATE, AIR, ICE, LAVA, WATER, isSolid } from "./blocks.js";
+import { burst, scene } from "./scene.js";
 import { player } from "./player.js";
 import { at, crunch, tone } from "./audio.js";
 
-export var MOB_COUNT = 14;
+// 하트 파티클 — 분홍 양털의 색을 빌려 쓴다 (새 텍스처를 만들지 않는다)
+export var LOVE_HINT = WOOL0 + 6;
+export var MOB_COUNT = 14;      // 처음 뿌리는 수
+export var MOB_MAX = 24;        // 번식으로 늘어날 수 있는 상한
 export var FISH_COUNT = 18;
 export var BIRD_COUNT = 10;
 
@@ -64,7 +67,8 @@ function makeMob(kind) {
   }
   mobGroup.add(g);
   return { g: g, legs: legs, kind: kind, x: 0, y: 0, z: 0, yaw: 0,
-           turn: 0, walk: 0, phase: Math.random() * 6, cry: 3 + Math.random() * 12, follow: 0 };
+           turn: 0, walk: 0, phase: Math.random() * 6, cry: 3 + Math.random() * 12,
+           follow: 0, love: 0, baby: 0 };
 }
 
 export function seedMobs() {
@@ -256,6 +260,12 @@ export function updateMobs(dt) {
 
     m.g.position.set(m.x, m.y, m.z);
     m.g.rotation.y = m.yaw;
+    // 새끼는 60초 동안 작다 — 자라는 게 눈에 보여야 번식이 사건이 된다
+    if (m.baby > 0) {
+      m.baby -= dt;
+      var grow = 0.5 + 0.5 * (1 - Math.max(0, m.baby) / 60);
+      m.g.scale.setScalar(grow);
+    } else if (m.g.scale.x !== 1) m.g.scale.setScalar(1);
     var sw = m.walk ? Math.sin(m.phase) * 0.5 : 0;
     for (var l = 0; l < 4; l++) {
       m.legs[l].rotation.x = (l === 0 || l === 3) ? sw : -sw;
@@ -316,8 +326,40 @@ export function feedNearbyMob(pos) {
   if (best < 0) return false;
   var mm = mobs[best], k = MOB_KINDS[mm.kind];
   mm.follow = 22 + Math.random() * 14;
+  mm.love = 20;                        // 20초 안에 같은 처지의 짝을 만나면 새끼가 난다
+  burst(mm.x, mm.y + 0.8, mm.z, LOVE_HINT, 5);
   tone(k.cry * 1.35, 0.16, "triangle", 0.06, at(mm.x, mm.y + 0.6, mm.z));
   return true;
+}
+
+// 꽃을 받은 두 마리가 가까이 있으면 새끼가 난다 — 우리를 채울 유일한 방법이다.
+// 목장을 지어 놓고 채울 방법이 없으면 목장을 지을 이유도 없다.
+export function breedTick(dt) {
+  var born = 0;
+  for (var i = 0; i < mobs.length; i++) {
+    var a = mobs[i];
+    if (!(a.love > 0)) continue;
+    a.love -= dt;
+    if (a.baby > 0) { a.love = 0; continue; }          // 새끼는 번식하지 않는다
+    if (mobs.length >= MOB_MAX) continue;
+    for (var j = i + 1; j < mobs.length; j++) {
+      var b2 = mobs[j];
+      if (!(b2.love > 0) || b2.baby > 0) continue;
+      if (b2.kind !== a.kind) continue;                // 같은 종끼리만
+      var dx = a.x - b2.x, dy = a.y - b2.y, dz = a.z - b2.z;
+      if (Math.abs(dy) > 2 || dx * dx + dz * dz > 9) continue;   // 3칸 안
+      a.love = 0; b2.love = 0;
+      var kid = makeMob(a.kind);
+      kid.x = (a.x + b2.x) / 2; kid.y = a.y; kid.z = (a.z + b2.z) / 2;
+      kid.yaw = a.yaw; kid.baby = 60;                  // 60초 동안 작다
+      mobs.push(kid);
+      burst(kid.x, kid.y + 0.6, kid.z, LOVE_HINT, 8);
+      tone(MOB_KINDS[a.kind].cry * 1.7, 0.18, "triangle", 0.05, at(kid.x, kid.y + 0.5, kid.z));
+      born++;       // 과제는 부른 쪽(loop)이 판단한다 — mobs 가 도전 과제를 알 이유가 없다
+      break;
+    }
+  }
+  return born;
 }
 
 export function setMobsVisible(on) { mobGroup.visible = on; }
