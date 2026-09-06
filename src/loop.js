@@ -1,5 +1,6 @@
 // loop.js — 게임 루프
 import { S } from "./state.js";
+import { padState, pollGamepad } from "./input.js";
 import { pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, WX, WY, WZ, idx } from "./dims.js";
@@ -88,9 +89,12 @@ export function step(dt) {
     fwd.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
     right.set(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
 
+    // 게임패드가 있으면 왼쪽 스틱이 이동을 대신한다
+    var padOn = pollGamepad(dt);
     var ix = ((S.keys.KeyD || S.keys.ArrowRight) ? 1 : 0) - ((S.keys.KeyA || S.keys.ArrowLeft) ? 1 : 0);
     var iz = ((S.keys.KeyW || S.keys.ArrowUp) ? 1 : 0) - ((S.keys.KeyS || S.keys.ArrowDown) ? 1 : 0);
     if (S.stick.x || S.stick.z) { ix = S.stick.x; iz = S.stick.z; }
+    if (padOn && (padState.lx || padState.ly)) { ix = padState.lx; iz = -padState.ly; }
     // Shift 는 웅크리기(마크식) · 달리기는 Ctrl 또는 W 더블탭
     var crouchKey = !!(S.keys.ShiftLeft || S.keys.ShiftRight);
     S.sneaking = crouchKey && !player.flying;
@@ -497,7 +501,7 @@ export function step(dt) {
 
   if (S.worldDirty) {
     S.saveTimer += dt;
-    if (S.saveTimer > 20) { saveGame(); S.saveTimer = 0; }
+    if (S.saveTimer > (opts.autosave || 20)) { saveGame(); S.saveTimer = 0; }
   } else S.saveTimer = 0;
 
   if (S.toastTimer > 0) {
@@ -517,8 +521,26 @@ export function animate() {
   if (S.wantShot) {
     S.wantShot = false;
     try {
+      // 스크린샷에 시드와 좌표를 새겨 둔다 — 나중에 그 자리를 다시 찾을 수 있게
+      var src = renderer.domElement;
+      var cv = document.createElement("canvas");
+      cv.width = src.width; cv.height = src.height;
+      var cc = cv.getContext("2d");
+      cc.drawImage(src, 0, 0);
+      var pad = Math.max(10, Math.round(cv.height * 0.018));
+      cc.font = Math.max(11, Math.round(cv.height * 0.020)) + "px ui-monospace, monospace";
+      cc.textBaseline = "bottom";
+      var stampTxt = "SEED " + S.worldSeed + "   " +
+        Math.floor(player.pos.x) + " " + Math.floor(player.pos.y) + " " + Math.floor(player.pos.z) +
+        "   " + clockText();
+      cc.fillStyle = "rgba(0,0,0,.55)";
+      var w = cc.measureText(stampTxt).width;
+      cc.fillRect(pad - 6, cv.height - pad - 22, w + 12, 26);
+      cc.fillStyle = "#f0ece1";
+      cc.fillText(stampTxt, pad, cv.height - pad);
+
       var a = document.createElement("a");
-      a.href = renderer.domElement.toDataURL("image/png");
+      a.href = cv.toDataURL("image/png");
       a.download = "blockyard-" + Date.now() + ".png";
       a.click();
       toast("화면을 저장했습니다");

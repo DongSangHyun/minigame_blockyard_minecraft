@@ -12,13 +12,13 @@ import { FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFille
 import { FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { applyOpts, opts } from "./settings.js";
-import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, rayBox, raycast, spawn } from "./player.js";
+import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, rayBox, raycast, spawn, stats } from "./player.js";
 import { breakSound, caveSound, lavaHiss, lavaPop, listenAt, miningSound, moodChord, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
 import { OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
 import { ACHIEVEMENTS, CMD_HELP, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
-import { airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp } from "./hud.js";
+import { airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toast, toggleHelp } from "./hud.js";
 import { makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
-import { TUT, beginPlay, endPlay, hashSeed, pickBlock, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink } from "./input.js";
+import { TUT, beginPlay, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink } from "./input.js";
 import { canPlaceAt, place, tryInteract, upperFromHit } from "./mine.js";
 import { HIDE_Y, MOON_PHASES, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
 import { SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, refreshPerf, step } from "./loop.js";
@@ -125,6 +125,7 @@ window.__blockyard = {
   cloudGroup: cloudGroup, applyTime: applyTime,
   setBuildFocus: setBuildFocus, autoTuneFar: autoTuneFar, CH: CH,
   runCommand: runCommand, CMD_HELP: CMD_HELP, openCmd: openCmd, closeCmd: closeCmd,
+  stats: stats, pollGamepad: pollGamepad, padState: padState, clockText: clockText,
   saveBlueprint: saveBlueprint, useBlueprint: useBlueprint, blueprintNames: blueprintNames,
   selectionCounts: selectionCounts, feedNearbyMob: feedNearbyMob, shareLink: shareLink,
   drawPreview: drawPreview, showAchPop: showAchPop, cmdIn: cmdIn, cmdEl: cmdEl,
@@ -179,5 +180,19 @@ window.__blockyard = {
 
 bootProgress("준비됨", 1);
 bootDone();
+// 처음 온 사람에게만 한 번 — 무엇을 하는 게임인지 한 줄
+try {
+  if (!localStorage.getItem("blockyard.seen")) {
+    localStorage.setItem("blockyard.seen", "1");
+    setTimeout(function () {
+      toast("캐고 · 놓고 · 지어 보세요 · H 로 조작 전체");
+    }, 900);
+  }
+} catch (e) {}
+// 오프라인 플레이 — 한 번 열어 두면 인터넷 없이도 돈다
+if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
+  navigator.serviceWorker.register("./sw.js").catch(function () {});
+}
+
 S.booted = true;
 animate();

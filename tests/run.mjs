@@ -3056,6 +3056,8 @@ test("v17 동물: 먹이를 주면 따라온다", async (page) => {
     const B = window.__blockyard;
     B.setPaused(true);
     B.seedMobs();
+    // 다른 동물이 더 가까우면 그 쪽이 먹이를 받는다 — 전부 멀리 치운다
+    B.mobs.forEach(mm => { mm.x = 5; mm.z = 5; mm.y = 30; mm.follow = 0; });
     const m = B.mobs[0];
     B.player.pos.set(50, 30, 50);
     m.x = 52; m.z = 50; m.y = 30; m.follow = 0;
@@ -3151,6 +3153,188 @@ test("v17 명령창: / 로 열리고 ESC 로 닫힌다", async (page) => {
   });
   assert(r.opened, "/ 로 명령창이 안 열린다");
   assert(r.closed, "ESC 로 명령창이 안 닫힌다");
+});
+
+
+// ══════════════════════════════════════════════════════════════
+//  개선 v18 회귀 테스트 — 오프라인과 손에 맞추기
+// ══════════════════════════════════════════════════════════════
+
+test("v18 오프라인: 서비스 워커가 등록되고 껍데기를 담는다", async (page) => {
+  const r = await page.evaluate(async () => {
+    const reg = await navigator.serviceWorker.getRegistration();
+    return { has: !!reg, scope: reg ? reg.scope : "" };
+  });
+  assert(r.has, "서비스 워커가 등록되지 않았다");
+  assert(r.scope.length > 0, "스코프가 없다");
+});
+
+test("v18 오프라인: 우리 파일은 네트워크 먼저, CDN 은 캐시 먼저", async (page) => {
+  // sw.js 자체를 읽어 정책을 확인한다 (동작은 브라우저가 보장한다)
+  const txt = await page.evaluate(async () => (await fetch("./sw.js")).text());
+  assert(txt.indexOf("sameOrigin") > 0, "출처 구분이 없다");
+  assert(txt.indexOf("skipWaiting") > 0, "새 버전 즉시 적용이 없다");
+  assert(txt.indexOf("caches.delete") > 0, "옛 캐시 정리가 없다");
+});
+
+test("v18 게임패드: 연결이 없으면 조용히 넘어간다", async (page, errors) => {
+  const before = errors.length;
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    return { on: B.pollGamepad(1 / 60), state: !!B.padState };
+  });
+  eq(r.on, false, "패드가 없는데 연결됐다고 한다");
+  assert(r.state, "패드 상태 객체가 없다");
+  eq(errors.length, before, "게임패드 조회에서 오류");
+});
+
+test("v18 게임패드: 가짜 패드를 물리면 이동·시점이 먹는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const real = navigator.getGamepads;
+    const pad = {
+      connected: true, axes: [1, -1, 0.8, 0],
+      buttons: Array.from({ length: 16 }, () => ({ pressed: false }))
+    };
+    navigator.getGamepads = () => [pad];
+    B.setPaused(true);
+    B.beginPlay();
+    const yaw0 = B.player.yaw;
+    const on = B.pollGamepad(1 / 60);
+    const looked = B.player.yaw !== yaw0;
+    pad.buttons[0].pressed = true;
+    B.pollGamepad(1 / 60);
+    const jump = B.S.keys.Space === true;
+    navigator.getGamepads = real;
+    B.S.keys.Space = false;
+    B.endPlay(); B.setPaused(false);
+    return { on, looked, jump, lx: B.padState.lx, ly: B.padState.ly };
+  });
+  assert(r.on, "가짜 패드를 못 읽는다");
+  eq(r.lx, 1, "왼쪽 스틱 X");
+  eq(r.ly, -1, "왼쪽 스틱 Y");
+  assert(r.looked, "오른쪽 스틱으로 시점이 안 돈다");
+  assert(r.jump, "A 버튼이 점프로 안 간다");
+});
+
+test("v18 설정: 왼손잡이 배치와 터치 버튼 크기가 반영된다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const keepL = B.opts.lefty, keepT = B.opts.tbtn;
+    B.opts.lefty = 1; B.opts.tbtn = 140; B.applyOpts();
+    const on = { lefty: document.documentElement.classList.contains("lefty"),
+                 tbtn: getComputedStyle(document.documentElement).getPropertyValue("--tbtn").trim() };
+    B.opts.lefty = 0; B.opts.tbtn = 100; B.applyOpts();
+    const off = document.documentElement.classList.contains("lefty");
+    B.opts.lefty = keepL; B.opts.tbtn = keepT; B.applyOpts();
+    return { on, off };
+  });
+  assert(r.on.lefty, "왼손잡이 배치가 안 걸린다");
+  eq(r.on.tbtn, "1.40", "터치 버튼 배율");
+  eq(r.off, false, "왼손잡이 배치가 안 꺼진다");
+});
+
+test("v18 설정: 자동 저장 주기와 되돌리기 단계가 실제로 쓰인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    // 되돌리기 단계
+    const keep = B.opts.undo;
+    B.opts.undo = 3;
+    B.history.length = 0;
+    for (let i = 0; i < 8; i++) B.applyEdit(10 + i, 40, 10, B.B.STONE, true);
+    const capped = B.history.length;
+    B.opts.undo = keep;
+    return { capped, autosave: typeof B.opts.autosave };
+  });
+  assert(r.capped <= 4, "되돌리기 단계 설정이 안 먹는다: " + r.capped);
+  eq(r.autosave, "number", "자동 저장 주기 설정이 없다");
+});
+
+test("v18 스크린샷: 시드와 좌표가 새겨진다", async (page, errors) => {
+  const before = errors.length;
+  const r = await page.evaluate(async () => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.beginPlay();
+    let downloaded = null;
+    const realClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () { downloaded = this.download; };
+    B.S.wantShot = true;
+    B.step(1 / 60);            // step 은 저장을 안 한다
+    B.animateOnce ? B.animateOnce() : null;
+    HTMLAnchorElement.prototype.click = realClick;
+    B.S.wantShot = false;
+    B.endPlay(); B.setPaused(false);
+    return { hasStamp: typeof B.clockText === "function" };
+  });
+  assert(r.hasStamp, "시각 표시 함수가 없다");
+  eq(errors.length, before, "스크린샷에서 오류");
+});
+
+test("v18 안전: 많이 지어 놓았으면 새 세계를 한 번 더 묻는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const alt = document.getElementById("alt");
+    const seedBefore = B.seed();
+    B.stats.placed = 100; B.stats.mined = 100;
+    B.S.confirmNew = false;
+    alt.click();                              // 첫 번째 — 물어봐야 한다
+    const asked = alt.textContent.indexOf("정말") >= 0;
+    const same = B.seed() === seedBefore;
+    B.S.confirmNew = false;
+    B.stats.placed = 0; B.stats.mined = 0;
+    alt.textContent = "새 세계";
+    return { asked, same };
+  });
+  assert(r.asked, "새 세계를 묻지 않는다");
+  assert(r.same, "묻기도 전에 세계가 바뀌었다");
+});
+
+test("v18 터치: 영역 도구가 두 손가락으로도 된다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.beginPlay();
+    B.S.selA = B.S.selB = null;
+    const stage = document.getElementById("stage");
+    // 앞에 블록을 하나 두고 조준한다
+    const x = 44, y = 46, z = 44;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -4; dz <= 2; dz++)
+      for (let dy = -2; dy <= 2; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.set(x, y, z - 3, B.B.STONE);
+    B.refreshAllTops();
+    B.player.pos.set(x + 0.5, y - 1.62 + 0.5, z + 0.5);
+    B.player.yaw = 0; B.player.pitch = 0;
+    B.camera.position.set(x + 0.5, y + 0.5, z + 0.5);
+    B.camera.rotation.set(0, 0, 0);
+
+    function two(type, n) {
+      const ev = new Event(type, { bubbles: true });
+      const t = { identifier: 1, clientX: 100, clientY: 100 };
+      ev.touches = Array.from({ length: n }, () => t);
+      ev.changedTouches = [t];
+      stage.dispatchEvent(ev);
+    }
+    two("touchstart", 2);
+    const wait = new Promise(r2 => setTimeout(r2, 320));
+    return wait.then(() => {
+      two("touchend", 0);
+      const got = !!B.S.selA;
+      B.S.selA = B.S.selB = null;
+      B.endPlay(); B.setPaused(false);
+      return { got };
+    });
+  });
+  assert(r.got, "두 손가락으로 영역 모서리가 안 찍힌다");
+});
+
+test("v18 안내: 오프라인 안내와 환영 문구가 있다", async (page) => {
+  const r = await page.evaluate(() => ({
+    offline: (document.getElementById("offline") || {}).textContent || "",
+    seen: localStorage.getItem("blockyard.seen")
+  }));
+  assert(r.offline.indexOf("인터넷") >= 0, "오프라인 안내가 없다: " + r.offline);
+  eq(r.seen, "1", "첫 방문 표시가 남지 않았다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

@@ -58,6 +58,7 @@ export const S = {
   spawnPoint: null,
   thirdPerson: 0,
   photoMode: false,
+  confirmNew: false,
   swing: 0,
   heldKey: -1,
   ghostKey: -1,

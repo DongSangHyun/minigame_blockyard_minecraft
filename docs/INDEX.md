@@ -34,7 +34,7 @@ docs/INDEX.md      이 파일 — 어디를 볼지 알려주는 색인        (�
 | `index.html` | 마크업 + CSS. GitHub Pages 진입점 |
 | `src/main.js` | 조립과 시작 · `window.__blockyard` 테스트 훅 |
 | `src/*.js` | 게임 코드 (모듈 24개 — `docs/CODEMAP.md` 참고) |
-| `manifest.webmanifest` · `icon-*.png` | 홈 화면 추가(PWA) |
+| `manifest.webmanifest` · `icon-*.png` · `sw.js` | 홈 화면 추가 · 오프라인 플레이 |
 | `tests/harness.mjs` | 헤드리스 브라우저 · 정적 서버 · 단언 헬퍼 |
 | `tests/run.mjs` | 회귀 테스트 50항목 |
 | `tools/codemap.mjs` | `docs/CODEMAP.md` 생성 |
@@ -58,5 +58,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v17 — 나누고 다루기 · 회귀 테스트 147항목 전부 통과.**
+**v18 — 오프라인과 손에 맞추기 · 회귀 테스트 157항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/

@@ -558,6 +558,10 @@
 
   /* ---------- 터치 조작 ---------- */
   #touch { position: fixed; inset: 0; pointer-events: none; z-index: 3; }
+  /* 왼손잡이 배치 — 스틱과 버튼을 좌우로 맞바꾼다 */
+  .lefty #stickzone { left: auto; right: var(--safe-r); }
+  .lefty #tbtns { right: auto; left: calc(14px + var(--safe-l)); }
+
   #stickzone {
     position: absolute; left: var(--safe-l); bottom: var(--safe-b); width: 46%; height: 62%;
     pointer-events: auto;
@@ -576,6 +580,7 @@
   }
   #tbtns {
     position: absolute; right: calc(14px + var(--safe-r)); bottom: calc(84px + var(--safe-b));
+    zoom: var(--tbtn, 1);
     display: grid; grid-template-columns: repeat(2, 74px); gap: 8px;
     pointer-events: auto;
   }
@@ -759,6 +764,10 @@
         <label class="opt"><span>화면 표시 크기</span><input type="range" id="s-ui" min="80" max="180" step="10"><output id="o-ui"></output></label>
         <label class="opt check"><span>Y축 반전</span><input type="checkbox" id="s-inv"><output id="o-inv"></output></label>
         <label class="opt check"><span>고대비 화면</span><input type="checkbox" id="s-hc"><output id="o-hc"></output></label>
+        <label class="opt check"><span>왼손잡이 배치</span><input type="checkbox" id="s-lefty"><output id="o-lefty"></output></label>
+        <label class="opt"><span>터치 버튼 크기</span><input type="range" id="s-tbtn" min="80" max="160" step="10"><output id="o-tbtn"></output></label>
+        <label class="opt"><span>자동 저장</span><input type="range" id="s-save" min="5" max="120" step="5"><output id="o-save"></output></label>
+        <label class="opt"><span>되돌리기 단계</span><input type="range" id="s-undo" min="60" max="2000" step="20"><output id="o-undo"></output></label>
       </div>
       <div class="slotrow">
         <span>저장 슬롯</span>
@@ -812,6 +821,7 @@
     </div>
     <p class="fineprint" id="fineprint">마우스 잠금을 사용합니다 · ESC 로 언제든 빠져나올 수 있어요</p>
     <p class="fineprint" id="touchwarn" hidden>터치 조작으로 플레이합니다 · 왼쪽은 이동, 오른쪽은 시점</p>
+    <p class="fineprint" id="offline">홈 화면에 추가하면 인터넷 없이도 열립니다</p>
   </div>
 </div>
 <script type="module" src="src/main.js"></script>

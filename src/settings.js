@@ -5,8 +5,8 @@ import { camera, voxUniforms } from "./scene.js";
 
 export var OPT_KEY = "blockyard.opts.v1";
 export var opts = IS_TOUCH
-  ? { sens: 100, fov: 78, far: 72, vol: 60, invertY: 0, day: 10, bright: 30, ui: 110, contrast: 0 }
-  : { sens: 100, fov: 72, far: 120, vol: 60, invertY: 0, day: 10, bright: 30, ui: 100, contrast: 0 };
+  ? { sens: 100, fov: 78, far: 72, vol: 60, invertY: 0, day: 10, bright: 30, ui: 110, contrast: 0, lefty: 0, tbtn: 100, autosave: 20, undo: 240 }
+  : { sens: 100, fov: 72, far: 120, vol: 60, invertY: 0, day: 10, bright: 30, ui: 100, contrast: 0, lefty: 0, tbtn: 100, autosave: 20, undo: 240 };
 (function loadOpts() {
   try {
     var raw = localStorage.getItem(OPT_KEY);
@@ -28,6 +28,8 @@ export function applyOpts() {
   if (!S.farWanted || opts.far > S.farWanted) S.farWanted = opts.far;
   // 고대비 — UI 테두리와 글자를 또렷하게 (밝은 곳·색약 배려)
   document.documentElement.classList.toggle("hc", !!opts.contrast);
+  document.documentElement.classList.toggle("lefty", !!opts.lefty);
+  document.documentElement.style.setProperty("--tbtn", ((opts.tbtn || 100) / 100).toFixed(2));
   camera.fov = opts.fov;
   camera.updateProjectionMatrix();
   voxUniforms.uFogFar.value = opts.far;

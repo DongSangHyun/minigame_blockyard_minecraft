@@ -8,6 +8,7 @@
 **https://dongsanghyun.github.io/minigame_blockyard_minecraft/**
 
 폰에서도 그대로 됩니다. 가로로 돌리고, 홈 화면에 추가하면 전체화면으로 뜹니다.
+**한 번 열어 두면 인터넷 없이도 열립니다.** 게임패드도 됩니다.
 
 ## 무엇이 들어 있나
 

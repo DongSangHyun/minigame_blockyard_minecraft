@@ -1,5 +1,6 @@
 // edit.js — 편집 · 되돌리기 · 도전 과제
 import { S } from "./state.js";
+import { opts } from "./settings.js";
 import { SLOTS } from "./save.js";
 import { DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
 import { AIR, ALL_BLOCKS, EMIT, ICE, NAMES, SH_FULL, WALL_DIR, WATER, isCross, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
@@ -82,7 +83,7 @@ export function applyEdit(x, y, z, to, record, sh) {
     var rec = { x: x, y: y, z: z, from: from, to: to, fromSh: fromSh, toSh: toSh };
     if (S.batch) { S.batch.push(rec); return true; }     // 묶음 편집 중이면 모아 둔다
     S.history.push(rec);
-    if (S.history.length > HISTORY_MAX) S.history.shift();
+    if (S.history.length > (opts.undo || HISTORY_MAX)) S.history.shift();
     S.future.length = 0;
   }
   return true;
@@ -96,7 +97,7 @@ export function endBatch(label) {
   if (!b || !b.length) return 0;
   S.history.push({ batch: b, label: label || "대량 편집" });
   if (b.length >= 100) unlock("build100");
-  if (S.history.length > HISTORY_MAX) S.history.shift();
+  if (S.history.length > (opts.undo || HISTORY_MAX)) S.history.shift();
   S.future.length = 0;
   return b.length;
 }

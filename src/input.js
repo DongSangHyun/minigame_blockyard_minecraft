@@ -7,7 +7,7 @@ import { NAMES } from "./blocks.js";
 import { camera, crackMesh, renderer } from "./scene.js";
 import { applyTime } from "./daynight.js";
 import { applyOpts, opts, saveOpts } from "./settings.js";
-import { player, raycast, spawn } from "./player.js";
+import { player, raycast, spawn, stats } from "./player.js";
 import { ac, startAmbient, tone } from "./audio.js";
 import { SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
 import { REGION_MAX, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
@@ -306,6 +306,17 @@ export function requestPlay() {
 goBtn.addEventListener("click", function (e) { e.stopPropagation(); requestPlay(); });
 altBtn.addEventListener("click", function (e) {
   e.stopPropagation();
+  // 지어 놓은 것이 있으면 한 번 더 묻는다 — 세계는 되돌릴 수 없다
+  if (stats.placed + stats.mined > 30 && !S.confirmNew) {
+    S.confirmNew = true;
+    altBtn.textContent = "정말 새 세계? (다시 누르기)";
+    setTimeout(function () {
+      S.confirmNew = false;
+      altBtn.textContent = "새 세계";
+    }, 4000);
+    return;
+  }
+  S.confirmNew = false;
   var raw = (seedIn.value || "").trim();
   var seed = raw === "" ? ((Math.random() * 100000) | 0) : hashSeed(raw);
   newWorld(seed);
@@ -704,6 +715,27 @@ window.addEventListener("touchmove", function (e) {
   el.addEventListener("touchend", function () { active = false; }, { passive: true });
 })();
 
+// 터치에서도 영역 도구를 쓸 수 있게 — 두 손가락으로 화면을 누르면 모서리를 찍는다
+(function bindTouchRegion() {
+  var el = document.getElementById("stage");
+  if (!el) return;
+  var twoStart = 0;
+  el.addEventListener("touchstart", function (ev) {
+    if (ev.touches.length !== 2 || !S.active) return;
+    twoStart = Date.now();
+  }, { passive: true });
+  el.addEventListener("touchend", function (ev) {
+    if (!twoStart || ev.touches.length > 0) { if (!ev.touches.length) twoStart = 0; return; }
+    var held = Date.now() - twoStart;
+    twoStart = 0;
+    if (held < 220 || held > 1400) return;
+    var h = raycast(6);
+    if (!h) return;
+    if (!S.selA || (S.selA && S.selB)) { S.selA = [h.x, h.y, h.z]; S.selB = null; toast("영역 시작"); }
+    else { S.selB = [h.x, h.y, h.z]; toast("영역 " + selectionSize().toLocaleString("ko-KR") + "칸"); }
+  }, { passive: true });
+})();
+
 function endTouch(e) {
   for (var i = 0; i < e.changedTouches.length; i++) {
     var t = e.changedTouches[i];
@@ -778,6 +810,20 @@ bindOpt("s-vol", "o-vol", "vol", function (v) { return v + "%"; });
 bindOpt("s-day", "o-day", "day", function (v) { return v === 0 ? "고정" : v + "분"; });
 bindOpt("s-bright", "o-bright", "bright", function (v) { return v + "%"; });
 bindOpt("s-ui", "o-ui", "ui", function (v) { return v + "%"; });
+bindOpt("s-tbtn", "o-tbtn", "tbtn", function (v) { return v + "%"; });
+bindOpt("s-save", "o-save", "autosave", function (v) { return v + "초"; });
+bindOpt("s-undo", "o-undo", "undo", function (v) { return v + "단계"; });
+(function bindLefty() {
+  var el = document.getElementById("s-lefty"), out = document.getElementById("o-lefty");
+  if (!el) return;
+  el.checked = !!opts.lefty;
+  if (out) out.textContent = opts.lefty ? "켬" : "끔";
+  el.addEventListener("change", function () {
+    opts.lefty = el.checked ? 1 : 0;
+    if (out) out.textContent = el.checked ? "켬" : "끔";
+    applyOpts(); saveOpts();
+  });
+})();
 (function bindContrast() {
   var el = document.getElementById("s-hc"), out = document.getElementById("o-hc");
   if (!el) return;
@@ -800,3 +846,47 @@ bindOpt("s-ui", "o-ui", "ui", function (v) { return v + "%"; });
   });
   el.addEventListener("click", function (e) { e.stopPropagation(); });
 })();
+
+// ══════════════════════════════════════════════════════════════
+//  게임패드 — 마우스·키보드가 어려운 사람도 놀 수 있게
+// ══════════════════════════════════════════════════════════════
+export var padState = { on: false, lx: 0, ly: 0, rx: 0, ry: 0 };
+var padPrev = {};
+
+export function pollGamepad(dt) {
+  if (!navigator.getGamepads) return false;
+  var pads = navigator.getGamepads();
+  var g = null;
+  for (var i = 0; i < pads.length; i++) if (pads[i] && pads[i].connected) { g = pads[i]; break; }
+  if (!g) { padState.on = false; return false; }
+  if (!padState.on) { padState.on = true; toast("게임패드 연결됨"); }
+
+  function dead(v) { return Math.abs(v) < 0.18 ? 0 : v; }
+  padState.lx = dead(g.axes[0] || 0);
+  padState.ly = dead(g.axes[1] || 0);
+  padState.rx = dead(g.axes[2] || 0);
+  padState.ry = dead(g.axes[3] || 0);
+
+  // 시점 — 오른쪽 스틱
+  if (padState.rx || padState.ry) {
+    applyLook(padState.rx * 620 * dt, padState.ry * 480 * dt);
+  }
+
+  function pressed(n) { return !!(g.buttons[n] && g.buttons[n].pressed); }
+  function tapped(n) {
+    var now = pressed(n), was = padPrev[n];
+    padPrev[n] = now;
+    return now && !was;
+  }
+
+  S.keys.Space = pressed(0);                       // A — 점프/상승
+  S.keys.ShiftLeft = pressed(1);                   // B — 웅크리기/하강
+  S.mouseDown[0] = pressed(7) || pressed(5);       // RT/RB — 캐기
+  if (tapped(6) || tapped(4)) place();             // LT/LB — 놓기
+  if (tapped(2)) pickBlock();                      // X — 복사
+  if (tapped(3)) { player.flying = !player.flying; player.vel.y = 0; }  // Y — 비행
+  if (tapped(14)) selectSlot(S.selected - 1);      // 십자 좌
+  if (tapped(15)) selectSlot(S.selected + 1);      // 십자 우
+  if (tapped(9)) { if (S.uiOpen) closePicker(true); else openPicker(); }  // 시작 — 블록 목록
+  return true;
+}
