@@ -1828,21 +1828,41 @@ test("v11 눈: 눈이 오면 지표에 쌓인다", async (page) => {
     const B = window.__blockyard;
     B.setPaused(true);
     B.generate(99999); B.relightAll(false);
-    // 초원 한복판을 찾는다
-    let gx = -1, gz = -1;
-    outer: for (let z = 20; z < B.WZ - 20; z++) for (let x = 20; x < B.WX - 20; x++)
-      if (B.biomeMap[z * B.WX + x] === 0 && B.world[B.idx(x, B.topMap[z * B.WX + x], z)] === B.B.GRASS)
-        { gx = x; gz = z; break outer; }
+    // 초원 한복판을 찾는다 — "첫 번째 풀칸" 이 아니라 **눈이 쌓일 칸이 가장 많은** 자리다.
+    // 첫 칸을 집으면 숲 가장자리나 물가가 걸려 쌓일 곳이 27칸뿐인 자리에서 확률로 실패했다.
+    function targetsAt(cx, cz) {
+      let n = 0;
+      for (let dx = -16; dx <= 16; dx += 2) for (let dz = -16; dz <= 16; dz += 2) {
+        const x = cx + dx, z = cz + dz;
+        if (x < 0 || x >= B.WX || z < 0 || z >= B.WZ) continue;
+        const ty = B.topMap[z * B.WX + x], tb = B.world[B.idx(x, ty, z)];
+        if ((tb === B.B.GRASS || tb === B.B.DIRT) && B.get(x, ty + 1, z) === B.B.AIR) n++;
+      }
+      return n;
+    }
+    let gx = -1, gz = -1, best = -1;
+    for (let z = 20; z < B.WZ - 20; z += 4) for (let x = 20; x < B.WX - 20; x += 4) {
+      if (B.biomeMap[z * B.WX + x] !== 0) continue;
+      if (B.world[B.idx(x, B.topMap[z * B.WX + x], z)] !== B.B.GRASS) continue;
+      const n = targetsAt(x, z);
+      if (n > best) { best = n; gx = x; gz = z; }
+    }
     if (gx < 0) return { skip: true };
-    B.player.pos.set(gx + 0.5, B.topMap[gz * B.WX + gx] + 2, gz + 0.5);
     B.beginPlay();
+    // 자리는 beginPlay 뒤에 잡는다 — 첫 beginPlay 는 savedPos 로 사람을 옮긴다
+    B.player.pos.set(gx + 0.5, B.topMap[gz * B.WX + gx] + 2, gz + 0.5);
     B.setWeather(2);
     B.S.weatherMix = 1;
-    let before = 0;
+    // 눈은 ±16 안에서 무작위로 찍어 쌓는다. 고른 자리가 숲·물가면 찍을 곳이 없어
+    // 확률로 실패한다 — 쌓일 수 있는 칸이 충분한지 시험대에서 먼저 못 박는다
+    let before = 0, targets = 0;
     for (let dx = -16; dx <= 16; dx++) for (let dz = -16; dz <= 16; dz++) {
       const x = gx + dx, z = gz + dz;
       if (x < 0 || x >= B.WX || z < 0 || z >= B.WZ) continue;
-      if (B.world[B.idx(x, B.topMap[z * B.WX + x], z)] === B.B.SNOW) before++;
+      const ty = B.topMap[z * B.WX + x];
+      const tb = B.world[B.idx(x, ty, z)];
+      if (tb === B.B.SNOW) before++;
+      if ((tb === B.B.GRASS || tb === B.B.DIRT) && B.get(x, ty + 1, z) === B.B.AIR) targets++;
     }
     for (let k = 0; k < 900; k++) { B.S.weatherMix = 1; B.step(1 / 60); }
     let after = 0;
@@ -1852,9 +1872,10 @@ test("v11 눈: 눈이 오면 지표에 쌓인다", async (page) => {
       if (B.world[B.idx(x, B.topMap[z * B.WX + x], z)] === B.B.SNOW) after++;
     }
     B.setWeather(0); B.endPlay(); B.setPaused(false);
-    return { before, after };
+    return { before, after, targets };
   });
   if (r.skip) return;
+  assert(r.targets > 50, `시험대가 잘못 섰다 — 눈이 쌓일 수 있는 칸이 ${r.targets}개뿐이다 (99999 시드의 초원 최대는 86)`);
   assert(r.after > r.before, `눈이 안 쌓였다 — ${r.before} → ${r.after}`);
 });
 
@@ -5446,18 +5467,21 @@ test("v49 세계 갈아타기: 되돌리기 기록과 클립보드가 따라오�
     B.S.selA = [30, 40, 30]; B.S.selB = [37, 40, 34];
     B.copySelection();
     const hadHistory = B.S.history.length, hadClip = !!B.S.clip;
+    B.S.walked = 100;                    // 지난 세계에서 실컷 걸어 다녔다
     B.saveGame();
     // 세계 B 로 갈아탄다 (afterWorldSwap 경로)
     B.generate(1618); B.relightAll(false);
     B.afterWorldSwap("시험 전환", true);
     const out = { hadHistory, hadClip,
                   history: B.S.history.length, future: B.S.future.length,
-                  clip: !!B.S.clip, sel: !!(B.S.selA || B.S.selB) };
+                  clip: !!B.S.clip, sel: !!(B.S.selA || B.S.selB),
+                  walked: B.S.walked };
     B.endPlay(); B.setPaused(false);
     return out;
   });
   assert(r.hadHistory > 0 && r.hadClip, "시험대가 안 만들어졌다");
   eq(r.history, 0, "지난 세계의 되돌리기 기록이 따라왔다 — Ctrl+Z 가 새 세계를 도려낸다");
+  eq(r.walked, 0, "지난 세계에서 걸은 거리가 따라왔다 — 새 사막에 스폰하자마자 과제가 뜬다 (v60)");
   eq(r.future, 0, "다시하기 기록이 따라왔다");
   assert(!r.clip, "지난 세계의 복사 버퍼가 따라왔다");
   assert(!r.sel, "지난 세계의 영역 선택이 따라왔다");

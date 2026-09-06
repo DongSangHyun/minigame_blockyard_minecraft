@@ -58,5 +58,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v61 — 나무 그리기를 src/tree.js 로 · 회귀 테스트 251항목 전부 통과.**
+**v61 — 도장 갱신 · 회귀 테스트 251항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/

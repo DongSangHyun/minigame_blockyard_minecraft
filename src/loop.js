@@ -41,6 +41,9 @@ export function newWorld(seed) {
   S.history.length = 0; S.future.length = 0;
   resetQueues();
   S.earned = {}; S.placedKinds = {}; S.lampsPlaced = 0; S.playSeconds = 0; S.tut = 0;
+  // 걸은 거리도 새 세계에서 다시 센다 — 안 지우면 지난 세계에서 걸은 거리 때문에
+  // 새 사막에 스폰하자마자 "사막" 이 뜬다 (v60 에서 막은 그 장면이 두 번째 세계에서 되살아난다)
+  S.walked = 0; S.achPrevX = null; S.achPrevZ = null;
   S.shapeMode = 0;
   S.spawnPoint = null;
   S.marks = [];
