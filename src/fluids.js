@@ -361,6 +361,121 @@ export function grassTick(px, py, pz, tries) {
   return changed;
 }
 
+// ══════════════════════════════════════════════════════════════
+//  용암 흐르기 — 물과 같은 규칙이되 절반만 뻗고 네 배 느리다.
+//  절벽 위에 부은 용암이 그 자리에 네모나게 떠 있으면 "붓는다" 는 행동에 의미가 없다.
+// ══════════════════════════════════════════════════════════════
+export var LAVA_FLOW = 2;              // 마크 오버월드는 4칸. 96칸 섬 스케일에 맞춰 절반.
+
+export function enqueueLava(x, y, z) {
+  if (!inside(x, y, z)) return;
+  var i = idx(x, y, z);
+  if (world[i] === AIR || isCross(world[i])) Q.lavaQ.push(i);
+}
+export function enqueueLavaAround(x, y, z) {
+  enqueueLava(x, y, z);
+  for (var d = 0; d < 6; d++) enqueueLava(x + DIRS[d][0], y + DIRS[d][1], z + DIRS[d][2]);
+}
+export function enqueueLavaDry(x, y, z) {
+  if (!inside(x, y, z)) return;
+  if (world[idx(x, y, z)] === LAVA) Q.lavaDryQ.push(idx(x, y, z));
+}
+export function enqueueLavaDryAround(x, y, z) {
+  enqueueLavaDry(x, y, z);
+  for (var d = 0; d < 6; d++) enqueueLavaDry(x + DIRS[d][0], y + DIRS[d][1], z + DIRS[d][2]);
+}
+
+// 옆에서 나보다 근원에 가까운 용암이 대 주고 있는가 (물의 fedSideways 와 같은 판정)
+function lavaFedSideways(i, y, lvl) {
+  var rem = i - y * PLANE, z = (rem / WX) | 0, x = rem - z * WX;
+  for (var h = 0; h < 6; h++) {
+    if (DIRS[h][1] !== 0) continue;
+    var nx = x + DIRS[h][0], nz = z + DIRS[h][2];
+    if (get(nx, y, nz) !== LAVA) continue;
+    if (!isSolid(get(nx, y - 1, nz))) continue;
+    if (waterLvl[idx(nx, y, nz)] < lvl) return true;
+  }
+  return false;
+}
+
+export function lavaFlowTick(budget) {
+  budget = budget || 120;
+  var changed = 0;
+  var end = Q.lavaQ.length;
+  while (Q.lavaHead < end && budget-- > 0) {
+    var i = Q.lavaQ[Q.lavaHead++];
+    if (world[i] !== AIR && !isCross(world[i])) continue;   // 흐르는 용암도 풀·꽃을 쓸어버린다
+    var y = (i / PLANE) | 0, rem = i - y * PLANE;
+    var z = (rem / WX) | 0, x = rem - z * WX;
+
+    var lvl = -1;
+    if (get(x, y + 1, z) === LAVA) {
+      lvl = 0;                                   // 위에서 떨어지는 용암은 다시 근원
+    } else {
+      for (var h2 = 0; h2 < 6; h2++) {
+        if (DIRS[h2][1] !== 0) continue;
+        var nx2 = x + DIRS[h2][0], nz2 = z + DIRS[h2][2];
+        if (get(nx2, y, nz2) !== LAVA) continue;
+        if (!isSolid(get(nx2, y - 1, nz2))) continue;
+        var cand = waterLvl[idx(nx2, y, nz2)] + 1;
+        if (cand > LAVA_FLOW) continue;
+        if (lvl < 0 || cand < lvl) lvl = cand;
+      }
+    }
+    if (lvl < 0) continue;
+
+    // 물에 닿으면 굳어 조약돌 — 물 쪽(waterTick)과 대칭이다
+    var wet = false;
+    for (var m = 0; m < 6; m++) {
+      if (get(x + DIRS[m][0], y + DIRS[m][1], z + DIRS[m][2]) === WATER) { wet = true; break; }
+    }
+    if (wet) {
+      world[i] = COBBLE; shape[i] = SH_FULL; waterLvl[i] = 0;
+      touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z);
+      burst(x, y, z, COBBLE, 6);
+      lavaHiss();
+      S.worldDirty = true; changed++;
+      continue;
+    }
+
+    world[i] = LAVA; waterLvl[i] = lvl;
+    changed++;
+    touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z);   // 용암은 광원이라 조명도 다시
+    for (var d3 = 0; d3 < 6; d3++)
+      enqueueLava(x + DIRS[d3][0], y + DIRS[d3][1], z + DIRS[d3][2]);
+    S.worldDirty = true;
+  }
+  if (Q.lavaHead > 4096 && Q.lavaHead === Q.lavaQ.length) { Q.lavaQ.length = 0; Q.lavaHead = 0; }
+  return changed;
+}
+
+// 근원이 사라지면 흘러 나간 용암도 물러난다 — 안 그러면 캔 자리에 자국이 영영 남는다
+export function lavaDryTick(budget) {
+  budget = budget || 120;
+  var dried = 0;
+  var end = Q.lavaDryQ.length;
+  while (Q.lavaDryHead < end && budget-- > 0) {
+    var i = Q.lavaDryQ[Q.lavaDryHead++];
+    if (world[i] !== LAVA) continue;
+    var y = (i / PLANE) | 0;
+    var lvl = waterLvl[i];
+    if (lvl === 0) continue;                       // 근원은 마르지 않는다
+    if (get2(i, 0, 1, 0) === LAVA) continue;       // 위에서 대 주고 있다
+    if (lavaFedSideways(i, y, lvl)) continue;
+    var rem2 = i - y * PLANE, z2 = (rem2 / WX) | 0, x2 = rem2 - z2 * WX;
+    world[i] = AIR; waterLvl[i] = 0;
+    touch(x2, y, z2); refreshTop(x2, z2); relightLocal(x2, y, z2);
+    enqueueLavaDryAround(x2, y, z2);
+    enqueueFall(x2, y + 1, z2);
+    S.worldDirty = true;
+    dried++;
+  }
+  if (Q.lavaDryHead > 4096 && Q.lavaDryHead === Q.lavaDryQ.length) {
+    Q.lavaDryQ.length = 0; Q.lavaDryHead = 0;
+  }
+  return dried;
+}
+
 // 용암은 가까운 가연물에 스스로 불을 붙인다 — 마크에서 용암을 붓는다는 건
 // "무언가를 시작한다" 는 뜻이다. 이게 없으면 용암은 주황색 벽돌일 뿐이다.
 // 큐 없이 플레이어 주변만 드문드문 훑는다 (44만 칸을 다 볼 이유가 없다)

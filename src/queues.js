@@ -13,6 +13,11 @@ export const Q = {
   fireHead: 0,
   fallQ: [],
   fallHead: 0,
+  lavaQ: [],
+  lavaHead: 0,
+  lavaDryQ: [],
+  lavaDryHead: 0,
+  lavaTimer: 0,
 };
 
 export function resetQueues() {
@@ -22,4 +27,6 @@ export function resetQueues() {
   Q.freezeQ.length = 0; Q.freezeHead = 0;
   Q.fireQ.length = 0; Q.fireHead = 0;
   Q.fallQ.length = 0; Q.fallHead = 0;
+  Q.lavaQ.length = 0; Q.lavaHead = 0;
+  Q.lavaDryQ.length = 0; Q.lavaDryHead = 0; Q.lavaTimer = 0;
 }

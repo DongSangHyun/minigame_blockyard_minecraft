@@ -9,7 +9,7 @@ import { SH_SLAB, AIR, DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, TORCH, WATER, 
 import { animateLiquids, crackTex } from "./atlas.js";
 import { BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, set, shape, topMap, world } from "./world.js";
 import { lightAtPlayer, lightSky, relightAll } from "./light.js";
-import { grassTick, lavaTick, primeTick, TNT_FUSE, decayTick, dryTick, fallTick, fireTick, freezeTick, waterTick } from "./fluids.js";
+import { lavaFlowTick, lavaDryTick, grassTick, lavaTick, primeTick, TNT_FUSE, decayTick, dryTick, fallTick, fireTick, freezeTick, waterTick } from "./fluids.js";
 import { buildBudget, dirty, markAllDirty, opaqueMeshes, setBuildFocus } from "./mesh.js";
 import { primedBoxes, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
@@ -477,6 +477,9 @@ export function step(dt) {
     S.waterTimer = 0;
     dryTick(300);
     fireTick(40);
+    // 용암은 물의 4분의 1 속도로 흐른다 — 걸어서 피할 수 있어야 한다
+    Q.lavaTimer++;
+    if (Q.lavaTimer >= 4) { Q.lavaTimer = 0; lavaFlowTick(120); lavaDryTick(120); }
     if (playing) lavaTick(player.pos.x, player.pos.y, player.pos.z, 24);
     // 잔디는 훨씬 느리게 — 2초에 한 번만 훑는다
     S.grassTimer = (S.grassTimer || 0) + 0.15;

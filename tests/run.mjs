@@ -4929,6 +4929,46 @@ test("v37 게임패드: 베드락 배치로 바뀌고 놓기가 홀드로 반복
   assert(r.hasMenuPoll, "시작 화면에서 패드를 읽지 않는다 — A 를 눌러도 못 들어온다");
 });
 
+test("v38 용암: 흐르고, 물에 닿으면 굳고, 근원을 캐면 물러난다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 20, Y = 44, Z = 84;
+    function arena() {
+      for (let dx = -8; dx <= 8; dx++) for (let dz = -4; dz <= 4; dz++) {
+        for (let dy = 0; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+        B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+      }
+      B.refreshAllTops(); B.relightAll(false);
+    }
+    function settle(n) { for (let k = 0; k < (n || 200); k++) { B.lavaFlowTick(300); B.lavaDryTick(300); } }
+    // 1) 흐른다 — LAVA_FLOW 칸까지
+    arena();
+    B.applyEdit(X, Y, Z, B.B.LAVA, false, 0);
+    settle();
+    let reach = 0;
+    for (let d = 1; d <= 6; d++) if (B.get(X + d, Y, Z) === B.B.LAVA) reach = d;
+    // 2) 근원을 캐면 흘러 나간 것이 물러난다
+    B.applyEdit(X, Y, Z, B.B.AIR, false, 0);
+    settle();
+    let left = 0;
+    for (let d = -6; d <= 6; d++) if (B.get(X + d, Y, Z) === B.B.LAVA) left++;
+    // 3) 물에 닿으면 조약돌
+    arena();
+    B.applyEdit(X, Y, Z, B.B.LAVA, false, 0);
+    B.applyEdit(X + 2, Y, Z, B.B.WATER, false, 0);
+    for (let k = 0; k < 200; k++) { B.lavaFlowTick(300); B.waterTick(300); B.lavaDryTick(300); B.dryTick(300); }
+    let cobble = 0;
+    for (let d = -3; d <= 3; d++) if (B.get(X + d, Y, Z) === B.B.COBBLE) cobble++;
+    B.endPlay(); B.setPaused(false);
+    return { reach, left, cobble, max: B.LAVA_FLOW };
+  });
+  eq(r.max, 2, "LAVA_FLOW 가 2 가 아니다");
+  eq(r.reach, 2, "용암이 흐르지 않는다 (제자리에 네모나게 떠 있다) — " + r.reach + "칸");
+  eq(r.left, 0, "근원을 캤는데 흘러 나간 용암이 남아 있다 — " + r.left + "칸");
+  assert(r.cobble > 0, "용암과 물이 만났는데 조약돌이 안 생긴다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

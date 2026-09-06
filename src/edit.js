@@ -3,10 +3,10 @@ import { S } from "./state.js";
 import { opts } from "./settings.js";
 import { SLOTS } from "./save.js";
 import { DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
+import { LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
 import { BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightLocal } from "./light.js";
-import { enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
+import { enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
 import { touch } from "./mesh.js";
 import { player, stats } from "./player.js";
 import { tone } from "./audio.js";
@@ -61,6 +61,10 @@ export function applyEdit(x, y, z, to, record, sh) {
   else if (from === WATER) waterLvl[i] = 0;
   if (to === WATER) enqueueWaterAround(x, y, z);
   if (from === WATER && to !== WATER) enqueueDryAround(x, y, z);
+  // 용암도 물처럼 흐른다 — 놓으면 퍼지고, 근원을 캐면 흘러 나간 것이 물러난다
+  if (to === LAVA) { waterLvl[i] = 0; enqueueLavaAround(x, y, z); }
+  if (from === LAVA && to !== LAVA) enqueueLavaDryAround(x, y, z);
+  if (to === AIR) enqueueLavaAround(x, y, z);
   enqueueFall(x, y, z);        // 놓은 블록 자신도 떨어질 수 있다
   enqueueFall(x, y + 1, z);    // 위에 얹혀 있던 것도
   touch(x, y, z);
