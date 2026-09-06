@@ -119,7 +119,7 @@ export function saveGame() {
       p: [player.pos.x, player.pos.y, player.pos.z],
       r: [player.yaw, player.pitch],
       s: [stats.placed, stats.mined],
-      t: S.timeOfDay, f: player.flying, bar: S.bar,
+      t: S.timeOfDay, md: S.moonDay, f: player.flying, bar: S.bar,
       ach: S.earned, kinds: S.placedKinds, lamps: S.lampsPlaced, torches: S.torchesPlaced,
       secs: Math.round(S.playSeconds), tut: S.tut,
       sp: S.spawnPoint, marks: S.marks, bar2: S.barAlt, fly: S.flySpeed, tt: S.terrain
@@ -156,6 +156,7 @@ export function loadGame() {
     player.yaw = d.r[0]; player.pitch = d.r[1];
     stats.placed = d.s[0]; stats.mined = d.s[1];
     S.timeOfDay = typeof d.t === "number" ? d.t : 0.3;
+    S.moonDay = (d.md | 0) || 0;          // 달 위상 — 없던 저장은 0(보름달)에서 시작한다
     player.flying = !!d.f;
     if (Array.isArray(d.bar) && d.bar.length === DEFAULT_BAR.length) S.bar = d.bar.slice();
     S.earned = (d.ach && typeof d.ach === "object") ? d.ach : {};

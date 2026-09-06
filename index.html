@@ -740,23 +740,24 @@
     <div class="help-cols">
       <dl>
         <dt>이동</dt><dd><kbd>WASD</kbd> 걷기 · <kbd>Space</kbd> 점프 · <kbd>Shift</kbd> 웅크리기</dd>
-        <dd><kbd>Ctrl</kbd> 또는 <kbd>W</kbd>×2 달리기 · <kbd>F</kbd> / <kbd>Space</kbd>×2 비행</dd>
+        <dd><kbd>Ctrl</kbd> 또는 <kbd>W</kbd>×2 달리기 · <kbd data-bind="fly">F</kbd> / <kbd>Space</kbd>×2 비행</dd>
         <dd><kbd>Alt</kbd>+휠 비행 속도 · 사다리에 붙어 <kbd>Space</kbd> 오르기</dd>
         <dd>물에서는 <kbd>Space</kbd> 로 떠오르고, 수면에서 <kbd>W</kbd>+<kbd>Space</kbd> 로 물가에 올라섭니다</dd>
         <dt>짓기</dt><dd>좌클릭 길게 캐기 · 우클릭 놓기(드래그로 줄 긋기)</dd>
-        <dd><kbd>E</kbd> 블록 목록 · <kbd>Q</kbd>/휠클릭 복사 · <kbd>G</kbd> 반블록·계단</dd>
+        <dd><kbd>E</kbd> 블록 목록 · <kbd data-bind="pick">Q</kbd>/휠클릭 복사 · <kbd data-bind="shape">G</kbd> 반블록·계단</dd>
         <dd><kbd>Tab</kbd> 핫바 2쪽 · <kbd>1</kbd>–<kbd>0</kbd> 칸 고르기</dd>
         <dd><kbd>Ctrl</kbd>+<kbd>Z</kbd> 되돌리기 · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> 다시하기</dd>
       </dl>
       <dl>
         <dt>영역 도구</dt>
         <dd><kbd>Alt</kbd>+좌클릭 시작 모서리 · <kbd>Alt</kbd>+우클릭 끝 모서리</dd>
-        <dd><kbd>Ctrl</kbd>+<kbd>F</kbd> 채우기 · <kbd>Ctrl</kbd>+<kbd>C</kbd> 복사 · <kbd>Ctrl</kbd>+<kbd>V</kbd> 붙여넣기 (키보드는 Ctrl 그대로)</dd>
+        <dd><kbd>Ctrl</kbd>+<kbd>F</kbd> 채우기 · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> 비우기 · <kbd>Ctrl</kbd>+<kbd>C</kbd> 복사 · <kbd>Ctrl</kbd>+<kbd>V</kbd> 붙여넣기</dd>
+        <dd>명령창에서는 <kbd>/</kbd><b>fill 공기</b> 로도 비웁니다 — 되돌리기는 한 번에</dd>
         <dd><kbd>Ctrl</kbd>+<kbd>D</kbd> 선택 해제 — 대량 편집도 한 번에 되돌립니다</dd>
         <dt>세계</dt><dd><kbd>T</kbd> 시간 · <kbd>K</kbd> 날씨 · <kbd>M</kbd> 소리 · <kbd>R</kbd>×2 새 세계</dd>
         <dd><kbd>V</kbd> 시작 지점 · <kbd>B</kbd> 미니맵 표식 · <kbd>[</kbd> <kbd>]</kbd> 미니맵 확대</dd>
-        <dt>화면</dt><dd><kbd>F1</kbd> HUD 숨기기 · <kbd>F2</kbd> 화면 저장 · <kbd>F3</kbd> 성능 · <kbd>F5</kbd> 3인칭</dd>
-        <dt>도움말</dt><dd><kbd>H</kbd> 로 열고 닫습니다 · <kbd>ESC</kbd> 메뉴</dd>
+        <dt>화면</dt><dd><kbd>F1</kbd> HUD 숨기기 · <kbd>F2</kbd> 화면 저장 · <kbd>F3</kbd> 성능 · <kbd>F5</kbd> 3인칭 · <kbd>F6</kbd> 사진 모드</dd>
+        <dt>도움말</dt><dd><kbd data-bind="help">H</kbd> 로 열고 닫습니다 · <kbd>ESC</kbd> 메뉴</dd>
       </dl>
     </div>
     <div id="help-achlist" hidden></div>
@@ -808,10 +809,10 @@
       <div><kbd>좌클릭</kbd><span>길게 눌러 캐기</span></div>
       <div><kbd>우클릭</kbd><span>놓기</span></div>
       <div><kbd>E</kbd><span>블록 목록 열기</span></div>
-      <div><kbd>Q</kbd><span>조준한 블록 복사 (휠 클릭도 됩니다)</span></div>
+      <div><kbd data-bind="pick">Q</kbd><span>조준한 블록 복사 (휠 클릭도 됩니다)</span></div>
       <div><kbd>CTRL</kbd>+<kbd>Z</kbd><span>되돌리기 / 다시하기</span></div>
-      <div><kbd>F</kbd><span>비행 모드</span></div>
-      <div><kbd>G</kbd><span>전체 / 반블록 / 계단</span></div>
+      <div><kbd data-bind="fly">F</kbd><span>비행 모드</span></div>
+      <div><kbd data-bind="shape">G</kbd><span>전체 / 반블록 / 계단</span></div>
       <div><kbd>T</kbd><span>시간대 바꾸기</span></div>
       <div><kbd>K</kbd><span>날씨 바꾸기</span></div>
       <div><kbd>F5</kbd><span>1인칭 / 3인칭</span></div>
@@ -823,7 +824,7 @@
       <div><kbd>V</kbd><span>여기를 시작 지점으로</span></div>
       <div><kbd>B</kbd><span>미니맵 표식</span></div>
       <div><kbd>TAB</kbd><span>핫바 2쪽 바꾸기</span></div>
-      <div><kbd>H</kbd><span>조작 도움말 (영역 도구 포함)</span></div>
+      <div><kbd data-bind="help">H</kbd><span>조작 도움말 (영역 도구 포함)</span></div>
       <div><kbd>부싯돌</kbd><span>들고 우클릭 — 불 붙이기 · TNT 터뜨리기</span></div>
       <div><kbd>[</kbd> <kbd>]</kbd><span>미니맵 확대 / 축소</span></div>
       <div><kbd>\</kbd><span>미니맵 등고선</span></div>

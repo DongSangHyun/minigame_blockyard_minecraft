@@ -16,10 +16,10 @@ import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, move
 import { breakSound, caveSound, lavaHiss, lavaPop, listenAt, miningSound, moodChord, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
 import { OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName, baseRev, setBaseRev, ensureGist, req } from "./cloud.js";
-import { ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, completeCommand, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
+import { ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
 import { airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toast, toggleHelp } from "./hud.js";
 import { makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
-import { TUT, beginPlay, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink } from "./input.js";
+import { RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink } from "./input.js";
 import { canPlaceAt, place, tryInteract, upperFromHit } from "./mine.js";
 import { HIDE_Y, MOON_PHASES, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
 import { PLACE_DELAY, PLACE_REPEAT, SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, farNow, refreshPerf, step } from "./loop.js";
@@ -141,7 +141,7 @@ window.__blockyard = {
   drawPreview: drawPreview, showAchPop: showAchPop, cmdIn: cmdIn, cmdEl: cmdEl,
   refreshStats: refreshStats, categoryOf: categoryOf, noteBlockUse: noteBlockUse,
   sortPickByRecent: sortPickByRecent, refreshPickFilter: refreshPickFilter,
-  refreshKeyButtons: refreshKeyButtons, TUT: TUT, chunkCX: chunkCX, chunkCZ: chunkCZ,
+  refreshKeyButtons: refreshKeyButtons, bindConflict: bindConflict, refreshBindLabels: refreshBindLabels, RESERVED: RESERVED, TUT: TUT, chunkCX: chunkCX, chunkCZ: chunkCZ,
   explode: explode, ignite: ignite, fireTick: fireTick, BLAST_R: BLAST_R,
   isFlammable: isFlammable, seedFlocks: seedFlocks, updateFlocks: updateFlocks,
   fish: fish, birds: birds, moodChord: moodChord, listenAt: listenAt,
@@ -150,7 +150,7 @@ window.__blockyard = {
   pushOutOfMobs: pushOutOfMobs, exportWorld: exportWorld, importWorldText: importWorldText,
   hasBackup: hasBackup, restoreBackup: restoreBackup, pushBackup: pushBackup, backupKey: backupKey,
   cloudGroupHigh: cloudGroupHigh, FREE_DIST: FREE_DIST,
-  fillSelection: fillSelection, copySelection: copySelection, pasteClip: pasteClip,
+  fillSelection: fillSelection, clearSelection: clearSelection, copySelection: copySelection, pasteClip: pasteClip,
   selectionBounds: selectionBounds, selectionSize: selectionSize, REGION_MAX: REGION_MAX,
   beginBatch: beginBatch, endBatch: endBatch, updateSelectionBox: updateSelectionBox,
   mobs: mobs, updateMobs: updateMobs, seedMobs: seedMobs, MOB_KINDS: MOB_KINDS,

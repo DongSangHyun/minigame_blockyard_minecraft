@@ -244,6 +244,21 @@ export function fillSelection(block, sh) {
   return endBatch("채우기");
 }
 
+// 영역 비우기 — 채우기와 같은 길을 쓰되 되돌리기 이름만 다르다.
+// AIR 를 ALL_BLOCKS 에 넣으면 "수집가" 과제가 영영 불가능해지므로 (v19 교훈)
+// 여기서 AIR 를 직접 넘긴다.
+export function clearSelection() {
+  var b = bounds();
+  if (!b) return 0;
+  if (selectionSize() > REGION_MAX) return -1;
+  beginBatch();
+  for (var y = b.y0; y <= b.y1; y++)
+    for (var z = b.z0; z <= b.z1; z++)
+      for (var x = b.x0; x <= b.x1; x++)
+        applyEdit(x, y, z, AIR, true, SH_FULL);
+  return endBatch("비우기");
+}
+
 export function copySelection() {
   var b = bounds();
   if (!b) return 0;
@@ -280,7 +295,7 @@ export function pasteClip(px, py, pz) {
 // ── 명령 처리 — 짧은 이름 하나로 알아듣게
 export var CMD_HELP =
   "tp <x> <y> <z> · time <아침|정오|노을|밤|0~1> · weather <맑음|비|눈> · " +
-  "fill <블록> · give <블록> · count · bp <save|use|list> <이름> · seed · gm <속도> · help";
+  "fill <블록|공기> · give <블록> · count · bp <save|use|list> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
 
 function findBlock(name) {
   if (!name) return -1;
@@ -297,7 +312,7 @@ function findBlock(name) {
   return -1;
 }
 
-export var CMD_LIST = ["tp", "time", "weather", "fill", "give", "count", "bp", "seed", "gm", "help"];
+export var CMD_LIST = ["tp", "time", "weather", "fill", "give", "count", "bp", "undo", "redo", "seed", "gm", "help"];
 // 앞글자만 쳐도 알아듣게 — 명령이 열 개나 되면 오타 한 번에 막힌다
 export function completeCommand(prefix) {
   var q = String(prefix || "").trim().toLowerCase();
@@ -353,11 +368,19 @@ export function runCommand(line) {
   }
 
   if (cmd === "fill") {
-    var fb = findBlock(parts.slice(1).join(" "));
+    var fname = parts.slice(1).join(" ");
+    // "공기" 는 블록 목록에 없다 — 비우기로 알아듣는다
+    if (/^(공기|빈칸|air|없음)$/i.test(fname.trim())) {
+      var nc = clearSelection();
+      if (nc < 0) return "영역이 너무 큽니다";
+      if (!nc) return "먼저 Alt+클릭으로 영역을 고르세요";
+      return nc.toLocaleString("ko-KR") + "칸을 비웠습니다";
+    }
+    var fb = findBlock(fname);
     if (fb < 0) return "그런 블록이 없습니다";
     var n = fillSelection(fb, SH_FULL);
     if (n < 0) return "영역이 너무 큽니다";
-    if (!n) return "먼저 Ctrl+클릭으로 영역을 고르세요";
+    if (!n) return "먼저 Alt+클릭으로 영역을 고르세요";
     return n.toLocaleString("ko-KR") + "칸을 " + NAMES[fb] + " 로";
   }
 
@@ -379,10 +402,24 @@ export function runCommand(line) {
 
   if (cmd === "count") {
     var cl = selectionCounts();
-    if (!cl) return "먼저 Ctrl+클릭으로 영역을 고르세요";
+    if (!cl) return "먼저 Alt+클릭으로 영역을 고르세요";
     if (!cl.length) return "영역이 비어 있습니다";
     return cl.slice(0, 4).map(function (e) { return e.name + " " + e.n; }).join(" · ")
            + (cl.length > 4 ? " …" : "");
+  }
+
+  // 되돌리기를 한 번에 여러 단계 — 대량 편집을 시험하다 망쳤을 때 손이 덜 아프다
+  if (cmd === "undo" || cmd === "redo") {
+    var times = parseInt(parts[1], 10);
+    if (!isFinite(times) || times < 1) times = 1;
+    times = Math.min(times, 200);
+    var done = 0;
+    for (var u = 0; u < times; u++) {
+      if (!(cmd === "undo" ? undo() : redo())) break;
+      done++;
+    }
+    if (!done) return cmd === "undo" ? "되돌릴 것이 없습니다" : "다시 실행할 것이 없습니다";
+    return done + "단계를 " + (cmd === "undo" ? "되돌렸습니다" : "다시 실행했습니다");
   }
 
   if (cmd === "seed") return "SEED " + S.worldSeed;

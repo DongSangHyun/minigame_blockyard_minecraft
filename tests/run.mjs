@@ -3987,6 +3987,134 @@ test("v22 우클릭: 한 번 누르면 하나만, 홀드는 천천히 반복된�
   assert(r.held >= 5 && r.held <= 10, "홀드 3초에 " + r.held + "개 — 예상은 5~10개");
 });
 
+test("v23 영역: 한 번에 비우고 한 번에 되돌린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 30, Y = 40, Z = 30;
+    for (let dx = 0; dx < 5; dx++) for (let dy = 0; dy < 4; dy++) for (let dz = 0; dz < 5; dz++)
+      B.applyEdit(X + dx, Y + dy, Z + dz, B.B.STONE, false, 0);
+    B.refreshAllTops();
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 4, Y + 3, Z + 4];
+    const before = B.selectionCounts ? null : null;
+    let solidBefore = 0;
+    for (let dx = 0; dx < 5; dx++) for (let dy = 0; dy < 4; dy++) for (let dz = 0; dz < 5; dz++)
+      if (B.get(X + dx, Y + dy, Z + dz) !== 0) solidBefore++;
+    // 기반암은 지워지면 안 된다 — 세계 바닥에 구멍이 뚫린다
+    B.S.selA = [X, 0, Z]; B.S.selB = [X + 4, Y + 3, Z + 4];
+    B.clearSelection();
+    const bedrockKept = B.get(X + 2, 0, Z + 2) !== 0;
+    for (let dx = 0; dx < 5; dx++) for (let dy = 0; dy < 4; dy++) for (let dz = 0; dz < 5; dz++)
+      B.applyEdit(X + dx, Y + dy, Z + dz, B.B.STONE, false, 0);
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 4, Y + 3, Z + 4];
+    B.S.history.length = 0; B.S.future.length = 0;
+    const wiped = B.clearSelection();
+    let solidAfter = 0;
+    for (let dx = 0; dx < 5; dx++) for (let dy = 0; dy < 4; dy++) for (let dz = 0; dz < 5; dz++)
+      if (B.get(X + dx, Y + dy, Z + dz) !== 0) solidAfter++;
+    B.undo();                                  // 한 번에 되살아나야 한다
+    let solidBack = 0;
+    for (let dx = 0; dx < 5; dx++) for (let dy = 0; dy < 4; dy++) for (let dz = 0; dz < 5; dz++)
+      if (B.get(X + dx, Y + dy, Z + dz) !== 0) solidBack++;
+    // 명령창으로도 되는지
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 4, Y + 3, Z + 4];
+    const msg = B.runCommand("fill 공기");
+    let solidCmd = 0;
+    for (let dx = 0; dx < 5; dx++) for (let dy = 0; dy < 4; dy++) for (let dz = 0; dz < 5; dz++)
+      if (B.get(X + dx, Y + dy, Z + dz) !== 0) solidCmd++;
+    B.S.selA = B.S.selB = null;
+    B.endPlay(); B.setPaused(false);
+    return { solidBefore, wiped, solidAfter, solidBack, msg, solidCmd, bedrockKept };
+  });
+  eq(r.solidBefore, 100, "시험대가 채워지지 않았다");
+  assert(r.bedrockKept, "영역 비우기가 기반암까지 지웠다 — 세계 바닥에 구멍이 난다");
+  eq(r.wiped, 100, "비운 칸 수");
+  eq(r.solidAfter, 0, "영역이 비워지지 않았다");
+  eq(r.solidBack, 100, "되돌리기 한 번에 되살아나지 않았다");
+  assert(r.msg.indexOf("비웠") >= 0, "/fill 공기 응답: " + r.msg);
+  eq(r.solidCmd, 0, "/fill 공기 가 비우지 못했다");
+});
+
+test("v23 저장: 달 위상도 실린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.moonDay = 5;
+    B.saveGame();
+    B.S.moonDay = 0;
+    const ok = B.loadGame();
+    const after = B.S.moonDay;
+    B.endPlay(); B.setPaused(false);
+    return { ok, after };
+  });
+  assert(r.ok, "불러오기 실패");
+  eq(r.after, 5, "달 위상이 저장되지 않았다 (새로고침하면 보름달로 돌아간다)");
+});
+
+test("v23 조작키: 이미 쓰는 키로는 재배치되지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    return {
+      walk: B.bindConflict("fly", "KeyW"),        // 이동키
+      other: B.bindConflict("fly", B.S.binds.shape), // 다른 재배치 키
+      space: B.bindConflict("shape", "Space"),
+      self: B.bindConflict("fly", B.S.binds.fly),  // 자기 자신은 충돌이 아니다
+      free: B.bindConflict("fly", "KeyJ")          // 비어 있는 키
+    };
+  });
+  assert(r.walk, "이동키(W)로 재배치가 막히지 않는다");
+  assert(r.other, "다른 조작에 배정된 키가 막히지 않는다");
+  assert(r.space, "Space 로 재배치가 막히지 않는다");
+  eq(r.self, "", "자기 자신을 충돌로 본다");
+  eq(r.free, "", "비어 있는 키를 충돌로 본다");
+});
+
+test("v23 조작키: 재배치하면 화면 안내도 따라 바뀐다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const el = document.querySelector('[data-bind="fly"]');
+    const was = B.S.binds.fly;
+    B.S.binds.fly = "KeyJ";
+    B.refreshBindLabels();
+    const shown = el ? el.textContent : "";
+    const hint = (document.getElementById("hint") || {}).innerHTML || "";
+    B.S.binds.fly = was;
+    B.refreshBindLabels();
+    const back = el ? el.textContent : "";
+    return { shown, back, hintHasJ: hint.indexOf(">J<") >= 0, count: document.querySelectorAll("[data-bind]").length };
+  });
+  assert(r.count >= 6, "재배치를 반영할 자리가 표시돼 있지 않다");
+  eq(r.shown, "J", "재배치해도 도움말이 옛 키를 보여 준다");
+  eq(r.back, "F", "되돌렸을 때 원래 키로 안 돌아온다");
+});
+
+test("v23 명령: undo/redo 를 여러 단계 한 번에", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 36, Y = 40, Z = 36;
+    for (let k = 0; k < 6; k++) B.applyEdit(X + k, Y, Z, B.B.AIR, true, 0);
+    for (let k = 0; k < 6; k++) B.applyEdit(X + k, Y, Z, B.B.STONE, true, 0);
+    let placed = 0;
+    for (let k = 0; k < 6; k++) if (B.get(X + k, Y, Z) === B.B.STONE) placed++;
+    const m1 = B.runCommand("undo 4");
+    let left = 0;
+    for (let k = 0; k < 6; k++) if (B.get(X + k, Y, Z) === B.B.STONE) left++;
+    const m2 = B.runCommand("redo 4");
+    let back = 0;
+    for (let k = 0; k < 6; k++) if (B.get(X + k, Y, Z) === B.B.STONE) back++;
+    B.runCommand("undo 200");
+    const m3 = B.runCommand("undo");
+    B.endPlay(); B.setPaused(false);
+    return { placed, m1, left, m2, back, m3 };
+  });
+  eq(r.placed, 6, "시험대가 채워지지 않았다");
+  assert(r.m1.indexOf("4단계") >= 0, "undo 4 응답: " + r.m1);
+  eq(r.left, 2, "4단계가 되돌려지지 않았다");
+  eq(r.back, 6, "redo 4 가 되살리지 못했다");
+  assert(r.m3.indexOf("없습니다") >= 0, "더 되돌릴 게 없을 때 안내가 없다: " + r.m3);
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

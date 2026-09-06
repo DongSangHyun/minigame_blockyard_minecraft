@@ -11,7 +11,7 @@ import { player, raycast, spawn, stats } from "./player.js";
 import { ac, startAmbient, tone } from "./audio.js";
 import { SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
-import { REGION_MAX, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
+import { REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
 import { closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
 import { place } from "./mine.js";
@@ -31,7 +31,7 @@ if (isTouch) {
   document.getElementById("fineprint").hidden = true;
 }
 
-export var HINT_LOCK = '좌클릭 <b>길게 눌러 캐기</b> · 우클릭 <b>놓기</b> · <b>Shift</b> 웅크리기 · <b>Ctrl</b> 달리기 · <b>E</b> 블록 목록 · <b>휠클릭</b> 복사 · <b>Ctrl+Z</b> 되돌리기 · <b>F</b> 비행 · <b>ESC</b> 메뉴';
+export var HINT_LOCK = '좌클릭 <b>길게 눌러 캐기</b> · 우클릭 <b>놓기</b> · <b>Shift</b> 웅크리기 · <b>Ctrl</b> 달리기 · <b>E</b> 블록 목록 · <b>휠클릭</b> 복사 · <b>Ctrl+Z</b> 되돌리기 · <b>{fly}</b> 비행 · <b>ESC</b> 메뉴';
 export var HINT_DRAG = '드래그 <b>둘러보기</b> · 제자리 좌클릭 길게 <b>캐기</b> · 우클릭 <b>놓기</b> · <b>E</b> 블록 목록 · <b>Ctrl+Z</b> 되돌리기 · <b>ESC</b> 메뉴';
 export var hintEl = document.getElementById("hint");
 
@@ -45,7 +45,7 @@ export var TUT = [
   '<b>H</b> 를 누르면 나머지 조작이 전부 나옵니다'
 ];
 export function refreshHint() {
-  hintEl.innerHTML = S.tut < TUT.length ? TUT[S.tut] : (S.lockMode ? HINT_LOCK : HINT_DRAG);
+  hintEl.innerHTML = S.tut < TUT.length ? TUT[S.tut] : hintText(S.lockMode ? HINT_LOCK : HINT_DRAG);
 }
 export function advanceTut(step) {
   if (S.tut !== step) return;
@@ -293,6 +293,23 @@ var waitingFor = null;
 function keyName(code) {
   return String(code).replace(/^Key|^Digit/, "").replace("Bracket", "").toUpperCase();
 }
+// 재배치한 키를 화면 곳곳(도움말·조작 목록·힌트 줄)에 반영한다.
+// 여기를 빠뜨리면 "F 비행" 이라 적힌 화면을 보며 다른 키를 눌러야 한다 (v16 잔여)
+export function refreshBindLabels() {
+  var els = document.querySelectorAll("[data-bind]");
+  for (var i = 0; i < els.length; i++) {
+    var act = els[i].getAttribute("data-bind");
+    if (S.binds[act]) els[i].textContent = keyName(S.binds[act]);
+  }
+  refreshHint();
+}
+export function hintText(base) {
+  return base.replace("{fly}", keyName(S.binds.fly))
+             .replace("{pick}", keyName(S.binds.pick))
+             .replace("{shape}", keyName(S.binds.shape))
+             .replace("{help}", keyName(S.binds.help));
+}
+
 export function refreshKeyButtons() {
   if (!keysEl) return;
   var bs = keysEl.querySelectorAll("button");
@@ -301,6 +318,7 @@ export function refreshKeyButtons() {
     bs[i].textContent = KEY_LABEL[act] + " " + keyName(S.binds[act]);
     bs[i].classList.toggle("wait", waitingFor === act);
   }
+  refreshBindLabels();
 }
 if (keysEl) keysEl.addEventListener("click", function (e) {
   var btn = e.target.closest("button[data-act]");
@@ -310,11 +328,39 @@ if (keysEl) keysEl.addEventListener("click", function (e) {
   refreshKeyButtons();
   toast("새 키를 누르세요 (ESC 로 취소)");
 });
+// 이미 다른 뜻이 있는 키 — 여기에 재배치하면 두 가지가 동시에 일어난다
+export var RESERVED = {
+  KeyW: "앞으로", KeyA: "왼쪽", KeyS: "뒤로", KeyD: "오른쪽",
+  ArrowUp: "앞으로", ArrowDown: "뒤로", ArrowLeft: "왼쪽", ArrowRight: "오른쪽",
+  Space: "점프", ShiftLeft: "웅크리기", ShiftRight: "웅크리기",
+  ControlLeft: "달리기", ControlRight: "달리기", AltLeft: "영역 도구", AltRight: "영역 도구",
+  KeyE: "블록 목록", KeyT: "시간", KeyK: "날씨", KeyM: "소리", KeyR: "새 세계",
+  KeyB: "청사진",
+  Backslash: "미니맵 등고선",
+  BracketLeft: "이전 모양", BracketRight: "다음 모양", Slash: "명령창",
+  Escape: "메뉴", Tab: "자동완성", F1: "F1", F2: "화면 담기", F3: "자세히", F5: "F5", F6: "F6",
+  Digit1: "핫바", Digit2: "핫바", Digit3: "핫바", Digit4: "핫바", Digit5: "핫바",
+  Digit6: "핫바", Digit7: "핫바", Digit8: "핫바", Digit9: "핫바", Digit0: "핫바"
+};
+// 이미 다른 조작에 배정된 키인지 — 배정된 곳의 이름을 돌려준다
+export function bindConflict(act, code) {
+  for (var k in S.binds) {
+    if (k !== act && S.binds[k] === code) return KEY_LABEL[k] || k;
+  }
+  return RESERVED[code] || "";
+}
+
 window.addEventListener("keydown", function (e) {
   if (!waitingFor) return;
   e.preventDefault();
   e.stopPropagation();
   if (e.code !== "Escape") {
+    var clash = bindConflict(waitingFor, e.code);
+    if (clash) {
+      toast(keyName(e.code) + " 는 이미 '" + clash + "' 입니다 — 다른 키를 누르세요");
+      refreshKeyButtons();
+      return;                                  // 기다린 채로 둔다
+    }
     S.binds[waitingFor] = e.code;
     try { localStorage.setItem("blockyard.binds", JSON.stringify(S.binds)); } catch (err) {}
     toast(KEY_LABEL[waitingFor] + " → " + keyName(e.code));
@@ -547,6 +593,7 @@ if (cmdInput) cmdInput.addEventListener("keydown", function (e) {
   cmdSay(out);
   if (out && out.indexOf("모르는") !== 0) {
     applyTime();
+    refreshBar();               // /give 로 바꾼 핫바가 바로 보이게 한다
     cmdInput.value = "";
     setTimeout(function () {
       closeCmd();
@@ -595,9 +642,12 @@ window.addEventListener("keydown", function (e) {
     // ── 영역 도구
     if (e.code === "KeyF") {
       e.preventDefault();
-      var n = fillSelection(S.bar[S.selected], currentShape(false));
+      // Shift 를 같이 누르면 채우는 대신 비운다 — 산을 깎을 때 쓴다
+      var wipe = e.shiftKey;
+      var n = wipe ? clearSelection() : fillSelection(S.bar[S.selected], currentShape(false));
       toast(n < 0 ? ("영역이 너무 큽니다 (최대 " + REGION_MAX.toLocaleString("ko-KR") + "칸)")
-                  : (n ? n.toLocaleString("ko-KR") + "칸을 채웠습니다" : "먼저 영역을 고르세요"));
+                  : (n ? n.toLocaleString("ko-KR") + "칸을 " + (wipe ? "비웠습니다" : "채웠습니다")
+                       : "먼저 영역을 고르세요"));
       return;
     }
     if (e.code === "KeyC") {
