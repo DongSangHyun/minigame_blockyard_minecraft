@@ -14,7 +14,7 @@ import { EYE, player, raycast, spawn, stats } from "./player.js";
 import { ac, startAmbient, tone } from "./audio.js";
 import { clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
-import { selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
+import { mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
 import { closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
 import { place } from "./mine.js";
@@ -751,6 +751,20 @@ window.addEventListener("keydown", function (e) {
       var c = copySelection();
       toast(c < 0 ? "영역이 너무 큽니다" : (c ? c.toLocaleString("ko-KR") + "칸을 복사했습니다"
                                             : "먼저 영역을 고르세요"));
+      return;
+    }
+    // Ctrl+R — 복사한 것을 90도 돌린다. 대칭 건물의 반대쪽을 손으로 다시 짓지 않게.
+    // (R 단독은 새 세계라 못 쓰고, Alt+휠은 비행 속도라 겹친다)
+    if (e.code === "KeyR") {
+      e.preventDefault();
+      // Shift 를 같이 누르면 거울 — 대칭 건물의 반대쪽이 이 한 번으로 나온다
+      if (e.shiftKey) {
+        if (!mirrorClip()) { toast("먼저 Ctrl+C 로 복사하세요"); return; }
+        toast("복사한 것을 좌우로 뒤집었습니다");
+        return;
+      }
+      if (!rotateClip()) { toast("먼저 Ctrl+C 로 복사하세요"); return; }
+      toast("복사한 것을 90도 돌렸습니다 — " + S.clip.w + "×" + S.clip.h + "×" + S.clip.d);
       return;
     }
     if (e.code === "KeyV") {

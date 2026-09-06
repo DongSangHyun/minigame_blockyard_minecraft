@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { opts } from "./settings.js";
 import { SLOTS } from "./save.js";
 import { SEA, DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
-import { TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
+import { SH_STAIR_N, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
 import { refreshAllTops, touched, get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightAll, lightSky, relightLocal } from "./light.js";
 import { enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
@@ -455,6 +455,67 @@ export function copySelection() {
       }
   S.clip = { w: w, h: h, d: d, blocks: blocks, shapes: shapes, levels: levels };
   return w * h * d;
+}
+
+// 모양도 함께 돌린다 — 계단·벽·문·원목 축은 방향을 품고 있어서 그냥 옮기면 어긋난다
+function rotShape(sh) {
+  function turn(base, v) { return base + ((v - base + 1) & 3); }        // N→E→S→W
+  if (sh >= SH_STAIR_N && sh <= SH_STAIR_W) return turn(SH_STAIR_N, sh);
+  if (sh >= SH_STAIR_NU && sh <= SH_STAIR_WU) return turn(SH_STAIR_NU, sh);
+  if (sh >= SH_WALL_N && sh <= SH_WALL_W) return turn(SH_WALL_N, sh);
+  if (sh >= SH_DOOR_N && sh <= SH_DOOR_N + 3) return turn(SH_DOOR_N, sh);
+  if (sh >= SH_DOOR_N + 4 && sh <= SH_DOOR_N + 7) return turn(SH_DOOR_N + 4, sh);
+  if (sh === SH_AXIS_X) return SH_AXIS_Z;
+  if (sh === SH_AXIS_Z) return SH_AXIS_X;
+  return sh;
+}
+// 거울 — X 를 뒤집는다. 계단·벽·문의 동↔서만 맞바꾸면 된다(북·남은 그대로).
+function mirrorShape(sh) {
+  function flip(base, v) { var k = v - base; return base + (k === 1 ? 3 : (k === 3 ? 1 : k)); }
+  if (sh >= SH_STAIR_N && sh <= SH_STAIR_W) return flip(SH_STAIR_N, sh);
+  if (sh >= SH_STAIR_NU && sh <= SH_STAIR_WU) return flip(SH_STAIR_NU, sh);
+  if (sh >= SH_WALL_N && sh <= SH_WALL_W) return flip(SH_WALL_N, sh);
+  if (sh >= SH_DOOR_N && sh <= SH_DOOR_N + 3) return flip(SH_DOOR_N, sh);
+  if (sh >= SH_DOOR_N + 4 && sh <= SH_DOOR_N + 7) return flip(SH_DOOR_N + 4, sh);
+  return sh;                                  // 원목 축은 X 뒤집기에 안 바뀐다
+}
+export function mirrorClip() {
+  var c = S.clip;
+  if (!c) return false;
+  var w = c.w, h = c.h, d = c.d;
+  var nb = new Uint8Array(w * h * d), ns = new Uint8Array(w * h * d), nl = new Uint8Array(w * h * d);
+  for (var y = 0; y < h; y++)
+    for (var z = 0; z < d; z++)
+      for (var x = 0; x < w; x++) {
+        var src = (y * d + z) * w + x;
+        var dst = (y * d + z) * w + (w - 1 - x);
+        nb[dst] = c.blocks[src];
+        ns[dst] = mirrorShape(c.shapes[src]);
+        nl[dst] = c.levels ? c.levels[src] : 0;
+      }
+  S.clip = { w: w, h: h, d: d, blocks: nb, shapes: ns, levels: nl };
+  return true;
+}
+
+// 복사한 것을 Y축으로 90도 돌린다 — 대칭 건물을 손으로 다시 짓지 않게
+export function rotateClip() {
+  var c = S.clip;
+  if (!c) return false;
+  var w = c.w, h = c.h, d = c.d;
+  var nb = new Uint8Array(w * h * d), ns = new Uint8Array(w * h * d), nl = new Uint8Array(w * h * d);
+  for (var y = 0; y < h; y++)
+    for (var z = 0; z < d; z++)
+      for (var x = 0; x < w; x++) {
+        var src = (y * d + z) * w + x;
+        // (x,z) → (d-1-z, x) · 새 가로는 옛 세로다
+        var nx = d - 1 - z, nz = x;
+        var dst = (y * w + nz) * d + nx;
+        nb[dst] = c.blocks[src];
+        ns[dst] = rotShape(c.shapes[src]);
+        nl[dst] = c.levels ? c.levels[src] : 0;
+      }
+  S.clip = { w: d, h: h, d: w, blocks: nb, shapes: ns, levels: nl };
+  return true;
 }
 
 export function pasteClip(px, py, pz) {

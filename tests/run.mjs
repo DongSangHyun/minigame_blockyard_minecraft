@@ -5607,6 +5607,59 @@ test("v53 미니맵: 걸어야 지도가 열리고, 저장에 남는다", async 
   near(r.restored, r.kept, 0.001, "불러오기 뒤 밝힌 지도가 안 돌아온다");
 });
 
+test("v54 붙여넣기: 90도 회전이 모양 방향까지 돌린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 60, Y = 40, Z = 12;
+    for (let dx = -2; dx <= 10; dx++) for (let dz = -2; dz <= 10; dz++)
+      for (let dy = -1; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, dy === -1 ? B.B.STONE : 0);
+    B.refreshAllTops(); B.relightAll(false);
+    // 3×1×1 막대 — 회전하면 1×1×3 이 되어야 한다. 끝에 북향 계단을 둔다.
+    B.applyEdit(X, Y, Z, B.B.COBBLE, false, 0);
+    B.applyEdit(X + 1, Y, Z, B.B.COBBLE, false, 0);
+    B.applyEdit(X + 2, Y, Z, B.B.PLANKS, false, B.SH_STAIR_N);
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 2, Y, Z];
+    B.copySelection();
+    const before = { w: B.S.clip.w, d: B.S.clip.d };
+    const ok = B.rotateClip();
+    const after = { w: B.S.clip.w, d: B.S.clip.d };
+    // 붙여넣어 실제로 세로로 서는지 본다
+    B.pasteClip(X, Y + 2, Z + 4);
+    let vertical = 0;
+    for (let k = 0; k < 3; k++) if (B.get(X, Y + 2, Z + 4 + k) !== 0) vertical++;
+    // 계단 방향이 N → E 로 돌았는가
+    let stairShape = -1;
+    for (let k = 0; k < 3; k++) {
+      const b = B.get(X, Y + 2, Z + 4 + k);
+      if (b === B.B.PLANKS) stairShape = B.shapeAt(X, Y + 2, Z + 4 + k);
+    }
+    // 거울 — 동향 계단이 서향이 되어야 한다
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 2, Y, Z];
+    B.applyEdit(X + 2, Y, Z, B.B.PLANKS, false, B.SH_STAIR_E);
+    B.copySelection();
+    B.mirrorClip();
+    B.pasteClip(X, Y + 2, Z + 8);
+    let mirroredShape = -1, mirroredAt = -1;
+    for (let k = 0; k < 3; k++)
+      if (B.get(X + k, Y + 2, Z + 8) === B.B.PLANKS) { mirroredShape = B.shapeAt(X + k, Y + 2, Z + 8); mirroredAt = k; }
+    const noClip = (function () { B.S.clip = null; return B.rotateClip(); })();
+    B.S.selA = B.S.selB = null;
+    B.endPlay(); B.setPaused(false);
+    return { ok, before, after, vertical, stairShape, mirroredShape, mirroredAt,
+             wantStair: B.SH_STAIR_E, wantMirror: B.SH_STAIR_W, noClip };
+  });
+  assert(r.ok, "회전이 실패했다");
+  eq(r.before.w, 3, "복사한 가로");
+  eq(r.after.w, 1, "회전 뒤 가로가 안 바뀌었다");
+  eq(r.after.d, 3, "회전 뒤 세로가 안 바뀌었다");
+  eq(r.vertical, 3, "돌린 것이 세로로 서지 않았다");
+  eq(r.stairShape, r.wantStair, "계단 방향이 함께 돌지 않았다 (N → E)");
+  eq(r.mirroredShape, r.wantMirror, "거울이 계단 방향을 안 뒤집었다 (E → W)");
+  eq(r.mirroredAt, 0, "거울이 자리를 안 뒤집었다 — 끝에 있던 것이 반대쪽 끝으로 가야 한다");
+  assert(!r.noClip, "복사한 게 없는데 회전이 성공했다고 한다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
