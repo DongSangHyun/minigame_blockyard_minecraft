@@ -59,6 +59,8 @@ export const S = {
   perfDrop: 0,
   farNow: 0,
   fireOrigin: null,
+  fireOrigins: [],
+  grassTimer: 0,      // 불을 붙인 자리들 — 번짐 상한을 불마다 따로 잰다
   wantShot: false,
   showPerf: false,
   spawnPoint: null,

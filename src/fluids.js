@@ -2,9 +2,9 @@
 import { S } from "./state.js";
 import { Q } from "./queues.js";
 import { DIRS, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, COBBLE, FIRE, GRAVEL, ICE, LAVA, SAND, SH_FULL, STONE, TNT, WATER, isCross, isFlammable, isLeaf, isLiquid, isLog, isSolid, isUnbreakable } from "./blocks.js";
-import { biomeMap, get, refreshTop, shape, waterLvl, world } from "./world.js";
-import { lightBlk, relightLocal } from "./light.js";
+import { DIRT, GRASS, blocksLight, AIR, COBBLE, FIRE, GRAVEL, ICE, LAVA, SAND, SH_FULL, STONE, TNT, WATER, isCross, isFlammable, isLeaf, isLiquid, isLog, isSolid, isUnbreakable } from "./blocks.js";
+import { topMap, isTouched, biomeMap, get, refreshTop, shape, waterLvl, world } from "./world.js";
+import { lightSky, lightBlk, relightLocal } from "./light.js";
 import { touch } from "./mesh.js";
 import { burst } from "./scene.js";
 import { crunch, lavaHiss, tone } from "./audio.js";
@@ -306,8 +306,59 @@ export function ignite(x, y, z) {
   // applyEdit 을 거쳐야 Ctrl+Z 로 되돌릴 수 있다 (TNT 는 되는데 불은 안 됐다)
   if (!applyEdit(x, y, z, FIRE, true)) return false;
   Q.fireQ.push(i);
+  // 원점을 하나만 두면, 두 번째로 불을 붙인 순간 첫 불이 새 원점 기준으로 상한을 재
+  // 갑자기 번지기를 멈춘다. 불마다 원점을 따로 기억한다.
   S.fireOrigin = [x, y, z];
+  var far = true;
+  for (var oi = 0; oi < S.fireOrigins.length; oi++) {
+    var o = S.fireOrigins[oi];
+    if (Math.abs(o[0] - x) + Math.abs(o[1] - y) + Math.abs(o[2] - z) <= 3) { far = false; break; }
+  }
+  if (far) {
+    S.fireOrigins.push([x, y, z]);
+    if (S.fireOrigins.length > 12) S.fireOrigins.shift();
+  }
   return true;
+}
+
+// 잔디는 옆의 흙으로 번지고, 덮이면 흙으로 돌아간다 — 마크에서 지형을 메우고
+// 며칠 뒤 다시 오는 그 맛이다. 사람이 손댄 칸(isTouched)은 절대 건드리지 않는다.
+// (v19 의 "날씨가 내 건축물을 개조한다" 사고를 되풀이하지 않기 위해)
+// 기둥을 뽑고 그 기둥의 지표만 본다 — 허공을 헛짚지 않아 표본 하나하나가 후보가 된다
+export var GRASS_REACH = 12;
+export function grassTick(px, py, pz, tries) {
+  tries = tries || 12;
+  var changed = 0;
+  for (var t = 0; t < tries; t++) {
+    var x = Math.floor(px + (Math.random() - 0.5) * GRASS_REACH * 2);
+    var z = Math.floor(pz + (Math.random() - 0.5) * GRASS_REACH * 2);
+    if (x < 0 || x >= WX || z < 0 || z >= WZ) continue;
+    var y = topMap[z * WX + x];
+    if (!inside(x, y, z)) continue;
+    if (isTouched(x, y, z)) continue;
+    // 덮인 잔디는 지표 바로 아래에 있다 — 그 한 칸을 먼저 본다
+    if (world[idx(x, y, z)] !== AIR && blocksLight(world[idx(x, y, z)]) &&
+        y > 0 && world[idx(x, y - 1, z)] === GRASS && !isTouched(x, y - 1, z)) {
+      if (applyEdit(x, y - 1, z, DIRT, false)) { changed++; continue; }
+    }
+    var i = idx(x, y, z), b = world[i];
+    if (b === GRASS) {
+      // 위가 빛을 막으면 잔디가 죽어 흙이 된다
+      if (!blocksLight(get(x, y + 1, z))) continue;
+      if (applyEdit(x, y, z, DIRT, false)) changed++;
+    } else if (b === DIRT) {
+      if (get(x, y + 1, z) !== AIR) continue;
+      if (lightSky[idx(x, y + 1, z)] < 9) continue;
+      var near = false;                       // 옆에 잔디가 있어야 번진다
+      for (var d = 0; d < 6 && !near; d++) {
+        var g = get(x + DIRS[d][0], y + DIRS[d][1], z + DIRS[d][2]);
+        if (g === GRASS) near = true;
+      }
+      if (!near) continue;
+      if (applyEdit(x, y, z, GRASS, false)) changed++;
+    }
+  }
+  return changed;
 }
 
 // 용암은 가까운 가연물에 스스로 불을 붙인다 — 마크에서 용암을 붓는다는 건
@@ -352,9 +403,13 @@ export function fireTick(budget) {
       if (!isFlammable(get(nx, ny, nz))) continue;
       if (Math.random() > 0.30) continue;
       // 처음 붙인 자리에서 너무 멀리 번지지 않게 — 집이 통째로 사라지면 복구가 없다
-      if (S.fireOrigin) {
-        var od = Math.abs(nx - S.fireOrigin[0]) + Math.abs(ny - S.fireOrigin[1]) +
-                 Math.abs(nz - S.fireOrigin[2]);
+      if (S.fireOrigins.length) {
+        var od = 1e9;                       // 가장 가까운 원점까지의 거리로 잰다
+        for (var oj = 0; oj < S.fireOrigins.length; oj++) {
+          var og = S.fireOrigins[oj];
+          var dd = Math.abs(nx - og[0]) + Math.abs(ny - og[1]) + Math.abs(nz - og[2]);
+          if (dd < od) od = dd;
+        }
         if (od > FIRE_REACH) continue;
       }
       // 물이 닿아 있으면 불이 옮겨 붙지 않는다

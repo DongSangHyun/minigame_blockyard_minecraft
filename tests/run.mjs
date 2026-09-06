@@ -4310,6 +4310,70 @@ test("v24 용암: 가까운 가연물에 스스로 불을 붙인다", async (pag
   assert(r.fire > 0, "용암 옆에 나무판자를 두었는데 불이 붙지 않는다");
 });
 
+test("v25 잔디: 옆으로 번지고, 덮이면 흙으로 돌아간다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const X = 80, Y = 34, Z = 80;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+      for (let dy = 0; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.DIRT);
+    }
+    B.set(X, Y - 1, Z, B.B.GRASS);          // 씨앗이 될 잔디 한 칸
+    B.refreshAllTops(); B.relightAll(false);
+    // 번짐 — 옆의 흙이 잔디가 되어야 한다
+    let spread = 0;
+    for (let k = 0; k < 600 && !spread; k++) {
+      B.grassTick(X, Y, Z, 12);
+      if (B.get(X + 1, Y - 1, Z) === B.B.GRASS) spread = 1;
+    }
+    // 죽음 — 잔디를 돌로 덮으면 흙이 되어야 한다
+    B.set(X, Y, Z, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false);
+    let died = 0;
+    for (let k = 0; k < 600 && !died; k++) {
+      B.grassTick(X, Y, Z, 12);
+      if (B.get(X, Y - 1, Z) === B.B.DIRT) died = 1;
+    }
+    // 사람이 놓은 칸은 건드리지 않는다
+    B.set(X + 2, Y, Z, 0);
+    B.set(X + 2, Y - 1, Z, B.B.STONE);              // 다른 블록에서 바꿔야 실제 편집이 된다
+    B.refreshAllTops();
+    B.applyEdit(X + 2, Y - 1, Z, B.B.DIRT, true);   // record=true → touched
+    let touchedChanged = 0;
+    for (let k = 0; k < 400; k++) {
+      B.grassTick(X, Y, Z, 12);
+      if (B.get(X + 2, Y - 1, Z) !== B.B.DIRT) { touchedChanged = 1; break; }
+    }
+    return { spread, died, touchedChanged, touched: B.isTouched(X + 2, Y - 1, Z) };
+  });
+  assert(r.spread, "잔디가 옆 흙으로 번지지 않는다");
+  assert(r.died, "덮인 잔디가 흙으로 돌아가지 않는다");
+  assert(r.touched, "applyEdit(record) 가 touched 를 남기지 않는다");
+  assert(!r.touchedChanged, "사람이 놓은 블록을 잔디가 바꿔치웠다");
+});
+
+test("v25 불: 두 번째 불을 붙여도 첫 불이 멈추지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.S.fireOrigins.length = 0;
+    const A = [20, 40, 20], C = [60, 40, 60];
+    B.S.fireOrigins.push(A.slice());
+    B.S.fireOrigins.push(C.slice());
+    // A 원점에서 3칸 떨어진 자리는 두 원점 중 가까운 A 기준이라 허용돼야 한다
+    function nearest(x, y, z) {
+      let od = 1e9;
+      for (const o of B.S.fireOrigins)
+        od = Math.min(od, Math.abs(x - o[0]) + Math.abs(y - o[1]) + Math.abs(z - o[2]));
+      return od;
+    }
+    return { nearA: nearest(23, 40, 20), nearC: nearest(63, 40, 60),
+             reach: B.FIRE_REACH, count: B.S.fireOrigins.length };
+  });
+  eq(r.count, 2, "원점이 하나만 기억된다");
+  assert(r.nearA <= r.reach, "첫 불의 원점이 잊혀 번짐이 막힌다");
+  assert(r.nearC <= r.reach, "두 번째 불의 원점이 잊혀 번짐이 막힌다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

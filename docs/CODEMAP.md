@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-06 · 모듈 24개 · 합계 7,000줄
+생성일 2026-09-06 · 모듈 24개 · 합계 7,063줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -10,7 +10,7 @@
 
 | 모듈 | 하는 일 | 줄 | 기대는 곳 |
 |---|---|---:|---|
-| [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 127 | — |
+| [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 129 | — |
 | [`dims.js`](../src/dims.js) | 세계 치수와 좌표 계산 (의존성 없음) | 10 | — |
 | [`queues.js`](../src/queues.js) | 시뮬레이션 대기열 (의존성 없음) | 26 | — |
 | [`boot.js`](../src/boot.js) | 부팅 가드 · 환경 판별 | 26 | state |
@@ -18,7 +18,7 @@
 | [`atlas.js`](../src/atlas.js) | 텍스처 아틀라스 (코드로 그리는 16×16 도트) | 467 | blocks |
 | [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 417 | state · queues · dims · blocks · atlas |
 | [`light.js`](../src/light.js) | 광원 — 햇빛과 블록광 BFS | 182 | state · dims · blocks · world · mesh · player |
-| [`fluids.js`](../src/fluids.js) | 물 흐름 · 낙하 블록 · 잎 부패 | 455 | state · queues · dims · blocks · world · light · mesh · scene · audio · player · edit |
+| [`fluids.js`](../src/fluids.js) | 물 흐름 · 낙하 블록 · 잎 부패 | 510 | state · queues · dims · blocks · world · light · mesh · scene · audio · player · edit |
 | [`mesh.js`](../src/mesh.js) | 면 데이터 + 청크 메싱 | 272 | dims · blocks · atlas · world · light |
 | [`scene.js`](../src/scene.js) | three.js 씬 · 셰이더 · 파티클 | 390 | dims · boot · blocks · atlas · world · mesh |
 | [`daynight.js`](../src/daynight.js) | 낮과 밤 | 76 | state · world · scene |
@@ -32,7 +32,7 @@
 | [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1105 | state · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
 | [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 162 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
 | [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 346 | state · audio · dims · atlas · world · scene · daynight · player |
-| [`loop.js`](../src/loop.js) | 게임 루프 | 666 | state · input · mobs · queues · dims · boot · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · mine · sky |
+| [`loop.js`](../src/loop.js) | 게임 루프 | 672 | state · input · mobs · queues · dims · boot · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · mine · sky |
 | [`main.js`](../src/main.js) | 조립과 시작 | 210 | state · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · input · mine · sky · loop |
 
 ## 모듈별 공개 함수
@@ -174,13 +174,14 @@
 | `fedSideways(i, y, lvl)` | 270 |
 | `removeWater(i, y)` | 281 |
 | `ignite(x, y, z)` | 296 |
-| `lavaTick(px, py, pz, tries)` | 317 |
-| `fireTick(budget)` | 337 |
-| `primeTNT(x, y, z, fuse)` | 402 |
-| `primeTick(dt)` | 413 |
-| `explode(cx, cy, cz, radius)` | 428 |
+| `grassTick(px, py, pz, tries)` | 329 |
+| `lavaTick(px, py, pz, tries)` | 368 |
+| `fireTick(budget)` | 388 |
+| `primeTNT(x, y, z, fuse)` | 457 |
+| `primeTick(dt)` | 468 |
+| `explode(cx, cy, cz, radius)` | 483 |
 
-내보내는 값 — `MAXFLOW` · `DECAY_R` · `FIRE_LIFE` · `FIRE_REACH` · `LAVA_REACH` · `BLAST_R` · `TNT_FUSE`
+내보내는 값 — `MAXFLOW` · `DECAY_R` · `FIRE_LIFE` · `FIRE_REACH` · `GRASS_REACH` · `LAVA_REACH` · `BLAST_R` · `TNT_FUSE`
 
 ### `mesh.js` — 면 데이터 + 청크 메싱
 
@@ -443,9 +444,9 @@
 |---|---:|
 | `newWorld(seed)` | 34 |
 | `step(dt)` | 68 |
-| `animate()` | 554 |
-| `autoTuneFar(fps)` | 630 |
-| `farNow()` | 648 |
-| `refreshPerf()` | 650 |
+| `animate()` | 560 |
+| `autoTuneFar(fps)` | 636 |
+| `farNow()` | 654 |
+| `refreshPerf()` | 656 |
 
 내보내는 값 — `GRAVITY` · `PLACE_DELAY` · `SNEAK_MUL` · `AIR_CONTROL` · `fwd` · `clock`
