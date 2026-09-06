@@ -387,6 +387,13 @@
   }
   #slots button b { display: block; font-family: var(--pixel); font-size: 9px; color: var(--bone); }
   #slots button[aria-current="true"] { border-color: var(--moss); color: var(--bone); }
+  #slots button { position: relative; padding-right: 20px; }
+  #slots .del {
+    position: absolute; top: 3px; right: 4px;
+    font-style: normal; font-size: 10px; line-height: 1;
+    color: var(--stone); padding: 2px 3px; cursor: pointer;
+  }
+  #slots .del:hover { color: var(--ember); }
 
   /* ---------- overlay ---------- */
   #overlay {

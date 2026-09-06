@@ -9,7 +9,7 @@ import { applyTime } from "./daynight.js";
 import { applyOpts, opts, saveOpts } from "./settings.js";
 import { player, raycast, spawn, stats } from "./player.js";
 import { ac, startAmbient, tone } from "./audio.js";
-import { SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
+import { clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
 import { REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
 import { closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
@@ -69,20 +69,48 @@ export function advanceTut(step) {
 
 // 저장 슬롯 — 세계를 셋까지 따로 둔다
 export var slotsEl = document.getElementById("slots");
+// "3시간 전" — 어제 하던 세계를 찾을 수 있게
+export function agoText(ms) {
+  if (!ms) return "";
+  var d = Date.now() - ms;
+  if (d < 60000) return "방금";
+  if (d < 3600000) return Math.floor(d / 60000) + "분 전";
+  if (d < 86400000) return Math.floor(d / 3600000) + "시간 전";
+  return Math.floor(d / 86400000) + "일 전";
+}
 export function refreshSlots() {
   if (!slotsEl) return;
   var html = "";
   for (var n = 1; n <= SLOTS; n++) {
     var info = slotInfo(n);
+    var label = info ? ("SEED " + info.seed + " · " + info.mins + "분" +
+                        (info.at ? " · " + agoText(info.at) : "")) : "비어 있음";
     html += '<button type="button" data-slot="' + n + '" aria-current="' +
-            (S.slot === n ? "true" : "false") + '"><b>' + n + '</b>' +
-            (info ? ("SEED " + info.seed + " · " + info.mins + "분") : "비어 있음") +
+            (S.slot === n ? "true" : "false") + '"><b>' + n + '</b>' + label +
+            (info ? '<i class="del" data-del="' + n + '" title="이 슬롯 지우기">✕</i>' : '') +
             '</button>';
   }
   slotsEl.innerHTML = html;
 }
 if (slotsEl) {
   slotsEl.addEventListener("click", function (e) {
+    // 지우기 — 파괴적 조작이라 두 번 눌러야 한다 (규칙 8)
+    var del = e.target.closest("i[data-del]");
+    if (del) {
+      e.stopPropagation();
+      var dn = parseInt(del.getAttribute("data-del"), 10);
+      if (S.delArm === dn && Date.now() - S.delArmAt < 4000) {
+        var keep = S.slot;
+        S.slot = dn; clearSave(); S.slot = keep;
+        S.delArm = 0;
+        toast("슬롯 " + dn + " 을 지웠습니다");
+        refreshSlots(); refreshMenu();
+      } else {
+        S.delArm = dn; S.delArmAt = Date.now();
+        toast("슬롯 " + dn + " 을 지우려면 4초 안에 한 번 더");
+      }
+      return;
+    }
     var btn = e.target.closest("button[data-slot]");
     if (!btn) return;
     e.stopPropagation();
@@ -96,8 +124,10 @@ if (slotsEl) {
       if (S.savedPos) { S.savedPos.copy(player.pos); S.savedYaw = player.yaw; S.savedPitch = player.pitch; }
       toast("슬롯 " + n + " 을 불러왔습니다");
     } else {
-      newWorld((Math.random() * 100000) | 0);
-      toast("슬롯 " + n + " · 새 세계");
+      // 빈 슬롯도 SEED 칸에 적어 둔 값을 쓴다 — 예전엔 무조건 무작위였다
+      var typed = (seedIn && seedIn.value || "").trim();
+      newWorld(typed ? hashSeed(typed) : ((Math.random() * 100000) | 0));
+      toast("슬롯 " + n + " · 새 세계 · SEED " + S.worldSeed);
     }
     refreshSlots();
     refreshMenu();

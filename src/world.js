@@ -156,6 +156,16 @@ export function generate(seed) {
   resetQueues();
   var rng = makeRng(S.worldSeed);
 
+  // 바이옴 임계값을 먼저 정한다 — 이 세계의 t 분포에서 30%·65% 지점.
+  // 어느 시드든 설원/초원/사막이 대략 30/35/35 로 시작한다 (고정값은 55% 편중이 났다).
+  var tSamples = new Float32Array(WX * WZ);
+  for (var px2 = 0; px2 < WX; px2++)
+    for (var pz2 = 0; pz2 < WZ; pz2++)
+      tSamples[pz2 * WX + px2] = noise2(px2 * 0.022, pz2 * 0.022, S.worldSeed + 300);
+  var tSorted = Array.prototype.slice.call(tSamples).sort(function (a, b) { return a - b; });
+  var BIOME_LO = tSorted[Math.floor(tSorted.length * 0.30)];
+  var BIOME_HI = tSorted[Math.floor(tSorted.length * 0.65)];
+
   for (var x = 0; x < WX; x++) {
     for (var z = 0; z < WZ; z++) {
       var dx = (x - WX / 2) / (WX / 2), dz = (z - WZ / 2) / (WZ / 2);
@@ -176,11 +186,13 @@ export function generate(seed) {
       if (h < 1) h = 1;
       heightMap[z * WX + x] = h;
 
-      // 바이옴 — 큰 스케일 노이즈 + 고도 보정
+      // 바이옴 — 큰 스케일 노이즈 + 고도 보정.
+      // 임계값은 그 세계의 t 분포 백분위(30%·65%)다. 고정값(0.30/0.62)은 96칸 섬에
+      // 노이즈 주기가 두 번밖에 안 들어가 시드에 따라 한 덩어리가 55% 를 먹었다.
       var t = noise2(x * 0.022, z * 0.022, S.worldSeed + 300);
       var biome = 0;
-      if (t < 0.30 || h > 27) biome = 1;         // 설원 · 진짜 봉우리만 만년설
-      else if (t > 0.62 && h <= 20) biome = 2;   // 사막
+      if (t < BIOME_LO || h > 27) biome = 1;         // 설원 · 진짜 봉우리만 만년설
+      else if (t > BIOME_HI && h <= 20) biome = 2;   // 사막
       biomeMap[z * WX + x] = biome;
 
       var surf = GRASS;
@@ -188,19 +200,27 @@ export function generate(seed) {
       else if (biome === 1) surf = SNOW;
       else if (biome === 2) surf = SAND;
 
+      var carvedBelow = false;
       for (var y = 0; y <= h; y++) {
-        if (y === 0) { set(x, y, z, BEDROCK); continue; }
+        if (y === 0) { set(x, y, z, BEDROCK); carvedBelow = false; continue; }
         // 동굴 — 좁은 굴(고주파) · 넓은 방(저주파) · 세로로 갈라진 협곡
+        var carve = false;
         if (y < h - 2) {
-          if (noise3(x * 0.105, y * 0.17, z * 0.105, S.worldSeed + 55) > 0.635) continue;
-          if (y < h - 5 &&
-              noise3(x * 0.042, y * 0.075, z * 0.042, S.worldSeed + 611) > 0.70) continue;
-          if (y > 2 && y < 26) {
+          if (noise3(x * 0.105, y * 0.17, z * 0.105, S.worldSeed + 55) > 0.635) carve = true;
+          else if (y < h - 5 &&
+              noise3(x * 0.042, y * 0.075, z * 0.042, S.worldSeed + 611) > 0.70) carve = true;
+          else if (y > 2 && y < 26) {
             var rv = noise2(x * 0.030, z * 0.030, S.worldSeed + 877);
             if (rv > 0.815 && Math.abs(noise2(x * 0.11, z * 0.11, S.worldSeed + 878) - 0.5) < 0.14)
-              continue;                                   // 협곡
+              carve = true;                               // 협곡
           }
+        } else if (carvedBelow && h > SEA + 1) {
+          // 지표 3칸은 **아래가 이미 뚫렸을 때만** 이어서 뚫는다 — 언덕 옆구리에 입이 벌어진다.
+          // 이 조건이 없으면 굴은 어디에도 입구가 없어 아무 데나 파 내려가야 했다.
+          if (noise3(x * 0.105, y * 0.17, z * 0.105, S.worldSeed + 55) > 0.66) carve = true;
         }
+        if (carve) { carvedBelow = true; continue; }
+        carvedBelow = false;
 
         var b;
         if (y === h) b = surf;
@@ -274,11 +294,23 @@ export function generate(seed) {
   for (var tx = 3; tx < WX - 3; tx++) {
     for (var tz = 3; tz < WZ - 3; tz++) {
       var tb = biomeMap[tz * WX + tx];
-      var chance = tb === 2 ? 0 : (tb === 1 ? 0.006 : 0.018);
+      // 숲 노이즈 — 섬 전체가 균일한 평원이라 나무가 세계당 4~71그루뿐이었다(자문 3차 실측).
+      // 숲 덩어리에서는 밀도를 6배로 올려 "저쪽 숲으로 가자" 가 생기게 한다.
+      var forest = noise2(tx * 0.06, tz * 0.06, S.worldSeed + 1200);
+      var chance = tb === 2 ? 0 : (tb === 1 ? 0.010 : (forest > 0.56 ? 0.20 : 0.010));
       if (rng() > chance) continue;
       var th = heightMap[tz * WX + tx];
       var ground = get(tx, th, tz);
       if (th <= SEA + 1 || (ground !== GRASS && ground !== SNOW)) continue;
+      // 줄기끼리 붙지 않게 — 반경 1. 반경 2 로 두면 5×5 당 한 그루가 상한이라
+      // 숲 밀도를 아무리 올려도 나무가 늘지 않는다 (실측으로 확인)
+      var tooClose = false;
+      for (var ox = -1; ox <= 1 && !tooClose; ox++)
+        for (var oz = -1; oz <= 1; oz++) {
+          var ob = get(tx + ox, th + 1, tz + oz);
+          if (ob === LOG || ob === BIRCH_LOG) { tooClose = true; break; }
+        }
+      if (tooClose) continue;
       // 종류 — 설원은 가문비나무(짙은 잎·뾰족한 수형), 초원은 참나무와 자작나무가 섞인다
       var spruce = tb === 1;
       var birch = !spruce && rng() < 0.34;
@@ -402,6 +434,9 @@ export function generate(seed) {
           var bi2 = idx(gx, yy - 1, gz);
           var below = world[bi2];
           if (below !== AIR && below !== WATER) break;
+          // 물 밑 모래가 마른 동굴로 떨어지면 해저에 구멍이 뚫려 물이 공중에 남는다.
+          // 근처를 한 칸이라도 편집하는 순간 갑자기 쏟아져 내린다 (자문 3차 실측 300~1,400칸).
+          if (below === AIR && yy + 1 < WY && world[idx(gx, yy + 1, gz)] === WATER) break;
           world[idx(gx, yy, gz)] = below;     // 물이면 자리를 바꿔 위로 올린다
           world[bi2] = gb;
           yy--;

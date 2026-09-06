@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-06 · 모듈 24개 · 합계 7,217줄
+생성일 2026-09-06 · 모듈 24개 · 합계 7,285줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -10,13 +10,13 @@
 
 | 모듈 | 하는 일 | 줄 | 기대는 곳 |
 |---|---|---:|---|
-| [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 131 | — |
+| [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 133 | — |
 | [`dims.js`](../src/dims.js) | 세계 치수와 좌표 계산 (의존성 없음) | 10 | — |
 | [`queues.js`](../src/queues.js) | 시뮬레이션 대기열 (의존성 없음) | 26 | — |
 | [`boot.js`](../src/boot.js) | 부팅 가드 · 환경 판별 | 26 | state |
 | [`blocks.js`](../src/blocks.js) | 블록 정의 · 모양 · 성질 | 257 | state |
 | [`atlas.js`](../src/atlas.js) | 텍스처 아틀라스 (코드로 그리는 16×16 도트) | 467 | blocks |
-| [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 428 | state · queues · dims · blocks · atlas |
+| [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 463 | state · queues · dims · blocks · atlas |
 | [`light.js`](../src/light.js) | 광원 — 햇빛과 블록광 BFS | 182 | state · dims · blocks · world · mesh · player |
 | [`fluids.js`](../src/fluids.js) | 물 흐름 · 낙하 블록 · 잎 부패 | 518 | state · queues · dims · blocks · world · light · mesh · scene · audio · player · edit |
 | [`mesh.js`](../src/mesh.js) | 면 데이터 + 청크 메싱 | 272 | dims · blocks · atlas · world · light |
@@ -25,11 +25,11 @@
 | [`settings.js`](../src/settings.js) | 설정 | 40 | state · boot · scene |
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 319 | state · dims · blocks · world · scene |
 | [`audio.js`](../src/audio.js) | 소리 | 222 | state · blocks · daynight · settings |
-| [`save.js`](../src/save.js) | 저장 · 불러오기 | 234 | state · dims · blocks · world · player · hud |
+| [`save.js`](../src/save.js) | 저장 · 불러오기 | 235 | state · dims · blocks · world · player · hud |
 | [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 492 | state · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
 | [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 425 | state · version · dims · blocks · atlas · world · player · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 157 | state · boot · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
-| [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1130 | state · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
+| [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1160 | state · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
 | [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 169 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
 | [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 351 | state · audio · dims · atlas · world · scene · daynight · player |
 | [`loop.js`](../src/loop.js) | 게임 루프 | 684 | state · input · mobs · queues · dims · boot · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · mine · sky |
@@ -289,23 +289,23 @@
 | `slotKey(n)` | 15 |
 | `curKey()` | 16 |
 | `slotInfo(n)` | 17 |
-| `hasSave()` | 27 |
-| `encodeArrB64(arr)` | 33 |
-| `decodeArrB64(b64, arr, len)` | 52 |
-| `encodeWorldB64()` | 72 |
-| `decodeWorldB64(b64)` | 73 |
-| `encodeWorld()` | 74 |
-| `decodeWorld(runs, dst, len)` | 83 |
-| `liftLegacy(src, dst, asRuns)` | 98 |
-| `saveGame()` | 113 |
-| `loadGame()` | 136 |
-| `clearSave()` | 177 |
-| `backupKey(n)` | 184 |
-| `pushBackup()` | 187 |
-| `hasBackup()` | 194 |
-| `restoreBackup()` | 197 |
-| `exportWorld()` | 207 |
-| `importWorldText(text)` | 223 |
+| `hasSave()` | 28 |
+| `encodeArrB64(arr)` | 34 |
+| `decodeArrB64(b64, arr, len)` | 53 |
+| `encodeWorldB64()` | 73 |
+| `decodeWorldB64(b64)` | 74 |
+| `encodeWorld()` | 75 |
+| `decodeWorld(runs, dst, len)` | 84 |
+| `liftLegacy(src, dst, asRuns)` | 99 |
+| `saveGame()` | 114 |
+| `loadGame()` | 137 |
+| `clearSave()` | 178 |
+| `backupKey(n)` | 185 |
+| `pushBackup()` | 188 |
+| `hasBackup()` | 195 |
+| `restoreBackup()` | 198 |
+| `exportWorld()` | 208 |
+| `importWorldText(text)` | 224 |
 
 내보내는 값 — `SAVE_KEY` · `OLD_KEY` · `SLOTS`
 
@@ -387,29 +387,30 @@
 | `tutLine(i)` | 58 |
 | `refreshHint()` | 59 |
 | `advanceTut(step)` | 62 |
-| `refreshSlots()` | 72 |
-| `cloudSay(msg, kind)` | 174 |
-| `refreshCloud()` | 179 |
-| `refreshTerrain()` | 284 |
-| `refreshBindLabels()` | 310 |
-| `hintText(base)` | 318 |
-| `refreshKeyButtons()` | 325 |
-| `bindConflict(act, code)` | 358 |
-| `shareLink()` | 395 |
-| `refreshMenu()` | 407 |
-| `beginPlay()` | 419 |
-| `endPlay()` | 445 |
-| `useDragMode()` | 464 |
-| `goFullscreen()` | 466 |
-| `requestPlay()` | 483 |
-| `hashSeed(str)` | 517 |
-| `applyLook(dx, dy)` | 539 |
-| `cycleTime()` | 559 |
-| `pickBlock()` | 571 |
-| `setStick(dx, dy)` | 890 |
-| `bindHold(id, onDown, onUp)` | 990 |
-| `bindOpt(inputId, outId, key, fmt)` | 1023 |
-| `pollGamepad(dt)` | 1086 |
+| `agoText(ms)` | 73 |
+| `refreshSlots()` | 81 |
+| `cloudSay(msg, kind)` | 204 |
+| `refreshCloud()` | 209 |
+| `refreshTerrain()` | 314 |
+| `refreshBindLabels()` | 340 |
+| `hintText(base)` | 348 |
+| `refreshKeyButtons()` | 355 |
+| `bindConflict(act, code)` | 388 |
+| `shareLink()` | 425 |
+| `refreshMenu()` | 437 |
+| `beginPlay()` | 449 |
+| `endPlay()` | 475 |
+| `useDragMode()` | 494 |
+| `goFullscreen()` | 496 |
+| `requestPlay()` | 513 |
+| `hashSeed(str)` | 547 |
+| `applyLook(dx, dy)` | 569 |
+| `cycleTime()` | 589 |
+| `pickBlock()` | 601 |
+| `setStick(dx, dy)` | 920 |
+| `bindHold(id, onDown, onUp)` | 1020 |
+| `bindOpt(inputId, outId, key, fmt)` | 1053 |
+| `pollGamepad(dt)` | 1116 |
 
 내보내는 값 — `overlay` · `goBtn` · `altBtn` · `seedIn` · `canvas` · `isTouch` · `HINT_LOCK` · `HINT_DRAG` · `hintEl` · `TUT` · `TUT_TOUCH` · `slotsEl` · `copySeedBtn` · `expBtn` · `impBtn` · `resBtn` · `fileIn` · `terrainEl` · `KEY_LABEL` · `keysEl` · `RESERVED` · `copyLinkBtn` · `lookLast` · `stickZone` · `stickBase` · `stickKnob` · `STICK_R` · `padState`
 

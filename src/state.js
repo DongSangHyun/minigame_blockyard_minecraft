@@ -62,7 +62,9 @@ export const S = {
   fireOrigins: [],
   grassTimer: 0,
   handLight: 1,
-  touchPlace: false,      // 불을 붙인 자리들 — 번짐 상한을 불마다 따로 잰다
+  touchPlace: false,
+  delArm: 0,
+  delArmAt: 0,      // 불을 붙인 자리들 — 번짐 상한을 불마다 따로 잰다
   wantShot: false,
   showPerf: false,
   spawnPoint: null,

@@ -4789,6 +4789,71 @@ test("v33 튜토리얼: 폰 문구가 따로 있고, 작은 화면에서도 힌�
   assert(shown.size <= 10 && shown.text > 0, "작은 화면 힌트가 비었거나 크다 — " + JSON.stringify(shown));
 });
 
+test("v34 지형: 굴 입구가 뚫리고, 바다 밑에 공중 물이 없고, 바이옴이 한쪽으로 쏠리지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const rows = [];
+    for (let k = 0; k < 5; k++) {
+      B.generate(2000 + k * 7717); B.relightAll(false);
+      let trees = 0, hanging = 0, holes = 0;
+      const bio = [0, 0, 0];
+      for (let z = 1; z < B.WZ - 1; z++) for (let x = 1; x < B.WX - 1; x++) {
+        bio[B.biomeMap[z * B.WX + x]]++;
+        const h = B.heightMap[z * B.WX + x];
+        const surf = B.world[B.idx(x, h, z)];
+        const above = B.world[B.idx(x, h + 1, z)];
+        if ((surf === B.B.GRASS || surf === B.B.SNOW) && above === 0)
+          for (let d = 1; d <= 3; d++) if (B.world[B.idx(x, h - d, z)] === 0) { holes++; break; }
+        if (above === B.B.LOG || above === B.B.BIRCH_LOG) trees++;
+        // 물 바로 아래가 공기 = 해저에 구멍이 뚫려 물이 공중에 떠 있다
+        for (let y = 2; y <= B.SEA; y++)
+          if (B.world[B.idx(x, y, z)] === B.B.WATER && B.world[B.idx(x, y - 1, z)] === 0) hanging++;
+      }
+      const tot = bio[0] + bio[1] + bio[2];
+      rows.push({ trees, hanging, holes, maxBio: Math.max.apply(null, bio.map(v => v / tot)) });
+    }
+    return rows;
+  });
+  const minTrees = Math.min.apply(null, r.map(o => o.trees));
+  const maxHang = Math.max.apply(null, r.map(o => o.hanging));
+  const minHoles = Math.min.apply(null, r.map(o => o.holes));
+  const maxBio = Math.max.apply(null, r.map(o => o.maxBio));
+  eq(maxHang, 0, "바다 밑에 공중 물이 " + maxHang + "칸 남아 있다 (편집하면 갑자기 쏟아진다)");
+  assert(minHoles >= 10, "지표에 굴 입구가 없다 — 최소 " + minHoles + "개");
+  assert(minTrees >= 20, "숲이 없다 — 나무 최소 " + minTrees + "그루");
+  assert(maxBio <= 0.50, "바이옴 하나가 " + Math.round(maxBio * 100) + "% 를 먹었다");
+});
+
+test("v35 슬롯: 저장 시각이 실리고, 빈 슬롯이 SEED 를 따르고, 두 번 눌러야 지워진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keep = B.S.slot;
+    B.S.slot = 3; B.clearSave();
+    B.generate(4321); B.relightAll(false);
+    B.saveGame();
+    const info = B.slotInfo(3);
+    const ago = B.agoText(Date.now() - 3 * 3600 * 1000);
+    // 지우기 — 첫 클릭은 무장만, 두 번째에 지워진다
+    B.refreshSlots();
+    const del = document.querySelector('#slots i[data-del="3"]');
+    const had = !!del;
+    if (del) del.click();
+    const armed = !!B.slotInfo(3);
+    if (del) document.querySelector('#slots i[data-del="3"]').click();
+    const gone = !B.slotInfo(3);
+    B.S.slot = keep;
+    B.endPlay(); B.setPaused(false);
+    return { at: info && info.at, seed: info && info.seed, ago, had, armed, gone };
+  });
+  assert(r.at > 0, "저장에 시각(at)이 실리지 않는다 — 어제 하던 세계를 못 찾는다");
+  eq(r.seed, 4321, "슬롯 시드");
+  eq(r.ago, "3시간 전", "상대 시각 표기: " + r.ago);
+  assert(r.had, "슬롯에 지우기 버튼이 없다");
+  assert(r.armed, "한 번 눌렀는데 바로 지워졌다 (파괴적 조작은 두 번)");
+  assert(r.gone, "두 번 눌러도 안 지워진다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

@@ -20,6 +20,7 @@ export function slotInfo(n) {
     if (!raw) return null;
     var d = JSON.parse(raw);
     return { seed: d.seed >>> 0, mins: Math.round((d.secs || 0) / 60),
+             at: d.at || 0,
              placed: d.s ? d.s[0] : 0, mined: d.s ? d.s[1] : 0 };
   } catch (e) { return null; }
 }
@@ -121,7 +122,7 @@ export function saveGame() {
       s: [stats.placed, stats.mined],
       t: S.timeOfDay, md: S.moonDay, f: player.flying, bar: S.bar,
       ach: S.earned, kinds: S.placedKinds, lamps: S.lampsPlaced, torches: S.torchesPlaced,
-      secs: Math.round(S.playSeconds), tut: S.tut,
+      secs: Math.round(S.playSeconds), tut: S.tut, at: Date.now(),   // at — 슬롯 목록의 "3시간 전"
       sp: S.spawnPoint, marks: S.marks, bar2: S.barAlt, fly: S.flySpeed, tt: S.terrain
     }));
     try { localStorage.removeItem(OLD_KEY); } catch (e2) {}
