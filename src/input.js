@@ -44,8 +44,20 @@ export var TUT = [
   '<b>Alt</b>+클릭으로 영역을 고르고 <b>Ctrl</b>+<b>F</b> 로 한 번에 채워보세요',
   '<b>{help}</b> 를 누르면 나머지 조작이 전부 나옵니다'
 ];
+// 터치용 튜토리얼 — 단계 번호는 TUT 와 같게 맞춘다 (advanceTut 이 같은 인덱스를 쓴다).
+// 폰에는 마우스도 Alt 도 없으니 문구가 달라야 하고, 이 줄이 480px 아래에서 숨겨져 있어 평생 안 보였다.
+export var TUT_TOUCH = [
+  '먼저 <b>캐기</b> 버튼을 길게 눌러 블록을 캐보세요',
+  '이번엔 <b>놓기</b> 버튼으로 블록을 놓아보세요',
+  '<b>목록</b> 버튼으로 다른 재료를 골라보세요',
+  '<b>놓기</b>를 누른 채 화면을 끌면 줄이 그어집니다',
+  '핫바의 <b>횃불</b>을 골라 어두운 곳을 밝혀보세요',
+  '왼쪽 <b>스틱</b>으로 걷고, 오른쪽 화면을 끌어 둘러보세요',
+  '<b>웅크림</b> 버튼을 누른 채면 모서리에서 떨어지지 않습니다'
+];
+export function tutLine(i) { return (isTouch ? TUT_TOUCH : TUT)[i]; }
 export function refreshHint() {
-  hintEl.innerHTML = hintText(S.tut < TUT.length ? TUT[S.tut] : (S.lockMode ? HINT_LOCK : HINT_DRAG));
+  hintEl.innerHTML = hintText(S.tut < TUT.length ? tutLine(S.tut) : (S.lockMode ? HINT_LOCK : HINT_DRAG));
 }
 export function advanceTut(step) {
   if (S.tut !== step) return;
@@ -412,6 +424,15 @@ export function beginPlay() {
       player.pos.copy(S.savedPos);
       player.yaw = S.savedYaw; player.pitch = S.savedPitch;
     }
+    try {
+      if (!localStorage.getItem("blockyard.seen")) {
+        localStorage.setItem("blockyard.seen", "1");
+        setTimeout(function () {
+          toast(isTouch ? "캐고 · 놓고 · 지어 보세요 · 버튼을 길게 누르면 계속됩니다"
+                        : "캐고 · 놓고 · 지어 보세요 · H 로 조작 전체");
+        }, 600);
+      }
+    } catch (e) {}
   }
   S.active = true;
   overlay.hidden = true;

@@ -244,6 +244,17 @@ export function generate(seed) {
     if (get(vx, vy, vz) !== STONE) continue;
     growVein(kind, vx, vy, vz, size);
   }
+  // 다이아 보장 — 3% × 500회가 동굴·용암에 걸러져 0개인 시드가 있었다 (자문 3차 실측 10시드 중 1개).
+  // 채굴 보상 곡선의 끝이 비면 깊이 7 아래로 내려갈 이유가 사라진다. 광맥 8개까지 채운다.
+  var diaCount = 0;
+  for (var di = 0; di < WX * WZ * 7; di++) if (world[di] === DIAMOND) diaCount++;   // y 0~6 층만 센다
+  for (var dt = 0; dt < 600 && diaCount < 8; dt++) {
+    var dx2 = (rng() * WX) | 0, dz2 = (rng() * WZ) | 0;
+    var dy2 = 1 + ((rng() * 6) | 0);
+    if (get(dx2, dy2, dz2) !== STONE) continue;
+    growVein(DIAMOND, dx2, dy2, dz2, 2 + ((rng() * 4) | 0));
+    diaCount++;
+  }
 
   // 용암 웅덩이 — 세계 바닥의 동굴 바닥에 고인다. 지하 탐험의 유일한 시각 목표.
   for (var lx2 = 0; lx2 < WX; lx2++) {

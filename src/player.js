@@ -1,8 +1,8 @@
 // player.js — 플레이어 · 충돌 · 레이캐스트
 import { S } from "./state.js";
-import { WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, FENCE, GATE, CROSS, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_UP_OFF, crossOffset, isCross, isLiquid, isSolid } from "./blocks.js";
-import { boxesAt, crossBase, get, hasDynamicBoxes, set, shape, shapeAt, world } from "./world.js";
+import { SEA, WX, WY, WZ, idx, inside } from "./dims.js";
+import { GRASS, DIRT, SAND, SNOW, AIR, FENCE, GATE, CROSS, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_UP_OFF, crossOffset, isCross, isLiquid, isSolid } from "./blocks.js";
+import { topMap, boxesAt, crossBase, get, hasDynamicBoxes, set, shape, shapeAt, world } from "./world.js";
 import { camera } from "./scene.js";
 
 export var HALF = 0.3, BODY = 1.78, EYE = 1.62;
@@ -34,9 +34,29 @@ export function spawn() {
     player.flying = false;
     return;
   }
-  var sx = Math.floor(WX / 2), sz = Math.floor(WZ / 2);
-  var top = WY - 1;
-  while (top > 0 && get(sx, top, sz) === AIR) top--;
+  // 24시드 중 7개가 나무 꼭대기·오두막 지붕·바다 위에서 시작했다 (자문 3차).
+  // 마크처럼 "스폰 가능 블록"(잔디·흙·모래·눈) 위, 물 밖인 기둥을 가운데에서 나선으로 찾는다.
+  var cx0 = Math.floor(WX / 2), cz0 = Math.floor(WZ / 2);
+  var sx = cx0, sz = cz0, top = -1;
+  for (var r = 0; r <= 20 && top < 0; r++) {
+    for (var dx = -r; dx <= r && top < 0; dx++) {
+      for (var dz = -r; dz <= r; dz++) {
+        if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;   // 이 반지름의 테두리만
+        var qx = cx0 + dx, qz = cz0 + dz;
+        if (qx < 2 || qx >= WX - 2 || qz < 2 || qz >= WZ - 2) continue;
+        var ty = topMap[qz * WX + qx];
+        if (ty <= SEA + 1) continue;                                 // 물 밖
+        var tb = get(qx, ty, qz);
+        if (tb !== GRASS && tb !== DIRT && tb !== SAND && tb !== SNOW) continue;
+        if (get(qx, ty + 1, qz) !== AIR || get(qx, ty + 2, qz) !== AIR) continue;
+        sx = qx; sz = qz; top = ty; break;
+      }
+    }
+  }
+  if (top < 0) {                       // 못 찾으면 예전대로 가운데 기둥의 첫 블록
+    top = WY - 1;
+    while (top > 0 && get(sx, top, sz) === AIR) top--;
+  }
   player.pos.set(sx + 0.5, top + 1.2, sz + 0.5);
   player.vel.set(0, 0, 0);
   player.yaw = Math.PI * 0.25; player.pitch = -0.15;

@@ -125,8 +125,15 @@ function strandedAt(m) {
   if (gx < 0 || gx >= WX || gz < 0 || gz >= WZ) return true;
   var top = topMap[gz * WX + gx];
   var tb = world[idx(gx, top, gz)];
-  if (tb === WATER || tb === LAVA || tb === ICE) return true;
-  return m.y < top - 0.01;
+  // 기둥 겉면이 물·용암·얼음이고 그 아래에 있다 = 물속(해저 공기 주머니 포함)
+  if ((tb === WATER || tb === LAVA || tb === ICE) && m.y < top + 1) return true;
+  // 몸이나 발이 액체·얼음에 잠겼다
+  var fy = Math.max(0, Math.floor(m.y) - 1), by = Math.min(WY - 1, Math.floor(m.y));
+  var fb = world[idx(gx, fy, gz)], bb = world[idx(gx, by, gz)];
+  if (fb === WATER || fb === LAVA || fb === ICE) return true;
+  if (bb === WATER || bb === LAVA) return true;
+  // 단단한 지붕 아래는 갇힌 게 아니다 — 여기서 true 를 돌리면 헛간의 양이 0.5초마다 밖으로 튄다
+  return false;
 }
 
 export function updateMobs(dt) {

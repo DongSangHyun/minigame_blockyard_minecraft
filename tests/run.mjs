@@ -4404,7 +4404,11 @@ test("v26 동물: 지붕을 얹어도 걸어 다니고, 열린 문 시험대가 
     for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++)
       B.set(X + dx, Y + 3, Z + dz, B.B.STONE);       // 지붕
     B.refreshAllTops(); B.relightAll(false);
-    const roofed = walk(6);
+    // 4초 = 최대 4.6칸 — 13×13 지붕(±6.5) 안에서 끝나야 "걸었다" 를 잴 수 있다. 6초면 걸어서도 벗어난다
+    const roofed = walk(4);
+    const m0 = B.mobs[0];
+    const stayedUnder = Math.abs(m0.x - (X + 0.5)) <= 6.5 && Math.abs(m0.z - (Z + 0.5)) <= 6.5 &&
+                        m0.y >= Y - 1 && m0.y <= Y + 1;
     for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++)
       B.set(X + dx, Y + 3, Z + dz, 0);
     B.refreshAllTops();
@@ -4412,8 +4416,9 @@ test("v26 동물: 지붕을 얹어도 걸어 다니고, 열린 문 시험대가 
     B.applyEdit(X, Y, Z + 2, B.B.GATE, false, 1);    // shape 1 = 열림
     const gateOpen = B.shapeAt(X, Y, Z + 2) === 1;
     B.endPlay(); B.setPaused(false);
-    return { open, roofed, gateOpen };
+    return { open, roofed, gateOpen, stayedUnder };
   });
+  assert(r.stayedUnder, "지붕 아래 동물이 걸은 게 아니라 밖으로 튕겨 나갔다");
   assert(r.open > 1, "지붕이 없는데도 동물이 안 걷는다 — " + r.open.toFixed(2));
   assert(r.roofed > 1, "지붕을 얹으니 동물이 얼어붙었다 — " + r.roofed.toFixed(2) + "칸");
   assert(r.gateOpen, "열린 문 시험대가 안 세워졌다");
@@ -4616,7 +4621,7 @@ test("v30 동물: 물속 공기 주머니에 갇히면 마른 땅으로 다시 �
     for (let dx = -32; dx <= 32; dx++) for (let dz = -32; dz <= 32; dz++) {
       const x = PX + dx, z = PZ + dz;
       if (x < 1 || x >= B.WX - 1 || z < 1 || z >= B.WZ - 1) continue;
-      for (let y = PY - 1; y <= PY + 3; y++) B.set(x, y, z, y === PY - 1 ? B.B.STONE : 0);
+      for (let y = PY - 1; y <= PY + 12; y++) B.set(x, y, z, y === PY - 1 ? B.B.STONE : 0);
     }
     B.player.pos.set(PX + 0.5, PY, PZ + 0.5);
     // 해저 공기 주머니: 바닥 y=3, 공기 4~5, 그 위 6~SEA 물
@@ -4721,6 +4726,67 @@ test("v32 과제: 금·다이아를 캐면 과제가 뜬다", async (page) => {
   assert(r.hasGold && r.hasDia, "금·다이아 과제가 목록에 없다");
   assert(r.gold, "금 광석을 캤는데 과제가 안 뜬다");
   assert(r.dia, "다이아몬드를 캤는데 과제가 안 뜬다");
+});
+
+test("v33 스폰: 열두 시드 모두 잔디·흙·모래·눈 위, 물 밖에서 시작한다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const ok = [B.B.GRASS, B.B.DIRT, B.B.SAND, B.B.SNOW];
+    const bad = [];
+    for (let k = 0; k < 12; k++) {
+      B.S.spawnPoint = null;
+      B.generate(1000 + k * 7919); B.relightAll(false);
+      B.spawn();
+      const x = Math.floor(B.player.pos.x), z = Math.floor(B.player.pos.z);
+      const y = Math.floor(B.player.pos.y - 0.5);
+      const under = B.world[B.idx(x, y, z)];
+      if (ok.indexOf(under) < 0 || y <= B.SEA) bad.push({ seed: 1000 + k * 7919, under: B.NAMES[under] || under, y });
+    }
+    return { bad };
+  });
+  eq(r.bad.length, 0, "발밑이 스폰 불가 블록인 시드: " + JSON.stringify(r.bad));
+});
+
+test("v33 광석: 어느 시드에도 다이아 광맥이 8개 이상 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const counts = [];
+    for (let k = 0; k < 8; k++) {
+      B.generate(5000 + k * 104729); B.relightAll(false);
+      let n = 0;
+      for (let y = 0; y < 8; y++) for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++)
+        if (B.world[B.idx(x, y, z)] === B.B.DIAMOND) n++;
+      counts.push(n);
+    }
+    return { counts, min: Math.min.apply(null, counts) };
+  });
+  assert(r.min >= 8, "다이아가 8개 미만인 시드가 있다 — " + JSON.stringify(r.counts));
+});
+
+test("v33 튜토리얼: 폰 문구가 따로 있고, 작은 화면에서도 힌트 줄이 보인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    return { same: B.TUT_TOUCH.length === B.TUT.length,
+             touchWords: B.TUT_TOUCH.every(t => /버튼|스틱|화면|핫바/.test(t)),
+             noMouse: !B.TUT_TOUCH.some(t => /클릭|Alt|Ctrl|<b>E<\/b>|<b>G<\/b>|<b>H<\/b>/.test(t)) };
+  });
+  assert(r.same, "터치 튜토리얼 단계 수가 다르다 — advanceTut 인덱스가 어긋난다");
+  assert(r.touchWords, "터치 문구에 마우스 밖의 조작이 없다");
+  assert(r.noMouse, "터치 문구에 클릭·Alt·키보드 안내가 남아 있다");
+  const before = page.viewportSize();
+  await page.setViewportSize({ width: 800, height: 400 });      // 가로로 든 폰
+  const shown = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay(); B.S.tut = 0; B.refreshHint();
+    const h = document.getElementById("hint");
+    const cs = getComputedStyle(h);
+    const out = { display: cs.display, size: parseFloat(cs.fontSize), text: h.textContent.length };
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  await page.setViewportSize(before);
+  assert(shown.display !== "none", "400px 높이에서 튜토리얼 줄이 숨겨진다 — 폰 유저는 평생 못 본다");
+  assert(shown.size <= 10 && shown.text > 0, "작은 화면 힌트가 비었거나 크다 — " + JSON.stringify(shown));
 });
 
 // ── 실행 ───────────────────────────────────────────────
