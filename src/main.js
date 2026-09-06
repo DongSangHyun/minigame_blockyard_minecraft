@@ -18,7 +18,7 @@ import { ac, at, tone, crunch, breakSound, caveSound, lavaHiss, lavaPop, listenA
 import { OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName, baseRev, setBaseRev, ensureGist, req } from "./cloud.js";
 import { blueprintList, deleteBlueprint, settleWorld, mirrorClip, rotateClip, BATCH_RELIGHT_ALL, checkBuildAchievements, ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
-import { airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp } from "./hud.js";
+import { pickBtns, airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp } from "./hud.js";
 import { updateHandLight, handMat, makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
 import { refreshBlueprints, afterWorldSwap, aimCell, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink } from "./input.js";
 import { canPlaceAt, mineAt, place, tryInteract, upperFromHit } from "./mine.js";
@@ -159,7 +159,7 @@ window.__blockyard = {
   selectionCounts: selectionCounts, feedNearbyMob: feedNearbyMob, shareLink: shareLink,
   drawPreview: drawPreview, showAchPop: showAchPop, cmdIn: cmdIn, cmdEl: cmdEl,
   refreshStats: refreshStats, categoryOf: categoryOf, noteBlockUse: noteBlockUse,
-  sortPickByRecent: sortPickByRecent, refreshPickFilter: refreshPickFilter,
+  sortPickByRecent: sortPickByRecent, refreshPickFilter: refreshPickFilter, pickBtns: pickBtns,
   refreshKeyButtons: refreshKeyButtons, bindConflict: bindConflict, hintText: hintText, refreshBindLabels: refreshBindLabels, RESERVED: RESERVED, TUT: TUT, TUT_TOUCH: TUT_TOUCH, refreshHint: refreshHint, chunkCX: chunkCX, chunkCZ: chunkCZ,
   explode: explode, ignite: ignite, fireTick: fireTick, BLAST_R: BLAST_R,
   isFlammable: isFlammable, seedFlocks: seedFlocks, updateFlocks: updateFlocks,

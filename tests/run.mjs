@@ -6262,6 +6262,38 @@ test("v63 청사진: 메뉴에서 목록을 보고 불러오고 지운다", asyn
   assert(/없습니다/.test(r.emptyText), "청사진이 없을 때 안내 문구가 안 뜬다");
 });
 
+test("v63 블록 목록: 새 블록이 화면까지 닿는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    // ALL_BLOCKS 에 있는 것은 전부 목록에 단추가 있어야 한다 —
+    // 등록만 하고 화면에 못 올린 블록은 게임 안에서 존재하지 않는 것과 같다 (v58 부류)
+    const listed = B.pickBtns.map((p) => p.block);
+    const missing = [];
+    for (const id of B.ALL_BLOCKS) if (listed.indexOf(id) < 0) missing.push(B.NAMES[id] || id);
+    const btns = B.pickBtns;
+    // 갈래 탭에도 실제로 들어가야 한다 — "전체" 에만 있으면 탭으로는 못 찾는다
+    const noCat = B.pickBtns.filter((p) => !p.cat).map((p) => p.name);
+    // 이름으로 찾기가 되는가
+    const find = document.getElementById("pick-find");
+    const keep = find.value;
+    find.value = "묘목";
+    const bySearch = B.refreshPickFilter();
+    find.value = "sapling";
+    const byEnglish = B.refreshPickFilter();
+    find.value = keep;
+    B.refreshPickFilter();
+    const sap = B.pickBtns.filter((p) => p.block === B.B.SAPLING)[0];
+    // 목록에는 도구(부싯돌)도 함께 뜬다 — 놓는 블록은 아니지만 손에 쥘 수는 있다
+    return { missing, total: btns.length, all: B.ALL_BLOCKS.length + B.ITEMS.length, bySearch, byEnglish, noCat, sapCat: sap && sap.cat };
+  });
+  eq(r.missing.length, 0, "블록 목록에 안 뜨는 블록: " + r.missing.join(", "));
+  eq(r.total, r.all, "목록 단추가 " + r.total + "개인데 블록+도구는 " + r.all + "종이다");
+  eq(r.bySearch, 1, "이름 '묘목' 으로 찾으니 " + r.bySearch + "개가 나온다");
+  eq(r.byEnglish, 1, "영문 'sapling' 으로 찾으니 " + r.byEnglish + "개가 나온다");
+  eq(r.noCat.length, 0, "갈래가 없는 블록: " + r.noCat.join(", "));
+  eq(r.sapCat, "nature", "묘목이 '자연' 갈래에 없다 — 탭으로는 못 찾는다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
