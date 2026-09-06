@@ -3,8 +3,8 @@ import { S } from "./state.js";
 import { opts } from "./settings.js";
 import { SLOTS } from "./save.js";
 import { DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
-import { LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
-import { BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
+import { DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
+import { get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightLocal } from "./light.js";
 import { enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
 import { touch } from "./mesh.js";
@@ -35,8 +35,23 @@ function meltIceAround(x, y, z) {
 function dropCross(x, y, z, wall) {
   if (!inside(x, y, z)) return;
   var i = idx(x, y, z);
-  // 사다리도 벽 횃불과 같은 규칙이다 — 벽이 사라지면 같이 떨어진다
-  if (!isCross(world[i]) && !isClimbable(world[i])) return;
+  // 사다리도 벽 횃불과 같은 규칙이다 — 벽이 사라지면 같이 떨어진다.
+  // 문도 받칠 바닥이 필요하다(needsFloor) — 밑을 캐면 허공에 뜨면 안 된다.
+  var db = world[i];
+  if (!isCross(db) && !isClimbable(db) && db !== DOOR) return;
+  if (db === DOOR) {
+    if (wall) return;                          // 문은 벽이 아니라 바닥에 선다
+    if (world[idx(x, y - 1, z)] === DOOR) return;   // 아래가 문이면 내가 윗쪽 — 아래가 판단한다
+    if (isSolid(get(x, y - 1, z))) return;
+    if (get(x, y + 1, z) === DOOR) {           // 윗칸도 함께 걷는다
+      var ui = idx(x, y + 1, z);
+      world[ui] = AIR; shape[ui] = SH_FULL;
+      touch(x, y + 1, z); refreshTop(x, z); relightLocal(x, y + 1, z);
+    }
+    world[i] = AIR; shape[i] = SH_FULL;
+    touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z);
+    return;
+  }
   if (wall) {
     var d = WALL_DIR[shape[i]];
     if (!d || d[0] !== wall[0] || d[2] !== wall[2]) return;

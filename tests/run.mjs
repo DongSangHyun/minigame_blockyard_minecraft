@@ -5206,6 +5206,27 @@ test("v43 영역: 허공에도 찍히고, 가로×높이×세로가 보인다", 
   assert(r.text.indexOf("180") >= 0, "칸수도 함께 보여야 한다: " + r.text);
 });
 
+test("v44 문: 밑바닥을 캐면 문이 허공에 뜨지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 78, Y = 44, Z = 30;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = -2; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, dy <= -1 ? B.B.STONE : 0);
+    B.refreshAllTops(); B.relightAll(false);
+    B.applyEdit(X, Y, Z, B.B.DOOR, false, B.doorShapeFor(2, false));
+    B.applyEdit(X, Y + 1, Z, B.B.DOOR, false, B.doorShapeFor(2, false));
+    const stood = B.get(X, Y, Z) === B.B.DOOR && B.get(X, Y + 1, Z) === B.B.DOOR;
+    B.applyEdit(X, Y - 1, Z, B.B.AIR, true);      // 문 밑바닥을 캔다
+    const low = B.get(X, Y, Z), high = B.get(X, Y + 1, Z);
+    B.endPlay(); B.setPaused(false);
+    return { stood, low, high };
+  });
+  assert(r.stood, "시험대 문이 안 섰다");
+  eq(r.low, 0, "밑을 캤는데 문 아래칸이 허공에 남는다");
+  eq(r.high, 0, "밑을 캤는데 문 윗칸이 허공에 남는다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

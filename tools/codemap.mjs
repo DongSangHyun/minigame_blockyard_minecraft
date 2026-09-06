@@ -11,10 +11,20 @@ const OUT = path.join(ROOT, "docs", "CODEMAP.md");
 // 읽는 순서 = 의존 순서. 위에 있을수록 아래를 모른다.
 const ORDER = ["state", "dims", "queues", "boot", "blocks", "atlas", "world", "light",
   "fluids", "mesh", "scene", "daynight", "settings", "player", "audio", "save",
-  "edit", "hud", "hand", "input", "mine", "sky", "loop", "main"];
+  "edit", "hud", "hand", "input", "mine", "mobs", "sky", "cloud", "loop", "version", "main"];
+
+// ORDER 는 손으로 적은 목록이라 모듈을 새로 넣으면 조용히 빠진다 —
+// 실제로 mobs·cloud·version 셋이 지도에서 사라진 채 오래 있었다. 남은 것은 뒤에 붙인다.
+const ALL = fs.readdirSync(SRC).filter(f => f.endsWith(".js")).map(f => f.slice(0, -3));
+const missing = ALL.filter(n => !ORDER.includes(n)).sort();
+if (missing.length) {
+  console.log("ORDER 에 없어 뒤에 붙인 모듈:", missing.join(", "),
+              "— 의존 순서가 중요하면 ORDER 에 자리를 잡아 주세요");
+}
+const NAMES = ORDER.filter(n => ALL.includes(n)).concat(missing);
 
 const mods = [];
-for (const name of ORDER) {
+for (const name of NAMES) {
   const file = path.join(SRC, name + ".js");
   if (!fs.existsSync(file)) continue;
   const text = fs.readFileSync(file, "utf8");
