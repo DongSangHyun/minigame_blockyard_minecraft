@@ -636,7 +636,7 @@ test("개선9 기반암: 바닥 층이 BEDROCK 이고 절대 캐지지 않는다
   eq(r.other, 0, "바닥에 기반암이 아닌 칸");
   eq(r.mined, false, "기반암이 캐졌다");
   eq(r.still, r.BEDROCK, "기반암이 사라졌다");
-  eq(r.named, "BEDROCK", "이름");
+  eq(r.named, "기반암", "이름");
   assert(r.unbreak, "isUnbreakable 이 false");
 });
 
@@ -1290,7 +1290,7 @@ test("v8 콘텐츠: 도전 과제·기본 핫바·소개문이 새 블록을 반
   });
   assert(r.total >= 22, "도전 과제 수: " + r.total);
   eq(r.hasNew, 6, "새 콘텐츠 도전 과제가 빠졌다");
-  assert(r.bar.includes("TORCH"), "기본 핫바에 횃불이 없다: " + r.bar.join(","));
+  assert(r.bar.includes("횃불"), "기본 핫바에 횃불이 없다: " + r.bar.join(","));
   assert(r.lede.includes("96×96"), "소개문의 섬 크기가 낡았다");
   assert(/용암/.test(r.lede) && /횃불/.test(r.lede), "소개문에 새 콘텐츠 언급이 없다");
 });
@@ -3022,7 +3022,7 @@ test("v17 명령: fill 과 count 가 영역에 붙는다", async (page) => {
   });
   assert(r.noSel.indexOf("영역") >= 0, "영역 없이 채워졌다: " + r.noSel);
   assert(r.filled.indexOf("18") >= 0, "채운 칸 수가 안 맞는다: " + r.filled);
-  assert(r.counted.indexOf("STONE") >= 0, "통계에 STONE 이 없다: " + r.counted);
+  assert(r.counted.indexOf("돌") >= 0, "통계에 돌이 없다: " + r.counted);
 });
 
 test("v17 청사진: 저장하고 다시 불러온다", async (page) => {
@@ -3420,7 +3420,7 @@ test("v19 부싯돌: 놓이지 않는 도구다", async (page) => {
   });
   assert(r.listed, "부싯돌이 도구 목록에 없다");
   assert(r.notBlock, "부싯돌이 ALL_BLOCKS 에 남아 있다 (수집가 과제가 불가능해진다)");
-  eq(r.named, "FLINT", "이름");
+  eq(r.named, "부싯돌", "이름");
   eq(r.cat, "light", "갈래");
   assert(r.inAlt, "기본 2쪽 핫바에 부싯돌이 없다");
 });
@@ -4520,6 +4520,25 @@ test("v27 불: 비가 오면 하늘이 뚫린 불은 꺼지고, 지하 불은 �
   });
   eq(r.openRain, 0, "비를 맞는 불이 안 꺼진다");
   assert(r.roofRain >= 0, "지붕 아래 시험이 돌지 않았다");
+});
+
+test("v28 이름: 블록 이름이 한국어이고 검색은 영어로도 된다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    let latin = 0, total = 0;
+    for (const b of B.ALL_BLOCKS) {
+      total++;
+      if (/^[A-Z ]+$/.test(B.NAMES[b] || "") && b !== B.B.TNT) latin++;
+    }
+    return { latin, total,
+             ko: B.runCommand("give 조약돌"), en: B.runCommand("give cobble"),
+             wool: B.NAMES[B.WOOL0], flint: B.NAMES[B.B.FLINT] };
+  });
+  eq(r.latin, 0, "영어 이름이 " + r.latin + "개 남아 있다 (UI 문구는 한국어 · CLAUDE.md 4번)");
+  assert(r.ko.indexOf("조약돌") >= 0, "한국어 이름으로 못 찾는다: " + r.ko);
+  assert(r.en.indexOf("조약돌") >= 0, "영어 이름으로 못 찾는다: " + r.en);
+  assert(/양털/.test(r.wool), "양털 이름이 어긋난다: " + r.wool);
+  eq(r.flint, "부싯돌", "부싯돌 이름");
 });
 
 // ── 실행 ───────────────────────────────────────────────

@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-06 · 모듈 24개 · 합계 7,125줄
+생성일 2026-09-06 · 모듈 24개 · 합계 7,141줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -14,7 +14,7 @@
 | [`dims.js`](../src/dims.js) | 세계 치수와 좌표 계산 (의존성 없음) | 10 | — |
 | [`queues.js`](../src/queues.js) | 시뮬레이션 대기열 (의존성 없음) | 26 | — |
 | [`boot.js`](../src/boot.js) | 부팅 가드 · 환경 판별 | 26 | state |
-| [`blocks.js`](../src/blocks.js) | 블록 정의 · 모양 · 성질 | 251 | state |
+| [`blocks.js`](../src/blocks.js) | 블록 정의 · 모양 · 성질 | 257 | state |
 | [`atlas.js`](../src/atlas.js) | 텍스처 아틀라스 (코드로 그리는 16×16 도트) | 467 | blocks |
 | [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 417 | state · queues · dims · blocks · atlas |
 | [`light.js`](../src/light.js) | 광원 — 햇빛과 블록광 BFS | 182 | state · dims · blocks · world · mesh · player |
@@ -26,8 +26,8 @@
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 299 | state · dims · blocks · world · scene |
 | [`audio.js`](../src/audio.js) | 소리 | 220 | state · blocks · daynight · settings |
 | [`save.js`](../src/save.js) | 저장 · 불러오기 | 234 | state · dims · blocks · world · player · hud |
-| [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 478 | state · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
-| [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 422 | state · version · dims · blocks · atlas · world · player · hand · input |
+| [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 485 | state · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
+| [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 425 | state · version · dims · blocks · atlas · world · player · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 157 | state · boot · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
 | [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1109 | state · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
 | [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 162 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
@@ -71,32 +71,32 @@
 | 함수 | 줄 |
 |---|---:|
 | `isWool(b)` | 22 |
-| `hardnessOf(b)` | 105 |
-| `isUnbreakable(b)` | 108 |
-| `isCross(b)` | 126 |
-| `needsFloor(b)` | 127 |
-| `isItem(b)` | 138 |
-| `isConnecting(b)` | 142 |
-| `isClimbable(b)` | 144 |
-| `isOpenable(b)` | 146 |
-| `isFlammable(b)` | 148 |
-| `connectsTo(self, other)` | 154 |
-| `isLog(b)` | 161 |
-| `isLeaf(b)` | 162 |
-| `isWallShape(sh)` | 178 |
-| `isStairShape(sh)` | 180 |
-| `wallShapeFor(nx, nz)` | 183 |
-| `crossOffset(sh)` | 190 |
-| `faceKindFor(sh, f, base)` | 220 |
-| `isAxisShape(sh)` | 225 |
-| `isLiquid(b)` | 227 |
-| `isTransparent(b)` | 228 |
-| `isSolid(b)` | 229 |
-| `blocksLight(b)` | 230 |
-| `lightPass(b)` | 231 |
-| `categoryOf(b)` | 241 |
+| `hardnessOf(b)` | 111 |
+| `isUnbreakable(b)` | 114 |
+| `isCross(b)` | 132 |
+| `needsFloor(b)` | 133 |
+| `isItem(b)` | 144 |
+| `isConnecting(b)` | 148 |
+| `isClimbable(b)` | 150 |
+| `isOpenable(b)` | 152 |
+| `isFlammable(b)` | 154 |
+| `connectsTo(self, other)` | 160 |
+| `isLog(b)` | 167 |
+| `isLeaf(b)` | 168 |
+| `isWallShape(sh)` | 184 |
+| `isStairShape(sh)` | 186 |
+| `wallShapeFor(nx, nz)` | 189 |
+| `crossOffset(sh)` | 196 |
+| `faceKindFor(sh, f, base)` | 226 |
+| `isAxisShape(sh)` | 231 |
+| `isLiquid(b)` | 233 |
+| `isTransparent(b)` | 234 |
+| `isSolid(b)` | 235 |
+| `blocksLight(b)` | 236 |
+| `lightPass(b)` | 237 |
+| `categoryOf(b)` | 247 |
 
-내보내는 값 — `AIR` · `TNT` · `WOOL0` · `WOOL_COLORS` · `TILES` · `NAMES` · `HARDNESS` · `EMIT` · `CROSS` · `ALL_BLOCKS` · `ITEMS` · `DEFAULT_BAR` · `DEFAULT_BAR2` · `SH_FULL` · `SH_UP_OFF` · `SH_SLAB_UP` · `SH_AXIS_X` · `SH_WALL_N` · `WALL_DIR` · `SHAPE_BOXES` · `SHAPE_NAMES`
+내보내는 값 — `AIR` · `TNT` · `WOOL0` · `WOOL_COLORS` · `TILES` · `NAMES` · `NAMES_EN` · `HARDNESS` · `EMIT` · `CROSS` · `ALL_BLOCKS` · `ITEMS` · `DEFAULT_BAR` · `DEFAULT_BAR2` · `SH_FULL` · `SH_UP_OFF` · `SH_SLAB_UP` · `SH_AXIS_X` · `SH_WALL_N` · `WALL_DIR` · `SHAPE_BOXES` · `SHAPE_NAMES`
 
 ### `atlas.js` — 텍스처 아틀라스 (코드로 그리는 16×16 도트)
 
@@ -328,13 +328,13 @@
 | `clearSelection()` | 251 |
 | `copySelection()` | 263 |
 | `pasteClip(px, py, pz)` | 280 |
-| `completeCommand(prefix)` | 318 |
-| `runCommand(line)` | 325 |
-| `loadBlueprints()` | 434 |
-| `saveBlueprint(name)` | 437 |
-| `useBlueprint(name)` | 450 |
-| `blueprintNames()` | 458 |
-| `selectionCounts()` | 461 |
+| `completeCommand(prefix)` | 325 |
+| `runCommand(line)` | 332 |
+| `loadBlueprints()` | 441 |
+| `saveBlueprint(name)` | 444 |
+| `useBlueprint(name)` | 457 |
+| `blueprintNames()` | 465 |
+| `selectionCounts()` | 468 |
 
 내보내는 값 — `HISTORY_MAX` · `ACHIEVEMENTS` · `achGrid` · `statGrid` · `REGION_MAX` · `CMD_HELP` · `CMD_LIST` · `BP_KEY`
 
@@ -346,24 +346,24 @@
 | `refreshSlot(i)` | 71 |
 | `refreshBar()` | 78 |
 | `selectSlot(i)` | 82 |
-| `openPicker()` | 118 |
-| `closePicker(resume)` | 129 |
-| `facingText()` | 142 |
-| `showAchPop(name, desc)` | 153 |
-| `showHud(on)` | 183 |
-| `toast(msg)` | 189 |
-| `drawMinimap()` | 197 |
-| `toggleHelp(on)` | 289 |
-| `setHelpTab(showAch)` | 302 |
-| `bootProgress(msg, frac)` | 317 |
-| `bootDone()` | 322 |
-| `noteBlockUse(b)` | 333 |
-| `sortPickByRecent()` | 339 |
-| `refreshPickFilter()` | 349 |
-| `openCmd()` | 376 |
-| `closeCmd()` | 383 |
-| `cmdSay(msg)` | 388 |
-| `drawPreview()` | 393 |
+| `openPicker()` | 121 |
+| `closePicker(resume)` | 132 |
+| `facingText()` | 145 |
+| `showAchPop(name, desc)` | 156 |
+| `showHud(on)` | 186 |
+| `toast(msg)` | 192 |
+| `drawMinimap()` | 200 |
+| `toggleHelp(on)` | 292 |
+| `setHelpTab(showAch)` | 305 |
+| `bootProgress(msg, frac)` | 320 |
+| `bootDone()` | 325 |
+| `noteBlockUse(b)` | 336 |
+| `sortPickByRecent()` | 342 |
+| `refreshPickFilter()` | 352 |
+| `openCmd()` | 379 |
+| `closeCmd()` | 386 |
+| `cmdSay(msg)` | 391 |
+| `drawPreview()` | 396 |
 
 내보내는 값 — `hotbarEl` · `slotCanvases` · `pickerEl` · `pickGrid` · `pickBtns` · `FACING` · `tFace` · `tAch` · `tBiome` · `achPop` · `tPos` · `underwaterEl` · `inblockEl` · `airEl` · `perfEl` · `airBar` · `minimapEl` · `mmCap` · `touchEl` · `hudEls` · `toastEl` · `mmCanvas` · `mmCtx` · `mmImage` · `stampEl` · `helpEl` · `helpAchBtn` · `helpAchList` · `helpCols` · `bootEl` · `bootMsg` · `bootBar` · `pickFind` · `pickTabs` · `pickCat` · `cmdEl` · `cmdIn` · `cmdMsg` · `previewEl` · `previewCap`
 

@@ -62,22 +62,27 @@ TILES[FIRE]      = [55, 55, 55];
 TILES[FLINT]     = [56, 56, 56];
 
 export var NAMES = {};
-NAMES[GRASS] = "GRASS"; NAMES[DIRT] = "DIRT"; NAMES[STONE] = "STONE";
-NAMES[SAND] = "SAND"; NAMES[LOG] = "LOG"; NAMES[LEAVES] = "LEAVES";
-NAMES[PLANKS] = "PLANKS"; NAMES[GLASS] = "GLASS"; NAMES[BRICK] = "BRICK";
-NAMES[COBBLE] = "COBBLE"; NAMES[COAL] = "COAL"; NAMES[IRON] = "IRON";
-NAMES[SNOW] = "SNOW"; NAMES[LAMP] = "LAMP"; NAMES[WATER] = "WATER";
-NAMES[GRAVEL] = "GRAVEL"; NAMES[BEDROCK] = "BEDROCK";
-NAMES[LAVA] = "LAVA"; NAMES[ICE] = "ICE";
-NAMES[TALLGRASS] = "GRASS TUFT"; NAMES[FLOWER_R] = "POPPY";
-NAMES[FLOWER_Y] = "DANDELION"; NAMES[TORCH] = "TORCH";
-NAMES[CACTUS] = "CACTUS"; NAMES[DEADBUSH] = "DEAD BUSH"; NAMES[DRYGRASS] = "DRY GRASS";
-NAMES[BIRCH_LOG] = "BIRCH"; NAMES[BIRCH_LEAVES] = "BIRCH LEAVES";
-NAMES[SPRUCE_LEAVES] = "SPRUCE LEAVES";
-NAMES[GOLD] = "GOLD"; NAMES[DIAMOND] = "DIAMOND";
-NAMES[TNT] = "TNT"; NAMES[FIRE] = "FIRE"; NAMES[FLINT] = "FLINT";
-NAMES[FENCE] = "FENCE"; NAMES[GATE] = "GATE";
-NAMES[PANE] = "GLASS PANE"; NAMES[LADDER] = "LADDER";
+// 이름은 그 블록이 무슨 물건인지 알려 주는 유일한 설명이다 — 한국어로 적는다.
+// 영어 이름은 NAMES_EN 에 남겨 목록 검색이 둘 다 알아듣게 한다.
+export var NAMES_EN = {};
+function nm(b, ko, en) { NAMES[b] = ko; NAMES_EN[b] = en; }
+nm(GRASS, "잔디", "GRASS"); nm(DIRT, "흙", "DIRT"); nm(STONE, "돌", "STONE");
+nm(SAND, "모래", "SAND"); nm(LOG, "참나무 원목", "LOG"); nm(LEAVES, "참나무 잎", "LEAVES");
+nm(PLANKS, "나무판자", "PLANKS"); nm(GLASS, "유리", "GLASS"); nm(BRICK, "벽돌", "BRICK");
+nm(COBBLE, "조약돌", "COBBLE"); nm(COAL, "석탄 광석", "COAL"); nm(IRON, "철 광석", "IRON");
+nm(SNOW, "눈", "SNOW"); nm(LAMP, "조명", "LAMP"); nm(WATER, "물", "WATER");
+nm(GRAVEL, "자갈", "GRAVEL"); nm(BEDROCK, "기반암", "BEDROCK");
+nm(LAVA, "용암", "LAVA"); nm(ICE, "얼음", "ICE");
+nm(TALLGRASS, "풀", "GRASS TUFT"); nm(FLOWER_R, "양귀비", "POPPY");
+nm(FLOWER_Y, "민들레", "DANDELION"); nm(TORCH, "횃불", "TORCH");
+nm(CACTUS, "선인장", "CACTUS"); nm(DEADBUSH, "죽은 덤불", "DEAD BUSH");
+nm(DRYGRASS, "마른 풀", "DRY GRASS");
+nm(BIRCH_LOG, "자작나무 원목", "BIRCH"); nm(BIRCH_LEAVES, "자작나무 잎", "BIRCH LEAVES");
+nm(SPRUCE_LEAVES, "가문비 잎", "SPRUCE LEAVES");
+nm(GOLD, "금 광석", "GOLD"); nm(DIAMOND, "다이아 광석", "DIAMOND");
+nm(TNT, "TNT", "TNT"); nm(FIRE, "불", "FIRE"); nm(FLINT, "부싯돌", "FLINT");
+nm(FENCE, "울타리", "FENCE"); nm(GATE, "울타리 문", "GATE");
+nm(PANE, "유리판", "GLASS PANE"); nm(LADDER, "사다리", "LADDER");
 
 // 캐는 데 걸리는 시간(초)
 export var HARDNESS = {};
@@ -98,7 +103,8 @@ HARDNESS[BIRCH_LOG] = 0.78; HARDNESS[BIRCH_LEAVES] = 0.18; HARDNESS[SPRUCE_LEAVE
 // 양털 16색을 표·이름·굳기에 한꺼번에 등록한다
 for (var wi = 0; wi < WOOL_COUNT; wi++) {
   TILES[WOOL0 + wi] = [37 + wi, 37 + wi, 37 + wi];
-  NAMES[WOOL0 + wi] = "WOOL " + WOOL_COLORS[wi][0];
+  NAMES[WOOL0 + wi] = WOOL_COLORS[wi][0] + " 양털";
+  NAMES_EN[WOOL0 + wi] = "WOOL " + WOOL_COLORS[wi][0];
   HARDNESS[WOOL0 + wi] = 0.42;
 }
 

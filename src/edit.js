@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { opts } from "./settings.js";
 import { SLOTS } from "./save.js";
 import { DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, ALL_BLOCKS, EMIT, ICE, NAMES, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
+import { AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
 import { BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightLocal } from "./light.js";
 import { enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
@@ -298,17 +298,24 @@ export var CMD_HELP =
   "tp <x> <y> <z> · time <아침|정오|노을|밤|0~1> · weather <맑음|비|눈> · " +
   "fill <블록|공기> · give <블록> · count · bp <save|use|list> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
 
+// 한국어 이름과 영어 이름을 둘 다 알아듣는다 — "조약돌" 도 "cobble" 도 된다
 function findBlock(name) {
   if (!name) return -1;
   var q = String(name).toLowerCase();
+  function label(b) {
+    return ((NAMES[b] || "") + " " + (NAMES_EN[b] || "")).toLowerCase();
+  }
   for (var i = 0; i < ALL_BLOCKS.length; i++) {
     var b = ALL_BLOCKS[i];
-    var n = (NAMES[b] || "").toLowerCase();
-    if (n === q || n.replace(/\s+/g, "") === q.replace(/\s+/g, "")) return b;
+    var parts = label(b).split(" ");
+    for (var p = 0; p < parts.length; p++) {
+      if (parts[p] && parts[p] === q) return b;
+    }
+    if (label(b).replace(/\s+/g, "") === q.replace(/\s+/g, "")) return b;
   }
   for (var j = 0; j < ALL_BLOCKS.length; j++) {
     var b2 = ALL_BLOCKS[j];
-    if ((NAMES[b2] || "").toLowerCase().indexOf(q) >= 0) return b2;
+    if (label(b2).indexOf(q) >= 0) return b2;
   }
   return -1;
 }

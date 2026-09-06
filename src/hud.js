@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { BUILD } from "./version.js";
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
-import { AIR, ALL_BLOCKS, GLASS, ITEMS, NAMES, TILES, WATER, categoryOf, isCross } from "./blocks.js";
+import { AIR, ALL_BLOCKS, GLASS, ITEMS, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross } from "./blocks.js";
 import { AVG_TOP, TILE, atlas, tileOrigin } from "./atlas.js";
 import { topMap, world } from "./world.js";
 import { player } from "./player.js";
@@ -112,7 +112,10 @@ ALL_BLOCKS.concat(ITEMS).forEach(function (b) {
     toast(NAMES[b]);
   });
   pickGrid.appendChild(btn);
-  pickBtns.push({ el: btn, block: b, name: NAMES[b] || "", cat: categoryOf(b) });
+  // 한국어 이름과 영어 이름을 둘 다 검색어로 둔다 — "조약돌" 도 "cobble" 도 잡힌다
+  pickBtns.push({ el: btn, block: b,
+                  name: ((NAMES[b] || "") + " " + (NAMES_EN[b] || "")).trim(),
+                  cat: categoryOf(b) });
 });
 
 export function openPicker() {
