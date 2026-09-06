@@ -2592,6 +2592,7 @@ test("v15 불: 탈 것에만 붙고, 옆으로 번지다 꺼진다", async (page
   const r = await page.evaluate(() => {
     const B = window.__blockyard;
     const x = 60, y = 40, z = 60;
+    B.S.weather = 0;          // 비가 오면 하늘 뚫린 불은 꺼진다(v27) — 이 시험은 날씨와 무관해야 한다
     for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++)
       for (let dy = -1; dy <= 4; dy++) B.set(x + dx, y + dy, z + dz, 0);
     B.set(x, y - 1, z, B.B.STONE);
@@ -4960,13 +4961,28 @@ test("v38 용암: 흐르고, 물에 닿으면 굳고, 근원을 캐면 물러난
     for (let k = 0; k < 200; k++) { B.lavaFlowTick(300); B.waterTick(300); B.lavaDryTick(300); B.dryTick(300); }
     let cobble = 0;
     for (let d = -3; d <= 3; d++) if (B.get(X + d, Y, Z) === B.B.COBBLE) cobble++;
+    // 4) 절벽 아래로 떨어진다 — 화면으로 보다가 이 경우에 시험이 없다는 걸 알았다
+    arena();
+    for (let dx = 2; dx <= 8; dx++) for (let dz = -4; dz <= 4; dz++) {
+      B.set(X + dx, Y - 1, Z + dz, 0);            // 오른쪽을 파서 낭떠러지로
+      B.set(X + dx, Y - 4, Z + dz, B.B.STONE);    // 세 칸 아래에 바닥
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    B.applyEdit(X, Y, Z, B.B.LAVA, false, 0);
+    settle(400);
+    let fell = 0;
+    for (let dy = 1; dy <= 3; dy++) if (B.get(X + 2, Y - dy, Z) === B.B.LAVA) fell++;
+    const pooled = B.get(X + 2, Y - 3, Z) === B.B.LAVA;   // 바닥에 고였는가
+
     B.endPlay(); B.setPaused(false);
-    return { reach, left, cobble, max: B.LAVA_FLOW };
+    return { reach, left, cobble, fell, pooled, max: B.LAVA_FLOW };
   });
   eq(r.max, 2, "LAVA_FLOW 가 2 가 아니다");
   eq(r.reach, 2, "용암이 흐르지 않는다 (제자리에 네모나게 떠 있다) — " + r.reach + "칸");
   eq(r.left, 0, "근원을 캤는데 흘러 나간 용암이 남아 있다 — " + r.left + "칸");
   assert(r.cobble > 0, "용암과 물이 만났는데 조약돌이 안 생긴다");
+  assert(r.fell >= 2, "절벽 아래로 흘러내리지 않는다 — 떨어진 칸 " + r.fell);
+  assert(r.pooled, "떨어진 용암이 바닥에 고이지 않는다");
 });
 
 test("v39 문: 두 칸으로 서고, 함께 열리고, 반쪽만 남지 않는다", async (page) => {
