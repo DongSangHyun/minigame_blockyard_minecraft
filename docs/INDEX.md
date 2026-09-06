@@ -58,5 +58,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v63 — 도장 갱신 · 회귀 테스트 253항목 전부 통과.**
+**v63 — 나무가 사람을 감싸지 않게 · 줄기 길이 다시 셈 · 회귀 테스트 253항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/
