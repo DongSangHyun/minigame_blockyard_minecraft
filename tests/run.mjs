@@ -5007,6 +5007,35 @@ test("v39 문: 두 칸으로 서고, 함께 열리고, 반쪽만 남지 않는�
   assert(r.listed, "블록 목록에 문이 없다");
 });
 
+test("v40 명령: clone 이 고른 영역을 그대로 한 벌 더 만든다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 70, Y = 44, Z = 30;
+    for (let dx = -1; dx <= 12; dx++) for (let dz = -1; dz <= 4; dz++)
+      for (let dy = -1; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dx = 0; dx < 3; dx++) for (let dy = 0; dy < 2; dy++) for (let dz = 0; dz < 3; dz++)
+      B.applyEdit(X + dx, Y + dy, Z + dz, B.B.BRICK, false, 0);
+    B.refreshAllTops();
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 2, Y + 1, Z + 2];
+    const noArgs = B.runCommand("clone");
+    const msg = B.runCommand("clone 6 0 0");
+    let copied = 0;
+    for (let dx = 0; dx < 3; dx++) for (let dy = 0; dy < 2; dy++) for (let dz = 0; dz < 3; dz++)
+      if (B.get(X + 6 + dx, Y + dy, Z + dz) === B.B.BRICK) copied++;
+    B.S.selA = B.S.selB = null;
+    const alt = B.DEFAULT_BAR2.indexOf(B.B.DOOR) >= 0;
+    const known = B.CMD_LIST.indexOf("clone") >= 0;
+    B.endPlay(); B.setPaused(false);
+    return { noArgs, msg, copied, alt, known };
+  });
+  assert(r.noArgs.indexOf("clone <dx>") >= 0, "인자 없이 부르면 쓰는 법을 알려야 한다: " + r.noArgs);
+  assert(r.msg.indexOf("복제") >= 0, "clone 응답: " + r.msg);
+  eq(r.copied, 18, "복제된 칸 수");
+  assert(r.alt, "두 번째 핫바에 문이 없다 — 새 블록을 찾기 어렵다");
+  assert(r.known, "clone 이 명령 목록(자동완성)에 없다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

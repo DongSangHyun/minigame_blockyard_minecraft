@@ -170,7 +170,7 @@ export function isLog(b) { return b === LOG || b === BIRCH_LOG; }
 export function isLeaf(b) { return b === LEAVES || b === BIRCH_LEAVES || b === SPRUCE_LEAVES; }
 export var DEFAULT_BAR = [GRASS, DIRT, STONE, COBBLE, SAND, LOG, PLANKS, GLASS, TORCH, LAMP];
 // 2쪽 — 건축 부품과 도구
-export var DEFAULT_BAR2 = [BRICK, SNOW, ICE, FENCE, GATE, PANE, LADDER, TNT, FLINT, WOOL0];
+export var DEFAULT_BAR2 = [BRICK, SNOW, ICE, FENCE, GATE, DOOR, PANE, LADDER, TNT, FLINT];
 
 // 모양 — 0 전체 · 1 반블록(아래) · 2~5 계단(높은 쪽이 -Z/+X/+Z/-X)
 //        6 반블록(위) · 7~10 반전 계단 (아래·위가 뒤집힌 것, 처마와 아치용)
