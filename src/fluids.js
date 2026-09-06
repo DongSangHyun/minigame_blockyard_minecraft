@@ -678,11 +678,17 @@ export function growTick(dt) {
     if (floorB !== GRASS && floorB !== DIRT && floorB !== SAND && floorB !== SNOW) { keep.push(i); continue; }
     if (lightSky[i] < GROW_LIGHT && lightBlk[i] < GROW_LIGHT) { keep.push(i); continue; }
     // 위가 막혀 있으면 자라지 않는다 — 천장을 뚫고 올라오면 지어 둔 집이 부서진다.
-    // 가장 짧은 나무가 줄기 4칸 + 잎이라, 6칸이 비어 있는지만 본다 (마크도 비슷하게 본다)
+    // 줄기는 최대 7칸(가문비·자작 5+2)이다. 그만큼이 비어 있어야 줄기가 남의 블록을
+    // 덮어쓰지 않는다 — 잎은 빈 칸에만 놓이니 줄기만 보면 된다.
     var clear = true;
-    for (var uy = 1; uy <= 6 && clear; uy++)
+    for (var uy = 1; uy <= 7 && clear; uy++)
       if (!inside(x, y + uy, z) || get(x, y + uy, z) !== AIR) clear = false;
     if (!clear) { keep.push(i); continue; }
+    // 사람을 줄기 속에 가두지 않는다 (freezeTick 이 얼음으로 안 가두는 것과 같은 이유).
+    // 묘목 옆에 서서 자라기를 지켜보는 것이 이 기능을 쓰는 가장 흔한 장면이다.
+    var busy = false;
+    for (var py2 = 0; py2 <= 7 && !busy; py2++) if (playerOccupies(x, y + py2, z)) busy = true;
+    if (busy) { keep.push(i); continue; }
     if (Math.random() > GROW_CHANCE) { keep.push(i); continue; }
     var kind = saplingKind(x, z);
     var logB = (kind === 1) ? BIRCH_LOG : LOG;

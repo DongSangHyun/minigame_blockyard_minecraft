@@ -6166,9 +6166,26 @@ test("v62 묘목: 심어 두면 나무가 되고, 되돌리기 한 번에 사라
     while (B.get(RX, Y, RZ) === B.B.SAPLING && ticks2 < 400) { B.growTick(1.0); ticks2++; }
     const regrew = B.get(RX, Y, RZ) !== B.B.SAPLING;
 
+    // (6) 사람이 그 자리에 서 있으면 자라지 않는다 — 줄기 속에 갇히면 나갈 수가 없다
+    const PX = X, PZ = Z + 8;
+    for (let dy = 0; dy <= 10; dy++) B.set(PX, Y + dy, PZ, 0);
+    B.set(PX, Y - 1, PZ, B.B.GRASS);
+    B.refreshAllTops(); B.relightAll(false);
+    B.applyEdit(PX, Y, PZ, B.B.SAPLING, false, 0);
+    B.player.pos.set(PX + 0.5, Y, PZ + 0.5);
+    B.player.vel.set(0, 0, 0); B.player.flying = true;   // 떨어져 벗어나지 않게
+    for (let k = 0; k < 300; k++) B.growTick(1.0);
+    const onPlayer = B.get(PX, Y, PZ) === B.B.SAPLING;
+    // 비켜서면 그제야 자란다
+    B.player.pos.set(PX + 6.5, Y, PZ + 6.5);
+    let ticks3 = 0;
+    while (B.get(PX, Y, PZ) === B.B.SAPLING && ticks3 < 400) { B.growTick(1.0); ticks3++; }
+    const afterStepAside = B.get(PX, Y, PZ) !== B.B.SAPLING;
+    B.player.flying = false;
+
     B.S.history.length = 0; B.S.future.length = 0;
     B.endPlay(); B.setPaused(false);
-    return { planted, grew, leaves, hist, leftover, onStone, inDark, regrew, ticks, darkLv, lowLv, underRoof, puffed };
+    return { planted, grew, leaves, hist, leftover, onStone, inDark, regrew, ticks, darkLv, lowLv, underRoof, puffed, onPlayer, afterStepAside };
   });
   assert(r.planted, "묘목이 안 놓인다 — 블록 등록이 빠졌다");
   assert(r.grew, `묘목이 ${r.ticks}초를 기다려도 안 자란다`);
@@ -6182,6 +6199,8 @@ test("v62 묘목: 심어 두면 나무가 되고, 되돌리기 한 번에 사라
   assert(r.underRoof, "천장이 낮은데 묘목이 자랐다 — 나무가 지붕을 뚫는다");
   assert(r.regrew, "불러온 세계의 묘목이 영영 안 자란다 — 큐를 다시 안 채웠다");
   assert(r.puffed, "나무가 소리도 잎조각도 없이 솟았다 — 무슨 일이 난 건지 알 수 없다");
+  assert(r.onPlayer, "사람이 선 자리에서 나무가 자랐다 — 줄기 속에 갇힌다");
+  assert(r.afterStepAside, "비켜섰는데도 안 자란다");
 });
 
 test("v63 청사진: 메뉴에서 목록을 보고 불러오고 지운다", async (page) => {
