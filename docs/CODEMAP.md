@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-06 · 모듈 24개 · 합계 7,163줄
+생성일 2026-09-06 · 모듈 24개 · 합계 7,173줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -26,11 +26,11 @@
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 299 | state · dims · blocks · world · scene |
 | [`audio.js`](../src/audio.js) | 소리 | 222 | state · blocks · daynight · settings |
 | [`save.js`](../src/save.js) | 저장 · 불러오기 | 234 | state · dims · blocks · world · player · hud |
-| [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 490 | state · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
+| [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 492 | state · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
 | [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 425 | state · version · dims · blocks · atlas · world · player · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 157 | state · boot · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
 | [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1109 | state · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
-| [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 161 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
+| [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 169 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
 | [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 351 | state · audio · dims · atlas · world · scene · daynight · player |
 | [`loop.js`](../src/loop.js) | 게임 루프 | 684 | state · input · mobs · queues · dims · boot · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · mine · sky |
 | [`main.js`](../src/main.js) | 조립과 시작 | 212 | state · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · input · mine · sky · loop |
@@ -318,23 +318,23 @@
 | `endBatch(label)` | 98 |
 | `undo()` | 121 |
 | `redo()` | 130 |
-| `refreshAchList()` | 173 |
-| `refreshStats()` | 185 |
-| `achCount()` | 203 |
-| `unlock(id)` | 208 |
-| `selectionBounds()` | 233 |
-| `selectionSize()` | 234 |
-| `fillSelection(block, sh)` | 241 |
-| `clearSelection()` | 256 |
-| `copySelection()` | 268 |
-| `pasteClip(px, py, pz)` | 285 |
-| `completeCommand(prefix)` | 330 |
-| `runCommand(line)` | 337 |
-| `loadBlueprints()` | 446 |
-| `saveBlueprint(name)` | 449 |
-| `useBlueprint(name)` | 462 |
-| `blueprintNames()` | 470 |
-| `selectionCounts()` | 473 |
+| `refreshAchList()` | 175 |
+| `refreshStats()` | 187 |
+| `achCount()` | 205 |
+| `unlock(id)` | 210 |
+| `selectionBounds()` | 235 |
+| `selectionSize()` | 236 |
+| `fillSelection(block, sh)` | 243 |
+| `clearSelection()` | 258 |
+| `copySelection()` | 270 |
+| `pasteClip(px, py, pz)` | 287 |
+| `completeCommand(prefix)` | 332 |
+| `runCommand(line)` | 339 |
+| `loadBlueprints()` | 448 |
+| `saveBlueprint(name)` | 451 |
+| `useBlueprint(name)` | 464 |
+| `blueprintNames()` | 472 |
+| `selectionCounts()` | 475 |
 
 내보내는 값 — `HISTORY_MAX` · `ACHIEVEMENTS` · `achGrid` · `statGrid` · `REGION_MAX` · `CMD_HELP` · `CMD_LIST` · `BP_KEY`
 
@@ -417,10 +417,10 @@
 | 함수 | 줄 |
 |---|---:|
 | `mineAt(hit)` | 16 |
-| `upperFromHit(hit)` | 32 |
-| `canPlaceAt(px, py, pz)` | 39 |
-| `tryInteract(hit)` | 51 |
-| `place(repeating)` | 94 |
+| `upperFromHit(hit)` | 40 |
+| `canPlaceAt(px, py, pz)` | 47 |
+| `tryInteract(hit)` | 59 |
+| `place(repeating)` | 102 |
 
 ### `sky.js` — 해와 달과 별 · 날씨 · 앰비언트 생물
 

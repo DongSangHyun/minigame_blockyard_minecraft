@@ -166,7 +166,9 @@ export var ACHIEVEMENTS = [
   { id: "build100", name: "대공사", desc: "영역 채우기로 100칸 이상을 한 번에 짓는다" },
   { id: "explorer", name: "탐험가", desc: "미니맵 표식을 5개 찍는다" },
   { id: "feed", name: "친구", desc: "동물에게 꽃을 준다" },
-  { id: "photo", name: "사진사", desc: "사진 모드로 화면을 저장한다" }
+  { id: "photo", name: "사진사", desc: "사진 모드로 화면을 저장한다" },
+  { id: "gold", name: "금맥", desc: "금 광석을 캔다" },
+  { id: "diamond", name: "다이아몬드!", desc: "다이아몬드 광석을 캔다" }
 ];
 export var achGrid = document.getElementById("achgrid");
 

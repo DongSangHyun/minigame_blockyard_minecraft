@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { aimingAtMob, feedNearbyMob } from "./mobs.js";
 import { primeTNT, ignite } from "./fluids.js";
 import { idx, inside } from "./dims.js";
-import { ICE, WATER, AIR, ALL_BLOCKS, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
+import { GOLD, DIAMOND, ICE, WATER, AIR, ALL_BLOCKS, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
 import { get, shape } from "./world.js";
 import { burst } from "./scene.js";
 import { BODY, HALF, currentShape, player, raycast, stats } from "./player.js";
@@ -22,6 +22,14 @@ export function mineAt(hit) {
   advanceTut(0);
   if (hit.block === COAL) unlock("coal");
   if (hit.block === IRON) unlock("iron");
+  if (hit.block === GOLD) unlock("gold");
+  if (hit.block === DIAMOND) {
+    // 채굴의 마지막 보상 — 마크의 "DIAMONDS!" 처럼 한 옥타브 위 세 음으로 따로 기념한다
+    unlock("diamond");
+    tone(1320, 0.10, "triangle", 0.06);
+    setTimeout(function () { tone(1568, 0.10, "triangle", 0.06); }, 110);
+    setTimeout(function () { tone(2093, 0.18, "triangle", 0.07); }, 220);
+  }
   if (stats.mined >= 100) unlock("mine100");
   burst(hit.x, hit.y, hit.z, hit.block, 14);
   breakSound(hit.block);

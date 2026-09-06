@@ -4701,6 +4701,28 @@ test("v31 과제: '쾅' 은 부싯돌을 댈 때가 아니라 터질 때 뜬다"
   assert(r.atBoom, "터졌는데 과제가 뜨지 않았다");
 });
 
+test("v32 과제: 금·다이아를 캐면 과제가 뜬다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 12, Y = 40, Z = 84;
+    for (let dy = -1; dy <= 3; dy++) B.set(X, Y + dy, Z, 0); B.set(X, Y - 1, Z, B.B.STONE);
+    delete B.S.earned.gold; delete B.S.earned.diamond;
+    B.applyEdit(X, Y, Z, B.B.GOLD, false, 0);
+    B.mineAt({ x: X, y: Y, z: Z, block: B.B.GOLD });
+    const gold = !!B.S.earned.gold;
+    B.applyEdit(X, Y, Z, B.B.DIAMOND, false, 0);
+    B.mineAt({ x: X, y: Y, z: Z, block: B.B.DIAMOND });
+    const dia = !!B.S.earned.diamond;
+    const ids = B.ACHIEVEMENTS.map(a => a.id);
+    B.endPlay(); B.setPaused(false);
+    return { gold, dia, hasGold: ids.indexOf("gold") >= 0, hasDia: ids.indexOf("diamond") >= 0 };
+  });
+  assert(r.hasGold && r.hasDia, "금·다이아 과제가 목록에 없다");
+  assert(r.gold, "금 광석을 캤는데 과제가 안 뜬다");
+  assert(r.dia, "다이아몬드를 캤는데 과제가 안 뜬다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
