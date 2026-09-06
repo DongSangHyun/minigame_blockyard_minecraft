@@ -5304,6 +5304,35 @@ test("v46 번식: 꽃을 준 두 마리가 가까이 있으면 새끼가 난다"
   assert(r.capped, "상한 " + r.cap + "을 넘어 " + r.total + "마리가 됐다");
 });
 
+test("v47 명령: expand 로 영역을 여섯 방향으로 늘린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 40, Y = 30, Z = 40;
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 2, Y + 2, Z + 2];   // 3×3×3
+    const noSel = (function () { B.S.selA = B.S.selB = null; const m = B.runCommand("expand 1 1 1");
+                                 B.S.selA = [X, Y, Z]; B.S.selB = [X + 2, Y + 2, Z + 2]; return m; })();
+    const usage = B.runCommand("expand");
+    const up = B.runCommand("expand 0 20 0");                    // 위로 20칸
+    const b1 = B.selectionBounds();
+    const down = B.runCommand("expand 0 -5 0");                  // 아래로 5칸 더 늘린다
+    const b2 = B.selectionBounds();
+    // 세계 밖으로는 안 나간다
+    B.runCommand("expand 0 999 0");
+    const b3 = B.selectionBounds();
+    B.S.selA = B.S.selB = null;
+    B.endPlay(); B.setPaused(false);
+    return { noSel, usage, up, h1: b1.y1 - b1.y0 + 1, y0a: b1.y0,
+             h2: b2.y1 - b2.y0 + 1, y0b: b2.y0, top: b3.y1, WY: B.WY };
+  });
+  assert(r.usage.indexOf("expand <") >= 0, "인자 없이 부르면 쓰는 법을 알려야 한다: " + r.usage);
+  assert(r.noSel.indexOf("영역") >= 0, "영역이 없을 때 안내가 없다: " + r.noSel);
+  eq(r.h1, 23, "위로 20칸 늘어나지 않았다 — 높이 " + r.h1);
+  eq(r.h2, 28, "아래로 5칸 늘어나지 않았다 — 높이 " + r.h2);
+  eq(r.y0b, r.y0a - 5, "음수는 아래 모서리를 내려야 한다");
+  assert(r.top < r.WY, "세계 밖으로 넘어갔다 — y1=" + r.top);
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

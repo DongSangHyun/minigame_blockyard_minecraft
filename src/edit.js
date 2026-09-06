@@ -332,7 +332,7 @@ export function pasteClip(px, py, pz) {
 // ── 명령 처리 — 짧은 이름 하나로 알아듣게
 export var CMD_HELP =
   "tp <x> <y> <z> · time <아침|정오|노을|밤|0~1> · weather <맑음|비|눈> · " +
-  "fill <블록|공기> · clone <dx> <dy> <dz> · give <블록> · count · bp <save|use|list> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
+  "fill <블록|공기> · expand <±dx> <±dy> <±dz> · clone <dx> <dy> <dz> · give <블록> · count · bp <save|use|list> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
 
 // 한국어 이름과 영어 이름을 둘 다 알아듣는다 — "조약돌" 도 "cobble" 도 된다
 function findBlock(name) {
@@ -356,7 +356,7 @@ function findBlock(name) {
   return -1;
 }
 
-export var CMD_LIST = ["tp", "time", "weather", "fill", "clone", "give", "count", "bp", "undo", "redo", "seed", "gm", "help"];
+export var CMD_LIST = ["tp", "time", "weather", "fill", "expand", "clone", "give", "count", "bp", "undo", "redo", "seed", "gm", "help"];
 // 앞글자만 쳐도 알아듣게 — 명령이 열 개나 되면 오타 한 번에 막힌다
 export function completeCommand(prefix) {
   var q = String(prefix || "").trim().toLowerCase();
@@ -464,6 +464,29 @@ export function runCommand(line) {
     }
     if (!done) return cmd === "undo" ? "되돌릴 것이 없습니다" : "다시 실행할 것이 없습니다";
     return done + "단계를 " + (cmd === "undo" ? "되돌렸습니다" : "다시 실행했습니다");
+  }
+
+  // 고른 상자를 여섯 방향으로 늘린다 — 사거리가 6칸이라 30칸 영역은 두 모서리로 날아가야 했다.
+  // 양수는 +쪽으로, 음수는 −쪽으로 늘어난다. `/expand 0 20 0` 위로 20칸 · `/expand 0 -5 0` 아래로 5칸.
+  if (cmd === "expand") {
+    var sx2 = parseInt(parts[1], 10), sy2 = parseInt(parts[2], 10), sz2 = parseInt(parts[3], 10);
+    if (!isFinite(sx2) || !isFinite(sy2) || !isFinite(sz2)) return "expand <±dx> <±dy> <±dz> — 양수는 +쪽, 음수는 −쪽으로 늘린다";
+    var sb = bounds();
+    if (!sb) return "먼저 Alt+클릭으로 영역을 고르세요";
+    function grow(lo, hi, d, max) {
+      if (d >= 0) hi += d; else lo += d;         // 양수는 +쪽으로, 음수는 −쪽으로 늘린다
+      lo = Math.max(0, Math.min(max - 1, lo));
+      hi = Math.max(0, Math.min(max - 1, hi));
+      if (lo > hi) { var t2 = lo; lo = hi; hi = t2; }
+      return [lo, hi];
+    }
+    var gx2 = grow(sb.x0, sb.x1, sx2, WX);
+    var gy2 = grow(sb.y0, sb.y1, sy2, WY);
+    var gz2 = grow(sb.z0, sb.z1, sz2, WZ);
+    S.selA = [gx2[0], gy2[0], gz2[0]];
+    S.selB = [gx2[1], gy2[1], gz2[1]];
+    return "영역 " + (gx2[1] - gx2[0] + 1) + "×" + (gy2[1] - gy2[0] + 1) + "×" + (gz2[1] - gz2[0] + 1) +
+           " · " + selectionSize().toLocaleString("ko-KR") + "칸";
   }
 
   // 고른 영역을 그대로 한 벌 더 — 계단·기둥처럼 되풀이되는 것을 손으로 다시 짓지 않게
