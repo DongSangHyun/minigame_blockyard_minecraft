@@ -68,7 +68,21 @@ export function boxHitsWorld(px, py, pz) {
   return false;
 }
 
+// 한 번에 크게 밀면 얇은 바닥·벽을 그대로 통과해 버린다 (도착지만 비어 있으면 통과)
+// 0.4칸씩 끊어서 밀어 낙하 중 지형을 뚫고 지하에 갇히는 일을 막는다
+export var SWEEP = 0.4;
 export function moveAxis(axis, amount) {
+  if (amount === 0) return;
+  if (Math.abs(amount) <= SWEEP) { moveAxisStep(axis, amount); return; }
+  var n = Math.ceil(Math.abs(amount) / SWEEP), part = amount / n;
+  for (var i = 0; i < n; i++) {
+    var was = player.pos[axis];
+    moveAxisStep(axis, part);
+    if (Math.abs(player.pos[axis] - was) < Math.abs(part) - 1e-9) return;   // 막혔으면 거기까지
+  }
+}
+
+export function moveAxisStep(axis, amount) {
   if (amount === 0) return;
   var p = player.pos;
   var before = p[axis];
@@ -89,6 +103,36 @@ export function moveAxis(axis, amount) {
   } else {
     player.vel[axis] = 0;
   }
+}
+
+// 플레이어 몸이 이 칸을 차지하고 있는가 — 물이 얼거나 모래가 내려앉을 때 몸을 덮지 않게 한다
+export function playerOccupies(x, y, z) {
+  if (!S.active) return false;
+  var p = player.pos;
+  return x + 1 > p.x - HALF && x < p.x + HALF &&
+         z + 1 > p.z - HALF && z < p.z + HALF &&
+         y + 1 > p.y && y < p.y + BODY;
+}
+
+// 블록에 묻혔을 때 빠져나오기 — 물이 얼거나 모래가 덮치거나 반쯤 겹친 자리에 놓이면
+// moveAxis 가 모든 축을 막아 영영 못 움직인다. 가장 가까운 빈 자리로 밀어낸다
+export function unstick() {
+  var p = player.pos;
+  if (!boxHitsWorld(p.x, p.y, p.z)) return false;
+  for (var up = 0.1; up <= 3.001; up += 0.1) {            // 1) 위 — 가장 흔한 탈출로
+    if (!boxHitsWorld(p.x, p.y + up, p.z)) { p.y += up; player.vel.set(0, 0, 0); return true; }
+  }
+  var dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+  for (var d = 0.2; d <= 1.601; d += 0.2) {               // 2) 옆
+    for (var i = 0; i < dirs.length; i++) {
+      var nx = p.x + dirs[i][0] * d, nz = p.z + dirs[i][1] * d;
+      if (!boxHitsWorld(nx, p.y, nz)) { p.x = nx; p.z = nz; player.vel.set(0, 0, 0); return true; }
+    }
+  }
+  for (var dn = 0.1; dn <= 3.001; dn += 0.1) {            // 3) 아래 — 마지막 수단
+    if (!boxHitsWorld(p.x, p.y - dn, p.z)) { p.y -= dn; player.vel.set(0, 0, 0); return true; }
+  }
+  return false;
 }
 
 // 발밑을 살짝 낮춰 봐서 딛을 것이 있는지 — 웅크리기 낙하 방지에 쓴다

@@ -14,7 +14,7 @@ import { buildBudget, dirty, markAllDirty, opaqueMeshes, setBuildFocus } from ".
 import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { opts } from "./settings.js";
-import { EYE, HALF, moveAxis, moveHorizontal, player, raycast, spawn, stats } from "./player.js";
+import { EYE, HALF, moveAxis, moveHorizontal, player, raycast, spawn, stats, unstick } from "./player.js";
 import { caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { saveGame } from "./save.js";
 import { ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
@@ -86,6 +86,9 @@ export function step(dt) {
   voxUniforms.uTime.value += dt;
 
   if (playing) {
+    // 몸이 블록에 묻혔으면 먼저 빼낸다 — 안 그러면 어떤 조작으로도 움직일 수 없다
+    if (unstick()) toast("블록에서 빠져나왔습니다");
+
     fwd.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
     right.set(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
 
@@ -143,8 +146,11 @@ export function step(dt) {
       player.vel.y -= GRAVITY * dt * (feetInWater ? (thick ? 0.14 : 0.22) : 1);
       if (feetInWater) {
         player.vel.y = Math.max(player.vel.y, thick ? -1.4 : -2.6);
-        // 수면 위로 계속 튀어 오르지 않도록 — 눈이 물 밖이면 상승을 억제한다
-        if (S.keys.Space) player.vel.y = eyeInLiquid ? (thick ? 2.4 : 4.4) : 0.9;
+        if (S.keys.Space) {
+          // 잠수 중에는 꾸준히 떠오르고, 수면에서는 한 칸 물가로 뛰어오를 힘을 준다
+          if (eyeInLiquid) player.vel.y = thick ? 2.4 : 4.4;
+          else player.vel.y = Math.max(player.vel.y, thick ? 2.4 : JUMP * 0.8);
+        }
       } else if (S.keys.Space && player.onGround) {
         player.vel.y = JUMP;
         player.onGround = false;

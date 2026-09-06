@@ -3734,6 +3734,90 @@ test("v19 화면: 기본 HUD 가 짧고 F3 로 펼쳐진다", async (page) => {
   assert(r.full, "F3 로 자세히 안 펼쳐진다");
 });
 
+test("v20 물: 수면에서 스페이스로 한 칸 물가에 올라선다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, X = 20, Z = 20;
+    B.setPaused(true); B.beginPlay();
+    for (let x = X - 4; x <= X + 4; x++) for (let z = Z - 4; z <= Z + 4; z++)
+      for (let y = 14; y <= 26; y++) B.set(x, y, z, y <= 20 ? B.B.STONE : B.B.AIR);
+    for (let x = X - 3; x <= X; x++) for (let z = Z - 3; z <= Z + 3; z++)
+      for (let y = 18; y <= 20; y++) B.set(x, y, z, B.B.WATER);
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.pos.set(X - 1.5, 18, Z + 0.5);
+    B.player.vel.set(0, 0, 0);
+    B.player.flying = false; B.player.yaw = -Math.PI / 2; B.player.pitch = 0;
+    B.setKey("Space", true); B.setKey("KeyW", true);
+    let top = 0;
+    for (let k = 0; k < 240; k++) { B.step(1 / 60); top = Math.max(top, B.player.pos.y); }
+    B.setKey("Space", false); B.setKey("KeyW", false);
+    const out = { top, x: B.player.pos.x, y: B.player.pos.y };
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  assert(r.top >= 21, "수면에서 물가(21칸) 위로 못 올라섰다 — 최고 " + r.top.toFixed(2));
+  assert(r.x > 20.5, "물 밖 육지로 나오지 못했다 — x=" + r.x.toFixed(2));
+});
+
+test("v20 끼임: 블록에 묻히면 한 프레임 안에 빠져나온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, X = 24, Z = 24;
+    B.setPaused(true); B.beginPlay();
+    arena(B, X, 20, Z, 3);
+    for (let y = 20; y <= 22; y++) B.set(X, y, Z, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.pos.set(X + 0.5, 20, Z + 0.5); B.player.vel.set(0, 0, 0);
+    const stuck = B.boxHitsWorld(B.player.pos.x, B.player.pos.y, B.player.pos.z);
+    B.step(1 / 60);
+    const free = !B.boxHitsWorld(B.player.pos.x, B.player.pos.y, B.player.pos.z);
+    for (let y = 20; y <= 22; y++) B.set(X, y, Z, B.B.AIR);
+    const out = { stuck, free, y: B.player.pos.y };
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  assert(r.stuck, "시험 자체가 틀렸다 — 애초에 안 끼었다");
+  assert(r.free, "블록에 묻힌 채 빠져나오지 못했다");
+});
+
+test("v20 얼음: 헤엄치는 사람을 얼음 속에 가두지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, X = 30, Z = 30;
+    B.setPaused(true); B.beginPlay();
+    for (let x = X - 2; x <= X + 2; x++) for (let z = Z - 2; z <= Z + 2; z++) {
+      for (let y = 14; y <= 26; y++) B.set(x, y, z, y <= 17 ? B.B.STONE : B.B.AIR);
+      for (let y = 18; y <= 20; y++) B.set(x, y, z, B.B.WATER);
+      B.biomeMap[z * B.WX + x] = 1;             // 설원 — 얼 수 있는 곳
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.pos.set(X + 0.5, 19, Z + 0.5); B.player.vel.set(0, 0, 0);
+    for (let x = X - 2; x <= X + 2; x++) for (let z = Z - 2; z <= Z + 2; z++)
+      B.enqueueFreeze(x, 20, z);
+    B.freezeTick(999);
+    const mine = B.get(X, 20, Z), near = B.get(X + 2, 20, Z);
+    const out = { mine, near, ICE: B.B.ICE, WATER: B.B.WATER };
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  eq(r.near, r.ICE, "떨어진 물은 얼어야 한다");
+  eq(r.mine, r.WATER, "사람이 있는 칸이 얼어붙었다");
+});
+
+test("v20 이동: 빠르게 떨어져도 얇은 바닥을 뚫지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, X = 34, Z = 34;
+    B.setPaused(true); B.beginPlay();
+    for (let x = X - 2; x <= X + 2; x++) for (let z = Z - 2; z <= Z + 2; z++)
+      for (let y = 10; y <= 30; y++) B.set(x, y, z, y === 20 ? B.B.STONE : B.B.AIR);
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.pos.set(X + 0.5, 28, Z + 0.5); B.player.vel.set(0, -48, 0);
+    B.player.flying = false;
+    for (let k = 0; k < 30; k++) B.step(0.05);
+    const out = { y: B.player.pos.y };
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  assert(r.y >= 20.9 && r.y <= 21.1, "바닥을 뚫고 내려갔다 — y=" + r.y.toFixed(2));
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

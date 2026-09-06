@@ -8,6 +8,7 @@ import { lightBlk, relightLocal } from "./light.js";
 import { touch } from "./mesh.js";
 import { burst } from "./scene.js";
 import { crunch, lavaHiss, tone } from "./audio.js";
+import { playerOccupies } from "./player.js";
 import { applyEdit, beginBatch, endBatch, unlock } from "./edit.js";
 
 export var MAXFLOW = 3; // 근원에서 옆으로 뻗을 수 있는 칸 수
@@ -183,7 +184,7 @@ export function waterTick(budget) {
 
     world[i] = WATER;
     // 설원의 노출된 수면은 잠시 뒤 얼어붙는다 (바로 얼리면 물이 퍼지지도 못한다)
-    if (biomeMap[z * WX + x] === 1 && y >= SEA) Q.freezeQ.push(i);
+    enqueueFreeze(x, y, z);
     waterLvl[i] = lvl;
     changed++;
     touch(x, y, z);
@@ -198,6 +199,13 @@ export function waterTick(budget) {
 }
 
 // 설원 수면 얼리기 — waterTick 과 분리해 시차를 둔다
+// 설원의 노출된 수면만 얼린다 — 얼릴 후보를 큐에 넣는다
+export function enqueueFreeze(x, y, z) {
+  if (!inside(x, y, z)) return;
+  var i = idx(x, y, z);
+  if (world[i] === WATER && biomeMap[z * WX + x] === 1 && y >= SEA) Q.freezeQ.push(i);
+}
+
 export function freezeTick(budget) {
   budget = budget || 200;
   var frozen = 0;
@@ -209,6 +217,7 @@ export function freezeTick(budget) {
     var z = (rem / WX) | 0, x = rem - z * WX;
     if (biomeMap[z * WX + x] !== 1) continue;
     if (get(x, y + 1, z) !== AIR) continue;          // 덮인 물은 얼지 않는다
+    if (playerOccupies(x, y, z)) continue;           // 헤엄치는 사람을 얼음 속에 가두지 않는다
     if (lightBlk[i] >= 12) continue;                 // 광원 옆은 안 언다
     world[i] = ICE; shape[i] = SH_FULL; waterLvl[i] = 0;
     touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z);

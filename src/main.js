@@ -7,7 +7,7 @@ import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, WX, WY, WZ, idx, inside } from "./di
 import { AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DEFAULT_BAR2, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLINT, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, ITEMS, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, categoryOf, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isItem, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
 import { biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBoxes, heightMap, isTouched, markTouched, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, touched, waterLvl, world } from "./world.js";
 import { WATER_DIM, lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
-import { BLAST_R, FIRE_REACH, MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueWaterAround, explode, fallTick, fireTick, freezeTick, ignite, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
+import { BLAST_R, FIRE_REACH, MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueFreeze, enqueueWaterAround, explode, fallTick, fireTick, freezeTick, ignite, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
 import { FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll, setBuildFocus } from "./mesh.js";
 import { FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
@@ -117,7 +117,7 @@ window.__blockyard = {
   isUnbreakable: isUnbreakable, columnTop: columnTop, facingText: facingText,
   isCross: isCross, isLiquid: isLiquid, isTransparent: isTransparent,
   atlas: atlas, crossBase: crossBase, surfaceTop: surfaceTop,
-  freezeTick: freezeTick, animateLiquids: animateLiquids, setMuffle: setMuffle,
+  freezeTick: freezeTick, enqueueFreeze: enqueueFreeze, animateLiquids: animateLiquids, setMuffle: setMuffle,
   isLog: isLog, isLeaf: isLeaf, isWallShape: isWallShape, wallShapeFor: wallShapeFor,
   updateStorm: updateStorm, updateEdge: updateEdge, edgeMat: edgeMat,
   updateParticles: updateParticles, boxesAt: boxesAt, dynamicBoxes: dynamicBoxes, hasDynamicBoxes: hasDynamicBoxes,
