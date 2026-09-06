@@ -206,6 +206,13 @@
     letter-spacing: .09em; font-size: 9.5px; align-self: center;
   }
   #telemetry dd { margin: 0; color: var(--bone); font-weight: 500; }
+  /* 기본은 좌표·시각·모양 세 줄만 — 나머지는 F3 으로 펼친다 */
+  #telemetry.lean dt:nth-of-type(2), #telemetry.lean dd:nth-of-type(2),
+  #telemetry.lean dt:nth-of-type(3), #telemetry.lean dd:nth-of-type(3),
+  #telemetry.lean dt:nth-of-type(4), #telemetry.lean dd:nth-of-type(4),
+  #telemetry.lean dt:nth-of-type(6), #telemetry.lean dd:nth-of-type(6),
+  #telemetry.lean dt:nth-of-type(8), #telemetry.lean dd:nth-of-type(8),
+  #telemetry.lean dt:nth-of-type(9), #telemetry.lean dd:nth-of-type(9) { display: none; }
   #telemetry dd b { color: var(--moss); font-weight: 500; }
 
   /* ---------- minimap ---------- */
@@ -398,6 +405,16 @@
   .lede em { color: var(--bone); font-style: normal; font-weight: 500; }
   .rule { height: 2px; background: var(--line); margin: 22px 0 16px; }
 
+  .keys-wrap > summary {
+    cursor: pointer; list-style: none;
+    font-family: var(--mono); font-size: 11px; color: var(--stone);
+    padding: 9px 0; letter-spacing: .04em;
+  }
+  .keys-wrap > summary::-webkit-details-marker { display: none; }
+  .keys-wrap > summary::before { content: "▸ "; color: var(--moss); }
+  .keys-wrap[open] > summary::before { content: "▾ "; }
+  .keys-wrap > summary b { color: var(--bone); font-weight: 500; }
+
   .keys { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 7px 24px; margin: 0; }
   .keys div { display: flex; align-items: center; gap: 8px; }
   kbd {
@@ -417,6 +434,12 @@
   details.opts summary::-webkit-details-marker { display: none; }
   details.opts summary::before { content: "▸ "; color: var(--moss); }
   details.opts[open] summary::before { content: "▾ "; }
+  .opt-head {
+    margin: 14px 0 6px; font-family: var(--pixel); font-size: 9px;
+    color: var(--ember); letter-spacing: .12em;
+  }
+  .opt-head:first-of-type { margin-top: 4px; }
+
   .opt-grid { display: grid; gap: 11px; margin-top: 14px; }
   .opt {
     display: grid; grid-template-columns: 8.5em 1fr 3.6em; align-items: center; gap: 10px;
@@ -499,6 +522,16 @@
     background: color-mix(in srgb, var(--panel) 96%, transparent);
     border: 2px solid var(--line); padding: 22px 24px;
   }
+  .help-tabs { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .help-tabs button {
+    font-family: var(--mono); font-size: 10px; color: var(--stone);
+    background: var(--panel-2); border: 2px solid var(--line);
+    padding: 6px 10px; cursor: pointer;
+  }
+  .help-tabs button:hover { color: var(--bone); border-color: var(--line-hi); }
+  #help-achlist { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px 18px; }
+  @media (max-width: 640px) { #help-achlist { grid-template-columns: 1fr; } }
+
   .help-card h2 { font-family: var(--pixel); font-size: 14px; margin: 0 0 16px; color: var(--moss); }
   .help-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
   .help-cols dl { margin: 0; }
@@ -593,7 +626,17 @@
   #tbtns button:active, #tbtns button.on { border-color: var(--ember); color: var(--ember); }
 
   @media (max-width: 560px) {
-    .keys { grid-template-columns: 1fr; }
+    .keys-wrap > summary {
+    cursor: pointer; list-style: none;
+    font-family: var(--mono); font-size: 11px; color: var(--stone);
+    padding: 9px 0; letter-spacing: .04em;
+  }
+  .keys-wrap > summary::-webkit-details-marker { display: none; }
+  .keys-wrap > summary::before { content: "▸ "; color: var(--moss); }
+  .keys-wrap[open] > summary::before { content: "▾ "; }
+  .keys-wrap > summary b { color: var(--bone); font-weight: 500; }
+
+  .keys { grid-template-columns: 1fr; }
     .card { padding: 24px 20px 20px; }
     .actions { flex-direction: column; }
     .alt { flex: 1; }
@@ -626,7 +669,7 @@
 <div id="cmd" hidden><span>/</span><input id="cmd-in" type="text" autocomplete="off"
   placeholder="tp 48 40 48 · time 밤 · fill stone · give wool · seed · help"><em id="cmd-msg"></em></div>
 
-<dl id="telemetry" hidden>
+<dl id="telemetry" class="lean" hidden>
   <dt>좌표</dt><dd id="t-pos">— · — · —</dd>
   <dt>시각</dt><dd id="t-time">—</dd>
   <dt>방위</dt><dd id="t-face">—</dd>
@@ -661,12 +704,15 @@
 
 <div id="help" hidden role="dialog" aria-modal="true" aria-label="조작 도움말">
   <div class="help-card">
-    <h2>조작</h2>
+    <div class="help-tabs">
+      <h2>조작</h2>
+      <button type="button" id="help-ach">도전 과제 보기</button>
+    </div>
     <div class="help-cols">
       <dl>
         <dt>이동</dt><dd><kbd>WASD</kbd> 걷기 · <kbd>Space</kbd> 점프 · <kbd>Shift</kbd> 웅크리기</dd>
         <dd><kbd>Ctrl</kbd> 또는 <kbd>W</kbd>×2 달리기 · <kbd>F</kbd> / <kbd>Space</kbd>×2 비행</dd>
-        <dd><kbd>Ctrl</kbd>+휠 비행 속도 · 사다리에 붙어 <kbd>Space</kbd> 오르기</dd>
+        <dd><kbd>Alt</kbd>+휠 비행 속도 · 사다리에 붙어 <kbd>Space</kbd> 오르기</dd>
         <dt>짓기</dt><dd>좌클릭 길게 캐기 · 우클릭 놓기(드래그로 줄 긋기)</dd>
         <dd><kbd>E</kbd> 블록 목록 · <kbd>Q</kbd>/휠클릭 복사 · <kbd>G</kbd> 반블록·계단</dd>
         <dd><kbd>Tab</kbd> 핫바 2쪽 · <kbd>1</kbd>–<kbd>0</kbd> 칸 고르기</dd>
@@ -674,8 +720,8 @@
       </dl>
       <dl>
         <dt>영역 도구</dt>
-        <dd><kbd>Ctrl</kbd>+좌클릭 시작 모서리 · <kbd>Ctrl</kbd>+우클릭 끝 모서리</dd>
-        <dd><kbd>Ctrl</kbd>+<kbd>F</kbd> 채우기 · <kbd>Ctrl</kbd>+<kbd>C</kbd> 복사 · <kbd>Ctrl</kbd>+<kbd>V</kbd> 붙여넣기</dd>
+        <dd><kbd>Alt</kbd>+좌클릭 시작 모서리 · <kbd>Alt</kbd>+우클릭 끝 모서리</dd>
+        <dd><kbd>Ctrl</kbd>+<kbd>F</kbd> 채우기 · <kbd>Ctrl</kbd>+<kbd>C</kbd> 복사 · <kbd>Ctrl</kbd>+<kbd>V</kbd> 붙여넣기 (키보드는 Ctrl 그대로)</dd>
         <dd><kbd>Ctrl</kbd>+<kbd>D</kbd> 선택 해제 — 대량 편집도 한 번에 되돌립니다</dd>
         <dt>세계</dt><dd><kbd>T</kbd> 시간 · <kbd>K</kbd> 날씨 · <kbd>M</kbd> 소리 · <kbd>R</kbd>×2 새 세계</dd>
         <dd><kbd>V</kbd> 시작 지점 · <kbd>B</kbd> 미니맵 표식 · <kbd>[</kbd> <kbd>]</kbd> 미니맵 확대</dd>
@@ -683,6 +729,7 @@
         <dt>도움말</dt><dd><kbd>H</kbd> 로 열고 닫습니다 · <kbd>ESC</kbd> 메뉴</dd>
       </dl>
     </div>
+    <div id="help-achlist" hidden></div>
   </div>
 </div>
 
@@ -721,6 +768,7 @@
 
     <div class="rule"></div>
 
+    <details class="keys-wrap"><summary>조작 (<b>H</b> 로 언제든 다시 볼 수 있습니다)</summary>
     <div class="keys">
       <div><kbd>W A S D</kbd><span>걷기 (방향키도 됩니다)</span></div>
       <div><kbd>SPACE</kbd><span>점프 / 상승 / 헤엄</span></div>
@@ -746,26 +794,34 @@
       <div><kbd>B</kbd><span>미니맵 표식</span></div>
       <div><kbd>TAB</kbd><span>핫바 2쪽 바꾸기</span></div>
       <div><kbd>H</kbd><span>조작 도움말 (영역 도구 포함)</span></div>
-      <div><kbd>횃불</kbd><span>들고 우클릭 — 불 붙이기 · TNT 터뜨리기</span></div>
+      <div><kbd>부싯돌</kbd><span>들고 우클릭 — 불 붙이기 · TNT 터뜨리기</span></div>
       <div><kbd>[</kbd> <kbd>]</kbd><span>미니맵 확대 / 축소</span></div>
       <div><kbd>\</kbd><span>미니맵 등고선</span></div>
       <div><kbd>M</kbd><span>소리 끄기</span></div>
     </div>
+    </details>
 
     <details class="opts">
       <summary>설정</summary>
+      <p class="opt-head">조작</p>
       <div class="opt-grid">
         <label class="opt"><span>마우스 감도</span><input type="range" id="s-sens" min="20" max="300" step="5"><output id="o-sens"></output></label>
-        <label class="opt"><span>시야각</span><input type="range" id="s-fov" min="55" max="105" step="1"><output id="o-fov"></output></label>
-        <label class="opt"><span>시야 거리</span><input type="range" id="s-far" min="40" max="220" step="5"><output id="o-far"></output></label>
-        <label class="opt"><span>소리 크기</span><input type="range" id="s-vol" min="0" max="100" step="5"><output id="o-vol"></output></label>
-        <label class="opt"><span>하루 길이</span><input type="range" id="s-day" min="0" max="20" step="1"><output id="o-day"></output></label>
-        <label class="opt"><span>밝기</span><input type="range" id="s-bright" min="0" max="100" step="5"><output id="o-bright"></output></label>
-        <label class="opt"><span>화면 표시 크기</span><input type="range" id="s-ui" min="80" max="180" step="10"><output id="o-ui"></output></label>
         <label class="opt check"><span>Y축 반전</span><input type="checkbox" id="s-inv"><output id="o-inv"></output></label>
-        <label class="opt check"><span>고대비 화면</span><input type="checkbox" id="s-hc"><output id="o-hc"></output></label>
         <label class="opt check"><span>왼손잡이 배치</span><input type="checkbox" id="s-lefty"><output id="o-lefty"></output></label>
         <label class="opt"><span>터치 버튼 크기</span><input type="range" id="s-tbtn" min="80" max="160" step="10"><output id="o-tbtn"></output></label>
+      </div>
+      <p class="opt-head">화면</p>
+      <div class="opt-grid">
+        <label class="opt"><span>시야각</span><input type="range" id="s-fov" min="55" max="105" step="1"><output id="o-fov"></output></label>
+        <label class="opt"><span>시야 거리</span><input type="range" id="s-far" min="40" max="220" step="5"><output id="o-far"></output></label>
+        <label class="opt"><span>밝기</span><input type="range" id="s-bright" min="0" max="100" step="5"><output id="o-bright"></output></label>
+        <label class="opt"><span>화면 표시 크기</span><input type="range" id="s-ui" min="80" max="180" step="10"><output id="o-ui"></output></label>
+        <label class="opt check"><span>고대비 화면</span><input type="checkbox" id="s-hc"><output id="o-hc"></output></label>
+      </div>
+      <p class="opt-head">세계와 저장</p>
+      <div class="opt-grid">
+        <label class="opt"><span>소리 크기</span><input type="range" id="s-vol" min="0" max="100" step="5"><output id="o-vol"></output></label>
+        <label class="opt"><span>하루 길이</span><input type="range" id="s-day" min="0" max="20" step="1"><output id="o-day"></output></label>
         <label class="opt"><span>자동 저장</span><input type="range" id="s-save" min="5" max="120" step="5"><output id="o-save"></output></label>
         <label class="opt"><span>되돌리기 단계</span><input type="range" id="s-undo" min="60" max="2000" step="20"><output id="o-undo"></output></label>
       </div>

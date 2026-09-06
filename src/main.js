@@ -1,27 +1,27 @@
 // main.js — 조립과 시작
 import { S } from "./state.js";
-import { MOB_KINDS, birds, feedNearbyMob, fish, mobs, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
+import { MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, mobs, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { animateLiquids, atlas } from "./atlas.js";
 import { Q } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, categoryOf, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
-import { biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBoxes, heightMap, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, waterLvl, world } from "./world.js";
+import { AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DEFAULT_BAR2, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLINT, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, ITEMS, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, categoryOf, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isItem, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
+import { biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBoxes, heightMap, isTouched, markTouched, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, touched, waterLvl, world } from "./world.js";
 import { WATER_DIM, lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
-import { BLAST_R, MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueWaterAround, explode, fallTick, fireTick, freezeTick, ignite, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
+import { BLAST_R, FIRE_REACH, MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueWaterAround, explode, fallTick, fireTick, freezeTick, ignite, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
 import { FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll, setBuildFocus } from "./mesh.js";
 import { FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
-import { applyOpts, opts } from "./settings.js";
+import { OPT_KEY, applyOpts, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, rayBox, raycast, spawn, stats } from "./player.js";
 import { breakSound, caveSound, lavaHiss, lavaPop, listenAt, miningSound, moodChord, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
 import { OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
-import { ACHIEVEMENTS, CMD_HELP, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
+import { ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, completeCommand, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
 import { airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toast, toggleHelp } from "./hud.js";
 import { makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
 import { TUT, beginPlay, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink } from "./input.js";
 import { canPlaceAt, place, tryInteract, upperFromHit } from "./mine.js";
 import { HIDE_Y, MOON_PHASES, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
-import { SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, refreshPerf, step } from "./loop.js";
+import { SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, farNow, refreshPerf, step } from "./loop.js";
 
 // 주소에 ?seed=1234&t=2 가 있으면 그 세계로 연다 — 링크 하나로 같은 세계를 나눈다
 (function fromUrl() {
@@ -75,7 +75,7 @@ window.__blockyard = {
        CACTUS: CACTUS, DEADBUSH: DEADBUSH, DRYGRASS: DRYGRASS,
        BIRCH_LOG: BIRCH_LOG, BIRCH_LEAVES: BIRCH_LEAVES, SPRUCE_LEAVES: SPRUCE_LEAVES,
        GOLD: GOLD, DIAMOND: DIAMOND, FENCE: FENCE, GATE: GATE,
-       PANE: PANE, LADDER: LADDER, TNT: TNT, FIRE: FIRE },
+       PANE: PANE, LADDER: LADDER, TNT: TNT, FIRE: FIRE, FLINT: FLINT },
   world: world, lightSky: lightSky, lightBlk: lightBlk,
   topMap: topMap, heightMap: heightMap, biomeMap: biomeMap,
   idx: idx, get: get, set: set, inside: inside, lightPass: lightPass,
@@ -123,9 +123,11 @@ window.__blockyard = {
   updateParticles: updateParticles, boxesAt: boxesAt, dynamicBoxes: dynamicBoxes, hasDynamicBoxes: hasDynamicBoxes,
   skyUniforms: skyUniforms, selectSlot: selectSlot,
   cloudGroup: cloudGroup, applyTime: applyTime,
-  setBuildFocus: setBuildFocus, autoTuneFar: autoTuneFar, CH: CH,
-  runCommand: runCommand, CMD_HELP: CMD_HELP, openCmd: openCmd, closeCmd: closeCmd,
-  stats: stats, pollGamepad: pollGamepad, padState: padState, clockText: clockText,
+  setBuildFocus: setBuildFocus, autoTuneFar: autoTuneFar, farNow: farNow, CH: CH,
+  isTouched: isTouched, markTouched: markTouched, OPT_KEY: OPT_KEY,
+  FIRE_REACH: FIRE_REACH, aimingAtMob: aimingAtMob,
+  runCommand: runCommand, CMD_HELP: CMD_HELP, completeCommand: completeCommand, CMD_LIST: CMD_LIST, openCmd: openCmd, closeCmd: closeCmd,
+  stats: stats, DEFAULT_BAR2: DEFAULT_BAR2, ITEMS: ITEMS, isItem: isItem, touched: touched, pollGamepad: pollGamepad, padState: padState, clockText: clockText,
   saveBlueprint: saveBlueprint, useBlueprint: useBlueprint, blueprintNames: blueprintNames,
   selectionCounts: selectionCounts, feedNearbyMob: feedNearbyMob, shareLink: shareLink,
   drawPreview: drawPreview, showAchPop: showAchPop, cmdIn: cmdIn, cmdEl: cmdEl,

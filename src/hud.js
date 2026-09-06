@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { BUILD } from "./version.js";
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
-import { AIR, ALL_BLOCKS, GLASS, NAMES, TILES, WATER, categoryOf, isCross } from "./blocks.js";
+import { AIR, ALL_BLOCKS, GLASS, ITEMS, NAMES, TILES, WATER, categoryOf, isCross } from "./blocks.js";
 import { AVG_TOP, TILE, atlas, tileOrigin } from "./atlas.js";
 import { topMap, world } from "./world.js";
 import { player } from "./player.js";
@@ -92,7 +92,7 @@ export var pickerEl = document.getElementById("picker");
 export var pickGrid = document.getElementById("pick-grid");
 
 export var pickBtns = [];
-ALL_BLOCKS.forEach(function (b) {
+ALL_BLOCKS.concat(ITEMS).forEach(function (b) {
   var btn = document.createElement("button");
   btn.className = "pick";
   btn.type = "button";
@@ -273,7 +273,24 @@ export function toggleHelp(on) {
   var want = on === undefined ? helpEl.hidden : on;
   helpEl.hidden = !want;
 }
-if (helpEl) helpEl.addEventListener("click", function () { helpEl.hidden = true; });
+if (helpEl) helpEl.addEventListener("click", function (e) {
+  if (e.target === helpEl) helpEl.hidden = true;      // 바깥을 눌렀을 때만 닫는다
+});
+
+// 도움말 안에서 도전 과제도 볼 수 있게 — 지금까지는 메뉴에만 있었다
+export var helpAchBtn = document.getElementById("help-ach");
+export var helpAchList = document.getElementById("help-achlist");
+export var helpCols = helpEl ? helpEl.querySelector(".help-cols") : null;
+export function setHelpTab(showAch) {
+  if (!helpCols || !helpAchList) return;
+  helpCols.hidden = showAch;
+  helpAchList.hidden = !showAch;
+  if (helpAchBtn) helpAchBtn.textContent = showAch ? "조작 보기" : "도전 과제 보기";
+}
+if (helpAchBtn) helpAchBtn.addEventListener("click", function (e) {
+  e.stopPropagation();
+  setHelpTab(helpAchList.hidden);
+});
 
 // ── 첫 로딩 화면 — 세계를 만들고 굽는 동안 멈춘 것처럼 보이지 않게
 export var bootEl = document.getElementById("boot");

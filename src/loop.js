@@ -5,15 +5,15 @@ import { pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from ".
 import { Q, resetQueues } from "./queues.js";
 import { CH, WX, WY, WZ, idx } from "./dims.js";
 import { reduceMotion } from "./boot.js";
-import { DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, STONE, TORCH, WATER, hardnessOf, isClimbable, isCross, isSolid, isUnbreakable } from "./blocks.js";
+import { AIR, DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isSolid, isUnbreakable } from "./blocks.js";
 import { animateLiquids, crackTex } from "./atlas.js";
-import { BIOME_NAMES, biomeMap, crossBase, generate, get, set, shape, topMap, world } from "./world.js";
+import { BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, set, shape, topMap, world } from "./world.js";
 import { lightAtPlayer, lightSky, relightAll } from "./light.js";
 import { decayTick, dryTick, fallTick, fireTick, freezeTick, waterTick } from "./fluids.js";
 import { buildBudget, dirty, markAllDirty, opaqueMeshes, setBuildFocus } from "./mesh.js";
 import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
-import { applyOpts, opts, saveOpts } from "./settings.js";
+import { opts } from "./settings.js";
 import { EYE, HALF, moveAxis, moveHorizontal, player, raycast, spawn, stats } from "./player.js";
 import { caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { saveGame } from "./save.js";
@@ -195,9 +195,12 @@ export function step(dt) {
     S.placeCooldown -= dt;
     if (S.lockMode && S.mouseDown[2]) {
       var ph = raycast(6);
-      var key = ph ? ((ph.x + ph.nx) * 4096 + (ph.y + ph.ny) * 64 + (ph.z + ph.nz)) : -1;
+      // WY=64 · WZ=96 이라 4096/64 자리올림이 겹쳤다 — 세계 인덱스를 그대로 쓴다
+      var key = ph ? idx(ph.x + ph.nx, ph.y + ph.ny, ph.z + ph.nz) : -1;
       if (key !== S.lastPlaceCell || S.placeCooldown <= 0) {
-        place();
+        // 홀드로 반복될 때는 문 여닫기·점화·먹이 주기를 하지 않는다.
+        // 그러지 않으면 문 앞에서 우클릭을 누르고 있는 동안 초당 5.5회 여닫힌다.
+        place(S.lastPlaceCell !== -1);
         S.lastPlaceCell = key;
         S.placeCooldown = 0.18;
       }
@@ -286,8 +289,8 @@ export function step(dt) {
     voxUniforms.uFogColor.value.setRGB(0.10, 0.28, 0.46);
   } else {
     var wf = S.weather ? (S.weather === 1 ? 0.55 : 0.62) : 1;
-    voxUniforms.uFogNear.value = Math.max(8, opts.far * 0.35 * wf);
-    voxUniforms.uFogFar.value = opts.far * wf;
+    voxUniforms.uFogNear.value = Math.max(8, farNow() * 0.35 * wf);
+    voxUniforms.uFogFar.value = farNow() * wf;
   }
 
   // 조준 + 캐기 진행
@@ -447,10 +450,15 @@ export function step(dt) {
         var ty3 = topMap[az3 * WX + ax3];
         if (ty3 < 0 || ty3 + 1 >= WY) continue;
         var tb3 = world[idx(ax3, ty3, az3)];
-        if (S.weather === 2 && (tb3 === GRASS || tb3 === DIRT || tb3 === STONE)) {
-          applyEdit(ax3, ty3, az3, SNOW, false);
+        // 사람이 손댄 칸은 날씨가 건드리지 않는다 — 크리에이티브에서
+        // 세계가 내 건축물을 말없이 개조하는 것만큼 신뢰를 깨는 게 없다
+        if (isTouched(ax3, ty3, az3)) continue;
+        if (S.weather === 2 && (tb3 === GRASS || tb3 === DIRT)) {
+          // 위에 얹는다 (덮어쓰지 않는다)
+          if (ty3 + 1 < WY && world[idx(ax3, ty3 + 1, az3)] === AIR)
+            applyEdit(ax3, ty3 + 1, az3, SNOW, true);
         } else if (S.weather === 1 && tb3 === SNOW && biomeMap[az3 * WX + ax3] !== 1) {
-          applyEdit(ax3, ty3, az3, GRASS, false);
+          applyEdit(ax3, ty3, az3, AIR, true);      // 쌓인 눈만 녹는다
         }
       }
     }
@@ -475,7 +483,7 @@ export function step(dt) {
   // 청크 재생성 — 프레임당 8ms 예산
   setBuildFocus(camera.position);
   buildBudget(8);
-  updateChunkVisibility(eyeInLiquid ? 26 : opts.far);
+  updateChunkVisibility(eyeInLiquid ? 26 : farNow());
 
   // 플레이 시간과 상황별 도전 과제
   if (playing) {
@@ -584,22 +592,27 @@ export function animate() {
 
 // 성능 정보 (F3) — 눈으로 확인할 수 있게 따로 떼어 두었다
 // 프레임이 계속 낮으면 시야거리를 스스로 줄이고, 넉넉해지면 되돌린다
+// 자동 조절은 **이번 실행에만** 적용한다. `opts.far` 를 건드려 저장하면
+// 세션마다 한 단계씩 영구히 깎여 되돌아오지 못한다 (실제로 그랬다).
 export function autoTuneFar(fps) {
   if (!S.autoPerf) return;
-  if (fps < 32 && opts.far > 40) {
+  var want = opts.far;                      // 사용자가 슬라이더로 정한 값 — 절대 안 바꾼다
+  if (S.farNow <= 0) S.farNow = want;
+  if (S.farNow > want) S.farNow = want;
+  if (fps < 32 && S.farNow > 40) {
     S.perfDrop = (S.perfDrop || 0) + 1;
     if (S.perfDrop >= 3) {
       S.perfDrop = 0;
-      opts.far = Math.max(40, opts.far - 15);
-      applyOpts(); saveOpts();
-      toast("프레임이 낮아 시야거리를 " + opts.far + "m 로 줄였습니다");
+      S.farNow = Math.max(40, S.farNow - 15);
+      toast("프레임이 낮아 시야거리를 " + S.farNow + "m 로 줄였습니다 (설정은 그대로)");
     }
-  } else if (fps > 55 && opts.far < S.farWanted) {
+  } else if (fps > 55 && S.farNow < want) {
     S.perfDrop = 0;
-    opts.far = Math.min(S.farWanted, opts.far + 10);
-    applyOpts(); saveOpts();
+    S.farNow = Math.min(want, S.farNow + 10);
   } else S.perfDrop = 0;
 }
+// 지금 실제로 쓰는 시야 거리
+export function farNow() { return S.farNow > 0 ? Math.min(S.farNow, opts.far) : opts.far; }
 
 export function refreshPerf() {
   var vis = 0, tris = 0;

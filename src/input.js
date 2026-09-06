@@ -10,8 +10,8 @@ import { applyOpts, opts, saveOpts } from "./settings.js";
 import { player, raycast, spawn, stats } from "./player.js";
 import { ac, startAmbient, tone } from "./audio.js";
 import { SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
-import { REGION_MAX, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
-import { closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, showHud, toast, toggleHelp } from "./hud.js";
+import { REGION_MAX, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
+import { closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
 import { place } from "./mine.js";
 import { setWeather } from "./sky.js";
@@ -40,7 +40,7 @@ export var TUT = [
   '<b>E</b> 를 눌러 블록 목록에서 다른 재료를 골라보세요',
   '<b>G</b> 로 반블록·계단으로 바꿔 지어보세요',
   '<b>9</b> 번 <b>횃불</b>로 어두운 굴을 밝혀보세요',
-  '<b>Ctrl</b>+클릭으로 영역을 고르고 <b>Ctrl</b>+<b>F</b> 로 한 번에 채워보세요',
+  '<b>Alt</b>+클릭으로 영역을 고르고 <b>Ctrl</b>+<b>F</b> 로 한 번에 채워보세요',
   '<b>H</b> 를 누르면 나머지 조작이 전부 나옵니다'
 ];
 export function refreshHint() {
@@ -398,7 +398,29 @@ var cmdInput = document.getElementById("cmd-in");
 if (cmdInput) cmdInput.addEventListener("keydown", function (e) {
   e.stopPropagation();
   if (e.code === "Escape") { closeCmd(); if (S.lockMode && S.active) canvas.requestPointerLock(); return; }
+  // Tab — 명령 이름 자동완성
+  if (e.code === "Tab") {
+    e.preventDefault();
+    var head = cmdInput.value.split(/\s+/)[0];
+    var full = completeCommand(head);
+    if (full && full !== head) cmdInput.value = cmdInput.value.replace(head, full);
+    return;
+  }
+  // 위/아래 — 지난 명령
+  if (e.code === "ArrowUp" || e.code === "ArrowDown") {
+    e.preventDefault();
+    if (!S.cmdHist.length) return;
+    S.cmdAt += (e.code === "ArrowUp" ? -1 : 1);
+    S.cmdAt = Math.max(0, Math.min(S.cmdHist.length, S.cmdAt));
+    cmdInput.value = S.cmdHist[S.cmdAt] || "";
+    return;
+  }
   if (e.code !== "Enter") return;
+  if (cmdInput.value.trim()) {
+    S.cmdHist.push(cmdInput.value.trim());
+    if (S.cmdHist.length > 20) S.cmdHist.shift();
+    S.cmdAt = S.cmdHist.length;
+  }
   var out = runCommand(cmdInput.value);
   cmdSay(out);
   if (out && out.indexOf("모르는") !== 0) {
@@ -547,7 +569,10 @@ window.addEventListener("keydown", function (e) {
     e.preventDefault();
     S.showPerf = !S.showPerf;
     perfEl.hidden = !S.showPerf;
-    toast(S.showPerf ? "성능 정보 켬" : "성능 정보 끔");
+    // F3 는 성능 정보와 함께 자세한 좌표 표시도 켠다 (기본은 세 줄만)
+    var tel = document.getElementById("telemetry");
+    if (tel) tel.classList.toggle("lean", !S.showPerf);
+    toast(S.showPerf ? "자세한 정보 켬" : "자세한 정보 끔");
   }
   if (e.code === "F6") {
     e.preventDefault();
@@ -578,7 +603,7 @@ window.addEventListener("keydown", function (e) {
     S.mmZoom = zs[zi];
     toast("미니맵 ×" + S.mmZoom);
   }
-  if (e.code === S.binds.help) { toggleHelp(); advanceTut(5); }
+  if (e.code === S.binds.help) { toggleHelp(); setHelpTab(false); refreshAchList(); advanceTut(6); }
   if (e.code === "KeyT") cycleTime();
   if (e.code === "KeyK") {
     setWeather((S.weather + 1) % 3);
@@ -609,7 +634,7 @@ window.addEventListener("keyup", function (e) {
 
 window.addEventListener("wheel", function (e) {
   if (!S.active || S.uiOpen) return;
-  if (e.ctrlKey || e.metaKey) {                 // 비행 속도
+  if (e.altKey) {                              // 비행 속도 (Ctrl 은 달리기)
     S.flySpeed = Math.max(0.5, Math.min(4, S.flySpeed * (e.deltaY > 0 ? 0.85 : 1.18)));
     toast("비행 속도 ×" + S.flySpeed.toFixed(2));
     return;
@@ -623,8 +648,9 @@ canvas.addEventListener("mousedown", function (e) {
   if (!S.active) { requestPlay(); return; }
   if (S.uiOpen) return;
   if (e.button === 1) { e.preventDefault(); pickBlock(); return; }   // 휠 클릭 = 픽블록
-  // Ctrl + 클릭으로 영역의 두 모서리를 찍는다
-  if (e.ctrlKey || e.metaKey) {
+  // Alt + 클릭으로 영역의 두 모서리를 찍는다.
+  // (Ctrl 은 달리기라, 달리며 캐려고 하면 영역이 찍혀 버렸다)
+  if (e.altKey) {
     e.preventDefault();
     var hs = raycast(6);
     if (!hs) return;
@@ -632,7 +658,7 @@ canvas.addEventListener("mousedown", function (e) {
     else if (e.button === 2) {
       S.selB = [hs.x, hs.y, hs.z];
       toast("영역 " + selectionSize().toLocaleString("ko-KR") + "칸");
-      advanceTut(4);
+      advanceTut(5);
     }
     return;
   }
@@ -852,6 +878,7 @@ bindOpt("s-undo", "o-undo", "undo", function (v) { return v + "단계"; });
 // ══════════════════════════════════════════════════════════════
 export var padState = { on: false, lx: 0, ly: 0, rx: 0, ry: 0 };
 var padPrev = {};
+var padHeld = {};   // 패드가 지난 프레임에 실제로 누르고 있었는가
 
 export function pollGamepad(dt) {
   if (!navigator.getGamepads) return false;
@@ -879,9 +906,16 @@ export function pollGamepad(dt) {
     return now && !was;
   }
 
-  S.keys.Space = pressed(0);                       // A — 점프/상승
-  S.keys.ShiftLeft = pressed(1);                   // B — 웅크리기/하강
-  S.mouseDown[0] = pressed(7) || pressed(5);       // RT/RB — 캐기
+  // 눌렸을 때만 켠다. 가만히 있는 패드가 키보드·마우스를 끄면 안 된다.
+  if (pressed(0)) S.keys.Space = true;
+  else if (padHeld[0]) S.keys.Space = false;
+  if (pressed(1)) S.keys.ShiftLeft = true;
+  else if (padHeld[1]) S.keys.ShiftLeft = false;
+  var mine = pressed(7) || pressed(5);             // RT/RB — 캐기
+  if (mine) S.mouseDown[0] = true;
+  else if (padHeld[7] || padHeld[5]) S.mouseDown[0] = false;
+  padHeld[0] = pressed(0); padHeld[1] = pressed(1);
+  padHeld[5] = pressed(5); padHeld[7] = pressed(7);
   if (tapped(6) || tapped(4)) place();             // LT/LB — 놓기
   if (tapped(2)) pickBlock();                      // X — 복사
   if (tapped(3)) { player.flying = !player.flying; player.vel.y = 0; }  // Y — 비행

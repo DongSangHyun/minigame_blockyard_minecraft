@@ -12,7 +12,8 @@ export var opts = IS_TOUCH
     var raw = localStorage.getItem(OPT_KEY);
     if (!raw) return;
     var d = JSON.parse(raw);
-    ["sens", "fov", "far", "vol", "invertY", "day"].forEach(function (k) {
+    // 목록을 따로 두면 설정을 늘릴 때마다 빠뜨린다 — 기본값에 있는 키를 전부 읽는다
+    Object.keys(opts).forEach(function (k) {
       if (typeof d[k] === "number" && isFinite(d[k])) opts[k] = d[k];
     });
   } catch (e) { /* 기본값 사용 */ }
@@ -25,7 +26,7 @@ export function applyOpts() {
   voxUniforms.uGamma.value = 1 / (0.7 + opts.bright / 100);
   // 화면 표시 크기 — 폰에서 HUD 가 작다는 불평을 설정으로 푼다
   document.documentElement.style.setProperty("--ui", (opts.ui / 100).toFixed(2));
-  if (!S.farWanted || opts.far > S.farWanted) S.farWanted = opts.far;
+  S.farNow = opts.far;      // 슬라이더를 움직이면 자동 조절도 거기서 다시 시작한다
   // 고대비 — UI 테두리와 글자를 또렷하게 (밝은 곳·색약 배려)
   document.documentElement.classList.toggle("hc", !!opts.contrast);
   document.documentElement.classList.toggle("lefty", !!opts.lefty);

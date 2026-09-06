@@ -276,6 +276,7 @@ export function removeWater(i, y) {
 //  불과 폭발
 // ══════════════════════════════════════════════════════════════
 export var FIRE_LIFE = 6;          // 불 한 칸이 버티는 대략적인 틱 수
+export var FIRE_REACH = 9;         // 처음 붙인 자리에서 이만큼까지만 번진다
 
 export function ignite(x, y, z) {
   if (!inside(x, y, z)) return false;
@@ -287,10 +288,10 @@ export function ignite(x, y, z) {
     if (isFlammable(get(x + DIRS[d][0], y + DIRS[d][1], z + DIRS[d][2]))) fuel = true;
   }
   if (!fuel) return false;
-  world[i] = FIRE; shape[i] = SH_FULL;
-  touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z);
+  // applyEdit 을 거쳐야 Ctrl+Z 로 되돌릴 수 있다 (TNT 는 되는데 불은 안 됐다)
+  if (!applyEdit(x, y, z, FIRE, true)) return false;
   Q.fireQ.push(i);
-  S.worldDirty = true;
+  S.fireOrigin = [x, y, z];
   return true;
 }
 
@@ -312,9 +313,20 @@ export function fireTick(budget) {
       if (!inside(nx, ny, nz)) continue;
       if (!isFlammable(get(nx, ny, nz))) continue;
       if (Math.random() > 0.30) continue;
+      // 처음 붙인 자리에서 너무 멀리 번지지 않게 — 집이 통째로 사라지면 복구가 없다
+      if (S.fireOrigin) {
+        var od = Math.abs(nx - S.fireOrigin[0]) + Math.abs(ny - S.fireOrigin[1]) +
+                 Math.abs(nz - S.fireOrigin[2]);
+        if (od > FIRE_REACH) continue;
+      }
+      // 물이 닿아 있으면 불이 옮겨 붙지 않는다
+      var wet = false;
+      for (var wd = 0; wd < 6 && !wet; wd++) {
+        if (get(nx + DIRS[wd][0], ny + DIRS[wd][1], nz + DIRS[wd][2]) === WATER) wet = true;
+      }
+      if (wet) continue;
       var ni = idx(nx, ny, nz);
-      world[ni] = FIRE; shape[ni] = SH_FULL;
-      touch(nx, ny, nz); refreshTop(nx, nz); relightLocal(nx, ny, nz);
+      applyEdit(nx, ny, nz, FIRE, true);
       Q.fireQ.push(ni);
       burned = true;
       acted++;
@@ -325,10 +337,15 @@ export function fireTick(budget) {
     for (var d2 = 0; d2 < 6 && !fuel; d2++) {
       if (isFlammable(get(x + DIRS[d2][0], y + DIRS[d2][1], z + DIRS[d2][2]))) fuel = true;
     }
-    if (!fuel && Math.random() < 0.5) {
-      world[i] = AIR; shape[i] = SH_FULL;
-      touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z);
+    // 물이 닿으면 즉시 꺼진다
+    var doused = false;
+    for (var qd = 0; qd < 6 && !doused; qd++) {
+      if (get(x + DIRS[qd][0], y + DIRS[qd][1], z + DIRS[qd][2]) === WATER) doused = true;
+    }
+    if (doused || (!fuel && Math.random() < 0.5)) {
+      applyEdit(x, y, z, AIR, true);
       burst(x, y, z, FIRE, 3);
+      if (doused) crunch(0.3, 0.10, 1800);
       acted++;
     } else {
       Q.fireQ.push(i);       // 아직 살아 있으면 반드시 다시 큐에 넣는다 (안 그러면 영영 안 꺼진다)

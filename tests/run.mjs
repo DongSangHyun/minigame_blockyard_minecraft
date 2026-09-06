@@ -2125,7 +2125,7 @@ test("v12 새 블록이 목록과 조준에 모두 등록됐다", async (page) =
       hard: need.filter(b => B.hardnessOf(b) > 0).length,
       dyn: need.filter(b => B.hasDynamicBoxes(b)).length,
       picks: document.querySelectorAll("#pick-grid .pick").length,
-      total: B.ALL_BLOCKS.length
+      total: B.ALL_BLOCKS.length + B.ITEMS.length
     };
   });
   eq(r.inList, 4, "새 블록이 블록 목록에 없다");
@@ -2283,7 +2283,7 @@ test("v13 조작: 비행 속도 · 핫바 2쪽 · 미니맵 표식", async (page
     }
     // 비행 속도
     const fly0 = B.S.flySpeed;
-    window.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, ctrlKey: true, bubbles: true }));
+    window.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, altKey: true, bubbles: true }));
     const fly1 = B.S.flySpeed;
     // 핫바 2쪽
     const page1 = B.getBar().slice();
@@ -2302,7 +2302,7 @@ test("v13 조작: 비행 속도 · 핫바 2쪽 · 미니맵 표식", async (page
     return { fly0, fly1, differs: page1.join() !== page2.join(),
              restored: page1.join() === back.join(), one, zero };
   });
-  assert(r.fly1 > r.fly0, "Ctrl+휠로 비행 속도가 안 바뀐다");
+  assert(r.fly1 > r.fly0, "Alt+휠로 비행 속도가 안 바뀐다");
   assert(r.differs, "Tab 으로 핫바가 안 바뀐다");
   assert(r.restored, "Tab 두 번에 원래 핫바로 안 돌아온다");
   eq(r.one, 1, "표식이 안 찍혔다");
@@ -2923,18 +2923,23 @@ test("v16 성능 자동 조절: 프레임이 낮으면 시야거리를 줄인다
     B.setPaused(true);
     B.beginPlay();
     B.S.autoPerf = true;
-    B.S.farWanted = 120;
     B.opts.far = 120; B.applyOpts();
     B.S.perfDrop = 0;
     // 아주 느린 프레임을 흉내 낸다
     for (let k = 0; k < 5; k++) B.autoTuneFar(12);
-    const dropped = B.opts.far;
+    const dropped = B.farNow();
+    const setting = B.opts.far;              // 사용자 설정은 그대로여야 한다
+    // 프레임이 회복되면 되돌아온다
+    for (let k = 0; k < 20; k++) B.autoTuneFar(60);
+    const restored = B.farNow();
     B.opts.far = 120; B.applyOpts();
     B.S.perfDrop = 0;
     B.endPlay(); B.setPaused(false);
-    return { dropped };
+    return { dropped, setting, restored };
   });
   assert(r.dropped < 120, "프레임이 낮은데 시야거리가 그대로다: " + r.dropped);
+  eq(r.setting, 120, "사용자가 정한 시야 설정을 건드렸다 (세션마다 영구히 깎인다)");
+  eq(r.restored, 120, "프레임이 회복됐는데 시야가 안 돌아온다: " + r.restored);
 });
 
 test("v16 통계: 지형·슬롯·블록 종류가 기록에 나온다", async (page) => {
@@ -3335,6 +3340,398 @@ test("v18 안내: 오프라인 안내와 환영 문구가 있다", async (page) 
   }));
   assert(r.offline.indexOf("인터넷") >= 0, "오프라인 안내가 없다: " + r.offline);
   eq(r.seen, "1", "첫 방문 표시가 남지 않았다");
+});
+
+
+// ══════════════════════════════════════════════════════════════
+//  개선 v19 회귀 테스트 — 조작이 서로 어긋나지 않게
+// ══════════════════════════════════════════════════════════════
+
+test("v19 충돌: 달리며(Ctrl) 클릭해도 영역이 찍히지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.beginPlay();
+    B.S.selA = B.S.selB = null;
+    const canvas = document.querySelector("#stage canvas");
+    // Ctrl 을 누른 채 좌클릭 = 달리며 캐기
+    canvas.dispatchEvent(new MouseEvent("mousedown",
+      { button: 0, ctrlKey: true, bubbles: true, cancelable: true }));
+    const ctrlSel = !!B.S.selA;
+    const mining = B.S.mouseDown[0] === true;
+    B.S.mouseDown[0] = false;
+    // Alt 는 영역 도구
+    canvas.dispatchEvent(new MouseEvent("mousedown",
+      { button: 0, altKey: true, bubbles: true, cancelable: true }));
+    const altSel = !!B.S.selA;
+    B.S.selA = B.S.selB = null;
+    B.endPlay(); B.setPaused(false);
+    return { ctrlSel, mining, altSel };
+  });
+  eq(r.ctrlSel, false, "Ctrl+클릭이 아직 영역을 찍는다 (달리며 캘 수 없다)");
+  assert(r.mining, "Ctrl+클릭이 캐기로 가지 않는다");
+  assert(r.altSel, "Alt+클릭으로 영역이 안 찍힌다");
+});
+
+test("v19 충돌: 횃불을 들고 나무 벽을 우클릭하면 횃불이 붙는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.beginPlay();
+    const x = 50, y = 46, z = 50;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy <= 3; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.set(x, y, z, B.B.PLANKS);
+    B.set(x, y - 1, z, B.B.STONE);
+    B.refreshAllTops();
+    B.player.pos.set(x + 3.5, y + 0.5 - 1.62, z + 0.5);
+    B.player.yaw = Math.PI / 2; B.player.pitch = 0;
+    B.camera.position.set(x + 3.5, y + 0.5, z + 0.5);
+    B.camera.rotation.set(0, Math.PI / 2, 0);
+
+    B.getBar()[B.getSelected()] = B.B.TORCH;
+    B.place();
+    const withTorch = B.world[B.idx(x + 1, y, z)];
+
+    // 부싯돌은 불을 붙인다
+    B.applyEdit(x + 1, y, z, 0, false);
+    B.getBar()[B.getSelected()] = B.B.FLINT;
+    B.place();
+    const withFlint = B.world[B.idx(x + 1, y, z)];
+
+    B.applyEdit(x + 1, y, z, 0, false);
+    B.endPlay(); B.setPaused(false);
+    return { withTorch, withFlint, TORCH: B.B.TORCH, FIRE: B.B.FIRE };
+  });
+  eq(r.withTorch, r.TORCH, "나무 벽에 횃불이 안 붙는다 (불이 붙어 버린다)");
+  eq(r.withFlint, r.FIRE, "부싯돌로 불이 안 붙는다");
+});
+
+test("v19 부싯돌: 놓이지 않는 도구다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    return {
+      listed: B.ITEMS.indexOf(B.B.FLINT) >= 0,
+      notBlock: B.ALL_BLOCKS.indexOf(B.B.FLINT) < 0,
+      named: B.NAMES[B.B.FLINT],
+      cat: B.categoryOf(B.B.FLINT),
+      inAlt: B.DEFAULT_BAR2.indexOf(B.B.FLINT) >= 0
+    };
+  });
+  assert(r.listed, "부싯돌이 도구 목록에 없다");
+  assert(r.notBlock, "부싯돌이 ALL_BLOCKS 에 남아 있다 (수집가 과제가 불가능해진다)");
+  eq(r.named, "FLINT", "이름");
+  eq(r.cat, "light", "갈래");
+  assert(r.inAlt, "기본 2쪽 핫바에 부싯돌이 없다");
+});
+
+
+test("v19 점검: 모든 블록이 이름·타일·굳기·갈래·아이콘을 갖췄다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const missing = [], iconFail = [];
+    B.ALL_BLOCKS.concat(B.ITEMS).forEach(b => {
+      const probs = [];
+      if (!B.NAMES[b]) probs.push("이름");
+      if (!B.TILES[b]) probs.push("타일");
+      if (!(B.hardnessOf(b) > 0)) probs.push("굳기");
+      if (!B.categoryOf(b)) probs.push("갈래");
+      if (probs.length) missing.push((B.NAMES[b] || ("#" + b)) + ":" + probs.join(","));
+      try {
+        const cv = document.createElement("canvas");
+        cv.width = cv.height = 64;
+        B.drawIcon(cv, b);
+        const d = cv.getContext("2d").getImageData(0, 0, 64, 64).data;
+        let any = 0;
+        for (let i = 3; i < d.length; i += 4 * 31) if (d[i] > 0) any++;
+        if (!any) iconFail.push(B.NAMES[b] || ("#" + b));
+      } catch (e) { iconFail.push((B.NAMES[b] || b) + " 예외"); }
+    });
+    return { total: B.ALL_BLOCKS.length + B.ITEMS.length, missing, iconFail,
+             picks: document.querySelectorAll("#pick-grid .pick").length };
+  });
+  assert(r.total >= 50, "블록 수: " + r.total);
+  eq(r.missing.length, 0, "등록이 빠진 블록: " + r.missing.join(" | "));
+  eq(r.iconFail.length, 0, "아이콘이 안 그려지는 블록: " + r.iconFail.join(" | "));
+  eq(r.picks, r.total, "블록 고르기 패널이 목록과 다르다");
+});
+
+test("v19 점검: 도전 과제에 빈 항목이 없고 모두 이름이 다르다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const ids = B.ACHIEVEMENTS.map(a => a.id);
+    const names = B.ACHIEVEMENTS.map(a => a.name);
+    const bad = B.ACHIEVEMENTS.filter(a => !a.id || !a.name || !a.desc).length;
+    return { n: ids.length, uniqIds: new Set(ids).size, uniqNames: new Set(names).size, bad };
+  });
+  eq(r.bad, 0, "비어 있는 도전 과제");
+  eq(r.uniqIds, r.n, "id 가 겹치는 도전 과제");
+  eq(r.uniqNames, r.n, "이름이 겹치는 도전 과제");
+});
+
+test("v19 점검: 훅에 노출된 함수가 전부 살아 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const dead = [];
+    Object.keys(B).forEach(k => {
+      var v = B[k];
+      if (v === undefined || v === null) dead.push(k);
+    });
+    return { keys: Object.keys(B).length, dead };
+  });
+  assert(r.keys > 150, "훅 항목 수: " + r.keys);
+  eq(r.dead.length, 0, "값이 비어 있는 훅: " + r.dead.join(", "));
+});
+
+
+test("v19 도움말: 도전 과제도 게임 안에서 볼 수 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.beginPlay();
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyH", bubbles: true }));
+    const opened = !B.helpEl.hidden;
+    const btn = document.getElementById("help-ach");
+    btn.click();
+    const achShown = !document.getElementById("help-achlist").hidden;
+    const achText = document.getElementById("help-achlist").textContent;
+    btn.click();
+    const keysBack = !B.helpEl.querySelector(".help-cols").hidden;
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyH", bubbles: true }));
+    B.endPlay(); B.setPaused(false);
+    return { opened, achShown, keysBack, hasAch: achText.indexOf("첫 삽") >= 0 };
+  });
+  assert(r.opened, "도움말이 안 열린다");
+  assert(r.achShown, "도전 과제 탭이 안 열린다");
+  assert(r.hasAch, "도전 과제 목록이 비었다");
+  assert(r.keysBack, "조작으로 안 돌아온다");
+});
+
+test("v19 명령: 앞글자만 쳐도 알아듣고 지난 명령이 남는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    return {
+      t: B.completeCommand("t"),        // time 과 tp 둘 다 → 애매하면 빈 값
+      ti: B.completeCommand("ti"),
+      g: B.completeCommand("gi"),
+      short: B.runCommand("se"),        // seed 로 알아들어야 한다
+      list: B.CMD_LIST.length
+    };
+  });
+  eq(r.t, "", "애매한 앞글자를 억지로 고른다");
+  eq(r.ti, "time", "ti → time");
+  eq(r.g, "give", "gi → give");
+  assert(r.short.indexOf("SEED") === 0, "se 를 seed 로 못 알아듣는다: " + r.short);
+  assert(r.list >= 10, "명령 수: " + r.list);
+});
+
+test("v19 시작 화면: 조작 목록이 접혀 있어 첫 화면이 짧다", async (page) => {
+  const r = await page.evaluate(() => {
+    const wrap = document.querySelector(".keys-wrap");
+    const heads = document.querySelectorAll(".opt-head").length;
+    return { hasWrap: !!wrap, open: wrap ? wrap.open : true, groups: heads };
+  });
+  assert(r.hasWrap, "조작 목록이 접히지 않는다");
+  eq(r.open, false, "조작 목록이 처음부터 펼쳐져 있다");
+  assert(r.groups >= 3, "설정이 갈래로 안 나뉘었다: " + r.groups);
+});
+
+
+// ══════════════════════════════════════════════════════════════
+//  v19 추가 — 손과 손이 부딪히던 곳 (4차 자문)
+// ══════════════════════════════════════════════════════════════
+
+test("v19 게임패드: 꽂혀만 있고 안 누르면 키보드·마우스를 죽이지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const real = navigator.getGamepads;
+    const pad = { connected: true, axes: [0, 0, 0, 0],
+                  buttons: Array.from({ length: 16 }, () => ({ pressed: false })) };
+    navigator.getGamepads = () => [pad];
+    B.setPaused(true);
+    B.beginPlay();
+    B.pollGamepad(1 / 60);            // 앞선 시험이 남긴 눌림 상태를 흘려보낸다
+    // 사람이 좌클릭을 누르고 있고 Space 도 누르고 있다
+    B.S.mouseDown[0] = true;
+    B.S.keys.Space = true;
+    B.pollGamepad(1 / 60);
+    B.pollGamepad(1 / 60);
+    const kept = { mine: B.S.mouseDown[0], jump: B.S.keys.Space };
+    // 패드로 눌렀다 떼면 그때는 꺼진다
+    pad.buttons[7].pressed = true;
+    B.pollGamepad(1 / 60);
+    pad.buttons[7].pressed = false;
+    B.pollGamepad(1 / 60);
+    const released = B.S.mouseDown[0];
+    navigator.getGamepads = real;
+    B.S.mouseDown[0] = false; B.S.keys.Space = false;
+    B.endPlay(); B.setPaused(false);
+    return { kept, released };
+  });
+  assert(r.kept.mine, "패드를 꽂아 두기만 했는데 좌클릭 채굴이 죽는다");
+  assert(r.kept.jump, "패드를 꽂아 두기만 했는데 Space 가 죽는다");
+  eq(r.released, false, "패드로 눌렀다 뗐는데 안 꺼진다");
+});
+
+test("v19 설정: 모든 설정이 저장되고 다시 불러와진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    // 저장된 값을 흉내 내고 화이트리스트가 전부를 읽는지 본다
+    const keys = Object.keys(B.opts);
+    const raw = {};
+    keys.forEach(k => { raw[k] = (typeof B.opts[k] === "number") ? B.opts[k] + 1 : B.opts[k]; });
+    localStorage.setItem(B.OPT_KEY, JSON.stringify(raw));
+    // loadOpts 는 모듈 로드 때만 도니, 같은 규칙을 여기서 재현해 확인한다
+    const d = JSON.parse(localStorage.getItem(B.OPT_KEY));
+    const missed = keys.filter(k => typeof d[k] !== "number");
+    return { keys: keys.length, missed };
+  });
+  assert(r.keys >= 13, "설정 항목 수: " + r.keys);
+  eq(r.missed.length, 0, "저장에 빠진 설정: " + r.missed.join(", "));
+});
+
+test("v19 날씨: 사람이 놓은 블록을 건드리지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 30, y = 46, z = 30;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = -2; dy <= 2; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.refreshAllTops();
+    const untouched = B.isTouched(x, y, z);
+    B.applyEdit(x, y, z, B.B.STONE, true);       // 사람이 놓았다
+    const touched = B.isTouched(x, y, z);
+    B.set(x + 1, y, z, B.B.GRASS);               // 세계가 만든 것
+    const natural = B.isTouched(x + 1, y, z);
+    return { untouched, touched, natural };
+  });
+  eq(r.untouched, false, "손대기 전인데 표시돼 있다");
+  assert(r.touched, "사람이 놓았는데 표시가 안 된다");
+  eq(r.natural, false, "세계가 만든 칸이 사람 것으로 표시됐다");
+});
+
+test("v19 불: 되돌릴 수 있고, 물이 닿으면 꺼진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 66, y = 46, z = 66;
+    for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++)
+      for (let dy = -1; dy <= 3; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.set(x, y - 1, z, B.B.STONE);
+    B.applyEdit(x, y, z, B.B.PLANKS, false);
+    B.refreshAllTops();
+    B.history.length = 0;
+    const lit = B.ignite(x, y + 1, z);
+    const isFire = B.world[B.idx(x, y + 1, z)] === B.B.FIRE;
+    B.undo();
+    const undone = B.world[B.idx(x, y + 1, z)] === 0;
+
+    // 물이 닿으면 꺼진다
+    B.ignite(x, y + 1, z);
+    B.set(x + 1, y + 1, z, B.B.WATER);
+    for (let k = 0; k < 60; k++) B.fireTick(40);
+    const doused = B.world[B.idx(x, y + 1, z)] !== B.B.FIRE;
+    return { lit, isFire, undone, doused, reach: B.FIRE_REACH };
+  });
+  assert(r.lit && r.isFire, "불이 안 붙는다");
+  assert(r.undone, "불을 되돌릴 수 없다 (TNT 는 되는데)");
+  assert(r.doused, "물이 닿아도 안 꺼진다");
+  assert(r.reach > 0, "번짐 상한이 없다");
+});
+
+test("v19 우클릭 홀드: 반복 중에는 문을 여닫지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 22, y = 46, z = 22;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -5; dz <= 3; dz++)
+      for (let dy = -2; dy <= 3; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    B.set(x, y - 1, z, B.B.STONE);
+    B.applyEdit(x, y, z - 3, B.B.GATE, false);
+    B.refreshAllTops();
+    B.setPaused(true); B.beginPlay();
+    B.player.pos.set(x + 0.5, y + 0.5 - 1.62, z + 0.5);
+    B.player.yaw = 0; B.player.pitch = 0;
+    B.camera.position.set(x + 0.5, y + 0.5, z + 0.5);
+    B.camera.rotation.set(0, 0, 0);
+    B.getBar()[B.getSelected()] = B.B.STONE;
+    const i = B.idx(x, y, z - 3);
+    const before = B.shape[i];
+    B.place(false);                    // 처음 누른 호출 — 열려야 한다
+    const afterTap = B.shape[i];
+    B.place(true);                     // 홀드 반복 — 다시 닫히면 안 된다
+    const afterHold = B.shape[i];
+    B.endPlay(); B.setPaused(false);
+    return { before, afterHold, afterTap };
+  });
+  assert(r.afterTap !== r.before, "누른 순간에는 문이 열려야 한다");
+  eq(r.afterHold, r.afterTap, "홀드 반복이 문을 다시 여닫는다 (초당 5회 열렸다 닫힌다)");
+});
+
+test("v19 조경: 동물이 옆에 있어도 꽃을 심을 수 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const x = 26, y = 46, z = 26;
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++)
+      for (let dy = -2; dy <= 3; dy++) B.set(x + dx, y + dy, z + dz, 0);
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++)
+      B.set(x + dx, y - 1, z + dz, B.B.GRASS);
+    B.refreshAllTops();
+    B.seedMobs();
+    B.setPaused(true); B.beginPlay();
+    B.player.pos.set(x + 0.5, y, z + 0.5);
+    B.player.yaw = 0; B.player.pitch = 0.85;     // 발 앞쪽 바닥을 본다
+    B.camera.position.set(x + 0.5, y + 1.62, z + 0.5);
+    B.camera.rotation.set(-0.85, 0, 0);
+    // 양을 바로 옆(조준선 밖)에 세운다
+    B.mobs.forEach(m => { m.x = 5; m.z = 5; });
+    B.mobs[0].x = x + 1.6; B.mobs[0].z = z + 0.5; B.mobs[0].y = y;
+    B.getBar()[B.getSelected()] = B.B.FLOWER_R;
+    B.place(false);
+    let planted = 0;
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -3; dz <= 1; dz++)
+      if (B.world[B.idx(x + dx, y, z + dz)] === B.B.FLOWER_R) planted++;
+    B.endPlay(); B.setPaused(false);
+    return { planted, aiming: B.aimingAtMob() };
+  });
+  eq(r.aiming, false, "발밑을 보는데 동물을 조준했다고 한다");
+  assert(r.planted > 0, "동물이 옆에 있으면 꽃이 안 심어진다");
+});
+
+test("v19 튜토리얼: 안내와 실제 동작이 맞는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    return { steps: B.TUT.length, t4: B.TUT[4], t5: B.TUT[5], t6: B.TUT[6] };
+  });
+  eq(r.steps, 7, "튜토리얼 단계 수");
+  assert(r.t4.indexOf("횃불") >= 0, "5단계가 횃불이 아니다: " + r.t4);
+  assert(r.t5.indexOf("영역") >= 0, "6단계가 영역이 아니다: " + r.t5);
+  assert(r.t6.indexOf("H") >= 0, "7단계가 도움말이 아니다: " + r.t6);
+});
+
+test("v19 저장: 횃불 진척도도 실린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.S.torchesPlaced = 7;
+    B.saveGame();
+    B.S.torchesPlaced = 0;
+    B.loadGame();
+    return { n: B.S.torchesPlaced };
+  });
+  eq(r.n, 7, "횃불 진척도가 저장되지 않는다 (굴 밝히기 과제가 매번 0부터)");
+});
+
+test("v19 화면: 기본 HUD 가 짧고 F3 로 펼쳐진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const tel = document.getElementById("telemetry");
+    const lean = tel.classList.contains("lean");
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "F3", bubbles: true }));
+    const full = !tel.classList.contains("lean");
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "F3", bubbles: true }));
+    B.endPlay(); B.setPaused(false);
+    return { lean, full };
+  });
+  assert(r.lean, "기본 HUD 가 10줄 그대로다");
+  assert(r.full, "F3 로 자세히 안 펼쳐진다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

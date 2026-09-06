@@ -179,6 +179,15 @@ WOOL_COLORS.forEach(function (wc, wi) {
   });
 });
 
+paint(56, function (p, r) {  // 부싯돌 — 강철 조각과 부싯돌
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) p(x, y, "rgba(0,0,0,0)");
+  var steel = ["#8d968f", "#a7b0a8", "#6f7872"];
+  for (var i = 0; i < 9; i++) for (var j = 0; j < 4; j++) p(3 + i, 4 + j, pick(r, steel));
+  var stone2 = ["#4a4a52", "#5c5c66", "#3a3a41"];
+  for (var i2 = 0; i2 < 6; i2++) for (var j2 = 0; j2 < 5; j2++) p(5 + i2, 9 + j2, pick(r, stone2));
+  p(12, 3, "#ffd97e"); p(13, 2, "#ffb43a"); p(11, 2, "#fff0a8");
+});
+
 paint(53, function (p, r) {  // TNT 옆면 — 붉은 띠와 글자
   var w = ["#c9c3b6", "#d6d0c3", "#bcb6aa"];
   for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) p(x, y, pick(r, w));

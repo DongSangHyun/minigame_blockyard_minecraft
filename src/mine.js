@@ -1,9 +1,9 @@
 // mine.js — 캐기 · 놓기
 import { S } from "./state.js";
-import { feedNearbyMob } from "./mobs.js";
+import { aimingAtMob, feedNearbyMob } from "./mobs.js";
 import { explode, ignite, BLAST_R } from "./fluids.js";
 import { idx, inside } from "./dims.js";
-import { AIR, ALL_BLOCKS, COAL, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TALLGRASS, TNT, TORCH, isCross, isFlammable, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
+import { AIR, ALL_BLOCKS, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
 import { get, shape } from "./world.js";
 import { burst } from "./scene.js";
 import { BODY, HALF, currentShape, player, raycast, stats } from "./player.js";
@@ -49,8 +49,9 @@ export function canPlaceAt(px, py, pz) {
 export function tryInteract(hit) {
   if (!hit || S.sneaking) return false;
   // 꽃을 들고 동물에게 우클릭하면 잠시 따라온다
+  // 조준선이 실제로 동물을 향할 때만 — 그러지 않으면 양 옆에서 꽃을 아예 못 심는다
   if ((S.bar[S.selected] === FLOWER_R || S.bar[S.selected] === FLOWER_Y ||
-       S.bar[S.selected] === TALLGRASS) && feedNearbyMob(player.pos)) {
+       S.bar[S.selected] === TALLGRASS) && aimingAtMob() && feedNearbyMob(player.pos)) {
     triggerSwing();
     unlock("feed");
     return true;
@@ -58,14 +59,14 @@ export function tryInteract(hit) {
   // 여닫는 블록이 먼저다 — 횃불을 들었다고 문에 불을 붙이면 문을 쓸 수가 없다
   if (isOpenable(hit.block)) return tryInteractGate(hit);
   // 횃불을 들고 TNT 를 우클릭하면 터진다 (마크의 부싯돌 자리)
-  if (hit.block === TNT && S.bar[S.selected] === TORCH) {
+  if (hit.block === TNT && S.bar[S.selected] === FLINT) {
     explode(hit.x, hit.y, hit.z, BLAST_R);
     triggerSwing();
     unlock("boom");
     return true;
   }
   // 횃불로 탈 것에 불을 붙인다
-  if (S.bar[S.selected] === TORCH && isFlammable(hit.block)) {
+  if (S.bar[S.selected] === FLINT && isFlammable(hit.block)) {
     if (ignite(hit.x + hit.nx, hit.y + hit.ny, hit.z + hit.nz)) {
       crunch(0.2, 0.10, 1400);
       triggerSwing();
@@ -86,10 +87,12 @@ function tryInteractGate(hit) {
   return true;
 }
 
-export function place() {
+// repeating — 우클릭을 누르고 있어 자동으로 반복되는 호출인가.
+// 반복 중에는 상호작용(문·점화·먹이)을 하지 않는다.
+export function place(repeating) {
   var hit = raycast(6);
   if (!hit) return;
-  if (tryInteract(hit)) return;
+  if (!repeating && tryInteract(hit)) return;
   var b = S.bar[S.selected];
 
   // 반블록 두 장을 겹치면 온전한 블록이 된다 — 건축가가 제일 먼저 시도하는 것
@@ -114,6 +117,7 @@ export function place() {
   var pz = onCross ? hit.z : hit.z + hit.nz;
   if (!canPlaceAt(px, py, pz)) return;
 
+  if (isItem(b)) { toast("부싯돌은 놓는 물건이 아닙니다 — 탈 것을 우클릭하세요"); return; }
   if (needsFloor(b) && isLiquid(get(px, py, pz))) { toast("물속에서는 꺼집니다"); return; }
   // 횃불은 벽에도 붙는다 — 옆면을 클릭했고 그 벽이 단단하면 벽 횃불
   var wallSh = 0;
@@ -139,7 +143,7 @@ export function place() {
   advanceTut(1);
   if (stats.placed >= 100) unlock("place100");
   if (b === LAMP && ++S.lampsPlaced >= 10) unlock("lamp10");
-  if (b === TORCH && ++S.torchesPlaced >= 10) unlock("torch10");
+  if (b === TORCH) { advanceTut(4); if (++S.torchesPlaced >= 10) unlock("torch10"); }
   if (b === FLOWER_R || b === FLOWER_Y) unlock("flower");
   if (sh === SH_STAIR_N || sh === SH_STAIR_E || sh === SH_STAIR_S || sh === SH_STAIR_W ||
       sh >= SH_STAIR_NU) unlock("stair");

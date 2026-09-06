@@ -103,6 +103,15 @@ export function boxesAt(b, sh, x, y, z) {
   return SHAPE_BOXES[sh] || SHAPE_BOXES[SH_FULL];
 }
 
+// 사람이 손댄 칸을 기억한다 — 날씨·자동 변화가 건축물을 건드리지 않게
+export var touched = new Uint8Array(N);
+export function markTouched(x, y, z) {
+  if (inside(x, y, z)) touched[idx(x, y, z)] = 1;
+}
+export function isTouched(x, y, z) {
+  return inside(x, y, z) ? touched[idx(x, y, z)] === 1 : false;
+}
+
 export function refreshAllTops() {
   for (var x = 0; x < WX; x++) for (var z = 0; z < WZ; z++) refreshTop(x, z);
 }
@@ -143,6 +152,7 @@ export function generate(seed) {
   world.fill(AIR);
   shape.fill(SH_FULL);
   waterLvl.fill(0);
+  touched.fill(0);
   resetQueues();
   var rng = makeRng(S.worldSeed);
 

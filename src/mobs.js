@@ -177,12 +177,33 @@ export function pushOutOfMobs(px, pz, half) {
   return [dx, dz];
 }
 
+// 조준선이 동물을 향하고 있는가 — 아니면 우클릭은 그냥 블록 놓기다
+export function aimingAtMob() {
+  var eye = player.pos.y + 1.62;
+  var fx = -Math.sin(player.yaw) * Math.cos(player.pitch);
+  var fy = -Math.sin(player.pitch);
+  var fz = -Math.cos(player.yaw) * Math.cos(player.pitch);
+  for (var t = 0.6; t <= 4.2; t += 0.3) {
+    var px = player.pos.x + fx * t, py = eye + fy * t, pz = player.pos.z + fz * t;
+    for (var i = 0; i < mobs.length; i++) {
+      var m = mobs[i], k = MOB_KINDS[m.kind];
+      if (Math.abs(px - m.x) > k.w && Math.abs(pz - m.z) > k.w) continue;
+      if (Math.abs(px - m.x) > k.w || Math.abs(pz - m.z) > k.w) continue;
+      if (py < m.y - 0.1 || py > m.y + k.h + 0.5) continue;
+      return true;
+    }
+  }
+  return false;
+}
+
 // 먹이를 주면 잠깐 따라온다
 export function feedNearbyMob(pos) {
-  var best = -1, bestD = 16;
+  var best = -1, bestD = 25;
   for (var i = 0; i < mobs.length; i++) {
     var m = mobs[i];
-    var dx = m.x - pos.x, dz = m.z - pos.z;
+    if (m.follow > 0) continue;                       // 이미 따라오는 동물은 건너뛴다
+    var dx = m.x - pos.x, dy = m.y - pos.y, dz = m.z - pos.z;
+    if (Math.abs(dy) > 3) continue;                    // 위아래 층은 세지 않는다
     var d = dx * dx + dz * dz;
     if (d < bestD) { bestD = d; best = i; }
   }

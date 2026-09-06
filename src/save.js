@@ -120,7 +120,7 @@ export function saveGame() {
       r: [player.yaw, player.pitch],
       s: [stats.placed, stats.mined],
       t: S.timeOfDay, f: player.flying, bar: S.bar,
-      ach: S.earned, kinds: S.placedKinds, lamps: S.lampsPlaced,
+      ach: S.earned, kinds: S.placedKinds, lamps: S.lampsPlaced, torches: S.torchesPlaced,
       secs: Math.round(S.playSeconds), tut: S.tut,
       sp: S.spawnPoint, marks: S.marks, bar2: S.barAlt, fly: S.flySpeed, tt: S.terrain
     }));
@@ -161,6 +161,7 @@ export function loadGame() {
     S.earned = (d.ach && typeof d.ach === "object") ? d.ach : {};
     S.placedKinds = (d.kinds && typeof d.kinds === "object") ? d.kinds : {};
     S.lampsPlaced = d.lamps || 0;
+    S.torchesPlaced = d.torches || 0;
     S.playSeconds = d.secs || 0;
     S.tut = typeof d.tut === "number" ? d.tut : 0;
     S.spawnPoint = Array.isArray(d.sp) && d.sp.length === 3 ? d.sp.slice() : null;

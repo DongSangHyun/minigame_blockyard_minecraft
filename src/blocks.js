@@ -11,7 +11,7 @@ export var AIR = 0, GRASS = 1, DIRT = 2, STONE = 3, SAND = 4, LOG = 5, LEAVES = 
     GOLD = 30, DIAMOND = 31,
     FENCE = 32, GATE = 33, PANE = 34, LADDER = 35;
 // 양털 16색 — 건축의 팔레트. 36~51 을 연속으로 쓴다.
-export var TNT = 52, FIRE = 53;
+export var TNT = 52, FIRE = 53, FLINT = 54;
 export var WOOL0 = 36, WOOL_COUNT = 16;
 export var WOOL_COLORS = [
   ["흰색", "#e9ecec"], ["연회색", "#8e8e86"], ["회색", "#3e4447"], ["검정", "#1d1c21"],
@@ -59,6 +59,7 @@ TILES[PANE]      = [9, 9, 9];      // 유리
 TILES[LADDER]    = [36, 36, 36];
 TILES[TNT]       = [54, 53, 54];
 TILES[FIRE]      = [55, 55, 55];
+TILES[FLINT]     = [56, 56, 56];
 
 export var NAMES = {};
 NAMES[GRASS] = "GRASS"; NAMES[DIRT] = "DIRT"; NAMES[STONE] = "STONE";
@@ -74,7 +75,7 @@ NAMES[CACTUS] = "CACTUS"; NAMES[DEADBUSH] = "DEAD BUSH"; NAMES[DRYGRASS] = "DRY 
 NAMES[BIRCH_LOG] = "BIRCH"; NAMES[BIRCH_LEAVES] = "BIRCH LEAVES";
 NAMES[SPRUCE_LEAVES] = "SPRUCE LEAVES";
 NAMES[GOLD] = "GOLD"; NAMES[DIAMOND] = "DIAMOND";
-NAMES[TNT] = "TNT"; NAMES[FIRE] = "FIRE";
+NAMES[TNT] = "TNT"; NAMES[FIRE] = "FIRE"; NAMES[FLINT] = "FLINT";
 NAMES[FENCE] = "FENCE"; NAMES[GATE] = "GATE";
 NAMES[PANE] = "GLASS PANE"; NAMES[LADDER] = "LADDER";
 
@@ -90,7 +91,7 @@ HARDNESS[TALLGRASS] = 0.05; HARDNESS[FLOWER_R] = 0.05;
 HARDNESS[FLOWER_Y] = 0.05; HARDNESS[TORCH] = 0.06;
 HARDNESS[CACTUS] = 0.34; HARDNESS[DEADBUSH] = 0.05; HARDNESS[DRYGRASS] = 0.05;
 HARDNESS[GOLD] = 2.35; HARDNESS[DIAMOND] = 2.9;
-HARDNESS[TNT] = 0.30; HARDNESS[FIRE] = 0.02;
+HARDNESS[TNT] = 0.30; HARDNESS[FIRE] = 0.02; HARDNESS[FLINT] = 0.20;
 HARDNESS[FENCE] = 0.55; HARDNESS[GATE] = 0.55;
 HARDNESS[PANE] = 0.20; HARDNESS[LADDER] = 0.24;
 HARDNESS[BIRCH_LOG] = 0.78; HARDNESS[BIRCH_LEAVES] = 0.18; HARDNESS[SPRUCE_LEAVES] = 0.18;
@@ -130,6 +131,11 @@ export var ALL_BLOCKS = [GRASS, DIRT, STONE, COBBLE, SAND, GRAVEL, SNOW, LOG,
                   WATER, LAVA, CACTUS, TALLGRASS, FLOWER_R, FLOWER_Y,
                   DEADBUSH, DRYGRASS, BIRCH_LOG, BIRCH_LEAVES, SPRUCE_LEAVES,
                   GOLD, DIAMOND, FENCE, GATE, PANE, LADDER, TNT];
+
+// 도구 — 목록에는 나오지만 "놓는 블록" 이 아니다.
+// ALL_BLOCKS 에 넣으면 "수집가"(모든 블록 놓기) 과제가 영영 불가능해진다.
+export var ITEMS = [FLINT];
+export function isItem(b) { return ITEMS.indexOf(b) >= 0; }
 for (var wj = 0; wj < WOOL_COUNT; wj++) ALL_BLOCKS.push(WOOL0 + wj);
 
 // ── 이웃에 따라 모양이 바뀌는 블록 (울타리 · 유리판)
@@ -155,6 +161,8 @@ export function connectsTo(self, other) {
 export function isLog(b) { return b === LOG || b === BIRCH_LOG; }
 export function isLeaf(b) { return b === LEAVES || b === BIRCH_LEAVES || b === SPRUCE_LEAVES; }
 export var DEFAULT_BAR = [GRASS, DIRT, STONE, COBBLE, SAND, LOG, PLANKS, GLASS, TORCH, LAMP];
+// 2쪽 — 건축 부품과 도구
+export var DEFAULT_BAR2 = [BRICK, SNOW, ICE, FENCE, GATE, PANE, LADDER, TNT, FLINT, WOOL0];
 
 // 모양 — 0 전체 · 1 반블록(아래) · 2~5 계단(높은 쪽이 -Z/+X/+Z/-X)
 //        6 반블록(위) · 7~10 반전 계단 (아래·위가 뒤집힌 것, 처마와 아치용)
@@ -223,12 +231,13 @@ export function lightPass(b) {
 
 
 S.bar = DEFAULT_BAR.slice();
-S.barAlt = [BRICK, COBBLE, SNOW, ICE, GLASS, FENCE, GATE, PANE, LADDER, WOOL0];   // state.js 는 import 를 하지 않으므로 여기서 채운다
+S.barAlt = DEFAULT_BAR2.slice();   // state.js 는 import 를 하지 않으므로 여기서 채운다
 
 // ── 블록 갈래 — 목록이 35종을 넘어가면 분류가 필요하다
 export function categoryOf(b) {
   if (isWool(b)) return "color";
-  if (b === WATER || b === LAVA || b === LAMP || b === TORCH || b === FIRE || b === ICE) return "light";
+  if (b === WATER || b === LAVA || b === LAMP || b === TORCH || b === FIRE ||
+      b === ICE || b === FLINT) return "light";
   if (b === GRASS || b === DIRT || b === STONE || b === SAND || b === GRAVEL || b === SNOW ||
       b === LOG || b === BIRCH_LOG || b === LEAVES || b === BIRCH_LEAVES || b === SPRUCE_LEAVES ||
       b === COAL || b === IRON || b === GOLD || b === DIAMOND || b === CACTUS ||

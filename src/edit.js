@@ -3,14 +3,14 @@ import { S } from "./state.js";
 import { opts } from "./settings.js";
 import { SLOTS } from "./save.js";
 import { DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, ALL_BLOCKS, EMIT, ICE, NAMES, SH_FULL, WALL_DIR, WATER, isCross, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
-import { BIOME_NAMES, refreshTop, shape, waterLvl, world } from "./world.js";
+import { AIR, ALL_BLOCKS, EMIT, ICE, NAMES, SH_FULL, WALL_DIR, WATER, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
+import { BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightLocal } from "./light.js";
 import { enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
 import { touch } from "./mesh.js";
 import { player, stats } from "./player.js";
 import { tone } from "./audio.js";
-import { showAchPop, toast } from "./hud.js";
+import { helpAchList, showAchPop, toast } from "./hud.js";
 import { localBiome } from "./sky.js";
 
 export var HISTORY_MAX = 240;
@@ -52,6 +52,7 @@ export function applyEdit(x, y, z, to, record, sh) {
   var from = world[i], fromSh = shape[i];
   var toSh = (to === AIR) ? SH_FULL : (sh || SH_FULL);
   if (from === to && fromSh === toSh) return false;
+  if (isItem(to)) return false;        // 도구는 세계에 놓이지 않는다 (fill·명령도 막는다)
 
   world[i] = to;
   shape[i] = toSh;
@@ -80,6 +81,7 @@ export function applyEdit(x, y, z, to, record, sh) {
   S.worldDirty = true;
 
   if (record) {
+    markTouched(x, y, z);          // 되돌리기에 남는 편집 = 사람이 손댄 자리
     var rec = { x: x, y: y, z: z, from: from, to: to, fromSh: fromSh, toSh: toSh };
     if (S.batch) { S.batch.push(rec); return true; }     // 묶음 편집 중이면 모아 둔다
     S.history.push(rec);
@@ -171,6 +173,7 @@ export function refreshAchList() {
             '<span>' + a.name + ' · ' + a.desc + '</span></div>';
   }
   achGrid.innerHTML = html;
+  if (helpAchList) helpAchList.innerHTML = html;
 }
 export var statGrid = document.getElementById("statgrid");
 export function refreshStats() {
@@ -294,10 +297,23 @@ function findBlock(name) {
   return -1;
 }
 
+export var CMD_LIST = ["tp", "time", "weather", "fill", "give", "count", "bp", "seed", "gm", "help"];
+// 앞글자만 쳐도 알아듣게 — 명령이 열 개나 되면 오타 한 번에 막힌다
+export function completeCommand(prefix) {
+  var q = String(prefix || "").trim().toLowerCase();
+  if (!q) return "";
+  var hit = CMD_LIST.filter(function (c) { return c.indexOf(q) === 0; });
+  return hit.length === 1 ? hit[0] : "";
+}
+
 export function runCommand(line) {
   var parts = String(line).trim().split(/\s+/);
   var cmd = (parts[0] || "").toLowerCase();
   if (!cmd) return "";
+  if (CMD_LIST.indexOf(cmd) < 0) {
+    var guess = completeCommand(cmd);
+    if (guess) cmd = guess;
+  }
   if (cmd === "help" || cmd === "?") return CMD_HELP;
 
   if (cmd === "tp") {
