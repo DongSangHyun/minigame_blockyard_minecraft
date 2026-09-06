@@ -108,6 +108,20 @@ function placeMob(m, far) {
   return false;
 }
 
+// 울타리·문에 둘러싸여 있는가 — 부딪힌 기억(pennedAt)만 믿으면
+// 한 번도 안 부딪힌 동물을 첫 프레임에 데려가 버린다
+function nearPen(m) {
+  var gx = Math.floor(m.x), gy = Math.max(0, Math.floor(m.y)), gz = Math.floor(m.z);
+  for (var dx = -4; dx <= 4; dx++)
+    for (var dz = -4; dz <= 4; dz++) {
+      var x = gx + dx, z = gz + dz;
+      if (x < 0 || x >= WX || z < 0 || z >= WZ) continue;
+      var b = world[idx(x, gy, z)];
+      if (b === FENCE || b === GATE || b === DOOR) return true;
+    }
+  return false;
+}
+
 // 플레이어 주변에 동물이 한 마리라도 있는가
 export function anyMobNear(px, pz, r) {
   var r2 = r * r;
@@ -207,6 +221,8 @@ export function updateMobs(dt) {
       var fy = Math.max(0, ny - 1), hy = Math.max(0, Math.round(m.y));
       var penned = blocks(footB, Math.floor(nx), fy, Math.floor(nz)) ||
                    blocks(headB, Math.floor(nx), hy, Math.floor(nz));
+      // 울타리에 부딪힌 기억을 12초 들고 다닌다 — 가둔 동물을 게임이 몰래 데려가지 않게
+      if (penned) m.pennedAt = 12;
       if (!wet && !penned && nx > 1 && nx < WX - 1 && nz > 1 && nz < WZ - 1 && Math.abs(ny - m.y) <= 1) {
         m.x = nx; m.z = nz; m.y += (ny - m.y) * Math.min(1, dt * 8);
       } else {
@@ -220,7 +236,11 @@ export function updateMobs(dt) {
     // 멀어졌다고 끌어오지 않는다 — 가둬 둔 무리가 따라오면 목장이 성립하지 않는다.
     // 다만 주변이 완전히 비었을 때만 한 마리씩 데려온다 (허허벌판 방지)
     var dx = m.x - px, dz = m.z - pz;
-    if (dx * dx + dz * dz > 46 * 46 && !anyMobNear(px, pz, 40)) { placeMob(m, false); continue; }
+    m.pennedAt = Math.max(0, (m.pennedAt || 0) - dt);
+    if (dx * dx + dz * dz > 46 * 46 && !anyMobNear(px, pz, 40) &&
+        m.pennedAt <= 0 && !nearPen(m)) {
+      placeMob(m, false); continue;
+    }
 
     m.cry -= dt;
     if (m.cry <= 0) {
@@ -296,7 +316,7 @@ export function feedNearbyMob(pos) {
   if (best < 0) return false;
   var mm = mobs[best], k = MOB_KINDS[mm.kind];
   mm.follow = 22 + Math.random() * 14;
-  tone(k.cry * 1.35, 0.16, "triangle", 0.06, at(m.x, m.y + 0.6, m.z));
+  tone(k.cry * 1.35, 0.16, "triangle", 0.06, at(mm.x, mm.y + 0.6, mm.z));
   return true;
 }
 

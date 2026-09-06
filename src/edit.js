@@ -277,14 +277,17 @@ export function copySelection() {
   if (selectionSize() > REGION_MAX) return -1;
   var w = b.x1 - b.x0 + 1, h = b.y1 - b.y0 + 1, d = b.z1 - b.z0 + 1;
   var blocks = new Uint8Array(w * h * d), shapes = new Uint8Array(w * h * d);
+  // 물·용암 레벨도 함께 담는다 — 안 담으면 붙여넣은 물이 전부 근원(0)이 되어
+  // 연못 하나를 복제했을 뿐인데 근원 백여 개가 각각 7칸씩 뻗는다
+  var levels = new Uint8Array(w * h * d);
   var n = 0;
   for (var y = 0; y < h; y++)
     for (var z = 0; z < d; z++)
       for (var x = 0; x < w; x++) {
         var i = idx(b.x0 + x, b.y0 + y, b.z0 + z);
-        blocks[n] = world[i]; shapes[n] = shape[i]; n++;
+        blocks[n] = world[i]; shapes[n] = shape[i]; levels[n] = waterLvl[i]; n++;
       }
-  S.clip = { w: w, h: h, d: d, blocks: blocks, shapes: shapes };
+  S.clip = { w: w, h: h, d: d, blocks: blocks, shapes: shapes, levels: levels };
   return w * h * d;
 }
 
@@ -297,9 +300,15 @@ export function pasteClip(px, py, pz) {
     for (var z = 0; z < c.d; z++)
       for (var x = 0; x < c.w; x++) {
         var b = c.blocks[n], sh = c.shapes[n];
+        var lv = c.levels ? c.levels[n] : 0;
         n++;
         if (b === AIR) continue;                 // 빈칸은 덮어쓰지 않는다
-        applyEdit(px + x, py + y, pz + z, b, true, sh);
+        if (!applyEdit(px + x, py + y, pz + z, b, true, sh)) continue;
+        // 흐르던 물은 붙여넣어도 흐르는 물이어야 한다 (applyEdit 은 손으로 놓은 물을 근원으로 본다)
+        if ((b === WATER || b === LAVA) && lv > 0) {
+          waterLvl[idx(px + x, py + y, pz + z)] = lv;
+          enqueueDryAround(px + x, py + y, pz + z);
+        }
       }
   return endBatch("붙여넣기");
 }

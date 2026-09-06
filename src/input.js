@@ -1,5 +1,6 @@
 // input.js — 입력 (키보드 · 마우스 · 터치)
 import { S } from "./state.js";
+import { WX, WY, WZ } from "./dims.js";
 import { markAllDirty, buildBudget } from "./mesh.js";
 import { relightAll } from "./light.js";
 import { IS_TOUCH } from "./boot.js";
@@ -7,11 +8,11 @@ import { SH_SLAB, SH_SLAB_UP, isStairShape, NAMES } from "./blocks.js";
 import { camera, crackMesh, renderer } from "./scene.js";
 import { applyTime } from "./daynight.js";
 import { applyOpts, opts, saveOpts } from "./settings.js";
-import { player, raycast, spawn, stats } from "./player.js";
+import { EYE, player, raycast, spawn, stats } from "./player.js";
 import { ac, startAmbient, tone } from "./audio.js";
 import { clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
-import { REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
+import { selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
 import { closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
 import { place } from "./mine.js";
@@ -148,6 +149,29 @@ if (copySeedBtn) {
       toast("시드 " + txt + " 복사됨");
     } catch (err) { toast("시드 " + txt); }
   });
+}
+
+// 조준한 칸 — 블록을 맞히면 그 칸, 허공이면 시선 4칸 앞.
+// 예전에는 허공에 Alt+클릭하면 아무 일도 안 일어나 20칸 탑 자리를 고르려면
+// 임시 블록을 놓고 찍고 지우기를 반복해야 했다.
+export function aimCell(reach) {
+  var h = raycast(reach || 6);
+  if (h) return [h.x, h.y, h.z];
+  var d = new THREE.Vector3();
+  camera.getWorldDirection(d);
+  var ex = player.pos.x + d.x * 4;
+  var ey = player.pos.y + EYE + d.y * 4;
+  var ez = player.pos.z + d.z * 4;
+  var cx = Math.floor(ex), cy = Math.floor(ey), cz = Math.floor(ez);
+  if (cx < 0 || cx >= WX || cy < 0 || cy >= WY || cz < 0 || cz >= WZ) return null;
+  return [cx, cy, cz];
+}
+// 건축에서 필요한 숫자는 칸수가 아니라 가로×높이×세로다
+export function selectionText() {
+  var b = selectionBounds();
+  if (!b) return "0칸";
+  return (b.x1 - b.x0 + 1) + "×" + (b.y1 - b.y0 + 1) + "×" + (b.z1 - b.z0 + 1) +
+         " · " + selectionSize().toLocaleString("ko-KR") + "칸";
 }
 
 // ── 세계 파일 · 백업
@@ -881,12 +905,12 @@ canvas.addEventListener("mousedown", function (e) {
   // (Ctrl 은 달리기라, 달리며 캐려고 하면 영역이 찍혀 버렸다)
   if (e.altKey) {
     e.preventDefault();
-    var hs = raycast(6);
+    var hs = aimCell(6);
     if (!hs) return;
-    if (e.button === 0) { S.selA = [hs.x, hs.y, hs.z]; toast("영역 시작"); }
+    if (e.button === 0) { S.selA = [hs[0], hs[1], hs[2]]; toast("영역 시작"); }
     else if (e.button === 2) {
-      S.selB = [hs.x, hs.y, hs.z];
-      toast("영역 " + selectionSize().toLocaleString("ko-KR") + "칸");
+      S.selB = [hs[0], hs[1], hs[2]];
+      toast("영역 " + selectionText());
       advanceTut(5);
     }
     return;
@@ -987,7 +1011,7 @@ window.addEventListener("touchmove", function (e) {
     var h = raycast(6);
     if (!h) return;
     if (!S.selA || (S.selA && S.selB)) { S.selA = [h.x, h.y, h.z]; S.selB = null; toast("영역 시작"); }
-    else { S.selB = [h.x, h.y, h.z]; toast("영역 " + selectionSize().toLocaleString("ko-KR") + "칸"); }
+    else { S.selB = [h.x, h.y, h.z]; toast("영역 " + selectionText()); }
   }, { passive: true });
 })();
 

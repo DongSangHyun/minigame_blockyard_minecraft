@@ -5114,6 +5114,98 @@ test("v41 저장: 사람이 손댄 칸(touched)이 이어하기까지 살아남�
   assert(r.after, "이어하기하니 내 건축물 보호가 풀렸다 (날씨·잔디가 다시 건드린다)");
 });
 
+test("v42 복사: 붙여넣은 물이 전부 근원이 되지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 20, Y = 40, Z = 60;
+    for (let dx = -2; dx <= 22; dx++) for (let dz = -2; dz <= 8; dz++) {
+      for (let dy = 0; dy <= 3; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    B.applyEdit(X, Y, Z, B.B.WATER, false, 0);
+    for (let k = 0; k < 150; k++) { B.waterTick(600); B.dryTick(600); }
+    function sources(ox) {
+      let src = 0, wet = 0;
+      for (let dx = -1; dx <= 8; dx++) for (let dz = -1; dz <= 8; dz++)
+        if (B.get(X + ox + dx, Y, Z + dz) === B.B.WATER) {
+          wet++;
+          if (B.waterLvl[B.idx(X + ox + dx, Y, Z + dz)] === 0) src++;
+        }
+      return { src, wet };
+    }
+    const before = sources(0);
+    B.S.selA = [X - 1, Y, Z - 1]; B.S.selB = [X + 8, Y, Z + 8];
+    B.copySelection();
+    B.pasteClip(X + 12, Y, Z - 1);
+    for (let k = 0; k < 150; k++) { B.waterTick(600); B.dryTick(600); }
+    const after = sources(12);
+    B.S.selA = B.S.selB = null;
+    B.endPlay(); B.setPaused(false);
+    return { before, after };
+  });
+  assert(r.before.wet > 20, "시험대 물이 안 퍼졌다 — " + r.before.wet);
+  eq(r.before.src, 1, "원본 근원 수");
+  assert(r.after.src <= 3, "붙여넣으니 근원이 " + r.after.src + "개가 됐다 (원본은 1개)");
+});
+
+test("v42 동물: 울타리에 가둔 동물을 게임이 데려가지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 14, Y = 46, Z = 14;
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++) {
+      for (let dy = 0; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    }
+    for (let d = -3; d <= 3; d++) {                      // 7×7 울타리
+      B.applyEdit(X + d, Y, Z - 3, B.B.FENCE, false, 0);
+      B.applyEdit(X + d, Y, Z + 3, B.B.FENCE, false, 0);
+      B.applyEdit(X - 3, Y, Z + d, B.B.FENCE, false, 0);
+      B.applyEdit(X + 3, Y, Z + d, B.B.FENCE, false, 0);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    const m = B.mobs[0];
+    m.x = X + 0.5; m.z = Z + 0.5; m.y = Y; m.walk = 1; m.turn = 1e9; m.follow = 0; m.pennedAt = 0;
+    // 플레이어는 섬 반대편으로
+    B.player.pos.set(B.WX - 8, Y, B.WZ - 8);
+    for (let i = 0; i < 20 * 60; i++) B.updateMobs(1 / 60);
+    const inside = Math.abs(m.x - (X + 0.5)) <= 4 && Math.abs(m.z - (Z + 0.5)) <= 4;
+    B.endPlay(); B.setPaused(false);
+    return { inside, x: m.x, z: m.z };
+  });
+  assert(r.inside, "가둔 동물이 목장에서 사라졌다 — (" + r.x.toFixed(1) + ", " + r.z.toFixed(1) + ")");
+});
+
+test("v43 영역: 허공에도 찍히고, 가로×높이×세로가 보인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 40, Y = 50, Z = 40;
+    // 사방이 빈 하늘 — 조준선에 아무것도 없다
+    for (let dx = -8; dx <= 8; dx++) for (let dy = -8; dy <= 8; dy++) for (let dz = -8; dz <= 8; dz++)
+      B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops();
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    B.player.yaw = 0; B.player.pitch = 0;
+    B.camera.rotation.set(0, 0, 0);
+    B.camera.position.set(X + 0.5, Y + 1.62, Z + 0.5);
+    B.camera.updateMatrixWorld(true);
+    const hitNothing = B.raycast(6) === null;
+    const cell = B.aimCell(6);
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 2, Y + 11, Z + 4];
+    const text = B.selectionText();
+    B.S.selA = B.S.selB = null;
+    B.endPlay(); B.setPaused(false);
+    return { hitNothing, cell, text };
+  });
+  assert(r.hitNothing, "시험대가 허공이 아니다 — 조준선에 블록이 있다");
+  assert(r.cell !== null, "허공에서는 영역을 못 찍는다 (임시 블록을 놓고 지워야 했다)");
+  assert(r.text.indexOf("3×12×5") >= 0, "영역 치수가 안 보인다: " + r.text);
+  assert(r.text.indexOf("180") >= 0, "칸수도 함께 보여야 한다: " + r.text);
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
