@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { opts } from "./settings.js";
 import { SLOTS } from "./save.js";
 import { DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, ALL_BLOCKS, EMIT, ICE, NAMES, SH_FULL, WALL_DIR, WATER, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
+import { AIR, ALL_BLOCKS, EMIT, ICE, NAMES, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
 import { BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightLocal } from "./light.js";
 import { enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
@@ -35,7 +35,8 @@ function meltIceAround(x, y, z) {
 function dropCross(x, y, z, wall) {
   if (!inside(x, y, z)) return;
   var i = idx(x, y, z);
-  if (!isCross(world[i])) return;
+  // 사다리도 벽 횃불과 같은 규칙이다 — 벽이 사라지면 같이 떨어진다
+  if (!isCross(world[i]) && !isClimbable(world[i])) return;
   if (wall) {
     var d = WALL_DIR[shape[i]];
     if (!d || d[0] !== wall[0] || d[2] !== wall[2]) return;

@@ -1,7 +1,7 @@
 // mobs.js — 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다.
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
 import { topMap, world } from "./world.js";
-import { AIR, ICE, LAVA, WATER, isSolid } from "./blocks.js";
+import { FENCE, GATE, AIR, ICE, LAVA, WATER, isSolid } from "./blocks.js";
 import { scene } from "./scene.js";
 import { player } from "./player.js";
 import { crunch, tone } from "./audio.js";
@@ -92,6 +92,16 @@ function placeMob(m, far) {
   return false;
 }
 
+// 플레이어 주변에 동물이 한 마리라도 있는가
+export function anyMobNear(px, pz, r) {
+  var r2 = r * r;
+  for (var i = 0; i < mobs.length; i++) {
+    var dx = mobs[i].x - px, dz = mobs[i].z - pz;
+    if (dx * dx + dz * dz <= r2) return true;
+  }
+  return false;
+}
+
 export function updateMobs(dt) {
   if (!mobs.length) return;
   var px = player.pos.x, pz = player.pos.z;
@@ -124,7 +134,10 @@ export function updateMobs(dt) {
       // 한 칸 넘게 오르내리는 곳은 가지 않는다 — 절벽에서 떨어지지 않게
       var footB = world[idx(Math.floor(nx), Math.max(0, ny - 1), Math.floor(nz))];
       var wet = footB === WATER || footB === LAVA || footB === ICE;
-      if (!wet && nx > 1 && nx < WX - 1 && nz > 1 && nz < WZ - 1 && Math.abs(ny - m.y) <= 1) {
+      // 울타리·문은 못 넘는다 — 이게 없으면 울타리를 아무리 높여도 목장이 성립하지 않는다
+      var headB = world[idx(Math.floor(nx), Math.max(0, Math.round(m.y)), Math.floor(nz))];
+      var penned = footB === FENCE || footB === GATE || headB === FENCE || headB === GATE;
+      if (!wet && !penned && nx > 1 && nx < WX - 1 && nz > 1 && nz < WZ - 1 && Math.abs(ny - m.y) <= 1) {
         m.x = nx; m.z = nz; m.y += (ny - m.y) * Math.min(1, dt * 8);
       } else {
         m.yaw += 1.6 + Math.random();
@@ -134,9 +147,10 @@ export function updateMobs(dt) {
       m.phase += dt * 0.6;
     }
 
-    // 너무 멀어지면 플레이어 주변으로 다시 데려온다
+    // 멀어졌다고 끌어오지 않는다 — 가둬 둔 무리가 따라오면 목장이 성립하지 않는다.
+    // 다만 주변이 완전히 비었을 때만 한 마리씩 데려온다 (허허벌판 방지)
     var dx = m.x - px, dz = m.z - pz;
-    if (dx * dx + dz * dz > 46 * 46) { placeMob(m, false); continue; }
+    if (dx * dx + dz * dz > 46 * 46 && !anyMobNear(px, pz, 40)) { placeMob(m, false); continue; }
 
     m.cry -= dt;
     if (m.cry <= 0) {

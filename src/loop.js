@@ -5,13 +5,13 @@ import { pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from ".
 import { Q, resetQueues } from "./queues.js";
 import { CH, WX, WY, WZ, idx } from "./dims.js";
 import { reduceMotion } from "./boot.js";
-import { AIR, DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isSolid, isUnbreakable } from "./blocks.js";
+import { SH_SLAB, AIR, DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isSolid, isUnbreakable } from "./blocks.js";
 import { animateLiquids, crackTex } from "./atlas.js";
 import { BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, set, shape, topMap, world } from "./world.js";
 import { lightAtPlayer, lightSky, relightAll } from "./light.js";
-import { decayTick, dryTick, fallTick, fireTick, freezeTick, waterTick } from "./fluids.js";
+import { lavaTick, primeTick, TNT_FUSE, decayTick, dryTick, fallTick, fireTick, freezeTick, waterTick } from "./fluids.js";
 import { buildBudget, dirty, markAllDirty, opaqueMeshes, setBuildFocus } from "./mesh.js";
-import { HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
+import { primedBoxes, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { opts } from "./settings.js";
 import { EYE, HALF, moveAxis, moveHorizontal, player, pointSolid, raycast, spawn, stats, unstick } from "./player.js";
@@ -141,8 +141,10 @@ export function step(dt) {
                                      Math.floor(player.pos.y + 0.6),
                                      Math.floor(player.pos.z)));
       if (onLadder) {
-        var up = S.keys.Space ? 1 : (crouchKey ? -1 : (len > 0 ? 0.75 : 0));
-        player.vel.y = up ? up * 3.2 : -1.1;
+        // 웅크리면 사다리에 매달려 멈춘다 — 마크에서 가장 많이 쓰는 손버릇이다.
+        // (예전에는 오히려 두 배로 빨리 미끄러져 내려갔다)
+        var up = crouchKey ? 0 : (S.keys.Space ? 1 : (len > 0 ? 0.75 : 0));
+        player.vel.y = crouchKey ? 0 : (up ? up * 3.2 : -1.6);
         if (up > 0 && Math.random() < dt * 6) crunch(0.05, 0.03, 900);
       } else
       player.vel.y -= GRAVITY * dt * (feetInWater ? (thick ? 0.14 : 0.22) : 1);
@@ -442,12 +444,28 @@ export function step(dt) {
   if (thick && !S.wasInLavaFeet) lavaHiss();
   S.wasInLavaFeet = thick;
 
+  // TNT 도화선 — 매 프레임 태우고, 남은 시간에 맞춰 빠르게 깜빡인다
+  if (S.primed.length) {
+    primeTick(dt);
+    S.primedBeep -= dt;
+    if (S.primedBeep <= 0) { S.primedBeep = 0.5; crunch(0.12, 0.04, 2200); }
+  } else S.primedBeep = 0;
+  for (var pi = 0; pi < primedBoxes.length; pi++) {
+    var pp = S.primed[pi];
+    if (!pp) { primedBoxes[pi].visible = false; continue; }
+    // 터질 때가 가까울수록 빠르게 깜빡인다
+    var rate = 3 + (1 - Math.min(1, pp.t / TNT_FUSE)) * 12;
+    primedBoxes[pi].position.set(pp.x + 0.5, pp.y + 0.5, pp.z + 0.5);
+    primedBoxes[pi].visible = Math.sin(S.playSeconds * rate * 6.283) > 0;
+  }
+
   // 바닷물 흐름
   S.waterTimer += dt;
   if (S.waterTimer > 0.15) {
     S.waterTimer = 0;
     dryTick(300);
     fireTick(40);
+    if (playing) lavaTick(player.pos.x, player.pos.y, player.pos.z, 24);
     waterTick(300);
     fallTick(200);
   }
@@ -471,7 +489,7 @@ export function step(dt) {
         if (S.weather === 2 && (tb3 === GRASS || tb3 === DIRT)) {
           // 위에 얹는다 (덮어쓰지 않는다)
           if (ty3 + 1 < WY && world[idx(ax3, ty3 + 1, az3)] === AIR)
-            applyEdit(ax3, ty3 + 1, az3, SNOW, true);
+            applyEdit(ax3, ty3 + 1, az3, SNOW, true, SH_SLAB)   // 반블록 두께 — 걸어서 넘는다;
         } else if (S.weather === 1 && tb3 === SNOW && biomeMap[az3 * WX + ax3] !== 1) {
           applyEdit(ax3, ty3, az3, AIR, true);      // 쌓인 눈만 녹는다
         }

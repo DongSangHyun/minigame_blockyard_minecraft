@@ -1,7 +1,7 @@
 // player.js — 플레이어 · 충돌 · 레이캐스트
 import { S } from "./state.js";
 import { WX, WY, WZ, idx, inside } from "./dims.js";
-import { AIR, CROSS, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_UP_OFF, crossOffset, isCross, isLiquid, isSolid } from "./blocks.js";
+import { AIR, FENCE, GATE, CROSS, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_UP_OFF, crossOffset, isCross, isLiquid, isSolid } from "./blocks.js";
 import { boxesAt, crossBase, get, hasDynamicBoxes, set, shape, shapeAt, world } from "./world.js";
 import { camera } from "./scene.js";
 
@@ -43,23 +43,33 @@ export function spawn() {
   player.flying = false;
 }
 
-export function boxHitsWorld(px, py, pz) {
+// ignoreTall — 울타리의 "보이지 않는 0.5칸" 을 무시한다.
+// 갇힘 탈출(unstick)이 이 가상 높이를 진짜 블록으로 착각하면 사람을 울타리 위로 밀어 올린다.
+export function boxHitsWorld(px, py, pz, ignoreTall) {
   var x0 = Math.floor(px - HALF), x1 = Math.floor(px + HALF);
   var y0 = Math.floor(py), y1 = Math.floor(py + BODY);
   var z0 = Math.floor(pz - HALF), z1 = Math.floor(pz + HALF);
   var aX = px - HALF, bX = px + HALF, aY = py, bY = py + BODY, aZ = pz - HALF, bZ = pz + HALF;
+  // 한 칸 아래까지 훑는다 — 울타리는 자기 칸보다 0.5칸 높게 막기 때문이다.
+  // 그 층에서는 울타리·문만 보고 나머지는 바로 건너뛴다 (비용을 늘리지 않는다)
+  var yStart = Math.max(0, y0 - 1);
   for (var x = x0; x <= x1; x++) {
-    for (var y = y0; y <= y1; y++) {
+    for (var y = yStart; y <= y1; y++) {
       for (var z = z0; z <= z1; z++) {
         var cb = get(x, y, z);
+        if (y < y0 && cb !== FENCE && cb !== GATE) continue;
         if (!isSolid(cb)) continue;
         var sh = shapeAt(x, y, z);
         if (sh === SH_FULL && !hasDynamicBoxes(cb)) return true;
         var boxes = boxesAt(cb, sh, x, y, z);
+        // 울타리·문은 보이는 것보다 0.5칸 높게 막는다 — 마크와 같다.
+        // 이 0.5칸이 없으면 점프(정점 1.36칸)로 넘어가 울타리가 장식이 된다.
+        var tall = (!ignoreTall && (cb === FENCE || cb === GATE)) ? 1.5 : 0;
         for (var k = 0; k < boxes.length; k++) {
           var q = boxes[k];
+          var qTop = tall && q[4] >= 1 ? tall : q[4];
           if (bX > x + q[0] && aX < x + q[3] &&
-              bY > y + q[1] && aY < y + q[4] &&
+              bY > y + q[1] && aY < y + qTop &&
               bZ > z + q[2] && aZ < z + q[5]) return true;
         }
       }
@@ -136,19 +146,19 @@ export function playerOccupies(x, y, z) {
 // moveAxis 가 모든 축을 막아 영영 못 움직인다. 가장 가까운 빈 자리로 밀어낸다
 export function unstick() {
   var p = player.pos;
-  if (!boxHitsWorld(p.x, p.y, p.z)) return false;
+  if (!boxHitsWorld(p.x, p.y, p.z, true)) return false;
   for (var up = 0.1; up <= 3.001; up += 0.1) {            // 1) 위 — 가장 흔한 탈출로
-    if (!boxHitsWorld(p.x, p.y + up, p.z)) { p.y += up; player.vel.set(0, 0, 0); return true; }
+    if (!boxHitsWorld(p.x, p.y + up, p.z, true)) { p.y += up; player.vel.set(0, 0, 0); return true; }
   }
   var dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
   for (var d = 0.2; d <= 1.601; d += 0.2) {               // 2) 옆
     for (var i = 0; i < dirs.length; i++) {
       var nx = p.x + dirs[i][0] * d, nz = p.z + dirs[i][1] * d;
-      if (!boxHitsWorld(nx, p.y, nz)) { p.x = nx; p.z = nz; player.vel.set(0, 0, 0); return true; }
+      if (!boxHitsWorld(nx, p.y, nz, true)) { p.x = nx; p.z = nz; player.vel.set(0, 0, 0); return true; }
     }
   }
   for (var dn = 0.1; dn <= 3.001; dn += 0.1) {            // 3) 아래 — 마지막 수단
-    if (!boxHitsWorld(p.x, p.y - dn, p.z)) { p.y -= dn; player.vel.set(0, 0, 0); return true; }
+    if (!boxHitsWorld(p.x, p.y - dn, p.z, true)) { p.y -= dn; player.vel.set(0, 0, 0); return true; }
   }
   return false;
 }

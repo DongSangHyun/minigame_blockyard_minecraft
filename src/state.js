@@ -11,6 +11,8 @@ export const S = {
   netFetch: null,          // 클라우드 통신 갈아 끼우기 (테스트용)
   cloudBusy: false,
   wasBuried: false,
+  primed: [],           // 점화된 TNT — {x,y,z,t}
+  primedBeep: 0,
   timeOfDay: 0.30,
   moonDay: 0,
   bar: null,

@@ -1,9 +1,9 @@
 // mine.js — 캐기 · 놓기
 import { S } from "./state.js";
 import { aimingAtMob, feedNearbyMob } from "./mobs.js";
-import { explode, ignite, BLAST_R } from "./fluids.js";
+import { primeTNT, ignite } from "./fluids.js";
 import { idx, inside } from "./dims.js";
-import { AIR, ALL_BLOCKS, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
+import { ICE, WATER, AIR, ALL_BLOCKS, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
 import { get, shape } from "./world.js";
 import { burst } from "./scene.js";
 import { BODY, HALF, currentShape, player, raycast, stats } from "./player.js";
@@ -14,7 +14,9 @@ import { triggerSwing } from "./hand.js";
 import { advanceTut } from "./input.js";
 
 export function mineAt(hit) {
-  if (!applyEdit(hit.x, hit.y, hit.z, AIR, true)) return;
+  // 얼음을 깨면 물이 남는다 (마크) — 언 호수를 뚫고 들어가는 그림이 나온다
+  var leaves = (hit.block === ICE) ? WATER : AIR;
+  if (!applyEdit(hit.x, hit.y, hit.z, leaves, true)) return;
   stats.mined++;
   unlock("firstMine");
   advanceTut(0);
@@ -60,7 +62,8 @@ export function tryInteract(hit) {
   if (isOpenable(hit.block)) return tryInteractGate(hit);
   // 횃불을 들고 TNT 를 우클릭하면 터진다 (마크의 부싯돌 자리)
   if (hit.block === TNT && S.bar[S.selected] === FLINT) {
-    explode(hit.x, hit.y, hit.z, BLAST_R);
+    // 즉시 터뜨리지 않는다 — 도화선 4초. 피할 시간을 준다 (마크와 같다)
+    if (primeTNT(hit.x, hit.y, hit.z)) toast("도화선에 불이 붙었습니다 — 피하세요");
     triggerSwing();
     unlock("boom");
     return true;

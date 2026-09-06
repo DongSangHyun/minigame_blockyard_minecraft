@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { markAllDirty, buildBudget } from "./mesh.js";
 import { relightAll } from "./light.js";
 import { IS_TOUCH } from "./boot.js";
-import { NAMES } from "./blocks.js";
+import { SH_SLAB, SH_SLAB_UP, isStairShape, NAMES } from "./blocks.js";
 import { camera, crackMesh, renderer } from "./scene.js";
 import { applyTime } from "./daynight.js";
 import { applyOpts, opts, saveOpts } from "./settings.js";
@@ -552,10 +552,16 @@ export function pickBlock() {
   if (!hit) return;
   if (S.bar[S.selected] === hit.block) { toast(NAMES[hit.block]); return; }
   S.bar[S.selected] = hit.block;
+  // 모양까지 가져온다 — 계단을 복사했는데 풀블록이 들리면 손이 헛돈다.
+  // 계단 방향은 currentShape() 가 시선으로 정하므로 갈래만 맞추면 된다 (마크와 같다)
+  var psh = hit.shape;
+  if (psh === SH_SLAB || psh === SH_SLAB_UP) S.shapeMode = 1;
+  else if (isStairShape(psh)) S.shapeMode = 2;
+  else S.shapeMode = 0;
   refreshSlot(S.selected);
   updateHandBlock();
   S.worldDirty = true;
-  toast(NAMES[hit.block] + " 복사");
+  toast(NAMES[hit.block] + " 복사 · " + ["전체", "반블록", "계단"][S.shapeMode]);
   tone(880, 0.07, "triangle", 0.04);
 }
 

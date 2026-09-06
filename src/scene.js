@@ -247,6 +247,20 @@ export var SHAPE_BOUNDS = SHAPE_BOXES.map(function (boxes) {
   return { mn: mn, mx: mx };
 });
 
+// 점화된 TNT 를 감싸 하얗게 깜빡이는 상자 — 마크의 "곧 터진다" 신호
+export var PRIMED_MAX = 8;
+export var primedMat = new THREE.MeshBasicMaterial({
+  color: 0xffffff, fog: false, transparent: true, opacity: 0.55, depthWrite: false
+});
+export var primedBoxes = [];
+for (var pb = 0; pb < PRIMED_MAX; pb++) {
+  var pm = new THREE.Mesh(new THREE.BoxGeometry(1.06, 1.06, 1.06), primedMat);
+  pm.visible = false;
+  pm.renderOrder = 3;
+  scene.add(pm);
+  primedBoxes.push(pm);
+}
+
 export var highlight = new THREE.LineSegments(
   HL_GEO[0],
   new THREE.LineBasicMaterial({ color: 0x0d1114, fog: false, transparent: true, opacity: 0.85 })

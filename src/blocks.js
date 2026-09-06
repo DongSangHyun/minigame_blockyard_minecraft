@@ -176,6 +176,10 @@ export var SH_AXIS_X = 11, SH_AXIS_Z = 12;
 export var SH_WALL_N = 13, SH_WALL_E = 14, SH_WALL_S = 15, SH_WALL_W = 16;
 export var WALL_DIR = { 13: [0, 0, -1], 14: [1, 0, 0], 15: [0, 0, 1], 16: [-1, 0, 0] };
 export function isWallShape(sh) { return sh >= SH_WALL_N && sh <= SH_WALL_W; }
+// 계단 갈래인가 — 아래 계단(2~5)과 반전 계단(7~10) 을 한꺼번에 본다
+export function isStairShape(sh) {
+  return (sh >= SH_STAIR_N && sh <= SH_STAIR_W) || (sh >= SH_STAIR_NU && sh <= SH_STAIR_WU);
+}
 export function wallShapeFor(nx, nz) {
   if (nx > 0) return SH_WALL_W;      // +X 면에 붙었다 = 벽은 -X 쪽
   if (nx < 0) return SH_WALL_E;

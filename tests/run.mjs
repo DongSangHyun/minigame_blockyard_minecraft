@@ -4115,6 +4115,201 @@ test("v23 명령: undo/redo 를 여러 단계 한 번에", async (page) => {
   assert(r.m3.indexOf("없습니다") >= 0, "더 되돌릴 게 없을 때 안내가 없다: " + r.m3);
 });
 
+test("v23 물: 근원 둘 사이는 무한 근원이 된다 (마크의 2칸 규칙)", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 60, Y = 30, Z = 60;
+    // 바닥 있는 3칸 홈을 파고 양 끝에 근원을 놓는다
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+      for (let dy = 0; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, B.B.AIR);
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    }
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      if (dz !== 0 || dx < -1 || dx > 1) B.set(X + dx, Y, Z + dz, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false);
+    // (X-1,Y,Z) 와 (X+1,Y,Z) 에 근원, 가운데는 비어 있다
+    B.applyEdit(X - 1, Y, Z, B.B.WATER, false, 0);
+    B.applyEdit(X + 1, Y, Z, B.B.WATER, false, 0);
+    for (let k = 0; k < 40; k++) B.waterTick(500);
+    const mid = B.get(X, Y, Z);
+    const midLvl = B.waterLvl[B.idx(X, Y, Z)];
+    // 가운데 근원을 퍼내도(지워도) 다시 근원으로 차야 한다
+    B.applyEdit(X, Y, Z, B.B.AIR, false, 0);
+    for (let k = 0; k < 40; k++) B.waterTick(500);
+    const again = B.get(X, Y, Z);
+    const againLvl = B.waterLvl[B.idx(X, Y, Z)];
+    B.endPlay(); B.setPaused(false);
+    return { mid, midLvl, again, againLvl, WATER: B.B.WATER };
+  });
+  eq(r.mid, r.WATER, "근원 둘 사이가 물로 차지 않았다");
+  eq(r.midLvl, 0, "가운데가 근원(0)이 되지 않았다 — 무한 물이 안 된다");
+  eq(r.again, r.WATER, "퍼낸 자리가 다시 차지 않았다");
+  eq(r.againLvl, 0, "다시 찬 물이 근원이 아니다");
+});
+
+test("v24 사다리: 웅크리면 매달려 멈춘다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const X = 40, Y = 30, Z = 40;
+    for (let dy = -2; dy <= 8; dy++) for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++)
+      B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dy = -1; dy <= 8; dy++) B.set(X, Y + dy, Z - 1, B.B.STONE);
+    for (let dy = 0; dy <= 7; dy++) B.applyEdit(X, Y + dy, Z, B.B.LADDER, false, 15);
+    B.set(X, Y - 1, Z, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false);
+    B.setPaused(true); B.beginPlay();
+    function run(keys, secs) {
+      B.player.pos.set(X + 0.5, Y + 5, Z + 0.5);
+      B.player.vel.set(0, 0, 0); B.player.flying = false;
+      for (const k in keys) B.setKey(k, keys[k]);
+      for (let i = 0; i < secs * 60; i++) B.step(1 / 60);
+      for (const k in keys) B.setKey(k, false);
+      return +B.player.pos.y.toFixed(2);
+    }
+    const idle = run({}, 1);
+    const sneak = run({ ShiftLeft: true }, 1);
+    const up = run({ Space: true }, 1);
+    B.endPlay(); B.setPaused(false);
+    return { idle, sneak, up };
+  });
+  eq(r.sneak, 35, "웅크렸는데 사다리에서 미끄러진다 (마크는 딱 멈춘다)");
+  assert(r.idle < 35, "가만히 있으면 천천히 내려가야 한다 — " + r.idle);
+  assert(r.up > 35, "Space 로 올라가지 못한다 — " + r.up);
+});
+
+test("v24 울타리: 점프로 넘을 수 없다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const X = 44, Y = 30, Z = 44;
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++) {
+      for (let dy = 0; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    }
+    for (let dx = -4; dx <= 4; dx++) B.applyEdit(X + dx, Y, Z, B.B.FENCE, false, 0);
+    B.refreshAllTops(); B.relightAll(false);
+    B.setPaused(true); B.beginPlay();
+    B.player.pos.set(X + 0.5, Y, Z - 1.5);
+    B.player.vel.set(0, 0, 0); B.player.flying = false;
+    B.player.yaw = Math.PI;                 // +z 쪽(울타리)으로 전진
+    B.setKey("KeyW", true); B.setKey("Space", true);
+    for (let i = 0; i < 240; i++) B.step(1 / 60);
+    B.setKey("KeyW", false); B.setKey("Space", false);
+    const z = B.player.pos.z;
+    B.endPlay(); B.setPaused(false);
+    return { z, fence: Z };
+  });
+  // 기둥은 칸 한가운데(0.375~0.625)에 선다 — 그 앞에서 멈춰야 한다
+  assert(r.z < r.fence + 0.375, "울타리를 뛰어넘었다 — z=" + r.z.toFixed(2));
+});
+
+test("v24 사다리: 벽이 사라지면 같이 떨어진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const X = 50, Y = 30, Z = 50;
+    for (let dy = -1; dy <= 4; dy++) for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++)
+      B.set(X + dx, Y + dy, Z + dz, 0);
+    B.set(X, Y, Z - 1, B.B.STONE);
+    B.applyEdit(X, Y, Z, B.B.LADDER, false, 13);   // -z 벽에 붙은 사다리
+    const before = B.get(X, Y, Z);
+    B.applyEdit(X, Y, Z - 1, B.B.AIR, true);     // 벽을 캔다
+    const after = B.get(X, Y, Z);
+    return { before, after, LADDER: B.B.LADDER };
+  });
+  eq(r.before, r.LADDER, "시험대가 안 세워졌다");
+  eq(r.after, 0, "벽을 부쉈는데 사다리가 허공에 남는다");
+});
+
+test("v24 물: 근원에서 7칸까지 퍼진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const X = 56, Y = 34, Z = 56;
+    for (let dx = -9; dx <= 9; dx++) for (let dz = -9; dz <= 9; dz++) {
+      for (let dy = 0; dy <= 3; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    B.applyEdit(X, Y, Z, B.B.WATER, false, 0);
+    for (let k = 0; k < 120; k++) B.waterTick(600);
+    let reach = 0;
+    for (let d = 1; d <= 9; d++) if (B.get(X + d, Y, Z) === B.B.WATER) reach = d;
+    return { reach, max: B.MAXFLOW };
+  });
+  eq(r.max, 7, "MAXFLOW 가 7이 아니다");
+  eq(r.reach, 7, "물이 7칸까지 안 간다 — " + r.reach + "칸");
+});
+
+test("v24 얼음: 깨면 물이 남는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const X = 62, Y = 34, Z = 62;
+    for (let dy = -1; dy <= 3; dy++) B.set(X, Y + dy, Z, 0);
+    B.set(X, Y - 1, Z, B.B.STONE);
+    B.applyEdit(X, Y, Z, B.B.ICE, false, 0);
+    B.setPaused(true); B.beginPlay();
+    B.mineAt({ x: X, y: Y, z: Z, block: B.B.ICE });
+    const after = B.get(X, Y, Z);
+    B.endPlay(); B.setPaused(false);
+    return { after, WATER: B.B.WATER };
+  });
+  eq(r.after, r.WATER, "얼음을 깼는데 물이 안 남는다");
+});
+
+test("v24 TNT: 도화선을 태우고 터지며, 옆 TNT 로 옮겨 붙는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const X = 68, Y = 34, Z = 68;
+    for (let dx = -8; dx <= 8; dx++) for (let dy = -6; dy <= 6; dy++) for (let dz = -8; dz <= 8; dz++)
+      B.set(X + dx, Y + dy, Z + dz, dy < -1 ? B.B.STONE : 0);
+    B.applyEdit(X, Y, Z, B.B.TNT, false, 0);
+    B.applyEdit(X + 1, Y, Z, B.B.TNT, false, 0);   // 바로 옆 — 폭발 가장자리 랜덤에 걸리지 않는다
+    B.refreshAllTops(); B.relightAll(false);
+    B.setPaused(true); B.beginPlay();
+    B.S.primed.length = 0;
+    const lit = B.primeTNT(X, Y, Z);
+    const stillThere = B.get(X, Y, Z) === B.B.TNT;
+    B.primeTick(1.0);                            // 1초 뒤 — 아직 안 터졌다
+    const after1s = B.get(X, Y, Z) === B.B.TNT;
+    B.primeTick(2.5);                            // 도화선 끝
+    const gone = B.get(X, Y, Z) === 0;
+    const chained = B.S.primed.length;           // 옆 TNT 가 점화됐나
+    for (let k = 0; k < 40; k++) B.primeTick(0.1);
+    const chainGone = B.get(X + 1, Y, Z) === 0;
+    B.S.primed.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { lit, stillThere, after1s, gone, chained, chainGone, fuse: B.TNT_FUSE };
+  });
+  assert(r.lit, "점화되지 않았다");
+  assert(r.stillThere, "점화하자마자 사라졌다");
+  assert(r.after1s, "1초 만에 터졌다 — 도화선이 " + r.fuse + "초여야 한다");
+  assert(r.gone, "도화선이 다 탔는데 안 터졌다");
+  assert(r.chained > 0, "옆 TNT 로 연쇄 점화가 안 된다");
+  assert(r.chainGone, "연쇄된 TNT 가 끝내 안 터졌다");
+});
+
+test("v24 용암: 가까운 가연물에 스스로 불을 붙인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const X = 74, Y = 34, Z = 74;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+      for (let dy = -1; dy <= 3; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    }
+    B.applyEdit(X, Y, Z, B.B.LAVA, false, 0);
+    B.applyEdit(X + 2, Y, Z, B.B.PLANKS, false, 0);
+    B.refreshAllTops(); B.relightAll(false);
+    let fire = 0;
+    for (let k = 0; k < 1500 && !fire; k++) {
+      B.lavaTick(X, Y, Z, 24);
+      for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+        for (let dy = 0; dy <= 2; dy++)
+          if (B.get(X + dx, Y + dy, Z + dz) === B.B.FIRE) fire++;
+    }
+    return { fire };
+  });
+  assert(r.fire > 0, "용암 옆에 나무판자를 두었는데 불이 붙지 않는다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

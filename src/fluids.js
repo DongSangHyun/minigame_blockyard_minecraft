@@ -11,7 +11,7 @@ import { crunch, lavaHiss, tone } from "./audio.js";
 import { playerOccupies } from "./player.js";
 import { applyEdit, beginBatch, endBatch, unlock } from "./edit.js";
 
-export var MAXFLOW = 3; // 근원에서 옆으로 뻗을 수 있는 칸 수
+export var MAXFLOW = 7; // 근원에서 옆으로 뻗을 수 있는 칸 수 (마크와 같은 7칸)
 
 export function enqueueWater(x, y, z) {
   if (!inside(x, y, z)) return;
@@ -154,16 +154,22 @@ export function waterTick(budget) {
       lvl = 0;                          // 위에서 떨어지는 물은 다시 근원이 된다
       unlock("waterfall");
     } else {
+      var srcCount = 0;
       for (var h = 0; h < 6; h++) {
         if (DIRS[h][1] !== 0) continue;  // 옆으로만
         var nx2 = x + DIRS[h][0], nz2 = z + DIRS[h][2];
         if (get(nx2, y, nz2) !== WATER) continue;
         // 단단한 바닥을 딛고 있는 물만 옆으로 퍼진다 — 떨어지는 물기둥은 퍼지지 않는다
         if (!isSolid(get(nx2, y - 1, nz2))) continue;
-        var cand = waterLvl[idx(nx2, y, nz2)] + 1;
+        var nlvl = waterLvl[idx(nx2, y, nz2)];
+        if (nlvl === 0) srcCount++;
+        var cand = nlvl + 1;
         if (cand > MAXFLOW) continue;
         if (lvl < 0 || cand < lvl) lvl = cand;
       }
+      // 마크의 무한 물 — 근원 둘에 맞닿고 바닥이 단단하면 자기도 근원이 된다.
+      // 양동이가 없는 게임이라, 이게 없으면 옮긴 물은 쓸수록 줄기만 한다.
+      if (srcCount >= 2 && isSolid(get(x, y - 1, z))) lvl = 0;
     }
     if (lvl < 0) continue;
 
@@ -304,6 +310,29 @@ export function ignite(x, y, z) {
   return true;
 }
 
+// 용암은 가까운 가연물에 스스로 불을 붙인다 — 마크에서 용암을 붓는다는 건
+// "무언가를 시작한다" 는 뜻이다. 이게 없으면 용암은 주황색 벽돌일 뿐이다.
+// 큐 없이 플레이어 주변만 드문드문 훑는다 (44만 칸을 다 볼 이유가 없다)
+export var LAVA_REACH = 10;
+export function lavaTick(px, py, pz, tries) {
+  tries = tries || 24;
+  var lit = 0;
+  for (var t = 0; t < tries; t++) {
+    var x = Math.floor(px + (Math.random() - 0.5) * LAVA_REACH * 2);
+    var y = Math.floor(py + (Math.random() - 0.5) * 8);
+    var z = Math.floor(pz + (Math.random() - 0.5) * LAVA_REACH * 2);
+    if (!inside(x, y, z)) continue;
+    if (world[idx(x, y, z)] !== LAVA) continue;
+    // 용암 칸의 이웃(윗면은 두 칸까지)에서 불이 설 자리를 찾는다
+    for (var d = 0; d < 6; d++) {
+      var nx = x + DIRS[d][0], ny = y + DIRS[d][1], nz = z + DIRS[d][2];
+      if (ignite(nx, ny, nz)) { lit++; break; }
+    }
+    if (lit) break;                        // 한 틱에 하나면 충분하다
+  }
+  return lit;
+}
+
 // 불이 옆으로 옮겨 붙고, 태울 것이 없으면 꺼진다
 export function fireTick(budget) {
   budget = budget || 60;
@@ -367,6 +396,35 @@ export function fireTick(budget) {
 
 // TNT — 반경 안을 날려 버린다. 기반암은 남는다.
 export var BLAST_R = 4;
+// ── TNT 도화선 — 마크처럼 점화하고 4초 뒤에 터진다.
+// 즉시 터지면 반경 4칸 안에 있는 플레이어가 매번 휘말려 TNT 를 쓸 수가 없다.
+export var TNT_FUSE = 3.0;
+export function primeTNT(x, y, z, fuse) {
+  if (!inside(x, y, z)) return false;
+  if (get(x, y, z) !== TNT) return false;
+  for (var i = 0; i < S.primed.length; i++) {
+    if (S.primed[i].x === x && S.primed[i].y === y && S.primed[i].z === z) return false;
+  }
+  S.primed.push({ x: x, y: y, z: z, t: (typeof fuse === "number" ? fuse : TNT_FUSE) });
+  crunch(0.25, 0.08, 1800);
+  return true;
+}
+// 매 프레임 도화선을 태운다. 다 타면 그 자리를 지우고 터뜨린다.
+export function primeTick(dt) {
+  var fired = 0;
+  for (var i = S.primed.length - 1; i >= 0; i--) {
+    var p = S.primed[i];
+    p.t -= dt;
+    if (get(p.x, p.y, p.z) !== TNT) { S.primed.splice(i, 1); continue; }  // 누가 캐 갔다
+    if (p.t > 0) continue;
+    S.primed.splice(i, 1);
+    applyEdit(p.x, p.y, p.z, AIR, true);      // 터지는 자기 자신부터 치운다
+    explode(p.x, p.y, p.z, BLAST_R);
+    fired++;
+  }
+  return fired;
+}
+
 export function explode(cx, cy, cz, radius) {
   var R = radius || BLAST_R;
   beginBatch();
@@ -381,7 +439,8 @@ export function explode(cx, cy, cz, radius) {
         if (!inside(x, y, z)) continue;
         var b = get(x, y, z);
         if (b === AIR || isUnbreakable(b)) continue;
-        if (b === TNT) { Q.fireQ.push(idx(x, y, z)); }      // 연쇄 폭발 대신 불이 붙는다
+        // 연쇄 폭발 — 옆의 TNT 는 지우지 않고 짧은 도화선에 불을 붙인다
+        if (b === TNT) { primeTNT(x, y, z, 0.3 + Math.random() * 0.5); continue; }
         if (applyEdit(x, y, z, AIR, true)) removed++;
       }
   endBatch("폭발");
