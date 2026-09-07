@@ -7506,6 +7506,104 @@ test("v70 대량 편집: 손댄 둘레만 다시 굽되 조명은 똑같다", as
   eq(r.blkC, r.blkD, "되돌린 뒤 블록광이 어긋난다");
 });
 
+test("v71 시작 화면: 3일 만에 열어도 내 세계가 보인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    const slotK = B.curKey();
+    const keepSave = localStorage.getItem(slotK);
+    const keepName = B.S.worldName, keepMarks = B.S.marks.slice();
+
+    // 펼치지 않고 화면에 실제로 보이는 글자만 읽는다
+    function readable(root) {
+      let out = "";
+      for (const n of root.childNodes) {
+        if (n.nodeType === 3) { out += n.textContent; continue; }
+        if (n.nodeType !== 1) continue;
+        if (n.hidden || n.hasAttribute("hidden")) continue;
+        if (getComputedStyle(n).display === "none") continue;
+        if (n.tagName === "DETAILS") { out += " " + (n.querySelector("summary") || {}).textContent; continue; }
+        out += " " + readable(n);
+      }
+      return out;
+    }
+    const card = document.querySelector(".card");
+
+    // ① 저장이 없으면 소개문이 보이고 이어서 짓던 곳은 숨는다
+    localStorage.removeItem(slotK);
+    B.refreshMenu();
+    const fresh = readable(card).replace(/\s+/g, " ");
+    const freshHidden = document.getElementById("resume").hidden;
+
+    // ② 세계를 저장하고 3일 전으로 민다
+    B.S.worldName = "언덕 위 성";
+    B.S.marks = [[30, 20, 40, "채석장"], [50, 22, 60, "나무농장"]];
+    B.saveGame();
+    B.renameSlot(B.S.slot, "언덕 위 성");
+    const d = JSON.parse(localStorage.getItem(slotK));
+    d.at = Date.now() - 3 * 86400000;
+    d.secs = 45 * 60;
+    localStorage.setItem(slotK, JSON.stringify(d));
+    B.refreshMenu();
+    const back = readable(card).replace(/\s+/g, " ");
+    const shot = document.getElementById("resume-shot");
+    const px = shot.getContext("2d").getImageData(0, 0, shot.width, shot.height).data;
+    let painted = 0;
+    for (let i = 0; i < px.length; i += 4) if (px[i] + px[i + 1] + px[i + 2] > 60) painted++;
+
+    if (keepSave === null) localStorage.removeItem(slotK);
+    else localStorage.setItem(slotK, keepSave);
+    B.S.worldName = keepName; B.S.marks = keepMarks;
+    B.refreshMenu();
+    B.endPlay();
+    return { fresh, freshHidden, back, painted, total: shot.width * shot.height };
+  });
+  assert(r.freshHidden, "저장이 없는데 '이어서 짓던 곳' 이 떠 있다");
+  assert(/96×96 섬/.test(r.fresh), "처음 온 사람에게 소개문이 안 보인다");
+  assert(/언덕 위 성/.test(r.back), "3일 만에 열었는데 세계 이름이 안 보인다: " + r.back.slice(0, 120));
+  assert(/3일 전/.test(r.back), "마지막으로 논 때가 안 보인다");
+  assert(/45분/.test(r.back), "플레이 시간이 안 보인다");
+  assert(/채석장/.test(r.back), "표식이 안 보인다 — 돌아갈 곳이 곧 '하던 일' 이다");
+  assert(!/96×96 섬/.test(r.back), "돌아온 사람에게 다섯 줄 소개문이 그대로다");
+  assert(r.painted > r.total * 0.5,
+     "섬 그림이 " + r.painted + "/" + r.total + " 픽셀만 그려졌다");
+});
+
+phoneTest("이어서 짓던 곳이 화면 안에 들어온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const slotK = B.curKey();
+    const keepSave = localStorage.getItem(slotK), keepName = B.S.worldName;
+    B.beginPlay();
+    B.S.worldName = "언덕 위 성";
+    B.saveGame();
+    B.renameSlot(B.S.slot, "언덕 위 성");
+    B.endPlay();
+    B.refreshMenu();
+    const box = document.getElementById("resume");
+    const b = box.getBoundingClientRect();
+    const shot = document.getElementById("resume-shot").getBoundingClientRect();
+    const card = document.querySelector(".card").getBoundingClientRect();
+    const out = {
+      hidden: box.hidden,
+      fitsWidth: b.right <= window.innerWidth + 1 && b.left >= -1,
+      insideCard: b.right <= card.right + 1,
+      shotVisible: shot.width > 20 && shot.height > 20,
+      vw: window.innerWidth, vh: window.innerHeight
+    };
+    if (keepSave === null) localStorage.removeItem(slotK);
+    else localStorage.setItem(slotK, keepSave);
+    B.S.worldName = keepName;
+    B.refreshMenu();
+    return out;
+  });
+  assert(r.vw < 900, "폰 화면이 아니다 — 시험대가 틀렸다");
+  assert(!r.hidden, "저장이 있는데 '이어서 짓던 곳' 이 안 뜬다");
+  assert(r.fitsWidth, "폰 폭에서 가로로 넘친다");
+  assert(r.insideCard, "카드 밖으로 삐져나온다");
+  assert(r.shotVisible, "섬 그림이 폰에서 사라졌다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

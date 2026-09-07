@@ -453,9 +453,11 @@ export function cmdSay(msg) { if (cmdMsg) cmdMsg.textContent = msg; }
 // ── 시작 화면 세계 미리보기 — 어떤 섬인지 들어가기 전에 보인다
 export var previewEl = document.getElementById("preview");
 export var previewCap = document.getElementById("preview-cap");
-export function drawPreview() {
-  if (!previewEl) return;
-  var c = previewEl.getContext("2d");
+// target 을 주면 그 캔버스에 그린다 — 시작 화면의 "이어서 짓던 곳" 이 같은 그림을 쓴다
+export function drawPreview(target) {
+  var into = target || previewEl;
+  if (!into) return;
+  var c = into.getContext("2d");
   var img = c.createImageData(WX, WZ);
   var d = img.data;
   var land = 0, high = 0;
@@ -473,9 +475,9 @@ export function drawPreview() {
     d[o + 1] = Math.min(255, col[1] * sh);
     d[o + 2] = Math.min(255, col[2] * sh);
   }
-  previewEl.width = WX; previewEl.height = WZ;
+  into.width = WX; into.height = WZ;
   c.putImageData(img, 0, 0);
-  if (previewCap) {
+  if (!target && previewCap) {
     previewCap.innerHTML = "SEED <b>" + S.worldSeed + "</b><br>" +
       "육지 " + Math.round(land / (WX * WZ) * 100) + "% · 산 " +
       Math.round(high / Math.max(1, land) * 100) + "%<br>" +

@@ -457,6 +457,26 @@
     font-size: 14.5px; font-weight: 300; line-height: 1.65; color: #c9cec8;
   }
   .lede em { color: var(--bone); font-style: normal; font-weight: 500; }
+  /* ---------- 이어서 짓던 곳 ---------- */
+  #resume {
+    display: flex; gap: 14px; align-items: center;
+    margin: 18px 0 0; padding: 12px 14px;
+    background: var(--panel-2); border: 2px solid var(--line);
+  }
+  #resume-shot {
+    width: 76px; height: 76px; flex: none;
+    image-rendering: pixelated; border: 2px solid var(--line-hi);
+  }
+  .resume-name {
+    margin: 0 0 4px; font-family: var(--pixel); font-size: 11px;
+    letter-spacing: .08em; color: var(--bone);
+  }
+  .resume-meta {
+    margin: 0; font-family: var(--mono); font-size: 10.5px; color: var(--stone);
+    line-height: 1.7;
+  }
+  @media (max-width: 520px) { #resume-shot { width: 56px; height: 56px; } }
+
   .rule { height: 2px; background: var(--line); margin: 22px 0 16px; }
 
   .keys-wrap > summary {
@@ -872,6 +892,17 @@
       <p class="stamp" id="stamp"></p>
     </div>
     <h1>BLOCKYARD</h1>
+    <!-- 이어서 짓던 곳 — 3일 만에 열어도 접지 않고 읽히는 것이
+         버튼 글자 "이어하기" 세 자뿐이었다. 재료는 저장에 다 있었는데 화면까지 못 갔다. -->
+    <div id="resume" hidden>
+      <canvas id="resume-shot" width="96" height="96" aria-hidden="true"></canvas>
+      <div>
+        <p class="resume-name" id="resume-name"></p>
+        <p class="resume-meta" id="resume-meta"></p>
+        <p class="resume-meta" id="resume-marks"></p>
+      </div>
+    </div>
+
     <p class="lede">
       설원·초원·사막이 섞인 96×96 섬. 풀과 꽃이 깔린 들판 아래로 동굴과 광맥이 뻗어 있고,
       <em>빛이 닿지 않는 곳은 정말로 캄캄합니다</em> — 횃불을 박아 길을 내세요.

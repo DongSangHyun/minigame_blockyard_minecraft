@@ -1,6 +1,6 @@
 // input.js — 입력 (키보드 · 마우스 · 터치)
 import { S } from "./state.js";
-import { markZ } from "./world.js";
+import { markName, markZ } from "./world.js";
 import { resetQueues } from "./queues.js";
 import { seedMobs } from "./mobs.js";
 import { WX, WY, WZ } from "./dims.js";
@@ -548,7 +548,49 @@ function bpRow(bp) {
   return row;
 }
 
+// 시작 화면의 "이어서 짓던 곳" — 3일 만에 열었을 때 "내가 뭘 하고 있었지" 에 답한다.
+// 이름·플레이 시간·마지막 시각·섬 그림·표식이 전부 저장에 있는데 접힌 설정 안에만 있었다.
+export function refreshResume() {
+  var box = document.getElementById("resume");
+  if (!box) return "";
+  var lede = document.querySelector(".lede");
+  var info = slotInfo(S.slot);
+  if (!info) {
+    box.hidden = true;
+    if (lede) lede.hidden = false;      // 처음 온 사람에게는 이 게임이 뭔지부터
+    return "";
+  }
+  box.hidden = false;
+  // 돌아온 사람에게 다섯 줄짜리 소개문은 소음이다 — 마크도 월드 목록이 첫 화면이다
+  if (lede) lede.hidden = true;
+  var shot = document.getElementById("resume-shot");
+  if (shot) drawPreview(shot);
+  var nm = document.getElementById("resume-name");
+  var meta = document.getElementById("resume-meta");
+  var mk = document.getElementById("resume-marks");
+  if (nm) nm.textContent = info.name || ("SEED " + info.seed);
+  if (meta) {
+    meta.textContent = (info.at ? agoText(info.at) + " · " : "") +
+      info.mins + "분 플레이 · 놓음 " + info.placed.toLocaleString("ko-KR") +
+      " · 캔 " + info.mined.toLocaleString("ko-KR");
+  }
+  if (mk) {
+    // 표식이 있으면 어디를 찍어 뒀는지도 알려 준다 — 돌아갈 곳이 곧 "하던 일" 이다
+    var names = [];
+    for (var i = 0; i < S.marks.length && names.length < 4; i++) {
+      var n = markName(S.marks[i]);
+      if (n) names.push(n);
+    }
+    mk.textContent = S.marks.length
+      ? ("표식 " + S.marks.length + "개" + (names.length ? " — " + names.join(" · ") : ""))
+      : "";
+    mk.hidden = !S.marks.length;
+  }
+  return nm ? nm.textContent : "";
+}
+
 export function refreshMenu() {
+  refreshResume();
   refreshSlots();
   refreshBlueprints();
   drawPreview();
