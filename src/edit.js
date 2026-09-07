@@ -112,7 +112,7 @@ export function applyEdit(x, y, z, to, record, sh, depth) {
     else {
       var rec = { x: x, y: y, z: z, from: from, to: to, fromSh: fromSh, toSh: toSh, wl: fromWl };
       S.history.push(rec);
-      if (S.history.length > (opts.undo || HISTORY_MAX)) S.history.shift();
+      trimHistory();
       S.future.length = 0;
     }
   }
@@ -163,6 +163,21 @@ function settleBatch(cells, list) {
     relightLocal(list.x[i], list.y[i], list.z[i]);
   }
 }
+// 되돌리기가 먹는 메모리의 상한 — 단계 수만으로는 못 막는다.
+// 문 하나 여닫기와 32,768칸 채우기가 같은 한 칸을 먹기 때문이다.
+// 40,000칸 채우기를 40번 하면 힙이 23.8MB → 110.5MB 였다(자문 9차 실측, 한 번에 2.2MB).
+// opts.undo 는 2000까지 올라가므로 개수만 보면 폰에서 탭이 죽는다.
+export var HISTORY_CELLS_MAX = 2000000;
+function entryCells(e) { return e && e.batch ? e.batch.n : 1; }
+// 오래된 것부터 버려 개수와 칸 수를 둘 다 상한 아래로 맞춘다
+function trimHistory() {
+  var maxN = opts.undo || HISTORY_MAX;
+  while (S.history.length > maxN) S.history.shift();
+  var cells = 0;
+  for (var i = 0; i < S.history.length; i++) cells += entryCells(S.history[i]);
+  while (S.history.length > 1 && cells > HISTORY_CELLS_MAX) cells -= entryCells(S.history.shift());
+}
+
 export function endBatch(label) {
   var b = S.batch;
   var cells = S.batchCells;
@@ -171,7 +186,7 @@ export function endBatch(label) {
   if (!b || !b.n) return 0;
   S.history.push({ batch: b, label: label || "대량 편집" });
   if (b.n >= 100) unlock("build100");
-  if (S.history.length > (opts.undo || HISTORY_MAX)) S.history.shift();
+  trimHistory();
   S.future.length = 0;
   return b.n;
 }
@@ -482,7 +497,9 @@ export function fillSelection(block, sh) {
   var b = bounds();
   if (!b) return 0;
   if (selectionSize() > REGION_MAX) return -1;
-  beginBatch();
+  // 크기를 알고 시작한다 — 안 주면 1024 에서 두 배씩 일곱 번 통째로 복사하고,
+  // 끝나면 65,536 칸 중 25,536 칸이 빈 채로 히스토리에 남는다 (40,000칸 채우기 실측)
+  beginBatch(selectionSize());
   for (var y = b.y0; y <= b.y1; y++)
     for (var z = b.z0; z <= b.z1; z++)
       for (var x = b.x0; x <= b.x1; x++)
@@ -497,7 +514,9 @@ export function clearSelection() {
   var b = bounds();
   if (!b) return 0;
   if (selectionSize() > REGION_MAX) return -1;
-  beginBatch();
+  // 크기를 알고 시작한다 — 안 주면 1024 에서 두 배씩 일곱 번 통째로 복사하고,
+  // 끝나면 65,536 칸 중 25,536 칸이 빈 채로 히스토리에 남는다 (40,000칸 채우기 실측)
+  beginBatch(selectionSize());
   for (var y = b.y0; y <= b.y1; y++)
     for (var z = b.z0; z <= b.z1; z++)
       for (var x = b.x0; x <= b.x1; x++)

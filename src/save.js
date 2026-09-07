@@ -7,6 +7,7 @@ import { seenMap, touched, refreshAllTops, set, shape, world, waterLvl } from ".
 import { player, stats } from "./player.js";
 import { dumpMobs, loadMobs } from "./mobs.js";
 import { toast } from "./hud.js";
+import { applyWeather } from "./sky.js";
 
 export var SAVE_KEY = "blockyard.save";
 export var OLD_KEY = "blockyard.save.v2";
@@ -127,7 +128,12 @@ export function saveGame() {
       tc: encodeArrB64(touched),   // 사람이 손댄 칸 — 없으면 이어하기 때 날씨·잔디가 내 건축물을 다시 건드린다
       mb: dumpMobs(),              // 동물 — 없으면 목장이 탭 하나 닫으면 빈 우리가 된다
       mm: encodeArrB64(seenMap),   // 걸어서 밝힌 지도 — 칸마다 0~3 이라 몇 백 바이트다
-      sp: S.spawnPoint, marks: S.marks, bar2: S.barAlt, fly: S.flySpeed, tt: S.terrain
+      sp: S.spawnPoint, marks: S.marks, bar2: S.barAlt, fly: S.flySpeed, tt: S.terrain,
+      // 날씨는 시각(t)·달 위상(md)과 한 짝인데 혼자 빠져 있었다 —
+      // 눈 오는 밤 사진을 찍으려고 K 로 잠가 놓아도 탭을 닫으면 맑음으로 돌아왔다.
+      wt: S.weather, wk: S.weatherLock ? 1 : 0,
+      // G 로 고른 모양도 손에 든 것의 일부다
+      sm: S.shapeMode
     }));
     try { localStorage.removeItem(OLD_KEY); } catch (e2) {}
     S.worldDirty = false;
@@ -185,6 +191,12 @@ export function loadGame() {
     if (Array.isArray(d.bar2) && d.bar2.length === DEFAULT_BAR.length) S.barAlt = d.bar2.slice();
     S.flySpeed = typeof d.fly === "number" ? Math.max(0.5, Math.min(4, d.fly)) : 1;
     S.terrain = (d.tt | 0) || 0;
+    // 없으면 예전 저장 — 기본값으로 둔다 (저장 버전은 v5 그대로)
+    S.weather = (d.wt | 0) || 0;
+    S.weatherLock = !!d.wk;
+    S.shapeMode = (d.sm | 0) || 0;
+    S.weatherMix = S.weather ? 1 : 0;      // 불러오자마자 그 날씨로 보이게
+    applyWeather();                        // 빗줄기·눈송이를 실제로 켠다 (S.weather 만 넣으면 안 보인다)
     refreshAllTops();
     return true;
   } catch (e) { return false; }

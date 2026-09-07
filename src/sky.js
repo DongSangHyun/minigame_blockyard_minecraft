@@ -184,6 +184,11 @@ export function seedWeather() {
 export function setWeather(w) {
   if (w === S.weather) return;
   S.weather = w;
+  applyWeather();
+}
+// S.weather 가 이미 그 값일 때도 화면을 맞춘다 —
+// 저장에서 날씨를 되살릴 때(v67) S.weather 를 직접 넣으므로 setWeather 는 조기 반환한다.
+export function applyWeather() {
   if (S.weather === 0) {
     weatherPoints.visible = false;
     rainLines.visible = false;

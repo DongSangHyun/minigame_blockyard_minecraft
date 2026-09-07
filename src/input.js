@@ -36,6 +36,8 @@ if (isTouch) {
 
 export var HINT_LOCK = '좌클릭 <b>길게 눌러 캐기</b> · 우클릭 <b>놓기</b> · <b>Shift</b> 웅크리기 · <b>Ctrl</b> 달리기 · <b>E</b> 블록 목록 · <b>휠클릭</b> 복사 · <b>Ctrl+Z</b> 되돌리기 · <b>{fly}</b> 비행 · <b>ESC</b> 메뉴';
 export var HINT_DRAG = '드래그 <b>둘러보기</b> · 제자리 좌클릭 길게 <b>캐기</b> · 우클릭 <b>놓기</b> · <b>E</b> 블록 목록 · <b>Ctrl+Z</b> 되돌리기 · <b>ESC</b> 메뉴';
+// 폰 전용 — HINT_DRAG 를 폰에 띄우면 여섯 조작 중 여섯 개가 폰에 없는 것이었다
+export var HINT_TOUCH = '왼쪽 <b>스틱</b> 걷기 · 오른쪽 화면 끌어 <b>둘러보기</b> · <b>캐기</b>/<b>놓기</b> 길게 누르면 계속 · <b>목록</b> 재료 고르기 · <b>되돌리기</b> · <b>메뉴</b>';
 export var hintEl = document.getElementById("hint");
 
 export var TUT = [
@@ -60,8 +62,13 @@ export var TUT_TOUCH = [
 ];
 export function tutLine(i) { return (isTouch ? TUT_TOUCH : TUT)[i]; }
 export function refreshHint() {
-  hintEl.innerHTML = hintText(S.tut < TUT.length ? tutLine(S.tut) : (S.lockMode ? HINT_LOCK : HINT_DRAG));
+  hintEl.innerHTML = hintText(S.tut < TUT.length ? tutLine(S.tut)
+    : (isTouch ? HINT_TOUCH : (S.lockMode ? HINT_LOCK : HINT_DRAG)));
 }
+// 폰에서 3·5·6 단계가 각각 G 키·Ctrl+F·H 키에만 걸려 있어, 네 번째 줄에서 영영 멈췄다.
+// 그 뒤 세 줄(줄 긋기·스틱·웅크림)은 아무도 못 봤다.
+// TUT_TOUCH 의 문구가 요구하는 동작으로 각각 이어 준다.
+export function advanceTutTouch(step) { if (isTouch) advanceTut(step); }
 export function advanceTut(step) {
   if (S.tut !== step) return;
   S.tut = step + 1;
@@ -1054,6 +1061,8 @@ export function setStick(dx, dy) {
   stickKnob.style.transform = "translate(" + dx + "px," + dy + "px)";
   S.stick.x = dx / STICK_R;
   S.stick.z = -dy / STICK_R;
+  // 튜토리얼 6번째 줄("스틱으로 걷고 화면을 끌어 둘러보세요") — 실제로 스틱을 밀면 넘어간다
+  if (Math.abs(S.stick.x) + Math.abs(S.stick.z) > 0.4) advanceTutTouch(5);
 }
 
 stickZone.addEventListener("touchstart", function (e) {
@@ -1160,7 +1169,10 @@ bindHold("tb-place", function () { S.touchPlace = true; S.placeCooldown = 0; S.l
                      function () { S.touchPlace = false; });
 bindHold("tb-jump", function () { S.keys.Space = true; }, function () { S.keys.Space = false; });
 bindHold("tb-list", function () { if (S.uiOpen) closePicker(true); else openPicker(); });
-bindHold("tb-sneak", function () { S.keys.ShiftLeft = true; }, function () { S.keys.ShiftLeft = false; });
+bindHold("tb-sneak", function () {
+  S.keys.ShiftLeft = true;
+  advanceTutTouch(6);            // 마지막 줄("웅크림 버튼을 누른 채면 안 떨어집니다")
+}, function () { S.keys.ShiftLeft = false; });
 bindHold("tb-fly", function () {
   player.flying = !player.flying; player.vel.y = 0;
   toast(player.flying ? "비행 모드" : "걷기 모드");

@@ -6925,6 +6925,180 @@ phoneTest("메뉴로 돌아가는 길과 되돌리기가 있다", async (page) =
   assert(r.leftPlay, "메뉴 단추를 눌러도 메뉴로 안 나간다");
 });
 
+phoneTest("튜토리얼 일곱 줄을 터치만으로 끝까지 간다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.tut = 0;
+    const X = 44, Y = 44, Z = 44;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      B.set(X + dx, Y - 1, Z + dz, B.B.GRASS);
+    B.set(X, Y, Z, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false);
+    const steps = [];
+    function note(what) { steps.push([what, B.S.tut]); }
+
+    B.advanceTut(0); note("캐기");                     // mine.js 가 부르는 것과 같은 자리
+    B.advanceTut(1); note("놓기");
+    B.openPicker(); B.closePicker(false); note("목록");  // openPicker 안에서 advanceTut(2)
+
+    // 4번째 — 놓기를 누른 채 끌기 (place(repeating))
+    B.S.bar[B.S.selected] = B.B.BRICK;
+    B.player.pos.set(X + 0.5, Y + 1, Z + 2.5);
+    // raycast 는 카메라를 본다 — 각도를 훑어 그 칸을 집을 때까지 맞춘다
+    B.player.yaw = 0;
+    let aimHit = null;
+    for (let pi = 0; pi <= 25 && !aimHit; pi++) {
+      B.player.pitch = -pi * 0.05;
+      B.camera.rotation.order = "YXZ";
+      B.camera.rotation.y = 0; B.camera.rotation.x = B.player.pitch;
+      B.camera.position.set(B.player.pos.x, B.player.pos.y + B.EYE, B.player.pos.z);
+      B.camera.updateMatrixWorld(true);
+      const h = B.raycast(6);
+      if (h && h.x === X && h.y === Y && h.z === Z) aimHit = h;
+    }
+    B.place(true);
+    note("줄 긋기");
+    const diag = { isTouch: B.isTouch, aim: aimHit ? [aimHit.x, aimHit.y, aimHit.z] : null };
+
+    // 5번째 — 횃불
+    B.advanceTut(4); note("횃불");
+
+    // 6번째 — 스틱
+    B.setStick(40, -40);
+    B.setStick(0, 0);
+    note("스틱");
+
+    // 7번째 — 웅크림 단추
+    const sneak = document.getElementById("tb-sneak");
+    sneak.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
+    sneak.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true }));
+    note("웅크림");
+
+    const done = B.S.tut >= 7;
+    const hint = document.getElementById("hint").textContent;
+    B.S.tut = 99; B.refreshHint();
+    const endHint = document.getElementById("hint").textContent;
+    B.S.keys.ShiftLeft = false;
+    B.endPlay(); B.setPaused(false);
+    return { steps, done, hint, endHint, diag };
+  });
+  const stuck = r.steps.filter((s, i) => s[1] !== i + 1);
+  eq(stuck.length, 0,
+     "터치만으로 못 넘어가는 단계가 있다: " + JSON.stringify(stuck) + " / " + JSON.stringify(r.diag));
+  assert(r.done, "일곱 줄을 다 지났는데 튜토리얼이 안 끝났다");
+  // 끝난 뒤 상시 안내도 폰 조작이어야 한다 — 예전엔 여섯 개 전부 폰에 없는 것이었다
+  assert(!/Ctrl|ESC|우클릭|좌클릭/.test(r.endHint),
+         "폰인데 상시 안내가 키보드 조작을 말한다: " + r.endHint);
+  assert(/스틱|목록|되돌리기|메뉴/.test(r.endHint), "폰 상시 안내가 비었다: " + r.endHint);
+});
+
+test("v67 저장: 날씨 잠금·모양·핫바 쪽이 이어진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const slotKey = B.curKey();
+    const keepSave = localStorage.getItem(slotKey);
+    const keepBar = B.S.bar.slice(), keepAlt = B.S.barAlt.slice();
+
+    // 눈을 골라 잠그고, 계단 모양으로 두고, 핫바를 알아볼 수 있게 바꾼다
+    B.S.weather = 0; B.setWeather(2); B.S.weatherLock = true;
+    B.S.shapeMode = 2;
+    B.S.bar[0] = B.B.LADDER; B.S.barAlt[0] = B.B.SAPLING;
+    B.saveGame();
+
+    // 전부 흐트러뜨린 뒤 불러온다
+    B.setWeather(0); B.S.weatherLock = false; B.S.shapeMode = 0;
+    B.S.bar[0] = B.B.DIRT; B.S.barAlt[0] = B.B.DIRT;
+    const loaded = B.loadGame();
+
+    const out = { loaded, weather: B.S.weather, lock: B.S.weatherLock,
+                  shape: B.S.shapeMode, bar0: B.S.bar[0], alt0: B.S.barAlt[0],
+                  mix: B.S.weatherMix, snowing: B.weatherPoints.visible };
+
+    // 예전 저장(그 세 키가 없는 것)도 읽혀야 한다 — 저장 버전은 v5 그대로다
+    const raw = JSON.parse(localStorage.getItem(slotKey));
+    delete raw.wt; delete raw.wk; delete raw.sm;
+    localStorage.setItem(slotKey, JSON.stringify(raw));
+    B.S.weather = 1; B.S.weatherLock = true; B.S.shapeMode = 1;
+    const oldOk = B.loadGame();
+    out.oldLoaded = oldOk;
+    out.oldWeather = B.S.weather; out.oldLock = B.S.weatherLock; out.oldShape = B.S.shapeMode;
+    out.ver = raw.v;
+    out.LADDER = B.B.LADDER; out.SAPLING = B.B.SAPLING;
+
+    if (keepSave === null) localStorage.removeItem(slotKey);
+    else localStorage.setItem(slotKey, keepSave);
+    B.S.bar = keepBar; B.S.barAlt = keepAlt; B.refreshBar();
+    B.setWeather(0); B.S.weatherLock = false; B.S.shapeMode = 0;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  assert(r.loaded, "저장을 못 불러왔다 — 시험대가 틀렸다");
+  eq(r.weather, 2, "고른 날씨가 안 이어진다 — 눈 오는 밤 사진을 여러 세션에 걸쳐 못 찍는다");
+  assert(r.lock, "날씨 잠금이 안 이어진다 — 이어하면 2분 뒤 저절로 바뀐다");
+  assert(r.snowing, "날씨는 이어졌는데 눈송이가 안 보인다 — S.weather 만 넣으면 화면은 그대로다");
+  eq(r.shape, 2, "G 로 고른 모양이 안 이어진다");
+  eq(r.bar0, r.LADDER, "핫바 1쪽이 안 이어진다");
+  eq(r.alt0, r.SAPLING, "핫바 2쪽이 안 이어진다");
+  assert(r.oldLoaded, "그 세 키가 없는 예전 저장을 못 읽는다 — 기존 플레이어의 세계가 사라진다");
+  eq(r.ver, 5, "저장 버전이 올라갔다 — 선택 필드만 늘렸으니 v5 여야 한다");
+  eq(r.oldWeather, 0, "예전 저장인데 날씨가 기본값(맑음)이 아니다");
+  eq(r.oldLock, false, "예전 저장인데 날씨 잠금이 남았다");
+  eq(r.oldShape, 0, "예전 저장인데 모양이 기본값이 아니다");
+});
+
+test("v67 되돌리기: 칸 수에도 상한이 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keepUndo = B.opts.undo;
+    B.opts.undo = 2000;                       // 단계 수로는 절대 안 걸리게 해 둔다
+    B.S.history.length = 0; B.S.future.length = 0;
+    const X = 20, Y = 20, Z = 20, N = 34;     // 34³ = 39,304칸
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + N - 1, Y + N - 1, Z + N - 1];
+    function cells() {
+      let c = 0;
+      for (const e of B.S.history) c += e.batch ? e.batch.n : 1;
+      return c;
+    }
+    // 상한(200만 칸)을 넉넉히 넘길 만큼 채운다
+    const need = Math.ceil(B.HISTORY_CELLS_MAX / (N * N * N)) + 6;
+    let peak = 0;
+    for (let k = 0; k < need; k++) {
+      B.fillSelection(k % 2 ? B.B.STONE : B.B.GLASS, 0);
+      const c = cells();
+      if (c > peak) peak = c;
+    }
+    const held = cells(), entries = B.S.history.length;
+    // 상한에 걸려도 되돌리기 자체는 살아 있어야 한다
+    const undone = B.undo();
+
+    // 묶음 배열이 딱 맞게 잡히는가 — 안 주면 1024 에서 두 배씩 늘리다 40% 가 빈 채로 남는다
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.fillSelection(B.B.PLANKS, 0);
+    const last = B.S.history[B.S.history.length - 1];
+    const slack = last && last.batch ? last.batch.cap - last.batch.n : -1;
+
+    B.S.selA = B.S.selB = null;
+    B.opts.undo = keepUndo;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { peak, held, entries, undone, slack, cap: B.HISTORY_CELLS_MAX, fill: N * N * N };
+  });
+  assert(r.peak > r.cap * 0.5, "시험대가 안 섰다 — 상한 근처까지 안 채웠다: " + r.peak);
+  assert(r.held <= r.cap + r.fill,
+     "되돌리기가 " + r.held.toLocaleString("en-US") + "칸을 들고 있다 (상한 " +
+     r.cap.toLocaleString("en-US") + ") — 단계 수만 세면 폰에서 탭이 죽는다");
+  assert(r.entries > 1, "상한에 걸리자 히스토리가 통째로 비었다 — 되돌릴 것이 남아야 한다");
+  assert(r.undone, "상한에 걸린 뒤 되돌리기가 안 먹는다");
+  assert(r.slack >= 0 && r.slack < r.fill * 0.05,
+     "묶음 배열에 " + r.slack + "칸이 빈 채로 남는다 — 크기를 알고 시작해야 한다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

@@ -11,7 +11,7 @@ import { breakSound, crunch, placeSound, tone } from "./audio.js";
 import { applyEdit, beginBatch, endBatch, unlock } from "./edit.js";
 import { noteBlockUse, toast } from "./hud.js";
 import { triggerSwing } from "./hand.js";
-import { advanceTut } from "./input.js";
+import { advanceTut, advanceTutTouch } from "./input.js";
 
 export function mineAt(hit) {
   // 얼음을 깨면 물이 남는다 (마크) — 언 호수를 뚫고 들어가는 그림이 나온다
@@ -134,6 +134,9 @@ export function place(repeating) {
   var hit = raycast(6);
   if (!hit) return;
   if (!repeating && tryInteract(hit)) return;
+  // 튜토리얼 4번째 줄(폰) — "놓기를 누른 채 화면을 끌면 줄이 그어집니다".
+  // 반복 호출이 곧 그 동작이다. 예전엔 G 키에만 걸려 있어 폰에서는 도달할 방법이 없었다.
+  if (repeating) advanceTutTouch(3);
   var b = S.bar[S.selected];
 
   // 반블록 두 장을 겹치면 온전한 블록이 된다 — 건축가가 제일 먼저 시도하는 것
