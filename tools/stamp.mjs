@@ -116,5 +116,13 @@ patch("docs/TESTING.md", [
    table + "<!-- /stamp:tests -->"]
 ]);
 
+// 배포를 가리키는 짧은 도장 — 커밋 시각에서 숫자만 뽑는다 (예: 20260907T1152)
+const stampId = iso.replace(/[-:]/g, "").slice(0, 13);
+// 서비스 워커 캐시 이름 — 배포마다 바꿔야 옛 캐시가 청소된다.
+// 고정값이면 activate 의 `k === VERSION ? null : caches.delete(k)` 가 한 번도 안 지운다.
+patch("sw.js", [
+  [/var VERSION = "blockyard-[^"]*";/, 'var VERSION = "blockyard-' + stampId + '";']
+]);
+
 console.log("문서 숫자 갱신 — 모듈 " + src.modules + " · " + src.lines + "줄 · 저장 v" + SAVE_V +
             " · 시험 " + tests + "항목");

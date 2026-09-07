@@ -79,6 +79,15 @@
   #boot span { font-family: var(--mono); font-size: 11px; color: var(--stone); letter-spacing: .06em; }
   #boot i { display: block; width: 220px; height: 6px; margin: 16px auto 0;
             background: var(--panel); border: 2px solid var(--line); }
+  /* 부팅이 실패했을 때 — 멈춘 막대만 보여 주면 사람이 할 수 있는 게 없다 */
+  #boot-fail { margin: 18px auto 0; max-width: 420px; }
+  #boot-fail span { display: block; color: var(--ember); font-size: 11px; line-height: 1.7;
+                    word-break: break-all; }
+  #boot-reset {
+    margin-top: 12px; font-family: var(--mono); font-size: 11px; color: var(--bone);
+    background: var(--panel-2); border: 2px solid var(--line-hi); padding: 8px 14px; cursor: pointer;
+  }
+  #boot-reset:hover { border-color: var(--moss); }
   #boot em { display: block; height: 100%; width: 0; background: var(--moss); transition: width .2s ease; }
 
   /* ---------- 작은 화면 · 노치 대응 ---------- */
@@ -744,7 +753,9 @@
 
 <div id="stage"></div>
 <div id="boot"><div><b>BLOCKYARD</b><span id="boot-msg">세계를 만드는 중…</span>
-  <i><em id="boot-bar"></em></i></div></div>
+  <i><em id="boot-bar"></em></i>
+  <p id="boot-fail" hidden><span id="boot-why"></span>
+    <button id="boot-reset" type="button">캐시 비우고 다시 열기</button></p></div></div>
 <div id="rotate"><div><b>BLOCKYARD</b>가로로 돌려 주세요<br><small>넓은 화면에서 훨씬 잘 보입니다</small></div></div>
 <div id="underwater" hidden></div>
 <div id="inblock" hidden></div>
@@ -1020,4 +1031,58 @@
     <p class="fineprint" id="offline">홈 화면에 추가하면 인터넷 없이도 열립니다</p>
   </div>
 </div>
+<!-- 부팅 감시견 — 모듈이 터지면 main.js 는 아예 안 돌아가므로 여기(모듈 바깥)에 둔다.
+     예전에는 실패해도 "세계를 만드는 중…" 막대가 그대로 멈춰 있어,
+     사람이 무엇이 잘못됐는지도, 무엇을 하면 되는지도 알 수가 없었다. -->
+<script>
+(function () {
+  var why = document.getElementById("boot-why");
+  var box = document.getElementById("boot-fail");
+  var msg = document.getElementById("boot-msg");
+  var shown = false;
+  function fail(text) {
+    if (shown || (window.__blockyard && window.__blockyard.booted !== false)) return;
+    shown = true;
+    if (msg) msg.textContent = "여는 데 실패했습니다";
+    if (why) why.textContent = text;
+    if (box) box.hidden = false;
+  }
+  // 세 번째 인자 true(캡처) — 모듈·이미지 같은 **자원 로딩 실패는 버블링을 안 한다.**
+  // 이게 없으면 "모듈을 못 찾음" 이 감시견에 안 잡힌다 (실제로 안 잡혔다).
+  window.addEventListener("error", function (e) {
+    var t = e && e.target;
+    if (t && t !== window && t.tagName) {
+      fail("파일을 못 읽었습니다: " + (t.src || t.href || t.tagName));
+      return;
+    }
+    fail(String((e && e.message) || "") || "알 수 없는 오류");
+  }, true);
+  window.addEventListener("unhandledrejection", function (e) {
+    fail(String((e && e.reason && e.reason.message) || e.reason || "알 수 없는 오류"));
+  });
+  // 오류가 안 나고 조용히 멈추는 경우도 있다 (CDN 이 안 오는 등)
+  setTimeout(function () { fail("15초 안에 다 열리지 않았습니다 — 네트워크나 캐시 문제일 수 있습니다"); }, 15000);
+
+  var btn = document.getElementById("boot-reset");
+  if (btn) btn.addEventListener("click", function () {
+    btn.disabled = true;
+    btn.textContent = "비우는 중…";
+    // 서비스 워커와 캐시를 걷어 내야 옛 판에서 빠져나온다. 세계 저장(localStorage)은 그대로 둔다.
+    var jobs = [];
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+      jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) {
+        return Promise.all(rs.map(function (r) { return r.unregister(); }));
+      }).catch(function () {}));
+    }
+    if (window.caches && caches.keys) {
+      jobs.push(caches.keys().then(function (ks) {
+        return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+      }).catch(function () {}));
+    }
+    Promise.all(jobs).then(function () {
+      location.replace(location.pathname + "?fresh=" + Date.now());
+    });
+  });
+})();
+</script>
 <script type="module" src="src/main.js"></script>

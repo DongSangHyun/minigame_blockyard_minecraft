@@ -7204,6 +7204,27 @@ test("v67 저장 슬롯: 이름을 붙여 알아볼 수 있다", async (page) =>
   eq(r.loadedName, "돌성", "불러오기 뒤 이름이 안 이어진다");
 });
 
+test("v68 부팅: 실패하면 화면이 말하고 빠져나갈 길을 준다", async (page) => {
+  const r = await page.evaluate(() => {
+    // 실제로 부팅을 깨뜨릴 수는 없으니(이미 떠 있다), 감시견이 **붙어 있는지**와
+    // 눌렀을 때 무엇을 하는지를 본다. 진짜 깨뜨린 확인은 tools 쪽 수동 재현으로 했다.
+    const box = document.getElementById("boot-fail");
+    const why = document.getElementById("boot-why");
+    const btn = document.getElementById("boot-reset");
+    if (!box || !why || !btn) return { missing: true };
+    const hiddenWhileOk = box.hidden;
+    // 부팅이 끝난 뒤에는 오류가 나도 이 판을 띄우지 않아야 한다 (게임 중 오류로 검은 판이 뜨면 안 된다)
+    window.dispatchEvent(new ErrorEvent("error", { message: "시험용 가짜 오류" }));
+    const stillHidden = box.hidden;
+    return { missing: false, hiddenWhileOk, stillHidden,
+             booted: window.__blockyard && window.__blockyard.booted !== false };
+  });
+  assert(!r.missing, "부팅 감시견이 없다 — 실패하면 멈춘 막대만 남는다");
+  assert(r.booted, "시험대가 안 섰다");
+  assert(r.hiddenWhileOk, "정상인데 실패 안내가 떠 있다");
+  assert(r.stillHidden, "부팅이 끝난 뒤의 오류에도 실패 판이 떴다 — 놀다가 검은 화면을 만난다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
