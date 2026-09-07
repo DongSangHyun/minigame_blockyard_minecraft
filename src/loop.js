@@ -4,13 +4,13 @@ import { padState, pollGamepad, pollGamepadMenu } from "./input.js";
 import { breedTick, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, WX, WY, WZ, idx, inside } from "./dims.js";
-import { SH_SLAB, AIR, DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isSolid, isUnbreakable } from "./blocks.js";
+import { isStairShape, SH_SLAB, AIR, DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isSolid, isUnbreakable } from "./blocks.js";
 import { animateLiquids, crackTex } from "./atlas.js";
-import { seenRatio, BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, set, shape, topMap, world } from "./world.js";
+import { boxesAt, seenRatio, BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, set, shape, topMap, world } from "./world.js";
 import { lightAtPlayer, lightBlk, lightSky, relightAll } from "./light.js";
 import { growTick, lavaFlowTick, lavaDryTick, grassTick, lavaTick, primeTick, TNT_FUSE, decayTick, dryTick, fallTick, fireTick, freezeTick, waterTick } from "./fluids.js";
 import { buildBudget, dirty, markAllDirty, opaqueMeshes, setBuildFocus } from "./mesh.js";
-import { updatePasteBox, updateOuterSea, primedBoxes, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
+import { dynamicHighlight, updatePasteBox, updateOuterSea, primedBoxes, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { calmMotion, opts } from "./settings.js";
 import { EYE, HALF, moveAxis, moveHorizontal, player, pointSolid, raycast, spawn, stats, unstick } from "./player.js";
@@ -345,7 +345,11 @@ export function step(dt) {
       highlight.geometry = HL_CROSS[hit.block] || HL_GEO[0];
       highlight.position.set(hit.x, crossBase(hit.x, hit.y, hit.z), hit.z);
     } else {
-      highlight.geometry = HL_GEO[hit.shape] || HL_GEO[0];
+      // 모서리 계단은 이웃에 따라 모양이 달라져 미리 만들어 둘 수가 없다 —
+      // 조준한 그 칸의 실제 상자로 테두리를 만든다. 안 그러면 직선 외곽선이 떠 어긋난다.
+      highlight.geometry = isStairShape(hit.shape)
+        ? dynamicHighlight(boxesAt(hit.block, hit.shape, hit.x, hit.y, hit.z))
+        : (HL_GEO[hit.shape] || HL_GEO[0]);
       highlight.position.set(hit.x, hit.y, hit.z);
     }
     var gx = hit.x + hit.nx, gy = hit.y + hit.ny, gz = hit.z + hit.nz;

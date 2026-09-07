@@ -6569,6 +6569,87 @@ test("v65 블록 목록: 한 번 열어 열 칸을 채운다", async (page) => {
   assert(r.closedByE, "E 로 닫히지 않는다 — 닫을 길이 없어졌다");
 });
 
+test("v66 계단: 꺾이는 자리가 모서리 모양으로 바뀐다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 34, Y = 46, Z = 34;
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++)
+      for (let dy = -1; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false);
+    // 윗층(0.5~1) 이 덮는 넓이를 센다 — 직선 1/2 · 안쪽 3/4 · 바깥 1/4
+    function topArea(x, y, z) {
+      const boxes = B.boxesAt(B.get(x, y, z), B.shapeAt(x, y, z), x, y, z);
+      let a = 0;
+      for (const bx of boxes) {
+        if (bx[1] < 0.49) continue;                 // 밟는 바닥(0~0.5)은 뺀다
+        a += (bx[3] - bx[0]) * (bx[5] - bx[2]);
+      }
+      return +a.toFixed(3);
+    }
+    function put(x, z, sh) { B.applyEdit(x, Y, z, B.B.STONE, false, sh); }
+    function clear() {
+      for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++)
+        B.applyEdit(X + dx, Y, Z + dz, B.B.AIR, false);
+    }
+
+    // ① 외톨이 계단 = 직선 (윗층 절반)
+    clear(); put(X, Z, B.SH_STAIR_N);
+    const alone = topArea(X, Y, Z);
+
+    // ② 같은 축으로 이어 놓아도 직선 그대로다 (직선 계단 줄이 망가지면 안 된다)
+    clear();
+    put(X, Z, B.SH_STAIR_N); put(X, Z - 1, B.SH_STAIR_N); put(X, Z + 1, B.SH_STAIR_N);
+    const inLine = topArea(X, Y, Z);
+
+    // ③ 높은 쪽(-Z) 뒤에 직각 계단 → 안쪽 모서리 (윗층 3/4)
+    clear(); put(X, Z, B.SH_STAIR_N); put(X, Z - 1, B.SH_STAIR_E);
+    const inner = topArea(X, Y, Z);
+
+    // ④ 낮은 쪽(+Z) 앞에 직각 계단 → 바깥 모서리 (윗층 1/4)
+    clear(); put(X, Z, B.SH_STAIR_N); put(X, Z + 1, B.SH_STAIR_E);
+    const outer = topArea(X, Y, Z);
+    // 그 한 칸은 이웃의 높은 쪽(+X)과 맞닿아야 한다 — 반대로 잡으면 노치가 남는다
+    const ob = B.boxesAt(B.get(X, Y, Z), B.shapeAt(X, Y, Z), X, Y, Z)
+                .filter((bx) => bx[1] >= 0.49)[0];
+    const outerOnPlusX = ob && ob[0] >= 0.49;
+
+    // ⑤ 뒤집힌 계단도 같은 규칙 — 이번엔 아랫층(0~0.5)이 모양을 바꾼다
+    clear(); put(X, Z, B.SH_STAIR_NU); put(X, Z - 1, B.SH_STAIR_EU);
+    const boxesU = B.boxesAt(B.get(X, Y, Z), B.shapeAt(X, Y, Z), X, Y, Z);
+    let lowArea = 0;
+    for (const bx of boxesU) if (bx[4] <= 0.51) lowArea += (bx[3] - bx[0]) * (bx[5] - bx[2]);
+    const innerUp = +lowArea.toFixed(3);
+
+    // ⑥ 반쪽이 다르면 모서리가 아니다 (아래 계단 + 뒤집힌 계단)
+    clear(); put(X, Z, B.SH_STAIR_N); put(X, Z - 1, B.SH_STAIR_EU);
+    const mixedHalf = topArea(X, Y, Z);
+
+    // ⑦ 옆 계단을 캐면 모양이 저절로 돌아온다 (shape 에 저장하지 않는다는 뜻)
+    clear(); put(X, Z, B.SH_STAIR_N); put(X, Z - 1, B.SH_STAIR_E);
+    const beforeDig = topArea(X, Y, Z);
+    B.applyEdit(X, Z === Z ? Y : Y, Z - 1, B.B.AIR, false);
+    const afterDig = topArea(X, Y, Z);
+    const shapeUnchanged = B.shapeAt(X, Y, Z) === B.SH_STAIR_N;
+
+    clear();
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { alone, inLine, inner, outer, outerOnPlusX, innerUp, mixedHalf,
+             beforeDig, afterDig, shapeUnchanged };
+  });
+  eq(r.alone, 0.5, "외톨이 계단의 윗층이 절반이 아니다: " + r.alone);
+  eq(r.inLine, 0.5, "직선으로 이어 놓았는데 모양이 바뀌었다 — 계단 줄이 망가진다: " + r.inLine);
+  eq(r.inner, 0.75, "안쪽 모서리가 3/4 이 아니다 — 오목한 자리에 노치가 남는다: " + r.inner);
+  eq(r.outer, 0.25, "바깥 모서리가 1/4 이 아니다 — 반 칸이 툭 튀어나온다: " + r.outer);
+  assert(r.outerOnPlusX, "바깥 모서리가 이웃의 높은 쪽 반대편에 남았다 — 그 자리에 노치가 생긴다");
+  eq(r.innerUp, 0.75, "뒤집힌 계단은 모서리가 안 생긴다: " + r.innerUp);
+  eq(r.mixedHalf, 0.5, "반쪽이 다른 계단끼리 모서리가 생겼다 — 처마와 계단이 엉킨다: " + r.mixedHalf);
+  eq(r.beforeDig, 0.75, "시험대가 안 섰다");
+  eq(r.afterDig, 0.5, "옆 계단을 캤는데 모서리가 그대로다 — 모양이 저장돼 버렸다");
+  assert(r.shapeUnchanged, "모서리 때문에 shape 값이 바뀌었다 — 저장 포맷이 흔들린다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

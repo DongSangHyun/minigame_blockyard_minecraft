@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { growTree } from "./tree.js";
 import { resetQueues } from "./queues.js";
 import { DIRS, N, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { DOOR, doorFacing, doorOpen, AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, CACTUS, COAL, COBBLE, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAVA, LEAVES, LOG, PANE, PLANKS, SAND, SHAPE_BOXES, SH_FULL, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TORCH, WALL_DIR, WATER, connectsTo, isCross, isSolid } from "./blocks.js";
+import { DOOR, doorFacing, doorOpen, AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, CACTUS, COAL, COBBLE, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAVA, LEAVES, LOG, PANE, PLANKS, SAND, SHAPE_BOXES, SH_FULL, SH_STAIR_N, SH_STAIR_E, SH_STAIR_S, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TORCH, WALL_DIR, WATER, connectsTo, isCross, isSolid } from "./blocks.js";
 import { makeRng } from "./atlas.js";
 
 export var world = new Uint8Array(N);
@@ -110,9 +110,79 @@ export function dynamicBoxes(b, x, y, z) {
 export function hasDynamicBoxes(b) {
   return b === FENCE || b === PANE || b === GATE || b === DOOR || b === LADDER;
 }
+// ── 계단 모서리 ──────────────────────────────────────────────
+// 꺾이는 자리마다 네모 반 칸이 툭 튀어나와, 나선계단 층계참과 박공지붕 모서리가 뭉툭했다.
+// 마크는 이웃한 계단을 보고 안/바깥 모서리로 저절로 바꾼다 — 플레이어는 그냥 놓기만 한다.
+//
+// 모서리 모양을 `shape` 에 **저장하지 않는다.** 여기서 이웃을 보고 계산한다.
+// 그래서 저장 포맷 v5 를 안 건드리고, 옆 칸을 캐면 모양이 저절로 되돌아온다.
+// (울타리·유리판이 connectsTo 로 이미 쓰던 틀을 계단으로 넓힌 셈이다)
+
+// 계단의 "높은 쪽" 방향. 0 이면 계단이 아니다.
+var STAIR_R = {};
+STAIR_R[SH_STAIR_N] = [0, -1]; STAIR_R[SH_STAIR_E] = [1, 0];
+STAIR_R[SH_STAIR_S] = [0, 1];  STAIR_R[SH_STAIR_W] = [-1, 0];
+STAIR_R[SH_STAIR_NU] = [0, -1]; STAIR_R[SH_STAIR_EU] = [1, 0];
+STAIR_R[SH_STAIR_SU] = [0, 1];  STAIR_R[SH_STAIR_WU] = [-1, 0];
+// 뒤집힌 계단인가 (윗칸이 통짜, 아랫칸이 반 칸)
+function stairUp(sh) { return sh >= SH_STAIR_NU; }
+
+// 이웃 칸이 같은 반쪽의 계단이고 방향이 직각이면 그 방향을 돌려준다. 아니면 null.
+function perpStairAt(x, y, z, up, rx, rz) {
+  if (!inside(x, y, z)) return null;
+  var i = idx(x, y, z);
+  if (world[i] === AIR) return null;
+  var sh = shape[i];
+  if (!isStairShape(sh) || stairUp(sh) !== up) return null;
+  var q = STAIR_R[sh];
+  if (!q) return null;
+  // 직각일 때만 모서리다 — 같은 축이면 그냥 이어지는 직선 계단이다
+  if ((q[0] !== 0) === (rx !== 0)) return null;
+  return q;
+}
+
+// x·z 한 축의 반쪽 범위 — d 가 0 이면 통짜(0~1)
+function half(d) { return d > 0 ? [0.5, 1] : (d < 0 ? [0, 0.5] : [0, 1]); }
+
+function stairBoxes(sh, x, y, z) {
+  var r = STAIR_R[sh];
+  if (!r) return SHAPE_BOXES[sh] || SHAPE_BOXES[SH_FULL];
+  var up = stairUp(sh);
+  // 통짜 반쪽(밟는 바닥)과 위에 얹히는 층의 y 범위
+  var base = up ? [0.5, 1] : [0, 0.5];
+  var top = up ? [0, 0.5] : [0.5, 1];
+  var out = [[0, base[0], 0, 1, base[1], 1]];
+
+  // ① 높은 쪽 뒤에 직각 계단이 있으면 **안쪽 모서리** — 윗층이 네 칸 중 세 칸을 덮는다
+  var q = perpStairAt(x + r[0], y, z + r[1], up, r[0], r[1]);
+  if (q) {
+    var hx = half(r[0]), hz = half(r[1]);
+    out.push([hx[0], top[0], hz[0], hx[1], top[1], hz[1]]);          // 높은 쪽 반쪽
+    // 남은 한 칸 — 높은 쪽의 반대편이면서, 이웃 계단이 높은 쪽. 이 칸이 오목한 자리를 메운다.
+    var qx = r[0] !== 0 ? half(-r[0]) : half(q[0]);
+    var qz = r[1] !== 0 ? half(-r[1]) : half(q[1]);
+    out.push([qx[0], top[0], qz[0], qx[1], top[1], qz[1]]);
+    return out;
+  }
+  // ② 낮은 쪽 앞에 직각 계단이 있으면 **바깥쪽 모서리** — 윗층이 네 칸 중 한 칸만 남는다.
+  //    남기는 칸은 이웃의 높은 쪽과 맞닿는 칸이다. 반대로 잡으면 그 자리에 노치가 남는다.
+  var q2 = perpStairAt(x - r[0], y, z - r[1], up, r[0], r[1]);
+  if (q2) {
+    var ox = r[0] !== 0 ? half(r[0]) : half(q2[0]);
+    var oz = r[1] !== 0 ? half(r[1]) : half(q2[1]);
+    out.push([ox[0], top[0], oz[0], ox[1], top[1], oz[1]]);
+    return out;
+  }
+  // ③ 그냥 직선 계단
+  var sx = half(r[0]), sz = half(r[1]);
+  out.push([sx[0], top[0], sz[0], sx[1], top[1], sz[1]]);
+  return out;
+}
+
 // 충돌·조준·메싱이 함께 쓰는 단일 진입점
 export function boxesAt(b, sh, x, y, z) {
   if (hasDynamicBoxes(b)) return dynamicBoxes(b, x, y, z);
+  if (isStairShape(sh)) return stairBoxes(sh, x, y, z);
   return SHAPE_BOXES[sh] || SHAPE_BOXES[SH_FULL];
 }
 

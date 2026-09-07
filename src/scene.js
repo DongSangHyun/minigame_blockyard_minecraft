@@ -274,6 +274,36 @@ scene.add(cloudGroupHigh);
 
 // 모양마다 하나씩 미리 만들어 두는 선택 상자 — 반블록을 조준하면 납작하게 감싼다
 export var HL_EDGES = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+// 상자 목록 하나를 테두리 선 묶음으로 — 미리 만드는 것과 그때그때 만드는 것이 같은 식을 쓴다
+export function boxesToEdges(boxes) {
+  var pts = [];
+  for (var bi = 0; bi < boxes.length; bi++) {
+    var q = boxes[bi], e = 0.004;
+    var c = [
+      [q[0] - e, q[1] - e, q[2] - e], [q[3] + e, q[1] - e, q[2] - e],
+      [q[3] + e, q[1] - e, q[5] + e], [q[0] - e, q[1] - e, q[5] + e],
+      [q[0] - e, q[4] + e, q[2] - e], [q[3] + e, q[4] + e, q[2] - e],
+      [q[3] + e, q[4] + e, q[5] + e], [q[0] - e, q[4] + e, q[5] + e]
+    ];
+    for (var k = 0; k < HL_EDGES.length; k++) {
+      var a = c[HL_EDGES[k][0]], b2 = c[HL_EDGES[k][1]];
+      pts.push(a[0], a[1], a[2], b2[0], b2[1], b2[2]);
+    }
+  }
+  var g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+  return g;
+}
+// 모서리 계단은 미리 만들어 둘 수가 없다(이웃에 따라 달라진다) — 조준할 때 한 번 만들고 재활용한다.
+// 이게 없으면 모서리 계단을 조준했을 때 **직선 계단 외곽선**이 떠 실제 모양과 어긋난다.
+var _hlDyn = null, _hlKey = "";
+export function dynamicHighlight(boxes) {
+  var key = JSON.stringify(boxes);
+  if (key === _hlKey && _hlDyn) return _hlDyn;
+  if (_hlDyn) _hlDyn.dispose();
+  _hlDyn = boxesToEdges(boxes); _hlKey = key;
+  return _hlDyn;
+}
 export var HL_GEO = (function () {
   var out = [];
   for (var si = 0; si < SHAPE_BOXES.length; si++) {
