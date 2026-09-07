@@ -58,5 +58,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v66 — 도장 갱신 · 회귀 테스트 263항목 전부 통과.**
+**v66 — 계단 모서리가 그려지는지 · 미리보이는지 · 회귀 테스트 263항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/
