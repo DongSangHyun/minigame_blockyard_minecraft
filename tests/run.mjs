@@ -6750,6 +6750,57 @@ test("v66 계단: 놓기 전 미리보기도 모서리로 보인다", async (pag
   eq(r.nearOuter, 24, "바깥 모서리 미리보기가 이상하다: " + r.nearOuter);
 });
 
+test("v65 캐기 속도: 설정대로 빨라진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keep = B.opts.dig, keepYaw = B.player.yaw, keepPitch = B.player.pitch;
+    const X = 50, Y = 44, Z = 62;
+    function trial(mode) {
+      B.opts.dig = mode;
+      for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+        for (let dy = -1; dy <= 4; dy++) B.applyEdit(X + dx, Y + dy, Z + dz, B.B.AIR, false);
+      B.applyEdit(X, Y, Z, B.B.STONE, false, 0);
+      B.refreshAllTops(); B.relightAll(false);
+      B.player.pos.set(X + 0.5, Y, Z + 3.5);
+      B.player.vel.set(0, 0, 0); B.player.flying = true;
+      B.player.yaw = 0;
+      // raycast 는 player.yaw 가 아니라 **카메라** 방향을 쓴다 (player.js).
+      // 눈높이가 1.62 라 정면으로는 블록 위를 지난다 — 맞는 각도를 찾아 카메라까지 돌려 놓는다.
+      let best = null;
+      for (let pi = 0; pi <= 20 && best === null; pi++) {
+        B.player.pitch = -pi * 0.04;
+        B.camera.rotation.order = "YXZ";
+        B.camera.rotation.y = B.player.yaw;
+        B.camera.rotation.x = B.player.pitch;
+        B.camera.position.set(B.player.pos.x, B.player.pos.y + B.EYE, B.player.pos.z);
+        B.camera.updateMatrixWorld(true);
+        const aim = B.raycast(6);
+        if (aim && aim.x === X && aim.y === Y && aim.z === Z) best = B.player.pitch;
+      }
+      if (best === null) return -1;
+      B.S.mouseDown[0] = true; B.S.lockMode = true;
+      let f = 0;
+      while (B.get(X, Y, Z) === B.B.STONE && f < 400) { B.step(1 / 60); f++; }
+      B.S.mouseDown[0] = false; B.player.flying = false;
+      return B.get(X, Y, Z) === B.B.STONE ? -1 : f;
+    }
+    const normal = trial(0), fast = trial(1), instant = trial(2);
+    B.opts.dig = keep; B.player.yaw = keepYaw; B.player.pitch = keepPitch;
+    B.S.mouseDown[0] = false;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { normal, fast, instant };
+  });
+  // 돌은 굳기 1.25초 = 75프레임. 빠름은 4분의 1, 즉시는 0.08초 상한(≈5프레임).
+  assert(r.normal > 0, "시험대가 안 섰다 — 조준이 안 맞아 캐지를 못했다");
+  assert(Math.abs(r.normal - 75) <= 3, "보통이 " + r.normal + "프레임이다 (75 여야 한다)");
+  assert(r.fast > 0 && Math.abs(r.fast - 19) <= 3, "빠름이 " + r.fast + "프레임이다 (약 19)");
+  assert(r.instant > 0 && r.instant <= 8, "즉시가 " + r.instant + "프레임이다 (5 안팎)");
+  assert(r.instant >= 2,
+         "즉시가 한 프레임 만이다 — 누르고 있으면 초당 60칸이 사라져 손이 못 따라간다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
