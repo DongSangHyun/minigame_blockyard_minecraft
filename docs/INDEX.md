@@ -58,5 +58,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v65 — 캐기 속도를 실제 조작으로 잰다 · 회귀 테스트 264항목 전부 통과.**
+**v67 — 자문 9차 — 폰이 1급이 아니었다 · 회귀 테스트 264항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/
