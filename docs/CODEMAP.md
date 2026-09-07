@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-07 · 모듈 28개 · 합계 9,624줄
+생성일 2026-09-07 · 모듈 28개 · 합계 9,635줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -27,7 +27,7 @@
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 319 | state · dims · blocks · world · scene |
 | [`audio.js`](../src/audio.js) | 소리 | 222 | state · blocks · daynight · settings |
 | [`save.js`](../src/save.js) | 저장 · 불러오기 | 291 | state · dims · blocks · world · player · mobs · hud · sky |
-| [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 929 | state · queues · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
+| [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 940 | state · queues · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
 | [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 485 | state · version · dims · blocks · atlas · world · player · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 165 | state · settings · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
 | [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1369 | state · world · queues · mobs · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
@@ -353,33 +353,33 @@
 | `applyEdit(x, y, z, to, record, sh, depth)` | 62 |
 | `batchPush(b, x, y, z, from, to, fromSh, toSh, wl)` | 140 |
 | `beginBatch(cap)` | 149 |
-| `settleWorld()` | 153 |
-| `endBatch(label)` | 182 |
-| `editLabel(e)` | 227 |
-| `undo()` | 247 |
-| `redo()` | 266 |
-| `refreshAchList()` | 326 |
-| `checkBuildAchievements()` | 350 |
-| `refreshStats()` | 452 |
-| `achCount()` | 470 |
-| `unlock(id)` | 475 |
-| `selectionBounds()` | 502 |
-| `selectionSize()` | 503 |
-| `fillSelection(block, sh)` | 510 |
-| `clearSelection()` | 527 |
-| `copySelection()` | 541 |
-| `mirrorClip()` | 583 |
-| `rotateClip()` | 602 |
-| `pasteClip(px, py, pz)` | 622 |
-| `completeCommand(prefix)` | 673 |
-| `runCommand(line)` | 680 |
-| `loadBlueprints()` | 854 |
-| `saveBlueprint(name)` | 857 |
-| `useBlueprint(name)` | 873 |
-| `blueprintNames()` | 889 |
-| `blueprintList()` | 892 |
-| `deleteBlueprint(name)` | 902 |
-| `selectionCounts()` | 912 |
+| `settleWorld(list)` | 158 |
+| `endBatch(label)` | 193 |
+| `editLabel(e)` | 238 |
+| `undo()` | 258 |
+| `redo()` | 277 |
+| `refreshAchList()` | 337 |
+| `checkBuildAchievements()` | 361 |
+| `refreshStats()` | 463 |
+| `achCount()` | 481 |
+| `unlock(id)` | 486 |
+| `selectionBounds()` | 513 |
+| `selectionSize()` | 514 |
+| `fillSelection(block, sh)` | 521 |
+| `clearSelection()` | 538 |
+| `copySelection()` | 552 |
+| `mirrorClip()` | 594 |
+| `rotateClip()` | 613 |
+| `pasteClip(px, py, pz)` | 633 |
+| `completeCommand(prefix)` | 684 |
+| `runCommand(line)` | 691 |
+| `loadBlueprints()` | 865 |
+| `saveBlueprint(name)` | 868 |
+| `useBlueprint(name)` | 884 |
+| `blueprintNames()` | 900 |
+| `blueprintList()` | 903 |
+| `deleteBlueprint(name)` | 913 |
+| `selectionCounts()` | 923 |
 
 내보내는 값 — `HISTORY_MAX` · `BATCH_RELIGHT_ALL` · `HISTORY_CELLS_MAX` · `lastEditLabel` · `undoEmptyWhy` · `ACHIEVEMENTS` · `achGrid` · `BUILD_R` · `BUILD_IDS` · `statGrid` · `REGION_MAX` · `CMD_HELP` · `CMD_LIST` · `BP_KEY`
 

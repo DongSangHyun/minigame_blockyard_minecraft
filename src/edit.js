@@ -150,14 +150,25 @@ export function beginBatch(cap) { S.batch = makeBatch(cap || 1024); S.batchCells
 // 묶음이 끝나면 조명과 기둥 높이를 한 번에 맞춘다.
 // 400칸이 넘으면 세계 전체를 다시 켜는 게 칸마다 BFS 를 도는 것보다 싸다 (relightAll 은 25ms 고정).
 export var BATCH_RELIGHT_ALL = 400;
-export function settleWorld() {
-  refreshAllTops();
-  relightAll(true);
-  markAllDirty();          // 조명이 통째로 바뀌었으니 메시도 전부 다시 굽는다
+// 세계 전체를 다시 켠다 — 부를 곳: 대량 편집 뒤, 세계를 갈아탄 뒤.
+// list 를 주면 **바뀐 자리 둘레만** 다시 굽는다.
+// relightAll(true) 는 이미 "빛이 실제로 바뀐 청크" 만 표시하므로(light.js),
+// 거기에 markAllDirty() 를 얹으면 그 정밀도를 통째로 버린다 —
+// 바닥 한 장(23×23 = 529칸)을 깔아도 세계 144청크를 전부 다시 구웠다 (자문 10차 실측).
+export function settleWorld(list) {
+  if (list && list.n) {
+    // 기둥 높이는 손댄 칸의 열만 — 9,216 열을 다 훑을 이유가 없다
+    for (var t = 0; t < list.n; t++) refreshTop(list.x[t], list.z[t]);
+  } else refreshAllTops();
+  relightAll(true);        // 빛이 바뀐 청크는 여기서 스스로 표시된다
+  if (list && list.n) {
+    // 블록이 바뀐 자리도 다시 구워야 한다 — 빛은 그대로여도 면이 달라진다
+    for (var u = 0; u < list.n; u++) touch(list.x[u], list.y[u], list.z[u]);
+  } else markAllDirty();
 }
 function settleBatch(cells, list) {
   if (!cells) return;
-  if (cells > BATCH_RELIGHT_ALL) { settleWorld(); return; }
+  if (cells > BATCH_RELIGHT_ALL) { settleWorld(list); return; }
   for (var i = 0; i < list.n; i++) {
     touch(list.x[i], list.y[i], list.z[i]);
     refreshTop(list.x[i], list.z[i]);

@@ -7451,6 +7451,61 @@ test("v69 안전망: 새 세계를 만들어도 옛 세계가 20초 만에 안 �
   eq(r.restored, 15646, "되살렸는데 " + r.restored + " 로 왔다");
 });
 
+test("v70 대량 편집: 손댄 둘레만 다시 굽되 조명은 똑같다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 20, Y = 20, Z = 20;
+    function hash(a) {                       // 조명 배열 전체의 지문
+      let h = 2166136261 >>> 0;
+      for (let i = 0; i < a.length; i++) { h ^= a[i]; h = Math.imul(h, 16777619) >>> 0; }
+      return h >>> 0;
+    }
+    function fill(n, block) {
+      B.S.selA = [X, Y, Z]; B.S.selB = [X + n - 1, Y + n - 1, Z + n - 1];
+      B.fillSelection(block, 0);
+      B.S.selA = B.S.selB = null;
+    }
+
+    // ① 바닥 한 장(23×23 = 529칸) — 문턱(400)을 갓 넘는 가장 흔한 한 수
+    B.dirty.clear();
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 22, Y, Z + 22];
+    B.fillSelection(B.B.PLANKS, 0);
+    B.S.selA = B.S.selB = null;
+    const floorDirty = B.dirty.size;
+
+    // ② 32×32×32 — 큰 편집
+    B.dirty.clear();
+    fill(32, B.B.GLASS);
+    const bigDirty = B.dirty.size;
+    const total = B.opaqueMeshes.length;
+
+    // ③ 조명이 세계 전체를 다시 켠 것과 **한 비트도 다르지 않아야** 한다
+    const skyA = hash(B.lightSky), blkA = hash(B.lightBlk);
+    B.relightAll(false);                     // 정답 — 세계 전체를 처음부터
+    const skyB = hash(B.lightSky), blkB = hash(B.lightBlk);
+
+    // ④ 되돌리기도 같은 길을 쓴다
+    B.undo();
+    const skyC = hash(B.lightSky), blkC = hash(B.lightBlk);
+    B.relightAll(false);
+    const skyD = hash(B.lightSky), blkD = hash(B.lightBlk);
+
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { floorDirty, bigDirty, total, skyA, skyB, blkA, blkB, skyC, skyD, blkC, blkD };
+  });
+  eq(r.total, 144, "시험대가 안 섰다 — 청크가 " + r.total + "개다");
+  assert(r.floorDirty < r.total,
+     "바닥 한 장(529칸)에 " + r.floorDirty + " / " + r.total + " 청크를 다시 굽는다");
+  assert(r.bigDirty < r.total,
+     "32³ 채우기에 " + r.bigDirty + " / " + r.total + " 청크를 다시 굽는다");
+  eq(r.skyA, r.skyB, "햇빛이 세계 전체를 다시 켠 것과 다르다 — 둘레만 켜다 어긋났다");
+  eq(r.blkA, r.blkB, "블록광이 세계 전체를 다시 켠 것과 다르다");
+  eq(r.skyC, r.skyD, "되돌린 뒤 햇빛이 어긋난다");
+  eq(r.blkC, r.blkD, "되돌린 뒤 블록광이 어긋난다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
