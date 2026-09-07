@@ -6,6 +6,10 @@ const FILTER = process.argv[3] || "";
 
 const T = [];
 const test = (name, fn) => T.push({ name, fn });
+// 폰 화면(844×390 · isMobile)에서만 도는 시험. 데스크톱 폭에서는 절대 안 나는 것들이 있다 —
+// 잘려서 못 누르는 단추, 터치로 도달 못 하는 튜토리얼, 터치에만 없는 조작.
+const PT = [];
+const phoneTest = (name, fn) => PT.push({ name: "폰 · " + name, fn });
 
 // 페이지 안에서 쓰는 공용 헬퍼 — 지형에 좌우되지 않는 평평한 시험장
 const ARENA = `
@@ -6801,6 +6805,126 @@ test("v65 캐기 속도: 설정대로 빨라진다", async (page) => {
          "즉시가 한 프레임 만이다 — 누르고 있으면 초당 60칸이 사라져 손이 못 따라간다");
 });
 
+// ══════════════════════════════════════════════════════════════
+//  폰 화면 시험 — 844×390 · isMobile. 데스크톱 폭에서는 안 나는 것들.
+// ══════════════════════════════════════════════════════════════
+phoneTest("블록 목록의 모든 칸을 누를 수 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    B.openPicker();
+    const grid = document.getElementById("pick-grid");
+    const gr = grid.getBoundingClientRect();
+    // 목록이 스크롤되는가 — 안 되면 넘친 칸은 영영 못 누른다
+    const scrollable = grid.scrollHeight > grid.clientHeight + 1;
+    const canScroll = getComputedStyle(grid).overflowY;
+    // 목록 자체가 화면 안에 들어와 있는가
+    const gridOnScreen = gr.top >= -1 && gr.bottom <= window.innerHeight + 1;
+    const card = document.querySelector(".pick-card").getBoundingClientRect();
+    const dbg = { 카드높이: Math.round(card.height), 화면: window.innerHeight };
+    let total = 0;
+    for (const p of B.pickBtns) if (!p.el.hidden) total++;
+    // 맨 위로 밀면 첫 칸이, 맨 아래로 밀면 마지막 칸이 실제로 보여야 한다.
+    // 부싯돌은 ITEMS 라 늘 마지막 줄이다 — 불·TNT 를 쓰려면 반드시 거기를 눌러야 한다.
+    function seen(el) {
+      const b = el.getBoundingClientRect();
+      const g = grid.getBoundingClientRect();
+      return b.top >= g.top - 1 && b.bottom <= g.bottom + 1 &&
+             b.top >= -1 && b.bottom <= window.innerHeight + 1;
+    }
+    grid.scrollTop = 0;
+    const firstSeen = seen(B.pickBtns[0].el);
+    const firstName = B.pickBtns[0].name;
+    grid.scrollTop = grid.scrollHeight;
+    const lastEl = B.pickBtns[B.pickBtns.length - 1];
+    const lastSeen = seen(lastEl.el);
+    const lastName = lastEl.name;
+    B.closePicker(false);
+    B.endPlay();
+    return { dbg, total, scrollable, canScroll, gridOnScreen,
+             firstSeen, firstName, lastSeen, lastName,
+             vw: window.innerWidth, vh: window.innerHeight };
+  });
+  assert(r.vw < 900, "폰 화면이 아니다 — 시험대가 틀렸다: " + r.vw + "×" + r.vh);
+  assert(r.total > 40, "목록에 단추가 " + r.total + "개뿐이다 — 시험대가 안 섰다");
+  assert(r.canScroll === "auto" || r.canScroll === "scroll",
+         "목록이 스크롤되지 않는다(overflow-y: " + r.canScroll + ") — 넘친 칸은 영영 못 누른다");
+  assert(r.gridOnScreen, "목록 자체가 화면 밖으로 넘쳐 있다 " + JSON.stringify(r.dbg));
+  assert(r.firstSeen, "맨 위로 밀어도 첫 칸(" + r.firstName + ")이 안 보인다");
+  assert(r.lastSeen,
+     "맨 아래로 밀어도 마지막 칸(" + r.lastName + ")이 안 보인다 — 부싯돌을 못 눌러 불·TNT 를 못 쓴다");
+});
+
+phoneTest("도움말을 열면 화면 안에 들어온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    B.toggleHelp(true);
+    const el = document.getElementById("help");
+    const card = el.querySelector(".help-card");
+    const scrollable = el.scrollHeight > el.clientHeight + 1;
+    el.scrollTop = el.scrollHeight;
+    const c = card.getBoundingClientRect();
+    const bottomVisible = c.bottom <= window.innerHeight + 1;
+    const uiOpen = B.S.uiOpen;
+    B.toggleHelp(false);
+    const closed = !B.S.uiOpen;
+    B.endPlay();
+    return { scrollable, bottomVisible, uiOpen, closed,
+             overflow: getComputedStyle(el).overflowY, vh: window.innerHeight };
+  });
+  assert(r.uiOpen, "도움말을 열었는데 S.uiOpen 이 안 섰다 — 뒤에서 블록이 캐진다");
+  assert(r.closed, "도움말을 닫았는데 S.uiOpen 이 남았다 — 조작이 전부 막힌다");
+  assert(r.overflow === "auto" || r.overflow === "scroll",
+         "도움말이 스크롤되지 않는다 — 아래 절반을 못 읽는다");
+  assert(r.bottomVisible, "끝까지 밀어도 도움말 아래가 화면 밖이다");
+});
+
+phoneTest("메뉴로 돌아가는 길과 되돌리기가 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const menu = document.getElementById("tb-menu");
+    const undoBtn = document.getElementById("tb-undo");
+    if (!menu || !undoBtn) return { missing: true };
+    // 터치 단추가 실제로 화면 안에 있고 누를 만한 크기인가
+    B.beginPlay();
+    const mr = menu.getBoundingClientRect(), ur = undoBtn.getBoundingClientRect();
+    const onScreen = mr.bottom <= window.innerHeight + 1 && mr.top >= -1 &&
+                     mr.right <= window.innerWidth + 1 && mr.left >= -1 &&
+                     ur.bottom <= window.innerHeight + 1 && ur.top >= -1;
+    const bigEnough = Math.min(mr.width, mr.height, ur.width, ur.height) >= 24;
+
+    // 되돌리기 — 블록 하나를 놓고 단추로 되돌린다
+    const X = 40, Y = 44, Z = 40;
+    for (let dy = -1; dy <= 3; dy++) B.set(X, Y + dy, Z, 0);
+    B.refreshAllTops();
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.applyEdit(X, Y, Z, B.B.BRICK, true, 0);
+    const placed = B.get(X, Y, Z) === B.B.BRICK;
+    // bindHold 는 touchstart/touchend 를 듣는다 — 포인터 이벤트로는 안 먹는다
+    function tap(el) {
+      el.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
+      el.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true }));
+    }
+    tap(undoBtn);
+    const undone = B.get(X, Y, Z) !== B.B.BRICK;
+
+    // 메뉴 — 플레이 중에 누르면 메뉴로 나간다
+    const wasActive = B.S.active;
+    tap(menu);
+    const leftPlay = !B.S.active;
+
+    B.S.history.length = 0; B.S.future.length = 0;
+    return { missing: false, onScreen, bigEnough, placed, undone, wasActive, leftPlay };
+  });
+  assert(!r.missing, "폰에 메뉴·되돌리기 단추가 없다 — 플레이를 누르면 그 세션은 끝까지 갇힌다");
+  assert(r.onScreen, "메뉴·되돌리기 단추가 화면 밖에 있다");
+  assert(r.bigEnough, "터치 단추가 너무 작다");
+  assert(r.placed && r.wasActive, "시험대가 안 섰다");
+  assert(r.undone, "되돌리기 단추가 안 먹는다 — 폰에서는 잘못 지운 벽을 손으로 다시 쌓아야 한다");
+  assert(r.leftPlay, "메뉴 단추를 눌러도 메뉴로 안 나간다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
@@ -6826,10 +6950,30 @@ for (let round = 1; round <= REPEAT; round++) {
     fail++; failNames.set("페이지 오류 없음", (failNames.get("페이지 오류 없음") || 0) + 1);
     lines.push("  ✗ 페이지 오류 없음\n      " + errors.slice(0, 3).join(" | "));
   } else pass++;
+  await ctx.close();
+
+  // ── 폰 화면으로 한 번 더 (같은 회차 안에서) ───────────────
+  const phoneCases = PT.filter((t) => !FILTER || t.name.includes(FILTER));
+  if (phoneCases.length) {
+    const ph = await openGame(browser, { phone: true });
+    for (const t of phoneCases) {
+      try { await t.fn(ph.page, ph.errors); pass++; }
+      catch (e) {
+        fail++;
+        failNames.set(t.name, (failNames.get(t.name) || 0) + 1);
+        lines.push(`  ✗ ${t.name}\n      ${String(e.message).split("\n")[0]}`);
+      }
+    }
+    if (ph.errors.length) {
+      fail++; failNames.set("폰 · 페이지 오류 없음", (failNames.get("폰 · 페이지 오류 없음") || 0) + 1);
+      lines.push("  ✗ 폰 · 페이지 오류 없음\n      " + ph.errors.slice(0, 3).join(" | "));
+    } else pass++;
+    await ph.ctx.close();
+  }
+
   totalPass += pass; totalFail += fail;
   console.log(`[${round}/${REPEAT}] 통과 ${pass} · 실패 ${fail}`);
   if (lines.length) console.log(lines.join("\n"));
-  await ctx.close();
 }
 await browser.close();
 stopServer();

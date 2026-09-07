@@ -324,13 +324,25 @@ if (stampEl) {
 
 // ── 조작 도움말 (H)
 export var helpEl = document.getElementById("help");
+// 도움말도 목록·명령창과 같이 **마우스 잠금을 풀고 S.uiOpen 을 세운다.**
+// 안 그러면 판 뒤에서 시점이 계속 돌고, 왼쪽을 누르면 안 보이는 블록이 캐지고,
+// 휠은 핫바를 넘긴다 — 조작을 배우려다 자기 집을 뚫는다.
+// 튜토리얼 마지막 줄이 "H 를 누르면 나머지 조작이 전부 나옵니다" 인데 그 화면이 그랬다.
+// 도움말이 열려 있나 — 여러 곳에서 "지금 어느 창이 열렸나" 를 물어본다
+export function helpOpen() { return !!(helpEl && !helpEl.hidden); }
 export function toggleHelp(on) {
   if (!helpEl) return;
   var want = on === undefined ? helpEl.hidden : on;
   helpEl.hidden = !want;
+  S.uiOpen = want;
+  if (want) {
+    if (document.pointerLockElement === canvas) document.exitPointerLock();
+  } else if (S.active && S.lockMode && canvas.requestPointerLock) {
+    try { canvas.requestPointerLock(); } catch (e) {}
+  }
 }
 if (helpEl) helpEl.addEventListener("click", function (e) {
-  if (e.target === helpEl) helpEl.hidden = true;      // 바깥을 눌렀을 때만 닫는다
+  if (e.target === helpEl) toggleHelp(false);         // 바깥을 눌렀을 때만 닫는다
 });
 
 // 도움말 안에서 도전 과제도 볼 수 있게 — 지금까지는 메뉴에만 있었다

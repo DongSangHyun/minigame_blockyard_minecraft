@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-07 · 모듈 28개 · 합계 9,363줄
+생성일 2026-09-07 · 모듈 28개 · 합계 9,402줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -28,9 +28,9 @@
 | [`audio.js`](../src/audio.js) | 소리 | 222 | state · blocks · daynight · settings |
 | [`save.js`](../src/save.js) | 저장 · 불러오기 | 249 | state · dims · blocks · world · player · mobs · hud |
 | [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 869 | state · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
-| [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 460 | state · version · dims · blocks · atlas · world · player · hand · input |
+| [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 472 | state · version · dims · blocks · atlas · world · player · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 165 | state · settings · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
-| [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1294 | state · queues · mobs · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
+| [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1321 | state · queues · mobs · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
 | [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 216 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
 | [`mobs.js`](../src/mobs.js) | 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다. | 502 | dims · world · blocks · scene · player · audio |
 | [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 360 | state · audio · dims · atlas · world · scene · daynight · player |
@@ -390,17 +390,18 @@
 | `showHud(on)` | 189 |
 | `toast(msg)` | 195 |
 | `drawMinimap()` | 203 |
-| `toggleHelp(on)` | 327 |
-| `setHelpTab(showAch)` | 340 |
-| `bootProgress(msg, frac)` | 355 |
-| `bootDone()` | 360 |
-| `noteBlockUse(b)` | 371 |
-| `sortPickByRecent()` | 377 |
-| `refreshPickFilter()` | 387 |
-| `openCmd()` | 414 |
-| `closeCmd()` | 421 |
-| `cmdSay(msg)` | 426 |
-| `drawPreview()` | 431 |
+| `helpOpen()` | 332 |
+| `toggleHelp(on)` | 333 |
+| `setHelpTab(showAch)` | 352 |
+| `bootProgress(msg, frac)` | 367 |
+| `bootDone()` | 372 |
+| `noteBlockUse(b)` | 383 |
+| `sortPickByRecent()` | 389 |
+| `refreshPickFilter()` | 399 |
+| `openCmd()` | 426 |
+| `closeCmd()` | 433 |
+| `cmdSay(msg)` | 438 |
+| `drawPreview()` | 443 |
 
 내보내는 값 — `hotbarEl` · `slotCanvases` · `pickerEl` · `pickGrid` · `pickBtns` · `FACING` · `tFace` · `tAch` · `tBiome` · `achPop` · `tPos` · `underwaterEl` · `inblockEl` · `airEl` · `perfEl` · `airBar` · `minimapEl` · `mmCap` · `touchEl` · `hudEls` · `toastEl` · `mmCanvas` · `mmCtx` · `mmImage` · `stampEl` · `helpEl` · `helpAchBtn` · `helpAchList` · `helpCols` · `bootEl` · `bootMsg` · `bootBar` · `pickFind` · `pickTabs` · `pickCat` · `cmdEl` · `cmdIn` · `cmdMsg` · `previewEl` · `previewCap`
 
@@ -448,11 +449,11 @@
 | `applyLook(dx, dy)` | 654 |
 | `cycleTime()` | 674 |
 | `pickBlock()` | 686 |
-| `setStick(dx, dy)` | 1035 |
-| `bindHold(id, onDown, onUp)` | 1135 |
-| `bindOpt(inputId, outId, key, fmt)` | 1168 |
-| `pollGamepadMenu()` | 1223 |
-| `pollGamepad(dt)` | 1233 |
+| `setStick(dx, dy)` | 1051 |
+| `bindHold(id, onDown, onUp)` | 1151 |
+| `bindOpt(inputId, outId, key, fmt)` | 1195 |
+| `pollGamepadMenu()` | 1250 |
+| `pollGamepad(dt)` | 1260 |
 
 내보내는 값 — `overlay` · `goBtn` · `altBtn` · `seedIn` · `canvas` · `isTouch` · `HINT_LOCK` · `HINT_DRAG` · `hintEl` · `TUT` · `TUT_TOUCH` · `slotsEl` · `copySeedBtn` · `expBtn` · `impBtn` · `resBtn` · `fileIn` · `terrainEl` · `KEY_LABEL` · `keysEl` · `RESERVED` · `copyLinkBtn` · `lookLast` · `stickZone` · `stickBase` · `stickKnob` · `STICK_R` · `padState`
 

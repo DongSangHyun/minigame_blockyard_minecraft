@@ -55,9 +55,18 @@ export async function serve() {
 }
 export function stopServer() { if (server) { server.close(); server = null; origin = null; } }
 
-export async function openGame(browser) {
+// 폰 화면(아이폰 가로) — 회귀 시험이 전부 데스크톱 폭으로만 돌아서
+// "폰에서만 잘려 보이는" 것은 아무도 못 잡고 있었다 (자문 9차 실측: 블록 54칸 중 33칸이 화면 밖).
+export const PHONE = {
+  viewport: { width: 844, height: 390 },      // viewport 는 중첩 키다 — 펼쳐 쓰면 조용히 기본값이 된다
+  isMobile: true, hasTouch: true, deviceScaleFactor: 3
+};
+
+export async function openGame(browser, opts) {
   const base = await serve();
-  const ctx = await browser.newContext({ viewport: { width: 1024, height: 640 } });
+  const ctx = await browser.newContext((opts && opts.phone)
+    ? PHONE
+    : { viewport: { width: 1024, height: 640 } });
   const page = await ctx.newPage();
   const errors = [];
   page.on("pageerror", e => errors.push("pageerror: " + e.message));

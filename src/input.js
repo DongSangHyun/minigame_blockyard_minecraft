@@ -15,7 +15,7 @@ import { ac, startAmbient, tone } from "./audio.js";
 import { clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
 import { lastEditLabel, blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
-import { closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
+import { helpOpen, closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
 import { place } from "./mine.js";
 import { setWeather } from "./sky.js";
@@ -686,14 +686,16 @@ export function cycleTime() {
 export function pickBlock() {
   var hit = raycast(6);
   if (!hit) return;
-  if (S.bar[S.selected] === hit.block) { toast(NAMES[hit.block]); return; }
-  S.bar[S.selected] = hit.block;
   // 모양까지 가져온다 — 계단을 복사했는데 풀블록이 들리면 손이 헛돈다.
   // 계단 방향은 currentShape() 가 시선으로 정하므로 갈래만 맞추면 된다 (마크와 같다)
   var psh = hit.shape;
-  if (psh === SH_SLAB || psh === SH_SLAB_UP) S.shapeMode = 1;
-  else if (isStairShape(psh)) S.shapeMode = 2;
-  else S.shapeMode = 0;
+  var mode = (psh === SH_SLAB || psh === SH_SLAB_UP) ? 1 : (isStairShape(psh) ? 2 : 0);
+  // 블록이 같아도 **모양 갈래가 다르면** 가져와야 한다.
+  // 손에 온전한 돌을 들고 이미 놓은 돌계단을 복사하는 것이 계단을 잇는 가장 흔한 순간인데,
+  // 예전에는 여기서 그냥 나가 버려 그 절반이 통과했다.
+  if (S.bar[S.selected] === hit.block && S.shapeMode === mode) { toast(NAMES[hit.block]); return; }
+  S.bar[S.selected] = hit.block;
+  S.shapeMode = mode;
   refreshSlot(S.selected);
   updateHandBlock();
   S.worldDirty = true;
@@ -771,6 +773,9 @@ window.addEventListener("keydown", function (e) {
   }
 
   if (e.code === "Escape") {
+    // 도움말도 S.uiOpen 을 세우므로(v67) 어느 창이 열렸는지 보고 닫는다 —
+    // 안 그러면 closePicker 만 불러 도움말이 열린 채로 잠금만 풀린다
+    if (helpOpen()) { toggleHelp(false); return; }
     if (S.uiOpen) { closePicker(true); return; }
     if (!S.lockMode && S.active) { endPlay(); return; }
     return;
@@ -778,6 +783,8 @@ window.addEventListener("keydown", function (e) {
   if (!S.active) return;
 
   if (e.code === "KeyE") { e.preventDefault(); if (S.uiOpen) closePicker(true); else openPicker(); return; }
+  // 도움말은 자기 키로 닫을 수 있어야 한다 — 아래 조기 반환보다 먼저 본다
+  if (e.code === S.binds.help && helpOpen()) { toggleHelp(false); return; }
   if (S.uiOpen) {
     // 목록이 열린 동안에도 숫자키는 산다 — 어느 칸에 넣을지 고르는 데 쓴다.
     // 이것이 없으면 목록을 여닫으며 칸을 옮겨야 해서 팔레트를 짤 수가 없다.
@@ -798,11 +805,20 @@ window.addEventListener("keydown", function (e) {
       var wipe = e.shiftKey;
       // 큰 영역은 한 프레임을 통째로 먹는다 — 왜 멈췄는지는 보여 준다
       var size = selectionSize();
-      if (size > 6000) toast(size.toLocaleString("ko-KR") + "칸 " + (wipe ? "비우는" : "채우는") + " 중…");
-      var n = wipe ? clearSelection() : fillSelection(S.bar[S.selected], currentShape(false));
-      toast(n < 0 ? ("영역이 너무 큽니다 (최대 " + REGION_MAX.toLocaleString("ko-KR") + "칸)")
-                  : (n ? n.toLocaleString("ko-KR") + "칸을 " + (wipe ? "비웠습니다" : "채웠습니다")
-                       : "먼저 영역을 고르세요"));
+      var blockPick = S.bar[S.selected], shapePick = currentShape(false);
+      function doFill() {
+        var n = wipe ? clearSelection() : fillSelection(blockPick, shapePick);
+        toast(n < 0 ? ("영역이 너무 큽니다 (최대 " + REGION_MAX.toLocaleString("ko-KR") + "칸)")
+                    : (n ? n.toLocaleString("ko-KR") + "칸을 " + (wipe ? "비웠습니다" : "채웠습니다")
+                         : "먼저 영역을 고르세요"));
+      }
+      if (size > 6000) {
+        // "…중" 과 채우기를 같은 태스크에서 하면 **그리기가 한 번도 안 일어난다** —
+        // 첫 줄이 둘째 줄에 덮여 사라지고, 사람은 까닭 없는 멈춤만 겪는다.
+        // 한 프레임 건너뛰어 첫 줄을 실제로 화면에 올린 뒤에 판다.
+        toast(size.toLocaleString("ko-KR") + "칸 " + (wipe ? "비우는" : "채우는") + " 중…");
+        requestAnimationFrame(function () { requestAnimationFrame(doFill); });
+      } else doFill();
       return;
     }
     if (e.code === "KeyC") {
@@ -945,7 +961,7 @@ window.addEventListener("keydown", function (e) {
     S.mmZoom = zs[zi];
     toast("미니맵 ×" + S.mmZoom);
   }
-  if (e.code === S.binds.help) { toggleHelp(); setHelpTab(false); refreshAchList(); S.achListStale = false; advanceTut(6); }
+  if (e.code === S.binds.help) { toggleHelp(true); setHelpTab(false); refreshAchList(); S.achListStale = false; advanceTut(6); }
   if (e.code === "KeyT") cycleTime();
   if (e.code === "KeyK") {
     setWeather((S.weather + 1) % 3);
@@ -1148,6 +1164,17 @@ bindHold("tb-sneak", function () { S.keys.ShiftLeft = true; }, function () { S.k
 bindHold("tb-fly", function () {
   player.flying = !player.flying; player.vel.y = 0;
   toast(player.flying ? "비행 모드" : "걷기 모드");
+});
+// 폰에는 ESC 도 Ctrl+Z 도 없었다 — 설정·저장 슬롯·청사진·새 세계가 전부 메뉴 안인데
+// 거기로 가는 길이 한 줄도 없어서, [플레이]를 누르면 그 세션은 끝까지 갇혔다.
+bindHold("tb-menu", function () {
+  if (helpOpen()) { toggleHelp(false); return; }
+  if (S.uiOpen) { closePicker(true); return; }
+  endPlay();
+});
+bindHold("tb-undo", function () {
+  var ok = undo();
+  toast(ok ? ("되돌리기" + (lastEditLabel ? " — " + lastEditLabel : "")) : "더 없음");
 });
 
 window.addEventListener("resize", function () {
