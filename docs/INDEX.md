@@ -58,5 +58,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v64 — 도장 갱신 · 회귀 테스트 260항목 전부 통과.**
+**v65 — 자문 8차 — 손이 불편하던 자리 여덟 곳 · 회귀 테스트 260항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/
