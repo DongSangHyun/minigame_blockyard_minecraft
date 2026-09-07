@@ -4,7 +4,7 @@
 // 이렇게 해야 새로 배포한 버전이 캐시에 갇히지 않는다.
 // 배포할 때마다 바뀐다 — tools/stamp.mjs 가 이 줄을 다시 쓴다.
 // 고정값이면 activate 의 옛 캐시 청소가 **한 번도 안 돈다**.
-var VERSION = "blockyard-20260907T1134";
+var VERSION = "blockyard-20260907T2035";
 var SHELL = [
   "./", "./index.html", "./manifest.webmanifest",
   "./icon-192.png", "./icon-512.png",
