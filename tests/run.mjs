@@ -6157,14 +6157,23 @@ test("v62 묘목: 심어 두면 나무가 되고, 되돌리기 한 번에 사라
     for (let k = 0; k < 200; k++) B.growTick(1.0);
     const underRoof = B.get(LX, Y, LZ) === B.B.SAPLING && B.get(LX, Y + 3, LZ) === B.B.GLASS;
 
-    // (4) 저장을 불러온 뒤에도 자란다 — 큐는 저장하지 않으므로 다시 채워져야 한다
+    // (4) 진짜 저장→불러오기를 거친 뒤에도 자란다.
+    // 큐는 저장하지 않으므로 loadGame 이 다시 담으라고 신호해야 한다.
+    // 신호를 손으로 세우면 "부르는 쪽이 세우는가" 를 못 본다 — 실제로 부팅 복원 경로가 빠져 있었다.
     const RX = X, RZ = Z + 4;
     B.applyEdit(RX, Y, RZ, B.B.SAPLING, false, 0);
-    B.resetQueues();                 // 세계 전환·불러오기가 하는 것과 같은 청소
-    B.S.growDirty = true;
+    const slotKey = B.curKey();          // 진짜 저장 키다 — 손으로 지어내면 남의 슬롯을 덮어쓴다
+    const keepSave = localStorage.getItem(slotKey);
+    B.saveGame();
+    B.resetQueues();                 // 큐를 통째로 비운다 (세계 전환이 하는 것과 같다)
+    const emptied = B.Q.growQ.length;
+    const loaded = B.loadGame();
+    const signalled = B.S.growDirty;
     let ticks2 = 0;
     while (B.get(RX, Y, RZ) === B.B.SAPLING && ticks2 < 400) { B.growTick(1.0); ticks2++; }
     const regrew = B.get(RX, Y, RZ) !== B.B.SAPLING;
+    if (keepSave === null) localStorage.removeItem(slotKey);
+    else localStorage.setItem(slotKey, keepSave);
 
     // (5b) 진짜 프레임으로도 시계가 제 속도로 간다.
     // growTick 을 직접 부르는 시험만 있으면, 이걸 0.15초짜리 블록 안에 두어
@@ -6198,7 +6207,7 @@ test("v62 묘목: 심어 두면 나무가 되고, 되돌리기 한 번에 사라
 
     B.S.history.length = 0; B.S.future.length = 0;
     B.endPlay(); B.setPaused(false);
-    return { planted, grew, leaves, hist, leftover, onStone, inDark, regrew, ticks, darkLv, lowLv, underRoof, puffed, onPlayer, afterStepAside, clock };
+    return { planted, grew, leaves, hist, leftover, onStone, inDark, regrew, ticks, darkLv, lowLv, underRoof, puffed, onPlayer, afterStepAside, clock, emptied, loaded, signalled };
   });
   assert(r.planted, "묘목이 안 놓인다 — 블록 등록이 빠졌다");
   assert(r.grew, `묘목이 ${r.ticks}초를 기다려도 안 자란다`);
@@ -6210,6 +6219,9 @@ test("v62 묘목: 심어 두면 나무가 되고, 되돌리기 한 번에 사라
   assert(r.inDark, "어두운 방인데 묘목이 자랐다 — 빛 조건이 안 걸린다");
   assert(r.lowLv >= 9, "시험대가 어둡다 — 낮은 천장만 보려는데 빛이 " + r.lowLv + " 이다");
   assert(r.underRoof, "천장이 낮은데 묘목이 자랐다 — 나무가 지붕을 뚫는다");
+  eq(r.emptied, 0, "시험대가 안 섰다 — 큐를 비웠는데 " + r.emptied + "개가 남았다");
+  assert(r.loaded, "저장을 못 불러왔다 — 시험대가 틀렸다");
+  assert(r.signalled, "loadGame 이 자람 큐를 다시 담으라고 신호하지 않는다");
   assert(r.regrew, "불러온 세계의 묘목이 영영 안 자란다 — 큐를 다시 안 채웠다");
   assert(r.puffed, "나무가 소리도 잎조각도 없이 솟았다 — 무슨 일이 난 건지 알 수 없다");
   assert(r.onPlayer, "사람이 선 자리에서 나무가 자랐다 — 줄기 속에 갇힌다");
@@ -6362,6 +6374,199 @@ test("v64 묘목 성능: 큐가 프레임을 잡아먹지 않는다", async (pag
   // 절대 ms 는 기계마다 다르다. 같은 세계에서 큐만 비워 잰 값과 견준다.
   assert(r.withQ - r.noQ < 0.5,
          "묘목 60그루가 프레임에 " + (r.withQ - r.noQ).toFixed(3) + "ms 를 더한다 — 숲을 심으면 끊긴다");
+});
+
+test("v65 비행: 날면서도 달린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.player.pos.set(48, 45, 48); B.player.vel.set(0, 0, 0);
+    B.player.flying = true; B.player.yaw = 0; B.player.pitch = 0;
+    B.S.keys.ControlLeft = false; B.S.sprintTap = false;
+    function run(sprint) {
+      B.player.pos.set(48, 45, 48); B.player.vel.set(0, 0, 0);
+      B.S.keys.KeyW = true; B.S.keys.ControlLeft = !!sprint;
+      let far = 0, up = 0;
+      const z0 = B.player.pos.z;
+      for (let k = 0; k < 30; k++) B.step(1 / 60);
+      far = Math.abs(B.player.pos.z - z0);
+      // 수직도 같이 빨라지는가
+      B.player.pos.set(48, 45, 48); B.player.vel.set(0, 0, 0);
+      B.S.keys.KeyW = false; B.S.keys.Space = true;
+      const y0 = B.player.pos.y;
+      for (let k = 0; k < 30; k++) B.step(1 / 60);
+      up = B.player.pos.y - y0;
+      B.S.keys.Space = false; B.S.keys.ControlLeft = false;
+      return { far, up };
+    }
+    const slow = run(false);
+    const fast = run(true);
+    B.S.keys.KeyW = false; B.S.keys.ControlLeft = false; B.S.keys.Space = false;
+    B.player.flying = false;
+    B.endPlay(); B.setPaused(false);
+    return { slow, fast };
+  });
+  assert(r.slow.far > 1, "시험대가 안 섰다 — 그냥 날 때도 안 움직인다: " + r.slow.far);
+  assert(r.fast.far > r.slow.far * 1.6,
+         "날면서 Ctrl 을 눌러도 안 빨라진다 — " + r.slow.far.toFixed(1) + " → " + r.fast.far.toFixed(1));
+  assert(r.fast.up > r.slow.up * 1.6,
+         "수직만 그대로다 — 높이 뜨는 데 시간이 걸린다: " + r.slow.up.toFixed(1) + " → " + r.fast.up.toFixed(1));
+});
+
+test("v65 날씨: K 로 고른 날씨는 저절로 안 바뀐다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    // 손으로 고르면 잠긴다
+    B.S.weather = 0; B.S.weatherLock = false; B.S.weatherTimer = 0.01;
+    // 진짜 keydown 을 쏜다 — 잠그는 것은 setKey 가 아니라 K 처리기다
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyK", bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyK", bubbles: true }));
+    const picked = B.S.weather, locked = B.S.weatherLock;
+    // 잠긴 채로 한참 돌려도 그대로다 (자동 전환 주기는 60~150초)
+    for (let k = 0; k < 400; k++) B.updateWeather(1.0);
+    const held = B.S.weather;
+    const mix = B.S.weatherMix;
+    // 잠금을 풀면 예전처럼 저절로 바뀐다
+    B.S.weatherLock = false; B.S.weatherTimer = 0.01;
+    let changed = false;
+    for (let k = 0; k < 60 && !changed; k++) {
+      B.S.weatherTimer = 0.01;
+      B.updateWeather(1.0);
+      if (B.S.weather !== held) changed = true;
+    }
+    B.S.weather = 0; B.S.weatherLock = false; B.S.weatherMix = 0; B.S.weatherTimer = 90;
+    B.endPlay(); B.setPaused(false);
+    return { picked, locked, held, mix, changed };
+  });
+  eq(r.picked, 1, "K 를 눌렀는데 날씨가 안 바뀐다");
+  assert(r.locked, "K 로 고른 뒤 잠기지 않는다");
+  eq(r.held, r.picked, "잠갔는데 날씨가 " + r.held + " 로 저절로 바뀌었다");
+  assert(r.mix > 0.5, "잠금 때문에 짙어지기가 멈췄다 — 고른 날씨가 화면에 안 나타난다: " + r.mix);
+  assert(r.changed, "잠금을 풀었는데도 저절로 안 바뀐다 — 자동 전환이 죽었다");
+});
+
+test("v65 영역: 첫 모서리를 찍으면 그 칸이 화면에 남는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.selA = null; B.S.selB = null;
+    B.step(1 / 60);
+    const noneVisible = B.selBox.visible;
+
+    // A 만 찍힌 상태 — 한 칸짜리 노란 상자가 그 자리에 뜬다
+    B.S.selA = [40, 30, 50];
+    B.step(1 / 60);
+    const anchorOn = B.selBox.visible;
+    const anchorColor = B.selMat.color.getHex();
+    const ax = B.selBox.position.x, ay = B.selBox.position.y, az = B.selBox.position.z;
+    const asize = B.selBox.scale.x;
+
+    // B 까지 찍으면 예전처럼 초록 상자
+    B.S.selB = [44, 33, 55];
+    B.step(1 / 60);
+    const bothColor = B.selMat.color.getHex();
+    const bsize = B.selBox.scale.x;
+
+    B.S.selA = B.S.selB = null;
+    B.step(1 / 60);
+    const clearedOff = B.selBox.visible;
+    B.endPlay(); B.setPaused(false);
+    return { noneVisible, anchorOn, anchorColor, ax, ay, az, asize,
+             bothColor, bsize, clearedOff, DONE: B.SEL_DONE, ANCHOR: B.SEL_ANCHOR };
+  });
+  eq(r.noneVisible, false, "아무것도 안 찍었는데 상자가 떠 있다");
+  assert(r.anchorOn, "첫 모서리를 찍었는데 화면에 아무것도 안 남는다 — 감으로 두 번째를 찍어야 한다");
+  eq(r.anchorColor, r.ANCHOR, "첫 모서리 표시가 완성된 영역과 같은 색이다 — 반쪽인 줄 모른다");
+  assert(Math.abs(r.ax - 40.5) < 0.01 && Math.abs(r.ay - 30.5) < 0.01 && Math.abs(r.az - 50.5) < 0.01,
+         "첫 모서리 표시가 엉뚱한 자리에 있다: " + r.ax + "," + r.ay + "," + r.az);
+  assert(Math.abs(r.asize - 1.04) < 0.01, "첫 모서리 표시가 한 칸이 아니다: " + r.asize);
+  eq(r.bothColor, r.DONE, "두 모서리를 다 찍었는데 색이 안 돌아온다");
+  assert(r.bsize > 4, "두 모서리 상자가 안 커졌다: " + r.bsize);
+  eq(r.clearedOff, false, "선택을 해제했는데 상자가 남아 있다");
+});
+
+test("v65 되돌리기: 무엇을 되돌렸는지 알려 준다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 14, Y = 44, Z = 50;
+    for (let dx = -1; dx <= 6; dx++) for (let dz = -1; dz <= 6; dz++)
+      for (let dy = -1; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false);
+    B.S.history.length = 0; B.S.future.length = 0;
+
+    // 한 칸 놓기
+    B.applyEdit(X, Y, Z, B.B.BRICK, true, 0);
+    const put = B.editLabel(B.S.history[B.S.history.length - 1]);
+    // 한 칸 캐기
+    B.applyEdit(X, Y, Z, B.B.AIR, true);
+    const dug = B.editLabel(B.S.history[B.S.history.length - 1]);
+    // 대량 채우기
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 4, Y + 2, Z + 4];
+    B.fillSelection(B.B.GLASS, 0);
+    const filled = B.editLabel(B.S.history[B.S.history.length - 1]);
+
+    B.S.selA = B.S.selB = null;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { put, dug, filled };
+  });
+  assert(/벽돌/.test(r.put) && /놓기/.test(r.put), "놓기 안내가 이상하다: " + r.put);
+  assert(/벽돌/.test(r.dug) && /캐기/.test(r.dug), "캐기 안내에 무엇을 캤는지 없다: " + r.dug);
+  assert(/칸/.test(r.filled) && /75/.test(r.filled),
+         "대량 편집 안내에 칸 수가 없다 — 어디까지 되돌렸는지 모른다: " + r.filled);
+});
+
+test("v65 블록 목록: 한 번 열어 열 칸을 채운다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keepBar = B.S.bar.slice();
+    B.openPicker();
+    const opened = B.S.uiOpen;
+
+    // 목록이 열린 채로 숫자키가 대상 칸을 옮긴다
+    function digit(n) {
+      window.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit" + n, bubbles: true }));
+    }
+    digit(3);
+    const slotAfterKey = B.S.selected;
+    const stillOpenAfterKey = B.S.uiOpen;
+
+    // 클릭해도 안 닫힌다 — 여러 칸을 이어서 채운다
+    function clickBlock(id) {
+      const p = B.pickBtns.filter((e) => e.block === id)[0];
+      p.el.click();
+    }
+    clickBlock(B.B.BRICK);
+    const stillOpenAfterClick = B.S.uiOpen;
+    const slot3 = B.S.bar[2];
+    digit(5); clickBlock(B.B.GLASS);
+    const slot5 = B.S.bar[4];
+    digit(7); clickBlock(B.B.LAMP);
+    const slot7 = B.S.bar[6];
+    const openThroughout = B.S.uiOpen;
+
+    // E 로는 닫힌다
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyE", bubbles: true }));
+    const closedByE = !B.S.uiOpen;
+
+    B.S.bar = keepBar; B.refreshBar(); B.selectSlot(0);
+    B.endPlay(); B.setPaused(false);
+    return { opened, slotAfterKey, stillOpenAfterKey, stillOpenAfterClick,
+             slot3, slot5, slot7, openThroughout, closedByE,
+             BRICK: B.B.BRICK, GLASS: B.B.GLASS, LAMP: B.B.LAMP };
+  });
+  assert(r.opened, "목록이 안 열렸다 — 시험대가 틀렸다");
+  eq(r.slotAfterKey, 2, "목록이 열린 동안 숫자키가 안 먹는다 — 칸을 옮기려면 닫아야 한다");
+  assert(r.stillOpenAfterKey, "숫자키를 눌렀더니 목록이 닫혔다");
+  assert(r.stillOpenAfterClick, "블록을 하나 고르자 목록이 닫혔다 — 열 칸 채우려면 스무 번을 눌러야 한다");
+  eq(r.slot3, r.BRICK, "3번 칸에 안 들어갔다");
+  eq(r.slot5, r.GLASS, "5번 칸에 안 들어갔다");
+  eq(r.slot7, r.LAMP, "7번 칸에 안 들어갔다");
+  assert(r.openThroughout, "세 칸을 채우는 사이에 목록이 닫혔다");
+  assert(r.closedByE, "E 로 닫히지 않는다 — 닫을 길이 없어졌다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

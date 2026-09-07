@@ -216,12 +216,21 @@ export function updateStorm(dt) {
 }
 
 export function updateWeather(dt) {
+  // 손으로 고른 날씨는 잠긴다 — 노을 사진을 찍으려고 맑음을 골랐는데
+  // 2분 뒤 저절로 비가 오면 사진 모드도 화면 저장도 쓸 수가 없다.
+  // 시간은 이미 "하루 길이 0" 으로 멈출 수 있는데 날씨에만 짝이 없었다.
+  if (S.weatherLock) return updateWeatherMix(dt);
   S.weatherTimer -= dt;
   if (S.weatherTimer <= 0) {
     S.weatherTimer = 60 + Math.random() * 90;
     if (S.weather !== 0) setWeather(0);
     else if (Math.random() < 0.45) setWeather(localBiome() === 1 ? 2 : 1);
   }
+  return updateWeatherMix(dt);
+}
+
+// 짙어지고 옅어지는 것은 잠겨 있어도 계속 돈다 — 안 그러면 고른 날씨가 화면에 안 나타난다
+function updateWeatherMix(dt) {
   // 날씨는 갑자기 켜졌다 꺼지지 않고 서서히 짙어지고 옅어진다
   var wantW = S.weather ? 1 : 0;
   S.weatherMix += (wantW - S.weatherMix) * Math.min(1, dt * 0.5);

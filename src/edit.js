@@ -201,9 +201,29 @@ function applyCell(e, toSide, defer) {
   if (e.from === WATER || e.to === WATER) { enqueueDryAround(e.x, e.y, e.z); enqueueWaterAround(e.x, e.y, e.z); }
 }
 
+// 무엇을 되돌렸는지 한 줄로 — "채우기 32,768칸" 처럼.
+// endBatch 가 라벨을 이미 저장해 두는데 아무도 안 읽고 있었다.
+// 안 알려 주면 240단계나 되는 되돌리기를 무서워서 두세 번 이상 못 누른다.
+export function editLabel(e) {
+  if (!e) return "";
+  // v59 부터 사람의 편집 하나도 묶음이다(딸려 사라지는 것을 같이 담으려고).
+  // 그래서 "1칸짜리 묶음" 은 대량 편집이 아니라 그냥 한 칸 놓기·캐기다.
+  if (e.batch) {
+    if (e.batch.n === 1) return cellLabel(e.batch.from[0], e.batch.to[0]);
+    return (e.label || "대량 편집") + " " + e.batch.n.toLocaleString("en-US") + "칸";
+  }
+  return cellLabel(e.from, e.to);
+}
+function cellLabel(from, to) {
+  var name = NAMES[to === AIR ? from : to] || "블록";
+  return (to === AIR ? name + " 캐기" : name + " 놓기");
+}
+export var lastEditLabel = "";
+
 export function undo() {
   var e = S.history.pop();
   if (!e) return false;
+  lastEditLabel = editLabel(e);
   if (e.batch) {
     var big = e.batch.n > BATCH_RELIGHT_ALL;
     for (var i = e.batch.n - 1; i >= 0; i--) applyCellAt(e.batch, i, false, big);
@@ -217,6 +237,7 @@ export function undo() {
 export function redo() {
   var e = S.future.pop();
   if (!e) return false;
+  lastEditLabel = editLabel(e);
   if (e.batch) {
     var big2 = e.batch.n > BATCH_RELIGHT_ALL;
     for (var i = 0; i < e.batch.n; i++) applyCellAt(e.batch, i, true, big2);

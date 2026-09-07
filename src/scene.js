@@ -459,7 +459,9 @@ export function updateEdge(px, pz) {
   edgeGroup.visible = edgeMat.opacity > 0.005;
 }
 
-// ── 영역 선택 상자 — 두 모서리를 찍으면 초록 테두리가 뜬다
+// ── 영역 선택 상자 — 두 모서리를 찍으면 초록 테두리가 뜬다.
+// 한쪽만 찍힌 동안은 노란 한 칸으로 "여기가 시작" 을 남긴다.
+export var SEL_DONE = 0x7ec850, SEL_ANCHOR = 0xe0c060;
 export var selMat = new THREE.LineBasicMaterial({ color: 0x7ec850, fog: false,
   transparent: true, opacity: 0.9 });
 export var selBox = new THREE.LineSegments(
@@ -485,9 +487,20 @@ export function updatePasteBox(c, p) {
   pasteBox.position.set(p[0] + c.w / 2, p[1] + c.h / 2, p[2] + c.d / 2);
 }
 
-export function updateSelectionBox(b) {
-  if (!b) { selBox.visible = false; return; }
+// b 가 없으면 anchor(첫 모서리 A)만 있는지 본다.
+// 두 점 도구인데 첫 점이 화면에 안 남으면, 스무 칸 날아가 B 를 찍을 때
+// A 를 어디에 찍었는지 감으로 맞춰야 한다 — 토스트는 1.6초면 사라진다.
+export function updateSelectionBox(b, anchor) {
+  if (!b) {
+    if (!anchor) { selBox.visible = false; return; }
+    selBox.visible = true;
+    selMat.color.setHex(SEL_ANCHOR);          // 아직 반쪽이라는 뜻으로 노랑
+    selBox.scale.set(1.04, 1.04, 1.04);
+    selBox.position.set(anchor[0] + 0.5, anchor[1] + 0.5, anchor[2] + 0.5);
+    return;
+  }
   selBox.visible = true;
+  selMat.color.setHex(SEL_DONE);
   selBox.scale.set(b.x1 - b.x0 + 1.02, b.y1 - b.y0 + 1.02, b.z1 - b.z0 + 1.02);
   selBox.position.set((b.x0 + b.x1 + 1) / 2, (b.y0 + b.y1 + 1) / 2, (b.z0 + b.z1 + 1) / 2);
 }

@@ -47,7 +47,11 @@ export const S = {
   lockMode: true,
   uiOpen: false,
   keys: Object.create(null),
+  // 이번 프레임에 조준한 칸의 "앞면" 좌표 — F3 이 밝기를 읽는다.
+  // step() 이 이미 쏜 레이캐스트 결과를 animate() 로 넘기는 통로다 (두 번 쏘지 않으려고).
+  aimFace: null,
   weather: 0,
+  weatherLock: false,      // K 로 손수 고른 날씨는 저절로 안 바뀐다
   sneaking: false,
   sneakLatch: false,        // 전환식 웅크리기가 켜져 있나
   crouchWas: false,         // 지난 프레임에 Shift 가 눌려 있었나 (누른 순간만 잡는다)

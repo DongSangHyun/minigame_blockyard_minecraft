@@ -104,12 +104,15 @@ ALL_BLOCKS.concat(ITEMS).forEach(function (b) {
   cap.textContent = NAMES[b];
   btn.appendChild(cv); btn.appendChild(cap);
   btn.addEventListener("click", function () {
+    // 닫지 않는다 — 핫바 열 칸을 양털 색으로 갈아 끼우려면
+    // 예전엔 E→클릭→숫자→E→클릭→… 스무 번을 눌러야 했다.
+    // 마크의 크리에이티브 인벤토리도 열린 채로 여러 칸을 채운다.
+    // 닫기는 E·ESC·바깥 클릭이 이미 있다.
     S.bar[S.selected] = b;
     refreshSlot(S.selected);
     updateHandBlock();
     S.worldDirty = true;
-    closePicker(true);
-    toast(NAMES[b]);
+    toast(NAMES[b] + " → " + (S.selected === 9 ? "0" : (S.selected + 1)) + "번 칸");
   });
   pickGrid.appendChild(btn);
   // 한국어 이름과 영어 이름을 둘 다 검색어로 둔다 — "조약돌" 도 "cobble" 도 잡힌다
@@ -269,6 +272,17 @@ export function drawMinimap() {
     mmCtx.lineWidth = 1;
     mmCtx.strokeStyle = "rgba(255,255,255,.85)";
     mmCtx.stroke();
+    // 번호를 옆에 적는다 — 열두 개가 전부 똑같은 금색 점이면
+    // "집·채석장·나무농장" 이 구별이 안 돼 다섯 개째부터 찍을 이유가 없어진다
+    if (!edge) {
+      mmCtx.font = "7px monospace";
+      mmCtx.textAlign = "left";
+      mmCtx.textBaseline = "middle";
+      mmCtx.fillStyle = "rgba(10,14,16,.85)";
+      mmCtx.fillText(String(mi + 1), mxp + 4, mzp + 1);
+      mmCtx.fillStyle = "#f0d888";
+      mmCtx.fillText(String(mi + 1), mxp + 3, mzp);
+    }
   }
 
   // 직접 정한 시작 지점(V) — 집 자리를 찍어 놨는데 지도에 안 나오면 찍은 보람이 없다

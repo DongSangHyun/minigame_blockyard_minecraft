@@ -14,7 +14,7 @@ import { EYE, player, raycast, spawn, stats } from "./player.js";
 import { ac, startAmbient, tone } from "./audio.js";
 import { clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
-import { blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
+import { lastEditLabel, blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
 import { closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
 import { place } from "./mine.js";
@@ -189,6 +189,7 @@ export function afterWorldSwap(msg, loaded) {
   S.primed.length = 0; S.fireOrigins.length = 0;
   S.walked = 0; S.achPrevX = null; S.achPrevZ = null;   // 걸은 거리도 이 세계 것부터 다시 센다
   S.growDirty = true;                                   // 불러온 세계의 묘목을 큐에 다시 담는다
+  S.weatherLock = false;                                // 날씨 잠금도 이 세계 것이 아니다
   resetQueues();
 
   relightAll(false); markAllDirty(); buildBudget(70);
@@ -777,7 +778,17 @@ window.addEventListener("keydown", function (e) {
   if (!S.active) return;
 
   if (e.code === "KeyE") { e.preventDefault(); if (S.uiOpen) closePicker(true); else openPicker(); return; }
-  if (S.uiOpen) return;
+  if (S.uiOpen) {
+    // 목록이 열린 동안에도 숫자키는 산다 — 어느 칸에 넣을지 고르는 데 쓴다.
+    // 이것이 없으면 목록을 여닫으며 칸을 옮겨야 해서 팔레트를 짤 수가 없다.
+    if (e.code.indexOf("Digit") === 0) {
+      e.preventDefault();
+      var dn = parseInt(e.code.slice(5), 10);
+      selectSlot(dn === 0 ? 9 : dn - 1);
+      refreshBar();
+    }
+    return;
+  }
 
   if (e.ctrlKey || e.metaKey) {
     // ── 영역 도구
@@ -832,7 +843,8 @@ window.addEventListener("keydown", function (e) {
     if (e.code === "KeyZ") {
       e.preventDefault();
       var ok = e.shiftKey ? redo() : undo();
-      toast(ok ? (e.shiftKey ? "다시하기" : "되돌리기") : "더 없음");
+      var what = ok ? lastEditLabel : "";
+      toast(ok ? ((e.shiftKey ? "다시하기" : "되돌리기") + (what ? " — " + what : "")) : "더 없음");
       return;
     }
     if (e.code === "KeyY") { e.preventDefault(); toast(redo() ? "다시하기" : "더 없음"); return; }
@@ -937,8 +949,10 @@ window.addEventListener("keydown", function (e) {
   if (e.code === "KeyT") cycleTime();
   if (e.code === "KeyK") {
     setWeather((S.weather + 1) % 3);
-    S.weatherTimer = 90 + Math.random() * 60;
-    toast(["맑음", "비", "눈"][S.weather]);
+    // 손으로 고른 순간 잠근다 — 다시 K 를 눌러야 바뀐다.
+    // 노을에 사진을 찍으려고 맑음을 골랐는데 2분 뒤 비가 오면 사진 모드가 헛것이 된다.
+    S.weatherLock = true;
+    toast(["맑음", "비", "눈"][S.weather] + " (고정)");
   }
   if (e.code === "KeyM") {
     S.muted = !S.muted;
@@ -1173,6 +1187,7 @@ bindOpt("s-ui", "o-ui", "ui", function (v) { return v + "%"; });
 bindOpt("s-tbtn", "o-tbtn", "tbtn", function (v) { return v + "%"; });
 bindOpt("s-save", "o-save", "autosave", function (v) { return v + "초"; });
 bindOpt("s-undo", "o-undo", "undo", function (v) { return v + "단계"; });
+bindOpt("s-dig", "o-dig", "dig", function (v) { return ["보통", "빠름", "즉시"][v] || "보통"; });
 // 켬/끔 설정 하나를 붙인다. 같은 다섯 줄을 설정마다 베껴 쓰면 새 설정에서 한 줄을 빠뜨린다.
 // needApply — 화면에 바로 반영해야 하는 것(고대비·왼손잡이)만 applyOpts 를 부른다.
 function bindCheck(id, outId, key, needApply) {

@@ -166,6 +166,10 @@ export function loadGame() {
     if (d.tc) decodeArrB64(d.tc, touched);   // 0/1 이라 RLE 가 잘 먹어 몇 KB 안 된다
     // 예전 저장(mb 없음)은 부를 때 새로 뿌린다 — 호출부가 판단하게 결과를 남긴다
     S.mobsRestored = loadMobs(d.mb);
+    // 자람 큐는 저장하지 않는다 — 불러온 세계의 묘목을 다시 주워 담으라고 여기서 신호한다.
+    // 호출부(부팅 복원·슬롯 전환·백업 되살리기·파일 가져오기) 넷 중 하나라도 빠뜨리면
+    // 그 경로로 들어온 사람의 묘목만 영영 안 자란다 — 그래서 모두가 지나는 여기에 둔다.
+    S.growDirty = true;
     seenMap.fill(0);
     if (d.mm) decodeArrB64(d.mm, seenMap);   // 예전 저장은 흰 종이에서 다시 시작한다
     player.flying = !!d.f;

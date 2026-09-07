@@ -3,11 +3,11 @@ import { S } from "./state.js";
 import { padState, pollGamepad, pollGamepadMenu } from "./input.js";
 import { breedTick, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
-import { CH, WX, WY, WZ, idx } from "./dims.js";
+import { CH, WX, WY, WZ, idx, inside } from "./dims.js";
 import { SH_SLAB, AIR, DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isSolid, isUnbreakable } from "./blocks.js";
 import { animateLiquids, crackTex } from "./atlas.js";
 import { seenRatio, BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, set, shape, topMap, world } from "./world.js";
-import { lightAtPlayer, lightSky, relightAll } from "./light.js";
+import { lightAtPlayer, lightBlk, lightSky, relightAll } from "./light.js";
 import { growTick, lavaFlowTick, lavaDryTick, grassTick, lavaTick, primeTick, TNT_FUSE, decayTick, dryTick, fallTick, fireTick, freezeTick, waterTick } from "./fluids.js";
 import { buildBudget, dirty, markAllDirty, opaqueMeshes, setBuildFocus } from "./mesh.js";
 import { updatePasteBox, updateOuterSea, primedBoxes, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
@@ -59,6 +59,7 @@ export function newWorld(seed) {
   if (S.savedPos) { S.savedPos.copy(player.pos); S.savedYaw = player.yaw; S.savedPitch = player.pitch; }
   S.loadedFromSave = false;
   setWeather(0);
+  S.weatherLock = false;      // 새 세계는 날씨도 다시 저절로 돈다
   seedCreatures();
   S.worldDirty = true;
   saveGame();
@@ -120,7 +121,10 @@ export function step(dt) {
                     (S.sprintTap || !!(S.keys.ControlLeft || S.keys.ControlRight));
     S.sprintingNow = sprinting;
 
-    var speed = player.flying ? FLY * S.flySpeed
+    // 날면서도 달린다 (마크와 같이 약 2배) — 96칸 섬을 가로지르려고
+    // Alt+휠로 배율을 올렸다 내렸다 할 일이 없어진다. 재료는 이미 다 계산돼 있었다.
+    var flySprint = (sprinting || !!(S.keys.ControlLeft || S.keys.ControlRight)) ? 2 : 1;
+    var speed = player.flying ? FLY * S.flySpeed * flySprint
               : (S.sneaking ? WALK * SNEAK_MUL : (sprinting ? SPRINT : WALK));
     if (feetInWater && !player.flying) speed *= thick ? 0.30 : 0.55;
 
@@ -146,7 +150,8 @@ export function step(dt) {
     if (Math.abs(player.vel.z) < 0.02) player.vel.z = 0;
 
     if (player.flying) {
-      player.vel.y = ((S.keys.Space ? 1 : 0) - (crouchKey ? 1 : 0)) * FLY * S.flySpeed;
+      // 수직도 같이 빨라진다 — 마크와 같다. 안 그러면 높이 뜨는 데만 시간이 걸린다
+      player.vel.y = ((S.keys.Space ? 1 : 0) - (crouchKey ? 1 : 0)) * FLY * S.flySpeed * flySprint;
     } else {
       // 사다리 — 몸이 사다리에 걸쳐 있으면 천천히 오르내린다
       var onLadder = isClimbable(get(Math.floor(player.pos.x),
@@ -283,7 +288,7 @@ export function step(dt) {
   updateWeather(dt);
   updateStorm(dt);
   updateEdge(player.pos.x, player.pos.z);
-  updateSelectionBox(selectionBounds());
+  updateSelectionBox(selectionBounds(), S.selA && !S.selB ? S.selA : (S.selB && !S.selA ? S.selB : null));
   // 복사한 것이 있으면 조준한 자리에 놓일 상자를 미리 그린다
   if (playing && S.clip) {
     var ph2 = raycast(6);
@@ -332,6 +337,8 @@ export function step(dt) {
   // 조준 + 캐기 진행
   updateHandBlock();
   var hit = playing ? raycast(6) : null;
+  // 조준 면을 남겨 둔다 — HUD 는 animate() 에 있어 이 지역 변수를 못 본다
+  S.aimFace = hit ? [hit.x + hit.nx, hit.y + hit.ny, hit.z + hit.nz] : null;
   if (hit) {
     highlight.visible = true;
     if (isCross(hit.block)) {
@@ -349,12 +356,26 @@ export function step(dt) {
     ghostMesh.visible = false;
   }
 
+  // 크리에이티브인데 돌 하나에 1.25초, 철광석에 1.95초다 — 굳기 표는 서바이벌 수치다.
+  // 잘못 놓은 벽 한 줄(20칸)을 헐려면 25초를 붙잡고 있어야 한다.
+  // 균열 4단계·팔 스윙·"턱-턱" 소리는 이 게임이 잘 만든 부분이라 살리고, 배율만 둔다.
+  // 0 보통 · 1 빠름(4배) · 2 즉시. "즉시" 도 완전한 0 은 아니다 —
+  // 0 이면 누르고 있는 동안 초당 60칸이 사라져 손이 못 따라간다. 0.08초면 사람 눈엔 즉시고,
+  // 쓸어 캘 때는 초당 12칸으로 멎는다.
+  var DIG_INSTANT = 0.08;
+  function digNeed(b) {
+    var h = hardnessOf(b);
+    if (opts.dig === 2) return Math.min(h, DIG_INSTANT);
+    if (opts.dig === 1) return h / 4;
+    return h;
+  }
+
   var wantBreak = playing && (S.touchBreak || (S.lockMode ? S.mouseDown[0]
                               : (S.dragging && S.dragBtn === 0 && S.dragDist < 7)));
   if (wantBreak && hit && hit.y > 0 && !isUnbreakable(hit.block)) {
     if (!S.breaking.on || S.breaking.x !== hit.x || S.breaking.y !== hit.y || S.breaking.z !== hit.z) {
       S.breaking.on = true; S.breaking.x = hit.x; S.breaking.y = hit.y; S.breaking.z = hit.z;
-      S.breaking.t = 0; S.breaking.need = hardnessOf(hit.block); S.breaking.stage = -1;
+      S.breaking.t = 0; S.breaking.need = digNeed(hit.block); S.breaking.stage = -1;
       S.breaking.sw = 0;
     }
     S.breaking.t += dt;
@@ -667,7 +688,16 @@ export function animate() {
     tFace.textContent = facingText();
     tBiome.textContent = BIOME_NAMES[localBiome()] + " · 청크 " +
       ((player.pos.x / CH) | 0) + "," + ((player.pos.z / CH) | 0);
-    tLight.textContent = lightAtPlayer() + " / 15";
+    // 조준한 칸의 밝기까지 보여 준다 — 서 있는 자리 값만으로는
+    // 저 구석이 어두운지 알 수가 없어 횃불을 어디 달지 못 정한다
+    // 조준한 칸 **앞면**의 밝기 — 거기가 횃불을 놓을 자리다.
+    // 이 프레임에서 이미 쏜 hit 을 쓴다 (레이캐스트를 두 번 할 이유가 없다)
+    var af = S.aimFace;
+    if (af && inside(af[0], af[1], af[2])) {
+      var ai = idx(af[0], af[1], af[2]);
+      tLight.textContent = lightAtPlayer() + " / 15 · 조준 " +
+        Math.max(lightSky[ai] || 0, lightBlk[ai] || 0);
+    } else tLight.textContent = lightAtPlayer() + " / 15";
     tMode.textContent = player.flying ? "비행" : (S.wasUnderwater ? "헤엄" : "걷기");
     tShape.textContent = ["전체", "반블록", "계단"][S.shapeMode];
     tBlocks.innerHTML = "놓음 <b>" + stats.placed + "</b> · 캔 <b>" + stats.mined + "</b>";
