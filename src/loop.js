@@ -15,9 +15,9 @@ import { applyTime, clockText, dayLight } from "./daynight.js";
 import { calmMotion, opts } from "./settings.js";
 import { EYE, HALF, moveAxis, moveHorizontal, player, pointSolid, raycast, spawn, stats, unstick } from "./player.js";
 import { at, caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
-import { saveGame } from "./save.js";
+import { pushPrev, saveGame } from "./save.js";
 import { checkBuildAchievements, ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
-import { airBar, airEl, drawMinimap, facingText, mmCap, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
+import { refreshMinimapCap, airBar, airEl, drawMinimap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
 import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
 import { localBiome, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather } from "./sky.js";
@@ -31,6 +31,7 @@ export var fwd = new THREE.Vector3(), right = new THREE.Vector3();
 export var clock = new THREE.Clock();
 
 export function newWorld(seed) {
+  pushPrev();                 // 갈아엎기 직전의 세계를 자동 저장이 못 덮는 자리에 둔다
   generate(seed);
   relightAll(false);
   markAllDirty();
@@ -63,7 +64,7 @@ export function newWorld(seed) {
   seedCreatures();
   S.worldDirty = true;
   saveGame();
-  mmCap.textContent = "SEED " + S.worldSeed;
+  refreshMinimapCap();
   drawMinimap();
   toast("새 세계 · SEED " + S.worldSeed);
   tone(300, 0.16, "sine", 0.05);
@@ -686,6 +687,10 @@ export function animate() {
   }
 
   S.fpsAccum += dt; S.fpsFrames++; S.hudTimer += dt; S.mmTimer += dt;
+  // 최근 1초의 최악 프레임 — 평균 FPS 는 한 번 턱 걸리는 것을 뭉갠다
+  var ms = dt * 1000;
+  if (ms > S.worstAcc) S.worstAcc = ms;
+  if (S.hudTimer > 0.25) { S.worstMs = Math.max(S.worstMs * 0.5, S.worstAcc); S.worstAcc = 0; }
   if (S.hudTimer > 0.25) {
     tPos.textContent = Math.floor(player.pos.x) + " · " + Math.floor(player.pos.y) + " · " + Math.floor(player.pos.z);
     tTime.textContent = clockText();
@@ -714,9 +719,7 @@ export function animate() {
   }
   if (S.mmTimer > 0.2 && S.active) {
     drawMinimap();
-    mmCap.textContent = (S.mmUnder ? ("단면 Y" + Math.floor(player.pos.y))
-                                   : ("SEED " + S.worldSeed))
-                        + (S.mmZoom > 1 ? "  ×" + S.mmZoom : "");
+    refreshMinimapCap();
     S.mmTimer = 0;
   }
 }
@@ -759,5 +762,12 @@ export function refreshPerf() {
     "굽는중 <b>" + dirty.size + "</b>\n" +
     "물     <b>" + (Q.waterQ.length - Q.waterHead) + "</b>  낙하 " + (Q.fallQ.length - Q.fallHead) + "\n" +
     "잎     <b>" + (Q.decayQ.length - Q.decayHead) + "</b>\n" +
-    "시야   <b>" + opts.far + "</b>m  DPR " + renderer.getPixelRatio().toFixed(2);
+    // 자동 조절이 줄여 놓았는데 설정값을 찍으면, 원인을 보러 연 화면이 원인을 가린다.
+    // ("120m 인데 왜 이렇게 뿌옇지" 가 된다)
+    "시야   <b>" + Math.round(farNow()) + "</b>m" +
+      (Math.round(farNow()) < opts.far ? " (자동 · 설정 " + opts.far + ")" : "") +
+      "  DPR " + renderer.getPixelRatio().toFixed(2) + "\n" +
+    // 사람이 성능을 느끼는 단위는 평균 FPS 가 아니라 **한 번 멈추는 순간**이다.
+    // 0.25초 평균은 117ms 짜리 한 프레임을 58 FPS 로 뭉갠다.
+    "최악   <b>" + Math.round(S.worstMs) + "</b>ms (최근 1초)";
 }

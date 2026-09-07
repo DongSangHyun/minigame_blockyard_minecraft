@@ -234,12 +234,26 @@ export function pushBackup() {
     return !!cur;
   } catch (e) { return false; }
 }
+// 세계를 **갈아타기 직전**의 한 벌 — 자동 저장이 못 덮는 자리에 따로 둔다.
+// 예전에는 백업이 saveGame 마다 밀려, 새 세계를 만들면 자동 저장(기본 20초) 한 번에
+// 옛 세계가 사라졌다. "직전으로 되돌리기" 를 누르러 설정을 펼치는 사이에 이미 늦는다.
+export function prevKey(n) { return slotKey(n) + ".prev"; }
+export function pushPrev() {
+  try {
+    var cur = localStorage.getItem(curKey());
+    if (cur) localStorage.setItem(prevKey(S.slot), cur);
+    return !!cur;
+  } catch (e) { return false; }
+}
 export function hasBackup() {
-  try { return !!localStorage.getItem(backupKey(S.slot)); } catch (e) { return false; }
+  try {
+    return !!(localStorage.getItem(prevKey(S.slot)) || localStorage.getItem(backupKey(S.slot)));
+  } catch (e) { return false; }
 }
 export function restoreBackup() {
   try {
-    var bak = localStorage.getItem(backupKey(S.slot));
+    // 갈아타기 직전 판을 먼저 본다 — 그것이 사람이 잃은 바로 그 세계다
+    var bak = localStorage.getItem(prevKey(S.slot)) || localStorage.getItem(backupKey(S.slot));
     if (!bak) return false;
     localStorage.setItem(curKey(), bak);
     return loadGame();

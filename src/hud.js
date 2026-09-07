@@ -200,6 +200,16 @@ mmCanvas.width = WX; mmCanvas.height = WZ;
 export var mmCtx = mmCanvas.getContext("2d");
 export var mmImage = mmCtx.createImageData(WX, WZ);
 
+// 미니맵 캡션 — 이름을 붙였으면 그것으로, 아니면 시드로 부른다.
+// animate() 안에 박혀 있으면 시험이 닿을 수가 없어 따로 뺐다.
+export function refreshMinimapCap() {
+  if (!mmCap) return "";
+  mmCap.textContent = (S.mmUnder ? ("단면 Y" + Math.floor(player.pos.y))
+                                 : (S.worldName || ("SEED " + S.worldSeed)))
+                      + (S.mmZoom > 1 ? "  ×" + S.mmZoom : "");
+  return mmCap.textContent;
+}
+
 export function drawMinimap() {
   var d = mmImage.data;
   // 걸어온 만큼 지도가 열린다. 지하에서는 시야가 좁고, 밝히는 층도 따로다.

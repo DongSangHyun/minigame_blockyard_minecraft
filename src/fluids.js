@@ -1,5 +1,6 @@
 // fluids.js — 물 흐름 · 낙하 블록 · 잎 부패
 import { S } from "./state.js";
+import { opts } from "./settings.js";
 import { Q } from "./queues.js";
 import { DIRS, N, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
 import { BIRCH_LEAVES, BIRCH_LOG, LEAVES, LOG, SAPLING, SNOW, SPRUCE_LEAVES, DIRT, GRASS, blocksLight, AIR, COBBLE, FIRE, GRAVEL, ICE, LAVA, SAND, SH_FULL, STONE, TNT, WATER, isCross, isFlammable, isLeaf, isLiquid, isLog, isSolid, isUnbreakable } from "./blocks.js";
@@ -10,7 +11,7 @@ import { touch } from "./mesh.js";
 import { burst } from "./scene.js";
 import { at, crunch, lavaHiss, tone } from "./audio.js";
 import { playerOccupies } from "./player.js";
-import { applyEdit, beginBatch, endBatch, unlock } from "./edit.js";
+import { applyEdit, batchPush, beginBatch, endBatch, unlock } from "./edit.js";
 
 export var MAXFLOW = 7; // 근원에서 옆으로 뻗을 수 있는 칸 수 (마크와 같은 7칸)
 
@@ -114,6 +115,14 @@ export function fallTick(budget) {
     // 떨어지는 모래·자갈은 풀·꽃·횃불을 부수고 지나간다
     if (below !== AIR && !isLiquid(below) && !isCross(below)) continue;
 
+    // 사람의 편집 때문에 떨어지는 것이면 그 묶음에 같이 담는다 —
+    // 안 담으면 되돌리기가 "모래 놓기를 되돌렸다" 고 말해 놓고 떨어진 모래를 그대로 둔다.
+    // (CLAUDE.md 6절: world[] 를 직접 쓰면 기록이 어긋난다. 조명·메시는 아래에서 손으로 챙긴다)
+    if (S.fallOwner) {
+      batchPush(S.fallOwner, x, y, z, b, AIR, SH_FULL, SH_FULL, waterLvl[i]);
+      batchPush(S.fallOwner, x, y - 1, z, below, b, shape[idx(x, y - 1, z)], SH_FULL,
+                waterLvl[idx(x, y - 1, z)]);
+    }
     world[i] = AIR; shape[i] = SH_FULL;
     var bi = idx(x, y - 1, z);
     world[bi] = b; shape[bi] = SH_FULL;
@@ -128,6 +137,9 @@ export function fallTick(budget) {
     S.worldDirty = true;
   }
   if (Q.fallHead > 4096 && Q.fallHead === Q.fallQ.length) { Q.fallQ.length = 0; Q.fallHead = 0; }
+  // 큐가 다 비면 그 편집의 낙하는 끝난 것이다 — 뒤이어 세계가 스스로 떨어뜨리는 것까지
+  // 남의 묶음에 실으면 엉뚱한 것이 같이 되돌아온다
+  if (Q.fallHead >= Q.fallQ.length) S.fallOwner = null;
   if (moved) unlock("gravity");
   return moved;
 }
@@ -504,6 +516,11 @@ export function lavaTick(px, py, pz, tries) {
 export function fireTick(budget) {
   budget = budget || 60;
   var acted = 0;
+  // 불 번짐은 이 게임에서 **유일하게 영영 사라지는 경로**다 —
+  // 12×12 판자 오두막이 3000틱에 139장을 잃었고, 되돌리기는 한 칸도 못 돌렸다
+  // (번짐은 record=false 라 기록에 안 남는다. 폭발은 묶음으로 잡아 주는데 불만 못 잡는다).
+  // 마크의 /gamerule doFireTick false 자리 — 끄면 붙인 불은 그 자리에서만 탄다.
+  var spread = !!opts.firespread;
   // 비가 오면 하늘이 뚫린 자리의 불은 꺼지고 새로 붙지도 않는다 —
   // 방화 실수를 하늘이 수습해 준다. 지하 굴의 불은 그대로 산다 (마크와 같다).
   var raining = S.weather === 1;
@@ -538,6 +555,7 @@ export function fireTick(budget) {
         if (get(nx + DIRS[wd][0], ny + DIRS[wd][1], nz + DIRS[wd][2]) === WATER) wet = true;
       }
       if (wet) continue;
+      if (!spread) continue;                   // 번짐 끄기 — 옮겨 붙지 않는다
       var ni = idx(nx, ny, nz);
       applyEdit(nx, ny, nz, FIRE, false);      // 번짐은 세계가 하는 일 — 되돌리기 기록을 먹지 않는다
       Q.fireQ.push(ni);

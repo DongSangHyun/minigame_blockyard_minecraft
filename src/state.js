@@ -88,6 +88,10 @@ export const S = {
   fpsAccum: 0,
   fpsFrames: 0,
   waterTimer: 0,
+  // 최근 1초에서 가장 오래 걸린 프레임 — F3 이 "지금 왜 뻑뻑한지" 를 말하는 데 쓴다
+  everEdited: false,      // 이번 판에서 사람이 한 번이라도 편집했나 (되돌리기 안내에 쓴다)
+  worstMs: 0,
+  worstAcc: 0,
   achTimer: 0,
   buildAchTimer: 0,
   // 걸은 거리 — "발을 딛는다" 류 과제가 스폰 자리에 서 있기만 해도 열리는 걸 막는다
@@ -99,6 +103,9 @@ export const S = {
   // 큐는 저장하지 않으므로, 이 신호가 없으면 불러온 세계의 묘목이 영영 안 자란다.
   growDirty: false,
   batchCells: 0,
+  // 방금 닫힌 사람의 편집 묶음 — 그 편집 때문에 떨어지는 모래·자갈을 여기에 같이 담는다.
+  // 안 담으면 "되돌리기 — 모래 놓기" 라고 말해 놓고 떨어진 모래는 그대로 남는다.
+  fallOwner: null,
   achListStale: false,
   lavaTimer: 0,
   caveTimer: 6,

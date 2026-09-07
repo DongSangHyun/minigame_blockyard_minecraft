@@ -1,5 +1,6 @@
 // edit.js — 편집 · 되돌리기 · 도전 과제
 import { S } from "./state.js";
+import { Q } from "./queues.js";
 import { opts } from "./settings.js";
 import { encodeArrB64, decodeArrB64, SLOTS } from "./save.js";
 import { SEA, DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
@@ -136,7 +137,7 @@ function batchGrow(b) {
   for (var k2 = 0; k2 < keys.length; k2++) b[keys[k2]] = big[keys[k2]];
   b.cap = cap;
 }
-function batchPush(b, x, y, z, from, to, fromSh, toSh, wl) {
+export function batchPush(b, x, y, z, from, to, fromSh, toSh, wl) {
   if (b.n === b.cap) batchGrow(b);
   var i = b.n++;
   b.x[i] = x; b.y[i] = y; b.z[i] = z;
@@ -145,7 +146,7 @@ function batchPush(b, x, y, z, from, to, fromSh, toSh, wl) {
 }
 
 // 대량 편집(채우기·붙여넣기)은 한 덩어리로 묶어 한 번에 되돌린다
-export function beginBatch(cap) { S.batch = makeBatch(cap || 1024); S.batchCells = 0; }
+export function beginBatch(cap) { S.batch = makeBatch(cap || 1024); S.batchCells = 0; S.fallOwner = null; }
 // 묶음이 끝나면 조명과 기둥 높이를 한 번에 맞춘다.
 // 400칸이 넘으면 세계 전체를 다시 켜는 게 칸마다 BFS 를 도는 것보다 싸다 (relightAll 은 25ms 고정).
 export var BATCH_RELIGHT_ALL = 400;
@@ -184,7 +185,11 @@ export function endBatch(label) {
   S.batch = null; S.batchCells = 0;
   settleBatch(cells, b || { n: 0 });
   if (!b || !b.n) return 0;
+  S.everEdited = true;
   S.history.push({ batch: b, label: label || "대량 편집" });
+  // 이 편집 때문에 떨어질 것이 큐에 남아 있으면, 그 낙하도 이 묶음의 일이다.
+  // fallTick 이 여기에 실어야 Ctrl+Z 한 번으로 떨어진 자리까지 되돌아온다.
+  S.fallOwner = (Q.fallHead < Q.fallQ.length) ? b : null;
   if (b.n >= 100) unlock("build100");
   trimHistory();
   S.future.length = 0;
@@ -235,9 +240,18 @@ function cellLabel(from, to) {
 }
 export var lastEditLabel = "";
 
+// 되돌릴 것이 없을 때 그 **이유**를 남긴다.
+// "더 없음" 만 뜨면, 이어하기 직후에는 되돌리기가 고장 난 줄 안다 —
+// 240단계라고 설정에 적어 놓고 껐다 켜면 0인데 그 말을 안 했다.
+export var undoEmptyWhy = "";
 export function undo() {
   var e = S.history.pop();
-  if (!e) return false;
+  if (!e) {
+    undoEmptyWhy = S.loadedFromSave && !S.everEdited
+      ? "지난 판의 되돌리기는 남지 않습니다 — 설정 › 직전으로 되돌리기"
+      : "";
+    return false;
+  }
   lastEditLabel = editLabel(e);
   if (e.batch) {
     var big = e.batch.n > BATCH_RELIGHT_ALL;
@@ -630,7 +644,7 @@ export function pasteClip(px, py, pz) {
 // ── 명령 처리 — 짧은 이름 하나로 알아듣게
 export var CMD_HELP =
   "tp <x> <y> <z> · time <아침|정오|노을|밤|0~1> · weather <맑음|비|눈> · " +
-  "tp <x y z|표식> · fill <블록|공기> · expand <±dx> <±dy> <±dz> · clone <dx> <dy> <dz> · give <블록> · count · bp <save|use|list|del> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
+  "tp <x y z|표식> · marks · fill <블록|공기> · expand <±dx> <±dy> <±dz> · clone <dx> <dy> <dz> · give <블록> · count · bp <save|use|list|del> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
 
 // 한국어 이름과 영어 이름을 둘 다 알아듣는다 — "조약돌" 도 "cobble" 도 된다
 function findBlock(name) {
@@ -654,7 +668,7 @@ function findBlock(name) {
   return -1;
 }
 
-export var CMD_LIST = ["tp", "time", "weather", "fill", "expand", "clone", "give", "count", "bp", "undo", "redo", "seed", "gm", "help"];
+export var CMD_LIST = ["tp", "marks", "time", "weather", "fill", "expand", "clone", "give", "count", "bp", "undo", "redo", "seed", "gm", "help"];
 // 앞글자만 쳐도 알아듣게 — 명령이 열 개나 되면 오타 한 번에 막힌다
 export function completeCommand(prefix) {
   var q = String(prefix || "").trim().toLowerCase();
@@ -672,6 +686,19 @@ export function runCommand(line) {
     if (guess) cmd = guess;
   }
   if (cmd === "help" || cmd === "?") return CMD_HELP;
+
+  // 표식 목록 — 96px 미니맵의 7px 글자 말고 **글자로 읽을 곳**이 필요하다.
+  // 화면 밖 표식은 가장자리에 눌려 이름도 안 나온다.
+  if (cmd === "marks") {
+    if (!S.marks.length) return "표식이 없습니다 — B 로 찍고, Shift+B 로 이름을 붙입니다";
+    var out = [];
+    for (var mq = 0; mq < S.marks.length; mq++) {
+      var mm2 = S.marks[mq];
+      out.push((mq + 1) + " " + (markName(mm2) || "-") + " " +
+               markX(mm2) + " " + (markY(mm2) >= 0 ? markY(mm2) : "?") + " " + markZ(mm2));
+    }
+    return out.join(" · ") + "  (/tp 번호|이름 으로 갑니다)";
+  }
 
   if (cmd === "tp") {
     var x = parseFloat(parts[1]), y = parseFloat(parts[2]), z = parseFloat(parts[3]);

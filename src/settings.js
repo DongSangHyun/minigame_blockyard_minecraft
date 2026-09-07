@@ -5,8 +5,8 @@ import { camera, voxUniforms } from "./scene.js";
 
 export var OPT_KEY = "blockyard.opts.v1";
 export var opts = IS_TOUCH
-  ? { sens: 100, fov: 78, far: 72, vol: 60, invertY: 0, day: 20, bright: 30, ui: 110, contrast: 0, lefty: 0, tbtn: 100, autosave: 20, undo: 240, steady: 0, sneaktog: 0, dig: 0 }
-  : { sens: 100, fov: 72, far: 120, vol: 60, invertY: 0, day: 20, bright: 30, ui: 100, contrast: 0, lefty: 0, tbtn: 100, autosave: 20, undo: 240, steady: 0, sneaktog: 0, dig: 0 };
+  ? { sens: 100, fov: 78, far: 72, vol: 60, invertY: 0, day: 20, bright: 30, ui: 110, contrast: 0, lefty: 0, tbtn: 100, autosave: 20, undo: 240, steady: 0, sneaktog: 0, dig: 0, firespread: 1 }
+  : { sens: 100, fov: 72, far: 120, vol: 60, invertY: 0, day: 20, bright: 30, ui: 100, contrast: 0, lefty: 0, tbtn: 100, autosave: 20, undo: 240, steady: 0, sneaktog: 0, dig: 0, firespread: 1 };
 (function loadOpts() {
   try {
     var raw = localStorage.getItem(OPT_KEY);

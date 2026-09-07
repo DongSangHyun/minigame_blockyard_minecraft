@@ -15,7 +15,7 @@ import { EYE, player, raycast, spawn, stats } from "./player.js";
 import { ac, startAmbient, tone } from "./audio.js";
 import { renameSlot, clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
-import { lastEditLabel, blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
+import { undoEmptyWhy, lastEditLabel, blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
 import { helpOpen, closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
 import { place } from "./mine.js";
@@ -157,7 +157,7 @@ if (slotsEl) {
       // 빈 슬롯도 SEED 칸에 적어 둔 값을 쓴다 — 예전엔 무조건 무작위였다
       var typed = (seedIn && seedIn.value || "").trim();
       newWorld(typed ? hashSeed(typed) : ((Math.random() * 100000) | 0));
-      toast("슬롯 " + n + " · 새 세계 · SEED " + S.worldSeed);
+      toast("슬롯 " + n + " · 새 세계 · SEED " + S.worldSeed + " — 옛 세계는 설정 › 직전으로 되돌리기 에");
     }
     refreshSlots();
     refreshMenu();
@@ -890,7 +890,8 @@ window.addEventListener("keydown", function (e) {
       e.preventDefault();
       var ok = e.shiftKey ? redo() : undo();
       var what = ok ? lastEditLabel : "";
-      toast(ok ? ((e.shiftKey ? "다시하기" : "되돌리기") + (what ? " — " + what : "")) : "더 없음");
+      toast(ok ? ((e.shiftKey ? "다시하기" : "되돌리기") + (what ? " — " + what : ""))
+               : (undoEmptyWhy || "더 없음"));
       return;
     }
     if (e.code === "KeyY") { e.preventDefault(); toast(redo() ? "다시하기" : "더 없음"); return; }
@@ -1015,6 +1016,9 @@ window.addEventListener("keydown", function (e) {
     if (nowR - S.lastRTap < 2200) {
       S.lastRTap = 0;
       newWorld((Math.random() * 100000) | 0);
+      // 되돌릴 길이 있다는 것을 말해 준다 — 앞단은 R 두 번으로 막았지만
+      // 뒷단(직전으로 되돌리기)이 있다는 걸 모르면 안전망이 없는 것과 같다
+      toast("새 세계 · SEED " + S.worldSeed + " — 옛 세계는 설정 › 직전으로 되돌리기 에 있습니다");
     } else {
       S.lastRTap = nowR;
       toast("새 세계를 만들려면 R 을 한 번 더");
@@ -1214,7 +1218,8 @@ bindHold("tb-menu", function () {
 });
 bindHold("tb-undo", function () {
   var ok = undo();
-  toast(ok ? ("되돌리기" + (lastEditLabel ? " — " + lastEditLabel : "")) : "더 없음");
+  toast(ok ? ("되돌리기" + (lastEditLabel ? " — " + lastEditLabel : ""))
+           : (undoEmptyWhy || "더 없음"));
 });
 
 window.addEventListener("resize", function () {
@@ -1277,6 +1282,9 @@ bindCheck("s-hc", "o-hc", "contrast", true);
 bindCheck("s-steady", "o-steady", "steady", false);
 // 손목 배려 — Shift 를 붙들지 않고 눌러서 켜고 끈다
 bindCheck("s-sneaktog", "o-sneaktog", "sneaktog", false);
+// 불 번짐 — 끄면 붙인 불이 그 자리에서만 탄다 (마크의 doFireTick).
+// 번진 불은 되돌리기가 못 잡으므로, 짓는 사람은 대개 꺼 두고 싶어 한다.
+bindCheck("s-fire", "o-fire", "firespread", false);
 
 // ══════════════════════════════════════════════════════════════
 //  게임패드 — 마우스·키보드가 어려운 사람도 놀 수 있게

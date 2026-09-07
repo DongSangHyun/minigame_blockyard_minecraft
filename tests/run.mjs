@@ -7237,6 +7237,220 @@ test("v68 부팅: booted 깃발이 진짜로 서 있다", async (page) => {
   eq(r.val, true, "부팅이 끝났는데 booted 가 " + r.val + " 다");
 });
 
+test("v69 되돌리기: 떨어진 모래까지 되돌아온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 24, Z = 24, Y = 40;
+    // 앞선 시험이 낙하 큐에 남긴 것이 있으면 이 칸의 낙하가 예산에 밀린다 (교훈 12)
+    B.resetQueues();
+    B.S.fallOwner = null;
+    for (let yy = 1; yy < B.WY; yy++) B.set(X, yy, Z, 0);
+    B.refreshAllTops(); B.relightAll(false);
+    function column() {
+      let n = 0, lowest = -1;
+      for (let yy = 0; yy < B.WY; yy++)
+        if (B.get(X, yy, Z) === B.B.SAND) { n++; if (lowest < 0) lowest = yy; }
+      return { n, lowest };
+    }
+
+    // ① 한 칸 — 놓고 떨어뜨린 뒤 되돌리면 아무 데도 안 남아야 한다
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.applyEdit(X, Y, Z, B.B.SAND, true, 0);
+    const hist = B.S.history.length;
+    for (let k = 0; k < 200; k++) B.fallTick(50);
+    const fell = column();
+    B.undo();
+    const afterUndo = column();
+
+    // ② 다시하기도 짝이 맞아야 한다
+    B.redo();
+    const afterRedo = column();
+    B.undo();
+
+    // ③ 기둥 열 칸 — 되돌리기 열 번이면 하나도 안 남아야 한다
+    B.S.history.length = 0; B.S.future.length = 0;
+    for (let k = 0; k < 10; k++) {
+      B.applyEdit(X, Y - k, Z, B.B.SAND, true, 0);
+      for (let t = 0; t < 60; t++) B.fallTick(50);
+    }
+    const tower = column();
+    for (let k = 0; k < 10; k++) B.undo();
+    const afterAll = column();
+
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { hist, fell, afterUndo, afterRedo, tower, afterAll, top: Y };
+  });
+  eq(r.hist, 1, "한 칸 놓기가 되돌리기 " + r.hist + "개를 먹었다");
+  eq(r.fell.n, 1, "시험대가 안 섰다 — 모래가 " + r.fell.n + "칸이다");
+  assert(r.fell.lowest < r.top, "모래가 안 떨어졌다 — 시험대가 틀렸다");
+  eq(r.afterUndo.n, 0,
+     "되돌렸는데 모래가 " + r.afterUndo.n + "칸 남았다 (y=" + r.afterUndo.lowest + ") — " +
+     "토스트는 '모래 놓기를 되돌렸다' 고 말한다");
+  eq(r.afterRedo.n, 1, "다시하기로 모래가 안 돌아온다");
+  eq(r.tower.n, 10, "시험대가 안 섰다 — 기둥이 " + r.tower.n + "칸이다");
+  eq(r.afterAll.n, 0, "열 번 되돌렸는데 " + r.afterAll.n + "칸이 남았다");
+});
+
+test("v69 불: 번짐을 끄면 집이 안 탄다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keep = B.opts.firespread, keepW = B.S.weather;
+    B.S.weather = 0;                       // 비가 오면 불이 꺼져 시험이 흐려진다
+    const X = 70, Y = 40, Z = 70;
+    function hut() {
+      B.resetQueues();
+      B.S.fireOrigins.length = 0;
+      for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++)
+        for (let dy = -1; dy <= 8; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      // 12×12×5 판자 오두막 (벽만)
+      let n = 0;
+      for (let dx = 0; dx < 12; dx++) for (let dz = 0; dz < 12; dz++)
+        for (let dy = 0; dy < 5; dy++) {
+          if (dx > 0 && dx < 11 && dz > 0 && dz < 11) continue;
+          B.set(X + dx, Y + dy, Z + dz, B.B.PLANKS); n++;
+        }
+      B.refreshAllTops(); B.relightAll(false);
+      return n;
+    }
+    function planks() {
+      let n = 0;
+      for (let dx = -1; dx <= 13; dx++) for (let dz = -1; dz <= 13; dz++)
+        for (let dy = -1; dy <= 8; dy++)
+          if (B.get(X + dx, Y + dy, Z + dz) === B.B.PLANKS) n++;
+      return n;
+    }
+    function burn() {
+      B.ignite(X - 1, Y, Z);              // 벽 바깥 공기 한 칸에 불을 붙인다
+      for (let k = 0; k < 3000; k++) B.fireTick(80);
+      return planks();
+    }
+
+    B.opts.firespread = 1;
+    const built = hut();
+    const onLeft = burn();
+
+    B.opts.firespread = 0;
+    hut();
+    const offLeft = burn();
+
+    B.opts.firespread = keep; B.S.weather = keepW;
+    B.resetQueues();
+    B.S.fireOrigins.length = 0;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { built, onLeft, offLeft };
+  });
+  assert(r.built > 200, "시험대가 안 섰다 — 판자가 " + r.built + "장뿐이다");
+  assert(r.onLeft < r.built,
+     "번짐을 켰는데 한 장도 안 탔다 — 시험대가 틀렸다 (" + r.built + " → " + r.onLeft + ")");
+  eq(r.offLeft, r.built,
+     "번짐을 껐는데 " + (r.built - r.offLeft) + "장이 탔다 — " +
+     "번진 불은 되돌리기가 못 잡으니 이 게임에서 유일하게 영영 사라지는 길이다");
+});
+
+test("v69 화면이 말한다: 시야거리·세계 이름·되돌리기 이유·표식 목록", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keepFar = B.opts.far, keepName = B.S.worldName, keepMarks = B.S.marks.slice();
+    const out = {};
+
+    // ① F3 시야거리 — 자동 조절이 줄여 놓았으면 그 값을 찍어야 한다
+    B.opts.far = 120; B.S.farNow = 40;
+    B.refreshPerf();
+    const perf = document.getElementById("perf").textContent;
+    out.saysReal = /40/.test(perf) && /자동/.test(perf);
+    out.perf = perf.replace(/\s+/g, " ").slice(0, 120);
+    out.hasWorst = /최악/.test(perf);
+    B.S.farNow = keepFar; B.opts.far = keepFar;
+
+    // ② 세계 이름이 미니맵 캡션에 뜬다
+    B.S.worldName = "언덕 위 성";
+    B.S.mmUnder = false;
+    out.cap = B.refreshMinimapCap();
+    B.S.worldName = "";
+    out.capSeed = B.refreshMinimapCap();
+
+    // ③ 이어하기 직후의 빈 되돌리기는 이유를 말한다
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.S.loadedFromSave = true; B.S.everEdited = false;
+    B.undo();
+    out.whyLoaded = B.undoEmptyWhy;
+    B.S.everEdited = true;
+    B.undo();
+    out.whyEdited = B.undoEmptyWhy;
+
+    // ④ /marks 가 표식을 글자로 뿌린다
+    B.S.marks = [];
+    out.empty = B.runCommand("marks");
+    B.S.marks = [[30, 40], [50, 22, 60, "채석장"]];
+    out.list = B.runCommand("marks");
+
+    B.opts.far = keepFar; B.S.worldName = keepName; B.S.marks = keepMarks;
+    B.S.loadedFromSave = false;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  assert(r.saysReal, "F3 이 실제 시야거리를 안 찍는다 — 원인을 보러 연 화면이 원인을 가린다: " + r.perf);
+  assert(r.hasWorst, "F3 에 최악 프레임 ms 가 없다 — 평균 FPS 는 한 번 튀는 것을 뭉갠다");
+  assert(/언덕 위 성/.test(r.cap), "세계 이름이 미니맵에 안 뜬다: " + r.cap);
+  assert(/SEED/.test(r.capSeed), "이름이 없을 때 시드로 안 돌아간다: " + r.capSeed);
+  assert(/남지 않습니다/.test(r.whyLoaded),
+     "이어하기 직후 빈 되돌리기가 이유를 안 말한다 — 고장 난 줄 안다: " + r.whyLoaded);
+  eq(r.whyEdited, "", "이번 판에서 편집했는데도 '이어하기라 비었다' 고 말한다");
+  assert(/없습니다/.test(r.empty), "표식이 없을 때 안내가 없다: " + r.empty);
+  assert(/채석장/.test(r.list) && /50/.test(r.list),
+     "/marks 가 표식을 안 뿌린다 — 96px 미니맵 말고 읽을 곳이 필요하다: " + r.list);
+  assert(/\?/.test(r.list), "높이 없는 예전 표식을 '?' 로 안 보여 준다: " + r.list);
+});
+
+test("v69 안전망: 새 세계를 만들어도 옛 세계가 20초 만에 안 사라진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const slotK = B.curKey(), prevK = B.prevKey(B.S.slot), bakK = B.backupKey(B.S.slot);
+    const keep = [localStorage.getItem(slotK), localStorage.getItem(prevK),
+                  localStorage.getItem(bakK)];
+    localStorage.removeItem(prevK); localStorage.removeItem(bakK);
+
+    // 옛 세계를 저장해 둔다
+    B.generate(15646);
+    B.saveGame();
+    const oldSeed = B.S.worldSeed;
+
+    // 새 세계로 갈아엎는다
+    B.newWorld(999999);
+    const rightAfter = JSON.parse(localStorage.getItem(prevK) || "{}").seed;
+
+    // 자동 저장이 여러 번 돌아도 안전망은 그대로여야 한다 (예전엔 한 번에 덮였다)
+    for (let k = 0; k < 5; k++) B.saveGame();
+    const afterAutosaves = JSON.parse(localStorage.getItem(prevK) || "{}").seed;
+    const canRestore = B.hasBackup();
+
+    // 되살리면 옛 세계로 돌아온다
+    B.restoreBackup();
+    const restored = B.S.worldSeed;
+
+    localStorage.removeItem(prevK); localStorage.removeItem(bakK);
+    if (keep[0] === null) localStorage.removeItem(slotK); else localStorage.setItem(slotK, keep[0]);
+    if (keep[1] !== null) localStorage.setItem(prevK, keep[1]);
+    if (keep[2] !== null) localStorage.setItem(bakK, keep[2]);
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { oldSeed, rightAfter, afterAutosaves, canRestore, restored };
+  });
+  eq(r.oldSeed, 15646, "시험대가 안 섰다");
+  eq(r.rightAfter, 15646, "새 세계를 만들었는데 옛 세계가 안전망에 안 담겼다");
+  eq(r.afterAutosaves, 15646,
+     "자동 저장 다섯 번에 안전망이 " + r.afterAutosaves + " 로 덮였다 — " +
+     "설정을 펼치는 사이에 옛 세계가 사라진다");
+  assert(r.canRestore, "되살릴 것이 있는데 hasBackup 이 없다고 한다");
+  eq(r.restored, 15646, "되살렸는데 " + r.restored + " 로 왔다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
