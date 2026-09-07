@@ -74,6 +74,7 @@ player.yaw = -0.72; player.pitch = -0.42;
 
 // ── 테스트 훅 (헤드리스 검증용)
 window.__blockyard = {
+  booted: false,          // 맨 아래에서 true 가 된다
   WX: WX, WY: WY, WZ: WZ, CH: CH, CX: CX, CY: CY, CZ: CZ, SEA: SEA, N: N,
   B: { AIR: AIR, GRASS: GRASS, DIRT: DIRT, STONE: STONE, SAND: SAND, LOG: LOG,
        LEAVES: LEAVES, PLANKS: PLANKS, GLASS: GLASS, BRICK: BRICK, WATER: WATER,
@@ -231,5 +232,9 @@ if ("serviceWorker" in navigator && location.protocol.indexOf("http") === 0) {
   navigator.serviceWorker.register("./sw.js").catch(function () {});
 }
 
+// 훅에도 남긴다 — 시험과 부팅 감시견이 "다 열렸나" 를 이걸로 본다.
+// 없으면 `booted !== false` 가 undefined 라 늘 참이 되어, 훅이 만들어진 순간
+// (아직 지형도 안 굽고 조명도 안 켠 때) 이미 다 열린 것으로 읽힌다.
 S.booted = true;
+window.__blockyard.booted = true;
 animate();

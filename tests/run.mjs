@@ -7225,6 +7225,18 @@ test("v68 부팅: 실패하면 화면이 말하고 빠져나갈 길을 준다", 
   assert(r.stillHidden, "부팅이 끝난 뒤의 오류에도 실패 판이 떴다 — 놀다가 검은 화면을 만난다");
 });
 
+test("v68 부팅: booted 깃발이 진짜로 서 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    return { has: Object.prototype.hasOwnProperty.call(B, "booted"), val: B.booted,
+             ready: (document.getElementById("boot-msg") || {}).textContent };
+  });
+  // 훅에 booted 가 아예 없으면 `booted !== false` 가 undefined 라 **늘 참**이 된다 —
+  // 시험도 감시견도 "훅이 생겼나" 만 보고 다 열린 줄 안다 (지형도 안 굽고 조명도 안 켠 때다).
+  assert(r.has, "훅에 booted 가 없다 — 부팅 대기 조건이 사실상 아무것도 안 기다린다");
+  eq(r.val, true, "부팅이 끝났는데 booted 가 " + r.val + " 다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
