@@ -6310,6 +6310,60 @@ test("v63 블록 목록: 새 블록이 화면까지 닿는다", async (page) => 
   eq(r.sapCat, "nature", "묘목이 '자연' 갈래에 없다 — 탭으로는 못 찾는다");
 });
 
+test("v64 묘목 성능: 큐가 프레임을 잡아먹지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    function measure(n) {
+      for (let k = 0; k < 30; k++) B.step(1 / 60);      // 예열
+      const t = performance.now();
+      for (let k = 0; k < n; k++) B.step(1 / 60);
+      return (performance.now() - t) / n;
+    }
+    // 앞선 묘목 시험이 안 자란 묘목을 큐에 남겨 둔다 — 세는 양은 첫 줄에서 못 박는다 (교훈 12)
+    B.Q.growQ.length = 0;
+    // 묘목 60그루를 심는다. 천장을 덮어 자라지 않게 해 큐에 계속 남긴다.
+    const X = 20, Y = 40, Z = 20;
+    let planted = 0;
+    for (let dx = 0; dx < 10 && planted < 60; dx++)
+      for (let dz = 0; dz < 6 && planted < 60; dz++) {
+        const x = X + dx * 2, z = Z + dz * 2;
+        for (let dy = -1; dy <= 6; dy++) B.set(x, Y + dy, z, 0);
+        B.set(x, Y - 1, z, B.B.GRASS);
+        B.applyEdit(x, Y, z, B.B.SAPLING, false, 0);
+        B.applyEdit(x, Y + 2, z, B.B.STONE, false, 0);
+        planted++;
+      }
+    B.refreshAllTops(); B.relightAll(false);
+    // 방금 블록 120개를 놓았다 — 청크 재굽기가 가라앉기를 기다린다.
+    // 안 기다리면 재굽기 비용이 통째로 얹혀 38배로 읽힌다 (v57 에서 겪은 함정)
+    for (let k = 0; k < 400; k++) B.step(1 / 60);
+    const withQ = measure(120);
+    // 같은 세계에서 큐만 비워 다시 잰다 — 차이가 정말 growTick 인지 본다
+    const keepQ = B.Q.growQ.slice();
+    B.Q.growQ.length = 0;
+    const noQ = measure(120);
+    B.Q.growQ = keepQ;
+    const q = B.Q.growQ.length;
+
+    // 뒷정리 — 심은 것을 걷어 다음 시험에 남기지 않는다
+    for (let dx = 0; dx < 10; dx++) for (let dz = 0; dz < 6; dz++) {
+      const x = X + dx * 2, z = Z + dz * 2;
+      B.applyEdit(x, Y, z, B.B.AIR, false);
+      B.applyEdit(x, Y + 2, z, B.B.AIR, false);
+    }
+    B.Q.growQ.length = 0;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { withQ: +withQ.toFixed(3), noQ: +noQ.toFixed(3), q, planted };
+  });
+  eq(r.planted, 60, "시험대가 안 섰다 — 묘목 " + r.planted + "그루만 심혔다");
+  eq(r.q, 60, "묘목 " + r.q + "그루만 큐에 남았다 — 천장을 덮었는데 자라 버렸다");
+  // 절대 ms 는 기계마다 다르다. 같은 세계에서 큐만 비워 잰 값과 견준다.
+  assert(r.withQ - r.noQ < 0.5,
+         "묘목 60그루가 프레임에 " + (r.withQ - r.noQ).toFixed(3) + "ms 를 더한다 — 숲을 심으면 끊긴다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
