@@ -27,7 +27,7 @@
    저장소를 그대로 정적 호스팅에 올리면 도는 상태를 유지한다. (테스트 도구는 예외)
 2. **외부 의존성은 three.js r128 CDN 하나뿐.** 새 라이브러리를 추가하지 않는다.
 3. **ES5 문체를 지킨다.** `var` · `function` 선언 · 화살표 함수와 `let/const` 를 섞지 않는다.
-   기존 코드 9,506줄이 전부 ES5 다. 문체가 섞이면 읽는 사람이 손해를 본다.
+   기존 코드 9,524줄이 전부 ES5 다. 문체가 섞이면 읽는 사람이 손해를 본다.
 4. **UI 문구는 한국어.** 코드 주석도 한국어. 변수·함수 이름은 영어.
 5. **모듈 하나 = 관심사 하나.** 파일 첫 줄은 항상 `// 이름.js — 하는 일` 이다.
    구조를 바꾸면 `node tools/codemap.mjs` 로 `docs/CODEMAP.md` 를 다시 만든다.
@@ -65,6 +65,8 @@
 4) 구현 (관심사에 맞는 src/ 모듈에)
 5) node tests/run.mjs 10        ← 반드시 반복 실행
 6) node tools/codemap.mjs · node tools/tidy-imports.mjs
+6.5) node tests/run.mjs 1     ← **도구가 코드를 바꿨으니 한 번 더 돌린다.**
+     (v67 에서 tidy-imports 가 input.js 의 import 84개를 지운 것을 검증 없이 커밋해 게임이 안 켜졌다)
 7) node tools/stamp.mjs      ← 커밋 직전. 시작 화면의 "마지막 업데이트" 를 갱신한다
 8) memory.md 에 진행내역 기록 · docs/ 갱신
 ```

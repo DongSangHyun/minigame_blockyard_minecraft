@@ -1,11 +1,26 @@
 // input.js — 입력 (키보드 · 마우스 · 터치)
 import { S } from "./state.js";
+import { markZ } from "./world.js";
+import { resetQueues } from "./queues.js";
+import { seedMobs } from "./mobs.js";
+import { WX, WY, WZ } from "./dims.js";
+import { markAllDirty, buildBudget } from "./mesh.js";
+import { relightAll } from "./light.js";
 import { IS_TOUCH } from "./boot.js";
-import { renderer } from "./scene.js";
-import { player } from "./player.js";
-import { undo } from "./edit.js";
-import { closePicker, openPicker, selectSlot } from "./hud.js";
+import { SH_SLAB, SH_SLAB_UP, isStairShape, NAMES } from "./blocks.js";
+import { camera, crackMesh, renderer } from "./scene.js";
+import { applyTime } from "./daynight.js";
+import { applyOpts, opts, saveOpts } from "./settings.js";
+import { EYE, player, raycast, spawn, stats } from "./player.js";
+import { ac, startAmbient, tone } from "./audio.js";
+import { renameSlot, clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
+import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
+import { lastEditLabel, blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
+import { helpOpen, closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
+import { handCam, updateHandBlock } from "./hand.js";
 import { place } from "./mine.js";
+import { setWeather } from "./sky.js";
+import { newWorld } from "./loop.js";
 
 export var overlay = document.getElementById("overlay");
 export var goBtn = document.getElementById("go");
@@ -75,9 +90,12 @@ export function agoText(ms) {
   return Math.floor(d / 86400000) + "일 전";
 }
 // 사람이 지은 이름을 마크업에 끼우므로 반드시 막는다 (청사진 목록에서 배운 것 · v63)
+var ESC_MAP = { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\u0022": "&quot;" };
 function esc(t) {
-  return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;")
-                  .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  // 정규식 안에 **큰따옴표를 글자 그대로 쓰지 않는다** — tools/tidy-imports.mjs 의
+  // 문자열 제거기가 그 따옴표를 문자열 시작으로 읽어 파일을 통째로 오해한다.
+  // (실제로 input.js 의 import 를 84개 지워 게임이 안 켜졌다)
+  return String(t).replace(/[&<>\u0022]/g, function (c) { return ESC_MAP[c]; });
 }
 export function refreshSlots() {
   if (!slotsEl) return;

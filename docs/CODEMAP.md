@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-07 · 모듈 28개 · 합계 9,506줄
+생성일 2026-09-07 · 모듈 28개 · 합계 9,524줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -30,7 +30,7 @@
 | [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 902 | state · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
 | [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 475 | state · version · dims · blocks · atlas · world · player · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 165 | state · settings · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
-| [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1343 | state · boot · scene · player · edit · hud · mine |
+| [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1361 | state · world · queues · mobs · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
 | [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 219 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
 | [`mobs.js`](../src/mobs.js) | 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다. | 502 | dims · world · blocks · scene · player · audio |
 | [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 365 | state · audio · dims · atlas · world · scene · daynight · player |
@@ -427,39 +427,39 @@
 
 | 함수 | 줄 |
 |---|---:|
-| `tutLine(i)` | 49 |
-| `refreshHint()` | 50 |
-| `advanceTutTouch(step)` | 57 |
-| `advanceTut(step)` | 58 |
-| `agoText(ms)` | 69 |
-| `refreshSlots()` | 82 |
-| `aimCell(reach)` | 168 |
-| `selectionText()` | 181 |
-| `afterWorldSwap(msg, loaded)` | 197 |
-| `cloudSay(msg, kind)` | 255 |
-| `refreshCloud()` | 260 |
-| `refreshTerrain()` | 365 |
-| `refreshBindLabels()` | 391 |
-| `hintText(base)` | 399 |
-| `refreshKeyButtons()` | 406 |
-| `bindConflict(act, code)` | 439 |
-| `shareLink()` | 476 |
-| `refreshBlueprints()` | 489 |
-| `refreshMenu()` | 533 |
-| `beginPlay()` | 546 |
-| `endPlay()` | 572 |
-| `useDragMode()` | 591 |
-| `goFullscreen()` | 593 |
-| `requestPlay()` | 610 |
-| `hashSeed(str)` | 644 |
-| `applyLook(dx, dy)` | 666 |
-| `cycleTime()` | 686 |
-| `pickBlock()` | 698 |
-| `setStick(dx, dy)` | 1068 |
-| `bindHold(id, onDown, onUp)` | 1170 |
-| `bindOpt(inputId, outId, key, fmt)` | 1217 |
-| `pollGamepadMenu()` | 1272 |
-| `pollGamepad(dt)` | 1282 |
+| `tutLine(i)` | 64 |
+| `refreshHint()` | 65 |
+| `advanceTutTouch(step)` | 72 |
+| `advanceTut(step)` | 73 |
+| `agoText(ms)` | 84 |
+| `refreshSlots()` | 100 |
+| `aimCell(reach)` | 186 |
+| `selectionText()` | 199 |
+| `afterWorldSwap(msg, loaded)` | 215 |
+| `cloudSay(msg, kind)` | 273 |
+| `refreshCloud()` | 278 |
+| `refreshTerrain()` | 383 |
+| `refreshBindLabels()` | 409 |
+| `hintText(base)` | 417 |
+| `refreshKeyButtons()` | 424 |
+| `bindConflict(act, code)` | 457 |
+| `shareLink()` | 494 |
+| `refreshBlueprints()` | 507 |
+| `refreshMenu()` | 551 |
+| `beginPlay()` | 564 |
+| `endPlay()` | 590 |
+| `useDragMode()` | 609 |
+| `goFullscreen()` | 611 |
+| `requestPlay()` | 628 |
+| `hashSeed(str)` | 662 |
+| `applyLook(dx, dy)` | 684 |
+| `cycleTime()` | 704 |
+| `pickBlock()` | 716 |
+| `setStick(dx, dy)` | 1086 |
+| `bindHold(id, onDown, onUp)` | 1188 |
+| `bindOpt(inputId, outId, key, fmt)` | 1235 |
+| `pollGamepadMenu()` | 1290 |
+| `pollGamepad(dt)` | 1300 |
 
 내보내는 값 — `overlay` · `goBtn` · `altBtn` · `seedIn` · `canvas` · `isTouch` · `HINT_LOCK` · `HINT_DRAG` · `HINT_TOUCH` · `hintEl` · `TUT` · `TUT_TOUCH` · `slotsEl` · `copySeedBtn` · `expBtn` · `impBtn` · `resBtn` · `fileIn` · `terrainEl` · `KEY_LABEL` · `keysEl` · `RESERVED` · `copyLinkBtn` · `lookLast` · `stickZone` · `stickBase` · `stickKnob` · `STICK_R` · `padState`
 

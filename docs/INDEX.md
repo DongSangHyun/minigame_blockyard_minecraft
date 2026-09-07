@@ -58,5 +58,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v67 — 세계 이름과 돌아갈 수 있는 표식 · 회귀 테스트 268항목 전부 통과.**
+**v67 — 도장 갱신 · 회귀 테스트 268항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/
