@@ -58,5 +58,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v67 — 도장 갱신 · 회귀 테스트 266항목 전부 통과.**
+**v67 — 터치 튜토리얼 · 날씨 저장 · 되돌리기 칸 상한 · 회귀 테스트 266항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/
