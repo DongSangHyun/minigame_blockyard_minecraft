@@ -69,6 +69,8 @@
      (v67 에서 tidy-imports 가 input.js 의 import 84개를 지운 것을 검증 없이 커밋해 게임이 안 켜졌다)
 7) node tools/stamp.mjs      ← 커밋 직전. 시작 화면의 "마지막 업데이트" 를 갱신한다
 8) memory.md 에 진행내역 기록 · docs/ 갱신
+9) push 했으면 `node tools/check-live.mjs`  ← **배포본이 진짜 켜지는지** 본다.
+   시험은 저장소를 보고 이 도구는 배포본을 본다 (v68 에서 시험이 다 통과한 채 깨진 판이 나갔다)
 ```
 
 ## 4.5 SOP — 유저가 **"작업해줘"** 라고만 말했을 때
