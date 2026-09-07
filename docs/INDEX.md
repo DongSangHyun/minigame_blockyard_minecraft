@@ -58,5 +58,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v69 — 도장 갱신 · 회귀 테스트 274항목 전부 통과.**
+**v? — 임시 스크립트가 src/ 를 고쳤다 되돌리지 못하게 (규칙 9) · 회귀 테스트 274항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/
