@@ -7099,6 +7099,111 @@ test("v67 되돌리기: 칸 수에도 상한이 있다", async (page) => {
      "묶음 배열에 " + r.slack + "칸이 빈 채로 남는다 — 크기를 알고 시작해야 한다");
 });
 
+test("v67 표식: 좌표·이름이 붙고 거기로 돌아갈 수 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keepMarks = B.S.marks.slice();
+
+    // 예전 저장의 [x, z] 두 원소도 그대로 읽혀야 한다 (저장 버전은 v5 그대로)
+    B.S.marks = [[30, 40], [50, 22, 60, "채석장"]];
+    const oldX = B.markX(B.S.marks[0]), oldZ = B.markZ(B.S.marks[0]), oldY = B.markY(B.S.marks[0]);
+    const newX = B.markX(B.S.marks[1]), newY = B.markY(B.S.marks[1]), newZ = B.markZ(B.S.marks[1]);
+    const newName = B.markName(B.S.marks[1]), oldName = B.markName(B.S.marks[0]);
+
+    // /tp 로 표식에 간다 — 번호로
+    B.player.pos.set(5, 40, 5);
+    const byNum = B.runCommand("tp 2");
+    const atNum = [Math.round(B.player.pos.x), Math.round(B.player.pos.y), Math.round(B.player.pos.z)];
+    // 이름으로
+    B.player.pos.set(5, 40, 5);
+    B.runCommand("tp 채석장");
+    const atName = [Math.round(B.player.pos.x), Math.round(B.player.pos.y), Math.round(B.player.pos.z)];
+    // 높이를 모르는 예전 표식은 그 자리 지표로 올려 준다 (땅에 파묻히면 안 된다)
+    B.player.pos.set(5, 40, 5);
+    B.runCommand("tp 1");
+    const atOld = [Math.round(B.player.pos.x), Math.round(B.player.pos.y), Math.round(B.player.pos.z)];
+    const groundThere = B.topMap[30 * 0 + 40 * B.WX + 30] !== undefined
+      ? B.topMap[40 * B.WX + 30] : -1;
+    const missing = B.runCommand("tp 없는이름");
+
+    // 미니맵이 두 모양을 다 그린다 (v58 의 NaN 사고를 다시 안 내려고)
+    B.drawMinimap();
+
+    B.S.marks = keepMarks;
+    B.endPlay(); B.setPaused(false);
+    return { oldX, oldZ, oldY, newX, newY, newZ, newName, oldName,
+             byNum, atNum, atName, atOld, groundThere, missing };
+  });
+  eq(r.oldX, 30, "예전 표식의 x 를 잘못 읽는다");
+  eq(r.oldZ, 40, "예전 표식의 z 를 잘못 읽는다 — [x, z] 두 원소다");
+  eq(r.oldY, -1, "예전 표식에 없는 높이를 지어냈다");
+  eq(r.oldName, "", "예전 표식에 없는 이름을 지어냈다");
+  eq(r.newX, 50, "새 표식의 x 가 틀렸다");
+  eq(r.newY, 22, "새 표식의 높이가 안 담긴다 — 갱도 입구와 지상 탑이 같은 점이 된다");
+  eq(r.newZ, 60, "새 표식의 z 가 틀렸다");
+  eq(r.newName, "채석장", "표식 이름이 안 담긴다");
+  assert(/이동/.test(r.byNum), "/tp 2 가 안 먹는다: " + r.byNum);
+  eq(r.atNum.join(","), "50,22,60", "표식 번호로 간 자리가 다르다: " + r.atNum.join(","));
+  eq(r.atName.join(","), "50,22,60", "표식 이름으로 간 자리가 다르다: " + r.atName.join(","));
+  eq(r.atOld[0] + "," + r.atOld[2], "30,40", "예전 표식으로 간 자리가 다르다");
+  assert(r.atOld[1] > 0, "높이 없는 예전 표식으로 갔더니 y 가 " + r.atOld[1] + " 다 — 땅에 파묻힌다");
+  assert(/없습니다/.test(r.missing), "없는 표식 이름에 안내가 없다: " + r.missing);
+});
+
+test("v67 저장 슬롯: 이름을 붙여 알아볼 수 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const slotKey = B.curKey();
+    const keepSave = localStorage.getItem(slotKey);
+    const keepName = B.S.worldName;
+
+    B.S.worldName = "";
+    B.saveGame();
+    const before = B.slotInfo(B.S.slot);
+    // 이름을 붙인다
+    const ok = B.renameSlot(B.S.slot, "돌성");
+    const after = B.slotInfo(B.S.slot);
+    const memory = B.S.worldName;
+    // 목록에 그 이름이 뜨는가
+    B.refreshSlots();
+    const listed = document.getElementById("slots").textContent;
+    // 마크업으로 새면 안 된다 (청사진에서 배운 것)
+    B.renameSlot(B.S.slot, "<b>굵게</b>");
+    B.refreshSlots();
+    const injected = document.getElementById("slots").querySelectorAll("b b").length;
+    const escaped = /<b>굵게<\/b>/.test(document.getElementById("slots").textContent);
+    // 비우면 시드로 돌아간다
+    B.renameSlot(B.S.slot, "");
+    B.refreshSlots();
+    const backToSeed = /SEED/.test(document.getElementById("slots").textContent);
+    // 불러오기에도 실린다
+    B.renameSlot(B.S.slot, "돌성");
+    B.S.worldName = "";
+    B.loadGame();
+    const loadedName = B.S.worldName;
+
+    if (keepSave === null) localStorage.removeItem(slotKey);
+    else localStorage.setItem(slotKey, keepSave);
+    B.S.worldName = keepName;
+    B.refreshSlots();
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { beforeName: before && before.name, ok, afterName: after && after.name,
+             memory, listed, injected, escaped, backToSeed, loadedName };
+  });
+  eq(r.beforeName, "", "이름 없는 슬롯인데 이름이 있다");
+  assert(r.ok, "슬롯 이름 붙이기가 실패했다");
+  eq(r.afterName, "돌성", "붙인 이름이 저장에 안 실린다");
+  eq(r.memory, "돌성", "지금 놀고 있는 슬롯인데 메모리 쪽이 안 따라왔다");
+  assert(/돌성/.test(r.listed), "메뉴 슬롯 목록에 이름이 안 뜬다 — 시드 번호로 기억해야 한다");
+  eq(r.injected, 0, "슬롯 이름이 마크업으로 새어 들어갔다");
+  assert(r.escaped, "슬롯 이름의 꺾쇠가 글자로 안 보인다");
+  assert(r.backToSeed, "이름을 비웠는데 SEED 로 안 돌아간다");
+  eq(r.loadedName, "돌성", "불러오기 뒤 이름이 안 이어진다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

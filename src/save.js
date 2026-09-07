@@ -22,9 +22,23 @@ export function slotInfo(n) {
     if (!raw) return null;
     var d = JSON.parse(raw);
     return { seed: d.seed >>> 0, mins: Math.round((d.secs || 0) / 60),
-             at: d.at || 0,
+             at: d.at || 0, name: typeof d.nm === "string" ? d.nm : "",
              placed: d.s ? d.s[0] : 0, mined: d.s ? d.s[1] : 0 };
   } catch (e) { return null; }
+}
+
+// 슬롯 이름 바꾸기 — 그 슬롯의 저장 JSON 에서 nm 만 갈아 끼운다.
+// 세계를 통째로 다시 쓰지 않으므로 지금 놀고 있는 슬롯이 아니어도 안전하다.
+export function renameSlot(n, name) {
+  try {
+    var raw = localStorage.getItem(slotKey(n));
+    if (!raw) return false;
+    var d = JSON.parse(raw);
+    d.nm = String(name || "").slice(0, 24);
+    localStorage.setItem(slotKey(n), JSON.stringify(d));
+    if (n === S.slot) S.worldName = d.nm;      // 지금 슬롯이면 메모리 쪽도 맞춘다
+    return true;
+  } catch (e) { return false; }
 }
 
 export function hasSave() {
@@ -132,6 +146,7 @@ export function saveGame() {
       // 날씨는 시각(t)·달 위상(md)과 한 짝인데 혼자 빠져 있었다 —
       // 눈 오는 밤 사진을 찍으려고 K 로 잠가 놓아도 탭을 닫으면 맑음으로 돌아왔다.
       wt: S.weather, wk: S.weatherLock ? 1 : 0,
+      nm: S.worldName || "",       // 세계 이름 — 시드 번호로 "성 지은 게 1번인지 2번인지" 를 기억할 순 없다
       // G 로 고른 모양도 손에 든 것의 일부다
       sm: S.shapeMode
     }));
@@ -195,6 +210,7 @@ export function loadGame() {
     S.weather = (d.wt | 0) || 0;
     S.weatherLock = !!d.wk;
     S.shapeMode = (d.sm | 0) || 0;
+    S.worldName = typeof d.nm === "string" ? d.nm : "";
     S.weatherMix = S.weather ? 1 : 0;      // 불러오자마자 그 날씨로 보이게
     applyWeather();                        // 빗줄기·눈송이를 실제로 켠다 (S.weather 만 넣으면 안 보인다)
     refreshAllTops();

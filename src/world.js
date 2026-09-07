@@ -193,6 +193,13 @@ export var touched = new Uint8Array(N);
 // 걸어서 밝힌 지도. 한 칸에 두 비트를 쓴다 —
 // SEEN_TOP(1) 지상에서 본 자리 · SEEN_UNDER(2) 지하에서 본 자리.
 // 한 배열로 쓰면 굴을 파고 지나간 자리의 지상 지형까지 밝혀져, 걸어 본 적 없는 산이 지도에 뜬다.
+// 미니맵 표식 — 예전 저장은 [x, z] 두 원소, v67 부터는 [x, y, z, 이름] 이다.
+// 저장 버전을 올리지 않으려고 **길이로 구분**한다. 읽는 곳이 여럿이라 여기 모아 둔다.
+export function markX(m) { return m[0]; }
+export function markY(m) { return m.length >= 3 ? m[1] : -1; }   // -1 = 높이를 모르는 예전 표식
+export function markZ(m) { return m.length >= 3 ? m[2] : m[1]; }
+export function markName(m) { return (m.length >= 4 && typeof m[3] === "string") ? m[3] : ""; }
+
 export var SEEN_TOP = 1, SEEN_UNDER = 2;
 export var seenMap = new Uint8Array(WX * WZ);
 export function markSeen(px, pz, r, bit) {

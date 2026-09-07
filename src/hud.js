@@ -4,7 +4,7 @@ import { BUILD } from "./version.js";
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
 import { AIR, ALL_BLOCKS, GLASS, ITEMS, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross } from "./blocks.js";
 import { AVG_TOP, TILE, atlas, tileOrigin } from "./atlas.js";
-import { SEEN_TOP, SEEN_UNDER, seenMap, markSeen, topMap, world } from "./world.js";
+import { SEEN_TOP, SEEN_UNDER, markX, markZ, markName, seenMap, markSeen, topMap, world } from "./world.js";
 import { player } from "./player.js";
 import { updateHandBlock } from "./hand.js";
 import { advanceTut, canvas, isTouch } from "./input.js";
@@ -260,8 +260,9 @@ export function drawMinimap() {
   var sx = WX / spanX, sz = WZ / spanZ;
   for (var mi = 0; mi < S.marks.length; mi++) {
     var mk = S.marks[mi];
-    // marks 는 [x, z] 두 원소다 — mk[2] 를 읽으면 NaN 이 되고 캔버스가 조용히 아무것도 안 그린다
-    var mxp = (mk[0] - x0) * sx, mzp = (mk[1] - z0) * sz;
+    // marks 는 예전 [x, z] 와 지금 [x, y, z, 이름] 두 모양이다 — markX/markZ 로만 읽는다.
+    // (v58 에서 mk[2] 를 직접 읽어 NaN 이 되고 캔버스가 조용히 아무것도 안 그렸다)
+    var mxp = (markX(mk) - x0) * sx, mzp = (markZ(mk) - z0) * sz;
     var edge = mxp < 2 || mzp < 2 || mxp > WX - 2 || mzp > WZ - 2;
     mxp = Math.max(2, Math.min(WX - 2, mxp));
     mzp = Math.max(2, Math.min(WZ - 2, mzp));
@@ -278,10 +279,12 @@ export function drawMinimap() {
       mmCtx.font = "7px monospace";
       mmCtx.textAlign = "left";
       mmCtx.textBaseline = "middle";
+      // 이름을 붙였으면 번호 대신 이름 — 지우면 뒤 번호가 전부 밀려 번호만으로는 못 외운다
+      var tag = markName(mk) || String(mi + 1);
       mmCtx.fillStyle = "rgba(10,14,16,.85)";
-      mmCtx.fillText(String(mi + 1), mxp + 4, mzp + 1);
+      mmCtx.fillText(tag, mxp + 4, mzp + 1);
       mmCtx.fillStyle = "#f0d888";
-      mmCtx.fillText(String(mi + 1), mxp + 3, mzp);
+      mmCtx.fillText(tag, mxp + 3, mzp);
     }
   }
 

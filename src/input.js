@@ -1,25 +1,11 @@
 // input.js — 입력 (키보드 · 마우스 · 터치)
 import { S } from "./state.js";
-import { resetQueues } from "./queues.js";
-import { seedMobs } from "./mobs.js";
-import { WX, WY, WZ } from "./dims.js";
-import { markAllDirty, buildBudget } from "./mesh.js";
-import { relightAll } from "./light.js";
 import { IS_TOUCH } from "./boot.js";
-import { SH_SLAB, SH_SLAB_UP, isStairShape, NAMES } from "./blocks.js";
-import { camera, crackMesh, renderer } from "./scene.js";
-import { applyTime } from "./daynight.js";
-import { applyOpts, opts, saveOpts } from "./settings.js";
-import { EYE, player, raycast, spawn, stats } from "./player.js";
-import { ac, startAmbient, tone } from "./audio.js";
-import { clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
-import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
-import { lastEditLabel, blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
-import { helpOpen, closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
-import { handCam, updateHandBlock } from "./hand.js";
+import { renderer } from "./scene.js";
+import { player } from "./player.js";
+import { undo } from "./edit.js";
+import { closePicker, openPicker, selectSlot } from "./hud.js";
 import { place } from "./mine.js";
-import { setWeather } from "./sky.js";
-import { newWorld } from "./loop.js";
 
 export var overlay = document.getElementById("overlay");
 export var goBtn = document.getElementById("go");
@@ -88,22 +74,41 @@ export function agoText(ms) {
   if (d < 86400000) return Math.floor(d / 3600000) + "시간 전";
   return Math.floor(d / 86400000) + "일 전";
 }
+// 사람이 지은 이름을 마크업에 끼우므로 반드시 막는다 (청사진 목록에서 배운 것 · v63)
+function esc(t) {
+  return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+                  .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
 export function refreshSlots() {
   if (!slotsEl) return;
   var html = "";
   for (var n = 1; n <= SLOTS; n++) {
     var info = slotInfo(n);
-    var label = info ? ("SEED " + info.seed + " · " + info.mins + "분" +
-                        (info.at ? " · " + agoText(info.at) : "")) : "비어 있음";
+    // 이름을 붙였으면 그것으로 부른다 — 시드 번호로는 "성 지은 게 1번인지 2번인지" 를 못 외운다
+    var title = info ? (info.name || ("SEED " + info.seed)) : "비어 있음";
+    var label = info ? (info.mins + "분" + (info.at ? " · " + agoText(info.at) : "")) : "";
     html += '<button type="button" data-slot="' + n + '" aria-current="' +
-            (S.slot === n ? "true" : "false") + '"><b>' + n + '</b>' + label +
-            (info ? '<i class="del" data-del="' + n + '" title="이 슬롯 지우기">✕</i>' : '') +
+            (S.slot === n ? "true" : "false") + '"><b>' + n + ' ' + esc(title) + '</b>' + label +
+            (info ? '<i class="ren" data-ren="' + n + '" title="이름 붙이기">✎</i>' +
+                    '<i class="del" data-del="' + n + '" title="이 슬롯 지우기">✕</i>' : '') +
             '</button>';
   }
   slotsEl.innerHTML = html;
 }
 if (slotsEl) {
   slotsEl.addEventListener("click", function (e) {
+    // 이름 붙이기 — 지우기와 달리 되돌릴 수 있으니 한 번에 연다
+    var ren = e.target.closest("i[data-ren]");
+    if (ren) {
+      e.stopPropagation();
+      var rn = parseInt(ren.getAttribute("data-ren"), 10);
+      var cur = (slotInfo(rn) || {}).name || "";
+      var got = window.prompt("슬롯 " + rn + " 의 이름 (비우면 시드로 돌아갑니다)", cur);
+      if (got === null) return;
+      renameSlot(rn, got.slice(0, 24));
+      refreshSlots();
+      return;
+    }
     // 지우기 — 파괴적 조작이라 두 번 눌러야 한다 (규칙 8)
     var del = e.target.closest("i[data-del]");
     if (del) {
@@ -910,15 +915,20 @@ window.addEventListener("keydown", function (e) {
   }
   if (e.code === "F2") { e.preventDefault(); S.wantShot = true; }
   if (e.code === "KeyB") {
-    var mx = Math.round(player.pos.x), mz = Math.round(player.pos.z);
+    var mx = Math.round(player.pos.x), my = Math.round(player.pos.y), mz = Math.round(player.pos.z);
     var near = -1;
     for (var mi = 0; mi < S.marks.length; mi++)
-      if (Math.abs(S.marks[mi][0] - mx) < 3 && Math.abs(S.marks[mi][1] - mz) < 3) near = mi;
+      if (Math.abs(S.marks[mi][0] - mx) < 3 && Math.abs(markZ(S.marks[mi]) - mz) < 3) near = mi;
     if (near >= 0) { S.marks.splice(near, 1); toast("표식 지움"); }
     else if (S.marks.length >= 12) toast("표식은 12개까지입니다");
     else {
-      S.marks.push([mx, mz]);
-      toast("표식 " + S.marks.length + "개");
+      // 높이까지 담는다 — 지하 갱도 입구와 지상 탑이 지도에서 같은 점이었다.
+      // 예전 저장의 [x, z] 두 원소도 그대로 읽히게, 길이로 구분한다 (저장 버전은 v5 그대로).
+      // Shift 를 같이 누르면 이름을 붙인다 — 번호만으로는 사흘 뒤에 3번이 뭐였는지 모른다.
+      var nm = e.shiftKey ? (window.prompt("표식 이름 (비우면 번호만)", "") || "").slice(0, 16) : "";
+      S.marks.push([mx, my, mz, nm]);
+      // 좌표를 알려 준다 — 안 그러면 /tp 에 넣을 숫자를 알 길이 없다
+      toast("표식 " + S.marks.length + (nm ? " · " + nm : "") + " · " + mx + " " + my + " " + mz);
       if (S.marks.length >= 5) unlock("explorer");
     }
     S.worldDirty = true;

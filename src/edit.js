@@ -4,7 +4,7 @@ import { opts } from "./settings.js";
 import { encodeArrB64, decodeArrB64, SLOTS } from "./save.js";
 import { SEA, DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
 import { SAPLING, SH_STAIR_N, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
-import { topMap, refreshAllTops, touched, get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
+import { markX, markY, markZ, markName, topMap, refreshAllTops, touched, get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightAll, relightLocal } from "./light.js";
 import { enqueueGrow, enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
 import { markAllDirty, touch } from "./mesh.js";
@@ -630,7 +630,7 @@ export function pasteClip(px, py, pz) {
 // ── 명령 처리 — 짧은 이름 하나로 알아듣게
 export var CMD_HELP =
   "tp <x> <y> <z> · time <아침|정오|노을|밤|0~1> · weather <맑음|비|눈> · " +
-  "fill <블록|공기> · expand <±dx> <±dy> <±dz> · clone <dx> <dy> <dz> · give <블록> · count · bp <save|use|list|del> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
+  "tp <x y z|표식> · fill <블록|공기> · expand <±dx> <±dy> <±dz> · clone <dx> <dy> <dz> · give <블록> · count · bp <save|use|list|del> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
 
 // 한국어 이름과 영어 이름을 둘 다 알아듣는다 — "조약돌" 도 "cobble" 도 된다
 function findBlock(name) {
@@ -675,7 +675,21 @@ export function runCommand(line) {
 
   if (cmd === "tp") {
     var x = parseFloat(parts[1]), y = parseFloat(parts[2]), z = parseFloat(parts[3]);
-    if (!isFinite(x) || !isFinite(y) || !isFinite(z)) return "tp <x> <y> <z>";
+    // 좌표 대신 표식 번호나 이름 하나만 줘도 된다 — 지도에 점만 찍어 놓고
+    // 거기로 돌아갈 방법이 없으면 표식을 찍을 이유가 없다 (자문 9차)
+    if (parts.length === 2 && parts[1]) {
+      var q = parts[1].toLowerCase(), pick = -1;
+      var byNum = parseInt(parts[1], 10);
+      if (isFinite(byNum) && byNum >= 1 && byNum <= S.marks.length) pick = byNum - 1;
+      else for (var mk = 0; mk < S.marks.length; mk++)
+        if (markName(S.marks[mk]).toLowerCase() === q) { pick = mk; break; }
+      if (pick < 0) return "그런 표식이 없습니다 — /tp <번호|이름> 또는 /tp <x> <y> <z>";
+      var m = S.marks[pick];
+      x = markX(m); z = markZ(m);
+      // 예전 표식은 높이가 없다 — 그 자리 지표로 올려 준다 (땅에 파묻히지 않게)
+      y = markY(m) >= 0 ? markY(m) : (topMap[markZ(m) * WX + markX(m)] + 1);
+    }
+    if (!isFinite(x) || !isFinite(y) || !isFinite(z)) return "tp <x> <y> <z> · tp <표식 번호|이름>";
     player.pos.set(Math.max(0.4, Math.min(WX - 0.4, x)),
                    Math.max(1, Math.min(WY - 2, y)),
                    Math.max(0.4, Math.min(WZ - 0.4, z)));
