@@ -1,9 +1,9 @@
 // hand.js — 1인칭 손과 들고 있는 블록
 import { S } from "./state.js";
 import { calmMotion } from "./settings.js";
-import { CROSS, SHAPE_BOXES, SH_FULL, TILES, faceKindFor, isCross } from "./blocks.js";
+import { isStairShape, CROSS, SHAPE_BOXES, SH_FULL, TILES, faceKindFor, isCross } from "./blocks.js";
 import { TILE, atlas, atlasTex, tileOrigin } from "./atlas.js";
-import { set } from "./world.js";
+import { boxesAt, set } from "./world.js";
 import { CROSS_PLANES, FACES, FACE_UV } from "./mesh.js";
 import { scene } from "./scene.js";
 import { currentShape, player } from "./player.js";
@@ -18,7 +18,7 @@ export var handCam = new THREE.PerspectiveCamera(
 export var handGroup = new THREE.Group();
 handScene.add(handGroup);
 
-export function makeBlockGeometry(b, sh) {
+export function makeBlockGeometry(b, sh, only) {
   var pos = [], uv = [], col = [], ind = [];
   if (isCross(b)) {
     var cg = CROSS[b];
@@ -49,7 +49,9 @@ export function makeBlockGeometry(b, sh) {
     cgeo.setIndex(ind);
     return cgeo;
   }
-  var boxes = SHAPE_BOXES[sh || SH_FULL] || SHAPE_BOXES[0];
+  // boxes 를 넘기면 그것을 쓴다 — 계단 모서리처럼 이웃에 따라 달라지는 모양을
+  // 미리보기에 그대로 보여 주려면 모양 번호만으로는 부족하다.
+  var boxes = only || SHAPE_BOXES[sh || SH_FULL] || SHAPE_BOXES[0];
   for (var bi = 0; bi < boxes.length; bi++) {
     var box = boxes[bi];
     for (var f = 0; f < 6; f++) {
@@ -117,11 +119,16 @@ ghostMesh.renderOrder = 4;
 scene.add(ghostMesh);
 export function updateGhost(px, py, pz, upper) {
   var b = S.bar[S.selected], sh = currentShape(upper);
+  // 계단은 이웃에 따라 모서리로 바뀐다(v66). 미리보기가 늘 직선이면
+  // "놓아 봐야 아는" 물건이 되어 고스트를 넣은 뜻이 없어진다.
+  // 놓기 전이라도 이웃은 읽을 수 있다 — 모서리는 그 칸이 아니라 옆 칸이 정한다.
+  var only = isStairShape(sh) ? boxesAt(b, sh, px, py, pz) : null;
   var key = b * 16 + sh;
+  if (only) for (var oi = 0; oi < only.length; oi++) key += "|" + only[oi].join(",");
   if (key !== S.ghostKey) {
     S.ghostKey = key;
     ghostMesh.geometry.dispose();
-    ghostMesh.geometry = makeBlockGeometry(b, sh);
+    ghostMesh.geometry = makeBlockGeometry(b, sh, only);
   }
   ghostMesh.position.set(px + 0.5, py + 0.5, pz + 0.5);
   ghostMesh.visible = true;

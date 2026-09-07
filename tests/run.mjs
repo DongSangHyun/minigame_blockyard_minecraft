@@ -6650,6 +6650,106 @@ test("v66 계단: 꺾이는 자리가 모서리 모양으로 바뀐다", async (
   assert(r.shapeUnchanged, "모서리 때문에 shape 값이 바뀌었다 — 저장 포맷이 흔들린다");
 });
 
+test("v66 계단: 모서리가 실제로 그려진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    // 상자 계산이 맞아도 메시가 그 상자를 안 쓰면 화면은 그대로다 (v21 에서 겪었다).
+    // 그래서 boxesAt 이 아니라 **구워진 삼각형**을 직접 센다.
+    const X = 34, Y = 46, Z = 34;
+    const ccx = (X / B.CH) | 0, ccy = (Y / B.CH) | 0, ccz = (Z / B.CH) | 0;
+    const cid = B.chunkId(ccx, ccy, ccz);
+    function clear() {
+      for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++)
+        for (let dy = -1; dy <= 3; dy++) B.applyEdit(X + dx, Y + dy, Z + dz, B.B.AIR, false);
+    }
+    // 이 한 칸 안에서 위를 보는 삼각형들의 넓이 합
+    function upArea() {
+      B.buildChunk(ccx, ccy, ccz);
+      const m = B.opaqueMeshes[cid];
+      if (!m || !m.geometry) return -1;
+      const p = m.geometry.getAttribute("position");
+      const ia = m.geometry.getIndex();
+      let area = 0;
+      for (let t = 0; t < ia.count; t += 3) {
+        const a = ia.getX(t), b = ia.getX(t + 1), c = ia.getX(t + 2);
+        const ax = p.getX(a), ay = p.getY(a), az = p.getZ(a);
+        const bx = p.getX(b), by = p.getY(b), bz = p.getZ(b);
+        const cx = p.getX(c), cy = p.getY(c), cz = p.getZ(c);
+        if (ay !== by || by !== cy) continue;              // 수평면만
+        if (Math.min(ax, bx, cx) < X || Math.max(ax, bx, cx) > X + 1) continue;
+        if (Math.min(az, bz, cz) < Z || Math.max(az, bz, cz) > Z + 1) continue;
+        if (ay < Y || ay > Y + 1) continue;
+        const ny = (bz - az) * (cx - ax) - (bx - ax) * (cz - az);
+        if (ny <= 0) continue;                             // 위를 보는 것만
+        area += Math.abs((bx - ax) * (cz - az) - (bz - az) * (cx - ax)) / 2;
+      }
+      return +area.toFixed(3);
+    }
+    function put(x, z, sh) { B.applyEdit(x, Y, z, B.B.STONE, false, sh); }
+
+    clear(); put(X, Z, B.SH_STAIR_N);
+    const straight = upArea();
+    clear(); put(X, Z, B.SH_STAIR_N); put(X, Z - 1, B.SH_STAIR_E);
+    const inner = upArea();
+    clear(); put(X, Z, B.SH_STAIR_N); put(X, Z + 1, B.SH_STAIR_E);
+    const outer = upArea();
+
+    clear();
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { straight, inner, outer };
+  });
+  // 밟는 바닥의 윗면 1.0 + 윗층이 덮는 만큼. 직선 0.5 · 안쪽 0.75 · 바깥 0.25.
+  eq(r.straight, 1.5, "직선 계단이 예전과 다르게 구워졌다: " + r.straight);
+  eq(r.inner, 1.75, "안쪽 모서리가 화면에는 안 나온다 — 상자만 고치고 메시가 안 따라왔다: " + r.inner);
+  eq(r.outer, 1.25, "바깥 모서리가 화면에는 안 나온다: " + r.outer);
+});
+
+test("v66 계단: 놓기 전 미리보기도 모서리로 보인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 62, Y = 46, Z = 26;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -1; dy <= 3; dy++) B.applyEdit(X + dx, Y + dy, Z + dz, B.B.AIR, false);
+    // 미리보기 삼각형 수로 모양을 읽는다 (상자 하나에 12개)
+    function ghostTris() {
+      B.S.ghostKey = -1;                       // 캐시를 비워 다시 만들게 한다
+      B.updateGhost(X, Y, Z, false);
+      return B.ghostMesh.geometry.getIndex().count / 3;
+    }
+    const keepBar = B.S.bar.slice(), keepSel = B.S.selected, keepShape = B.S.shapeMode;
+    const keepYaw = B.player.yaw;
+    B.S.bar[B.S.selected] = B.B.STONE;
+    B.S.shapeMode = 2;                          // 계단 모드
+    // 계단 방향은 시선이 정한다 — 안 세우면 어느 쪽이 "높은 쪽" 인지 모른 채 시험한다.
+    // 높은 쪽이 -Z(SH_STAIR_N) 가 되게 돌려 놓고, 그렇게 됐는지 못 박는다.
+    B.player.yaw = Math.PI;
+    const ghostShape = B.currentShape(false);
+
+    const alone = ghostTris();                  // 상자 2개 = 24
+    B.applyEdit(X, Y, Z - 1, B.B.STONE, false, B.SH_STAIR_E);
+    const nearInner = ghostTris();              // 안쪽 모서리 = 상자 3개 = 36
+    B.applyEdit(X, Y, Z - 1, B.B.AIR, false);
+    B.applyEdit(X, Y, Z + 1, B.B.STONE, false, B.SH_STAIR_E);
+    const nearOuter = ghostTris();              // 바깥 모서리 = 상자 2개 = 24
+
+    B.applyEdit(X, Y, Z + 1, B.B.AIR, false);
+    B.S.bar = keepBar; B.S.selected = keepSel; B.S.shapeMode = keepShape;
+    B.player.yaw = keepYaw;
+    B.S.ghostKey = -1;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { alone, nearInner, nearOuter, ghostShape, N: B.SH_STAIR_N };
+  });
+  eq(r.ghostShape, r.N, "시험대가 안 섰다 — 미리보기 계단이 -Z 를 높은 쪽으로 잡지 않았다");
+  eq(r.alone, 24, "직선 계단 미리보기 삼각형이 " + r.alone + "개다 (상자 2개 = 24)");
+  eq(r.nearInner, 36,
+     "옆에 직각 계단이 있는데 미리보기가 직선이다 — 놓아 봐야 모서리인 걸 안다: " + r.nearInner);
+  eq(r.nearOuter, 24, "바깥 모서리 미리보기가 이상하다: " + r.nearOuter);
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
