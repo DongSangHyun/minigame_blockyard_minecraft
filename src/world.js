@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { growTree } from "./tree.js";
 import { resetQueues } from "./queues.js";
 import { DIRS, N, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { DOOR, doorFacing, doorOpen, AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, CACTUS, COAL, COBBLE, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAVA, LEAVES, LOG, PANE, PLANKS, SAND, CARPET, SHAPE_BOXES, SH_FULL, SH_STAIR_N, SH_STAIR_E, SH_STAIR_S, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TORCH, WALL_DIR, WATER, connectsTo, isCross, isSolid } from "./blocks.js";
+import { DOOR, doorFacing, doorOpen, AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, CACTUS, COAL, COBBLE, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAMP, LAVA, LEAVES, LOG, PANE, PLANKS, SAND, BRICK, BOOKSHELF, CARPET, SH_SLAB, SHAPE_BOXES, SH_FULL, SH_STAIR_N, SH_STAIR_E, SH_STAIR_S, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TORCH, WALL_DIR, WATER, connectsTo, isCross, isSolid } from "./blocks.js";
 import { makeRng } from "./atlas.js";
 
 export var world = new Uint8Array(N);
@@ -20,8 +20,11 @@ export function get(x, y, z) {
   if (!inside(x, y, z)) return AIR;
   return world[idx(x, y, z)];
 }
-export function set(x, y, z, b) {
-  if (inside(x, y, z)) { var i = idx(x, y, z); world[i] = b; shape[i] = SH_FULL; }
+// sh 를 주면 그 모양으로 둔다 — 안 주면 통짜다.
+// 예전에는 늘 SH_FULL 로 덮어서 **세계 생성이 반블록·계단을 쓸 수가 없었다**
+// (오두막 처마를 얇게 얹으려다 발견했다).
+export function set(x, y, z, b, sh) {
+  if (inside(x, y, z)) { var i = idx(x, y, z); world[i] = b; shape[i] = sh || SH_FULL; }
 }
 export function shapeAt(x, y, z) { return inside(x, y, z) ? shape[idx(x, y, z)] : SH_FULL; }
 
@@ -501,40 +504,13 @@ export function generate(seed) {
     }
   }
 
-  // 버려진 오두막 — 세계에 "누가 있었다" 는 흔적을 남긴다
-  var hutTries = 40;
-  for (var ht = 0; ht < hutTries; ht++) {
-    var hx = 8 + ((rng() * (WX - 20)) | 0), hz = 8 + ((rng() * (WZ - 20)) | 0);
-    var hh = heightMap[hz * WX + hx];
-    if (hh <= SEA + 2 || hh + 7 >= WY) continue;
-    // 바닥이 고른지 본다
-    var flat = true;
-    for (var cx2 = 0; cx2 < 6 && flat; cx2++)
-      for (var cz2 = 0; cz2 < 6; cz2++)
-        if (Math.abs(heightMap[(hz + cz2) * WX + (hx + cx2)] - hh) > 2) { flat = false; break; }
-    if (!flat) continue;
-
-    var wallB = rng() < 0.5 ? PLANKS : COBBLE;
-    for (var wx2 = 0; wx2 < 6; wx2++)
-      for (var wz2 = 0; wz2 < 6; wz2++) {
-        var edge = wx2 === 0 || wz2 === 0 || wx2 === 5 || wz2 === 5;
-        set(hx + wx2, hh, hz + wz2, PLANKS);                       // 바닥
-        if (!edge) continue;
-        for (var wy2 = 1; wy2 <= 3; wy2++) {
-          if (rng() < 0.16) continue;                              // 무너진 자리
-          set(hx + wx2, hh + wy2, hz + wz2, wallB);
-        }
-      }
-    // 문 자리와 창
-    set(hx + 2, hh + 1, hz, AIR); set(hx + 2, hh + 2, hz, AIR);
-    set(hx + 4, hh + 2, hz, GLASS); set(hx, hh + 2, hz + 3, GLASS);
-    // 지붕
-    for (var rx2 = -1; rx2 <= 6; rx2++)
-      for (var rz2 = -1; rz2 <= 6; rz2++)
-        if (rng() > 0.12) set(hx + rx2, hh + 4, hz + rz2, wallB === PLANKS ? LOG : COBBLE);
-    // 안에 횃불 하나
-    set(hx + 1, hh + 1, hz + 1, TORCH);
-  }
+  // 버려진 오두막 — 세계에 "누가 있었다" 는 흔적을 남긴다.
+  // 예전에는 8~10채가 **문·창·횃불 자리까지 전부 같았다.** 두 번째부터 알아보고
+  // 세 번째부터는 안 들어간다 — 지어진 것을 보러 갈 이유가 그것뿐인데 복사본이었다.
+  //
+  // 난수를 따로 쓴다 — 여기서 뽑는 횟수가 달라지면 뒤따르는 풀·꽃·해변이
+  // 모든 시드에서 밀린다 (v61·v75 교훈).
+  if (!S.noHuts) buildHuts(makeRng(S.worldSeed + 7777));   // S.noHuts — 시험이 "오두막 없는 세계" 와 견준다
 
   // 사막의 선인장과 죽은 덤불 · 설원의 마른 풀 —
   // 초원에만 풀이 깔리면 나머지 바이옴이 상대적으로 더 "만들다 만 맵" 으로 보인다
@@ -605,6 +581,82 @@ export function generate(seed) {
   if (!S.noSeaDecor) decorateSea(makeRng(S.worldSeed + 90210));
 
   refreshAllTops();
+}
+
+// 버려진 오두막 — 크기·재료·지붕·창·안에 놓인 것을 뽑아 채마다 다르게 짓는다.
+function buildHuts(rng) {
+  var tries = 40;
+  for (var ht = 0; ht < tries; ht++) {
+    var w = 5 + ((rng() * 4) | 0);          // 5~8칸
+    var d = 5 + ((rng() * 3) | 0);          // 5~7칸
+    var hgt = 3 + ((rng() * 2) | 0);        // 벽 3~4칸
+    var hx = 8 + ((rng() * (WX - 12 - w)) | 0), hz = 8 + ((rng() * (WZ - 12 - d)) | 0);
+    var hh = heightMap[hz * WX + hx];
+    if (hh <= SEA + 2 || hh + hgt + 4 >= WY) continue;
+    var flat = true;
+    for (var cx2 = 0; cx2 < w && flat; cx2++)
+      for (var cz2 = 0; cz2 < d; cz2++)
+        if (Math.abs(heightMap[(hz + cz2) * WX + (hx + cx2)] - hh) > 2) { flat = false; break; }
+    if (!flat) continue;
+
+    // 재료 세 갈래 — 판자집 · 돌집 · 벽돌집
+    var pick3 = rng();
+    var wallB = pick3 < 0.45 ? PLANKS : (pick3 < 0.8 ? COBBLE : BRICK);
+    var floorB = wallB === PLANKS ? PLANKS : COBBLE;
+    var ruin = 0.05 + rng() * 0.22;         // 얼마나 무너졌나 (채마다 다르다)
+
+    for (var wx2 = 0; wx2 < w; wx2++)
+      for (var wz2 = 0; wz2 < d; wz2++) {
+        var edge = wx2 === 0 || wz2 === 0 || wx2 === w - 1 || wz2 === d - 1;
+        set(hx + wx2, hh, hz + wz2, floorB);
+        if (!edge) continue;
+        for (var wy2 = 1; wy2 <= hgt; wy2++) {
+          if (rng() < ruin) continue;
+          set(hx + wx2, hh + wy2, hz + wz2, wallB);
+        }
+      }
+
+    // 문 — 네 벽 중 한 곳에 뚫는다
+    var side = (rng() * 4) | 0;
+    var dxp = side === 0 ? 1 + ((rng() * (w - 2)) | 0) : (side === 1 ? w - 1 : (side === 2 ? 1 + ((rng() * (w - 2)) | 0) : 0));
+    var dzp = side === 1 ? 1 + ((rng() * (d - 2)) | 0) : (side === 3 ? 1 + ((rng() * (d - 2)) | 0) : (side === 2 ? d - 1 : 0));
+    set(hx + dxp, hh + 1, hz + dzp, AIR);
+    set(hx + dxp, hh + 2, hz + dzp, AIR);
+
+    // 창 — 한두 개를 벽 가장자리에서 뽑는다
+    var wins = 1 + ((rng() * 2) | 0);
+    for (var wq = 0; wq < wins; wq++) {
+      var ws = (rng() * 4) | 0;
+      var wxp = ws === 1 ? w - 1 : (ws === 3 ? 0 : 1 + ((rng() * (w - 2)) | 0));
+      var wzp = ws === 2 ? d - 1 : (ws === 0 ? 0 : 1 + ((rng() * (d - 2)) | 0));
+      if (wxp === dxp && wzp === dzp) continue;              // 문 자리는 비켜 간다
+      set(hx + wxp, hh + 2, hz + wzp, GLASS);
+    }
+
+    // 지붕 — 평지붕 · 통나무 · 반블록 처마 세 갈래
+    var roofKind = (rng() * 3) | 0;
+    var roofB = roofKind === 1 ? (wallB === PLANKS ? LOG : COBBLE) : wallB;
+    for (var rx2 = -1; rx2 <= w; rx2++)
+      for (var rz2 = -1; rz2 <= d; rz2++) {
+        if (rng() < 0.10) continue;                          // 뚫린 지붕
+        var outer = rx2 < 0 || rz2 < 0 || rx2 >= w || rz2 >= d;
+        // 처마는 반블록으로 얹어 두께가 얇아 보이게
+        set(hx + rx2, hh + hgt + 1, hz + rz2, roofB,
+            (roofKind === 2 && outer) ? SH_SLAB : SH_FULL);
+      }
+
+    // 안에 놓인 것 — 채마다 다르다. 여기가 "들어가 볼 이유" 다.
+    var ix2 = hx + 1 + ((rng() * Math.max(1, w - 2)) | 0);
+    var iz2 = hz + 1 + ((rng() * Math.max(1, d - 2)) | 0);
+    var inner = rng();
+    if (inner < 0.30) set(ix2, hh + 1, iz2, BOOKSHELF);
+    else if (inner < 0.55) set(ix2, hh + 1, iz2, CARPET);
+    else if (inner < 0.75) set(ix2, hh + 1, iz2, LAMP);
+    // 횃불도 자리를 뽑는다 — 예전에는 늘 같은 모서리였다
+    var tx2 = hx + 1 + ((rng() * Math.max(1, w - 2)) | 0);
+    var tz2 = hz + 1 + ((rng() * Math.max(1, d - 2)) | 0);
+    if (get(tx2, hh + 1, tz2) === AIR) set(tx2, hh + 1, tz2, TORCH);
+  }
 }
 
 // 바다 바닥을 다양하게 하고, 수면 위로 작은 바위섬·모래톱을 띄운다.

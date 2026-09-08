@@ -7889,6 +7889,76 @@ test("v75 바다: 장식을 얹어도 뭍은 한 비트도 안 달라진다", as
   }
 });
 
+test("v76 오두막: 채마다 다르고, 난수 줄기가 안 밀린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    // 앞선 지형 시험이 S.terrain 을 남기면 평지가 줄어 오두막이 거의 안 선다 (교훈 12)
+    const keepTerrain = B.S.terrain;
+    B.S.terrain = 0;
+    function surface(seed, huts) {
+      B.S.noHuts = !huts;
+      B.generate(seed);
+      // 지표 한 겹만 찍어 둔다 — 난수 줄기가 밀리면 **온 세계의 풀꽃**이 달라진다
+      const top = new Uint8Array(B.WX * B.WZ);
+      const hm = new Int16Array(B.WX * B.WZ);
+      for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++) {
+        const i = z * B.WX + x, t = B.topMap[i];
+        hm[i] = B.heightMap[i];
+        top[i] = t >= 0 ? B.world[B.idx(x, t, z)] : 0;
+      }
+      return { top, hm };
+    }
+    const out = [];
+    for (const seed of [777, 12345, 42]) {
+      const plain = surface(seed, false);
+      const withHuts = surface(seed, true);
+      let diff = 0;
+      for (let i = 0; i < plain.top.length; i++)
+        if (plain.top[i] !== withHuts.top[i] || plain.hm[i] !== withHuts.hm[i]) diff++;
+
+      // 채마다 다른가
+      // 훅에 없는 상수와 견주면 undefined 라 늘 거짓이 된다 — 있는지부터 못 박는다
+      if (B.SH_SLAB === undefined) return [{ noConst: true }];
+      const seen = { shelf: 0, carpet: 0, lamp: 0, torch: 0, brick: 0, slab: 0 };
+      for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++)
+        for (let y = B.SEA; y < B.WY; y++) {
+          const b = B.world[B.idx(x, y, z)];
+          if (b === B.B.BOOKSHELF) seen.shelf++;
+          else if (b === B.B.CARPET) seen.carpet++;
+          else if (b === B.B.LAMP) seen.lamp++;
+          else if (b === B.B.TORCH) seen.torch++;
+          if (b === B.B.BRICK) seen.brick++;
+          if (B.shapeAt(x, y, z) === B.SH_SLAB &&
+              (b === B.B.PLANKS || b === B.B.COBBLE || b === B.B.BRICK)) seen.slab++;
+        }
+      out.push({ seed, diff, seen, cols: plain.top.length });
+    }
+    B.S.noHuts = false; B.S.terrain = keepTerrain;
+    B.setPaused(false);
+    return out;
+  });
+  assert(!r[0].noConst, "훅에 SH_SLAB 이 없다 — 시험이 undefined 와 견주고 있었다");
+  let shelf = 0, carpet = 0, lamp = 0, brick = 0, slab = 0;
+  for (const o of r) {
+    assert(o.diff > 100,
+       "시드 " + o.seed + " 에 오두막이 안 지어졌다 — 바뀐 기둥이 " + o.diff + "칸뿐이다");
+    // 난수 줄기가 밀렸다면 풀꽃이 온 세계에서 달라져 수천 칸이 바뀐다.
+    // 오두막 열 채의 발자국은 기껏해야 몇백 칸이다.
+    assert(o.diff < o.cols * 0.12,
+       "시드 " + o.seed + " 에서 " + o.diff + " / " + o.cols +
+       " 기둥이 바뀌었다 — 오두막 발자국치고 너무 넓다 (난수 줄기가 밀렸다)");
+    var marks = o.seen.torch + o.seen.shelf + o.seen.carpet + o.seen.lamp;
+    assert(marks >= 3,
+       "시드 " + o.seed + " 에 오두막 표시가 " + marks + "개뿐이다 (횃불 " + o.seen.torch + ")");
+    shelf += o.seen.shelf; carpet += o.seen.carpet; lamp += o.seen.lamp;
+    brick += o.seen.brick; slab += o.seen.slab;
+  }
+  assert(shelf + carpet + lamp > 0, "오두막 안에 놓인 것이 하나도 없다 — 들어가 볼 이유가 없다");
+  assert(brick > 0, "벽돌집이 한 채도 없다 — 재료가 한 갈래다");
+  assert(slab > 0, "반블록 처마가 한 채도 없다 — 지붕이 한 갈래다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

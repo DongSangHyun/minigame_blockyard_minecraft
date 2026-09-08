@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-08 · 모듈 28개 · 합계 9,940줄
+생성일 2026-09-08 · 모듈 28개 · 합계 9,993줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -10,14 +10,14 @@
 
 | 모듈 | 하는 일 | 줄 | 기대는 곳 |
 |---|---|---:|---|
-| [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 164 | — |
+| [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 165 | — |
 | [`dims.js`](../src/dims.js) | 세계 치수와 좌표 계산 (의존성 없음) | 10 | — |
 | [`queues.js`](../src/queues.js) | 시뮬레이션 대기열 (의존성 없음) | 36 | — |
 | [`boot.js`](../src/boot.js) | 부팅 가드 · 환경 판별 | 26 | state |
 | [`blocks.js`](../src/blocks.js) | 블록 정의 · 모양 · 성질 | 285 | state |
 | [`tree.js`](../src/tree.js) | 나무 한 그루의 모양 | 47 | — |
 | [`atlas.js`](../src/atlas.js) | 텍스처 아틀라스 (코드로 그리는 16×16 도트) | 554 | blocks |
-| [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 668 | state · tree · queues · dims · blocks · atlas |
+| [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 720 | state · tree · queues · dims · blocks · atlas |
 | [`light.js`](../src/light.js) | 광원 — 햇빛과 블록광 BFS | 182 | state · dims · blocks · world · mesh · player |
 | [`fluids.js`](../src/fluids.js) | 물 흐름 · 낙하 블록 · 잎 부패 | 748 | state · settings · queues · dims · blocks · world · tree · light · mesh · scene · audio · player · edit |
 | [`mesh.js`](../src/mesh.js) | 면 데이터 + 청크 메싱 | 272 | dims · blocks · atlas · world · light |
@@ -134,30 +134,30 @@
 | 함수 | 줄 |
 |---|---:|
 | `get(x, y, z)` | 18 |
-| `set(x, y, z, b)` | 23 |
-| `shapeAt(x, y, z)` | 26 |
-| `refreshTop(x, z)` | 28 |
-| `surfaceTop(x, y, z)` | 37 |
-| `crossBase(x, y, z)` | 49 |
-| `dynamicBoxes(b, x, y, z)` | 56 |
-| `hasDynamicBoxes(b)` | 118 |
-| `boxesAt(b, sh, x, y, z)` | 191 |
-| `markX(m)` | 206 |
-| `markY(m)` | 207 |
-| `markZ(m)` | 208 |
-| `markName(m)` | 209 |
-| `markSeen(px, pz, r, bit)` | 213 |
-| `seenRatio()` | 228 |
-| `markTouched(x, y, z)` | 234 |
-| `isTouched(x, y, z)` | 237 |
-| `refreshAllTops()` | 241 |
-| `hash2(x, y, seed)` | 245 |
-| `hash3(x, y, z, seed)` | 250 |
-| `smooth(t)` | 256 |
-| `lerp(a, b, t)` | 257 |
-| `noise2(x, y, seed)` | 259 |
-| `noise3(x, y, z, seed)` | 266 |
-| `generate(seed)` | 276 |
+| `set(x, y, z, b, sh)` | 26 |
+| `shapeAt(x, y, z)` | 29 |
+| `refreshTop(x, z)` | 31 |
+| `surfaceTop(x, y, z)` | 40 |
+| `crossBase(x, y, z)` | 52 |
+| `dynamicBoxes(b, x, y, z)` | 59 |
+| `hasDynamicBoxes(b)` | 121 |
+| `boxesAt(b, sh, x, y, z)` | 194 |
+| `markX(m)` | 209 |
+| `markY(m)` | 210 |
+| `markZ(m)` | 211 |
+| `markName(m)` | 212 |
+| `markSeen(px, pz, r, bit)` | 216 |
+| `seenRatio()` | 231 |
+| `markTouched(x, y, z)` | 237 |
+| `isTouched(x, y, z)` | 240 |
+| `refreshAllTops()` | 244 |
+| `hash2(x, y, seed)` | 248 |
+| `hash3(x, y, z, seed)` | 253 |
+| `smooth(t)` | 259 |
+| `lerp(a, b, t)` | 260 |
+| `noise2(x, y, seed)` | 262 |
+| `noise3(x, y, z, seed)` | 269 |
+| `generate(seed)` | 279 |
 
 내보내는 값 — `world` · `shape` · `heightMap` · `topMap` · `biomeMap` · `waterLvl` · `BIOME_NAMES` · `touched` · `SEEN_TOP` · `seenMap`
 
