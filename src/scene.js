@@ -141,7 +141,9 @@ function mergeGeo(a, b) {
 // ── 바깥 바다 — 세계 끝에서 물이 일직선으로 잘리고 그 위가 안개판이면
 // 섬이 아니라 디오라마가 된다. 수평선을 만들어 준다.
 // 가운데를 뚫어 두어 진짜 물 블록과 z-fighting 이 없다.
-export var OUTER_SEA_Y = SEA + 1 - 0.12;      // 물 윗면 보정은 mesh.js 와 같은 값
+// 해수면은 세계마다 다르다 (v79) — 모듈이 로드될 때 한 번 재면 예전 판에 굳는다.
+// 부를 때마다 지금 SEA 를 본다. 물 윗면 보정은 mesh.js 와 같은 값.
+export function outerSeaY() { return SEA + 1 - 0.12; }
 export var outerSea = (function () {
   // 구멍 뚫린 Shape 은 삼각분할이 겹쳐 동일 평면 z-fighting(대각선 줄무늬)을 낸다.
   // 섬을 둘러싸는 판 네 장으로 만든다 — 겹치지 않고 삼각형도 8장뿐이다.
@@ -193,7 +195,7 @@ export var outerSea = (function () {
     ].join("\n")
   });
   var m = new THREE.Mesh(geo, mat);
-  m.position.y = OUTER_SEA_Y;
+  m.position.y = outerSeaY();
   m.frustumCulled = false;
   m.renderOrder = 1;                          // 하늘 뒤 · 반투명(유리 2) 앞
   scene.add(m);
@@ -201,7 +203,7 @@ export var outerSea = (function () {
 })();
 // 물 아래에서는 그리지 않는다 — 잠수 중에 머리 위로 판이 지나가면 안 된다
 export function updateOuterSea(camY) {
-  outerSea.visible = camY > OUTER_SEA_Y;
+  outerSea.visible = camY > outerSeaY();
 }
 
 for (var mi = 0; mi < CX * CY * CZ; mi++) {

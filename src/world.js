@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { growTree } from "./tree.js";
 import { resetQueues } from "./queues.js";
-import { DIRS, N, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
+import { DIRS, N, PLANE, SEA, GEN_LATEST, setGen, seaLift, WX, WY, WZ, idx, inside } from "./dims.js";
 import { DOOR, doorFacing, doorOpen, AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, CACTUS, COAL, COBBLE, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAMP, LAVA, LEAVES, LOG, PANE, PLANKS, SAND, BRICK, BOOKSHELF, CARPET, SH_SLAB, SHAPE_BOXES, SH_FULL, SH_STAIR_N, SH_STAIR_E, SH_STAIR_S, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TORCH, WALL_DIR, WATER, connectsTo, isCross, isSolid } from "./blocks.js";
 import { makeRng } from "./atlas.js";
 
@@ -276,7 +276,13 @@ export function noise3(x, y, z, seed) {
   return lerp(lerp(x00, x10, yf), lerp(x01, x11, yf), zf);
 }
 
-export function generate(seed) {
+// 광석 깊이 사다리 — 지형 판을 따라간다. 시험도 여기를 읽는다 (숫자를 두 군데 적지 않는다).
+export function oreCeil() {
+  var deep = SEA > 11;
+  return { dia: deep ? 8 : 7, gold: deep ? 14 : 11, iron: deep ? 20 : 16 };
+}
+
+export function generate(seed, gen) {
   S.worldSeed = seed >>> 0;
   world.fill(AIR);
   shape.fill(SH_FULL);
@@ -296,6 +302,12 @@ export function generate(seed) {
   var BIOME_LO = tSorted[Math.floor(tSorted.length * 0.30)];
   var BIOME_HI = tSorted[Math.floor(tSorted.length * 0.65)];
 
+  // 새로 만드는 세계는 언제나 최신 지형 판이다 — 예전 판은 저장을 불러올 때만 선다.
+  // 이 한 줄이 SEA 를 정하고, 아래 LIFT 가 지형 전체를 그만큼 위로 민다.
+  // gen 을 주면 그 판으로 만든다 (시험이 예전 판과 견줄 때만 쓴다).
+  setGen(gen || GEN_LATEST);
+  var LIFT = seaLift();
+
   for (var x = 0; x < WX; x++) {
     for (var z = 0; z < WZ; z++) {
       var dx = (x - WX / 2) / (WX / 2), dz = (z - WZ / 2) / (WZ / 2);
@@ -312,8 +324,10 @@ export function generate(seed) {
         + noise2(x * 0.045, z * 0.045, S.worldSeed) * 15 * amp
         + noise2(x * 0.11, z * 0.11, S.worldSeed + 91) * 5 * amp
         + noise2(x * 0.24, z * 0.24, S.worldSeed + 7) * 1.8;
-      h = Math.floor(2 + h * falloff);
-      if (h < 1) h = 1;
+      // 지형·바다를 통째로 LIFT 만큼 올린다 — 물속 깊이도 언덕 높이도 그대로고,
+      // 늘어나는 것은 **기반암 위 돌의 두께**뿐이다 (지하 13칸 → 25칸)
+      h = Math.floor(2 + h * falloff) + LIFT;
+      if (h < 1 + LIFT) h = 1 + LIFT;
       heightMap[z * WX + x] = h;
 
       // 바이옴 — 큰 스케일 노이즈 + 고도 보정.
@@ -321,8 +335,8 @@ export function generate(seed) {
       // 노이즈 주기가 두 번밖에 안 들어가 시드에 따라 한 덩어리가 55% 를 먹었다.
       var t = noise2(x * 0.022, z * 0.022, S.worldSeed + 300);
       var biome = 0;
-      if (t < BIOME_LO || h > 27) biome = 1;         // 설원 · 진짜 봉우리만 만년설
-      else if (t > BIOME_HI && h <= 20) biome = 2;   // 사막
+      if (t < BIOME_LO || h > 27 + LIFT) biome = 1;         // 설원 · 진짜 봉우리만 만년설
+      else if (t > BIOME_HI && h <= 20 + LIFT) biome = 2;   // 사막
       biomeMap[z * WX + x] = biome;
 
       var surf = GRASS;
@@ -339,7 +353,7 @@ export function generate(seed) {
           if (noise3(x * 0.105, y * 0.17, z * 0.105, S.worldSeed + 55) > 0.635) carve = true;
           else if (y < h - 5 &&
               noise3(x * 0.042, y * 0.075, z * 0.042, S.worldSeed + 611) > 0.70) carve = true;
-          else if (y > 2 && y < 26) {
+          else if (y > 2 && y < 26 + LIFT) {
             var rv = noise2(x * 0.030, z * 0.030, S.worldSeed + 877);
             if (rv > 0.815 && Math.abs(noise2(x * 0.11, z * 0.11, S.worldSeed + 878) - 0.5) < 0.14)
               carve = true;                               // 협곡
@@ -364,6 +378,13 @@ export function generate(seed) {
 
   // 광맥 — 낱개로 흩뿌리지 않고 씨앗에서 랜덤워크로 뭉쳐 놓는다.
   // 하나 찾으면 주변을 파헤치게 되는, 마크식 채굴 보상 곡선.
+  var c0 = oreCeil();
+  var DEEP = LIFT > 0;
+  var DIA_MAX = c0.dia, GOLD_MAX = c0.gold, IRON_MAX = c0.iron;
+  // 다이아만 깊은 판에서 몫을 줄인다 — 시도 수를 그대로 둬도 세계당 11~27개가
+  // 50~60개가 됐다(낮은 층이 통째로 돌이라 씨앗이 안 걸러진다).
+  // 0.018 이면 30~40개 · 금의 3분의 1쯤이 되어 "귀한 순서" 가 눈에 보인다.
+  var ROLL_DIA = DEEP ? 0.018 : 0.030, ROLL_GOLD = 0.095;
   function growVein(kind, sx0, sy0, sz0, size) {
     var cx = sx0, cy = sy0, cz = sz0, laid = 0;
     for (var s2 = 0; s2 < size * 4 && laid < size; s2++) {
@@ -377,7 +398,11 @@ export function generate(seed) {
     }
     return laid;
   }
-  var veinTries = Math.round(WX * WZ * 0.055);   // 총 광석량은 이전과 비슷하게 유지
+  // 시도 횟수는 **깊어져도 그대로 둔다.** 두 배로 올려 봤더니 세계당 다이아가
+  // 11~27개에서 65~92개로 불어났다 — 깊은 판은 낮은 층이 통째로 단단한 돌이라
+  // 씨앗이 거의 안 걸러진다(예전 판은 절반이 동굴·흙에 떨어져 버려졌다).
+  // 시도를 그대로 두면 돌 부피가 1.8배인데 광석은 1.3~2.4배가 되어 균형이 맞는다.
+  var veinTries = Math.round(WX * WZ * 0.055);
   for (var vi = 0; vi < veinTries; vi++) {
     var vx = (rng() * WX) | 0, vz = (rng() * WZ) | 0;
     var vTop = heightMap[vz * WX + vx] - 4;
@@ -385,10 +410,13 @@ export function generate(seed) {
     // 깊이에 따라 다른 광물이 난다 — 내려갈수록 보상이 커진다
     var roll = rng();
     var kind, vyMax, size;
-    if (roll < 0.030) { kind = DIAMOND; vyMax = Math.min(vTop, 7);  size = 2 + ((rng() * 4) | 0); }
-    else if (roll < 0.095) { kind = GOLD; vyMax = Math.min(vTop, 11); size = 2 + ((rng() * 5) | 0); }
-    else if (roll < 0.42)  { kind = IRON; vyMax = Math.min(vTop, 16); size = 3 + ((rng() * 6) | 0); }
-    else                   { kind = COAL; vyMax = vTop;               size = 4 + ((rng() * 9) | 0); }
+    // 깊이 사다리도 지하 두께를 따라 늘어난다 — 예전 판(바다 11)에서는 7·11·16 그대로.
+    // 새 판(바다 23)에서는 다이아 8 · 금 14 · 아이언 20 이라, 지표(25 언저리)에서
+    // 내려가는 내내 나오는 것이 달라진다.
+    if (roll < ROLL_DIA) { kind = DIAMOND; vyMax = Math.min(vTop, DIA_MAX);  size = 2 + ((rng() * 4) | 0); }
+    else if (roll < ROLL_GOLD) { kind = GOLD; vyMax = Math.min(vTop, GOLD_MAX); size = 2 + ((rng() * 5) | 0); }
+    else if (roll < 0.42)  { kind = IRON; vyMax = Math.min(vTop, IRON_MAX); size = 3 + ((rng() * 6) | 0); }
+    else                   { kind = COAL; vyMax = vTop;                     size = 4 + ((rng() * 9) | 0); }
     if (vyMax < 2) continue;
     var vy = 1 + ((rng() * (vyMax - 1)) | 0);
     if (get(vx, vy, vz) !== STONE) continue;
@@ -397,10 +425,10 @@ export function generate(seed) {
   // 다이아 보장 — 3% × 500회가 동굴·용암에 걸러져 0개인 시드가 있었다 (자문 3차 실측 10시드 중 1개).
   // 채굴 보상 곡선의 끝이 비면 깊이 7 아래로 내려갈 이유가 사라진다. 광맥 8개까지 채운다.
   var diaCount = 0;
-  for (var di = 0; di < WX * WZ * 7; di++) if (world[di] === DIAMOND) diaCount++;   // y 0~6 층만 센다
+  for (var di = 0; di < WX * WZ * (DIA_MAX + 1); di++) if (world[di] === DIAMOND) diaCount++;  // 다이아가 날 수 있는 층만 센다
   for (var dt = 0; dt < 600 && diaCount < 8; dt++) {
     var dx2 = (rng() * WX) | 0, dz2 = (rng() * WZ) | 0;
-    var dy2 = 1 + ((rng() * 6) | 0);
+    var dy2 = 1 + ((rng() * DIA_MAX) | 0);
     if (get(dx2, dy2, dz2) !== STONE) continue;
     growVein(DIAMOND, dx2, dy2, dz2, 2 + ((rng() * 4) | 0));
     diaCount++;
@@ -411,7 +439,7 @@ export function generate(seed) {
   // 눈에 보이는 보상이 없어 결국 y=5 에서 삽질을 하게 된다.
   function exposeVeins(kind, want) {
     var seen = 0, cand = [];
-    for (var ey = 1; ey <= 12; ey++)
+    for (var ey = 1; ey <= (DEEP ? 18 : 12); ey++)
       for (var ez = 1; ez < WZ - 1; ez++)
         for (var ex = 1; ex < WX - 1; ex++) {
           if (world[idx(ex, ey, ez)] !== kind) continue;
@@ -556,6 +584,21 @@ export function generate(seed) {
       }
     }
   }
+
+  // 가라앉힌 뒤 받침을 잃은 풀·꽃·덤불을 걷어낸다.
+  // 동굴이 지표를 뚫은 자리에서는 장식을 얹은 **뒤에** 모래가 내려앉아,
+  // 얹혔던 것이 허공에 남는다 (시드 99999 에서 죽은 덤불 3개).
+  // 아래에서 위로 훑으므로 밑동이 사라지면 그 위 선인장까지 줄줄이 걷힌다.
+  for (var cx3 = 0; cx3 < WX; cx3++) for (var cz3 = 0; cz3 < WZ; cz3++)
+    for (var cy3 = 1; cy3 < WY; cy3++) {
+      var ci3 = idx(cx3, cy3, cz3);
+      var cb3 = world[ci3];
+      // 선인장은 통짜 블록이지만 모래 위에만 서므로 같이 본다 (모래가 내려가면 뜬다)
+      if (!isCross(cb3) && cb3 !== CACTUS) continue;
+      var un3 = world[idx(cx3, cy3 - 1, cz3)];
+      // 같은 것 위에 쌓이는 장식이 생기더라도 밑동부터 판정되어 줄줄이 걷힌다
+      if (!isSolid(un3) && un3 !== cb3) set(cx3, cy3, cz3, AIR);
+    }
 
   // 해변 마감
   for (var sx = 0; sx < WX; sx++) for (var sz = 0; sz < WZ; sz++) {

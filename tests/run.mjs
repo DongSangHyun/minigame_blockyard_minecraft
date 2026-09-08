@@ -871,13 +871,28 @@ test("v6 횃불: 바닥이 있어야 놓이고, 주변을 밝힌다", async (pag
   eq(r.solid, false, "횃불이 길을 막는다");
 });
 
-test("v6 세계: 높이가 64 로 늘고 해수면 위 여유가 50칸을 넘는다", async (page) => {
+test("v6 세계: 높이 64 를 하늘과 지하가 나눠 쓴다", async (page) => {
   const r = await page.evaluate(() => {
     const B = window.__blockyard;
-    return { WY: B.WY, headroom: B.WY - B.SEA };
+    B.generate(31337);
+    let sum = 0, n = 0, peak = 0;
+    for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++) {
+      const h = B.heightMap[z * B.WX + x];
+      if (h > peak) peak = h;
+      if (h > B.SEA) { sum += h; n++; }
+    }
+    return { WY: B.WY, SEA: B.SEA, GEN: B.GEN, peak,
+             headroom: B.WY - B.SEA, meanLand: n ? sum / n : 0 };
   });
   eq(r.WY, 64, "세계 높이");
-  assert(r.headroom > 50, "해수면 위 여유: " + r.headroom);
+  eq(r.GEN, 2, "새로 만든 세계인데 지형 판이 " + r.GEN + " 이다");
+  // 지하 — 지표에서 기반암까지. v78 까지는 13~15칸뿐이라 깊이가 보상이 못 됐다
+  assert(r.meanLand >= 22,
+     "뭍 평균 높이가 " + r.meanLand.toFixed(1) + "칸 — 지하가 그만큼밖에 안 된다");
+  // 하늘 — 가장 높은 봉우리 위로도 지을 자리가 남아야 한다
+  assert(r.WY - r.peak >= 12,
+     "최고봉 " + r.peak + " 위로 " + (r.WY - r.peak) + "칸뿐 — 산 위에 지을 데가 없다");
+  assert(r.headroom > 35, "해수면 위 여유: " + r.headroom);
 });
 
 test("v6 저장: 구버전(높이 48) 저장을 그대로 이어받는다", async (page) => {
@@ -1764,20 +1779,34 @@ test("v11 광석: 금과 다이아가 깊은 곳에만 난다", async (page) => 
   const r = await page.evaluate(() => {
     const B = window.__blockyard;
     B.generate(20260904);
-    let gold = 0, dia = 0, coal = 0, goldDeep = 0, diaDeep = 0, maxGoldY = -1, maxDiaY = -1;
-    for (let y = 1; y < 40; y++) for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++) {
+    // 천장 숫자는 world.js 의 oreCeil() 에서 읽는다 — 두 군데에 적으면 반드시 어긋난다
+    const c = B.oreCeil();
+    let gold = 0, dia = 0, iron = 0, coal = 0;
+    let goldDeep = 0, diaDeep = 0, ironDeep = 0;
+    let maxGoldY = -1, maxDiaY = -1, maxIronY = -1, coalHigh = 0;
+    for (let y = 1; y < B.WY; y++) for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++) {
       const b = B.world[B.idx(x, y, z)];
-      if (b === B.B.GOLD) { gold++; if (y <= 11) goldDeep++; if (y > maxGoldY) maxGoldY = y; }
-      else if (b === B.B.DIAMOND) { dia++; if (y <= 7) diaDeep++; if (y > maxDiaY) maxDiaY = y; }
-      else if (b === B.B.COAL) coal++;
+      if (b === B.B.GOLD) { gold++; if (y <= c.gold) goldDeep++; if (y > maxGoldY) maxGoldY = y; }
+      else if (b === B.B.DIAMOND) { dia++; if (y <= c.dia) diaDeep++; if (y > maxDiaY) maxDiaY = y; }
+      else if (b === B.B.IRON) { iron++; if (y <= c.iron) ironDeep++; if (y > maxIronY) maxIronY = y; }
+      else if (b === B.B.COAL) { coal++; if (y > c.iron) coalHigh++; }
     }
-    return { gold, dia, coal, goldDeep, diaDeep, maxGoldY, maxDiaY };
+    return { gold, dia, iron, coal, goldDeep, diaDeep, ironDeep,
+             maxGoldY, maxDiaY, maxIronY, coalHigh, c, SEA: B.SEA };
   });
   assert(r.gold > 0, "금이 없다");
   assert(r.dia > 0, "다이아가 없다");
   assert(r.dia < r.gold && r.gold < r.coal, `귀한 순서가 뒤집혔다 — 다이아 ${r.dia} · 금 ${r.gold} · 석탄 ${r.coal}`);
-  eq(r.goldDeep, r.gold, "금이 y>11 에도 났다 (최대 " + r.maxGoldY + ")");
-  eq(r.diaDeep, r.dia, "다이아가 y>7 에도 났다 (최대 " + r.maxDiaY + ")");
+  eq(r.goldDeep, r.gold, "금이 y>" + r.c.gold + " 에도 났다 (최대 " + r.maxGoldY + ")");
+  eq(r.diaDeep, r.dia, "다이아가 y>" + r.c.dia + " 에도 났다 (최대 " + r.maxDiaY + ")");
+  // 철은 광맥이 커서(3~8칸) 랜덤워크가 씨앗 위로 한두 칸 삐져 나온다 — 사다리만 본다
+  assert(r.maxIronY <= r.c.iron + 4,
+     "철이 y=" + r.maxIronY + " 까지 났다 — 천장 " + r.c.iron + " 에서 너무 멀다");
+  assert(r.ironDeep >= r.iron * 0.97,
+     "철의 " + Math.round((1 - r.ironDeep / r.iron) * 100) + "% 가 천장 위에 있다");
+  // 사다리의 윗칸 — 철 천장 위에서는 석탄만 난다. 그게 "내려갈수록 좋아진다" 의 실체다
+  assert(r.coalHigh > 0,
+     "철 천장(y=" + r.c.iron + ") 위에 석탄이 하나도 없다 — 얕은 곳에 캘 것이 없다");
 });
 
 test("v11 동굴: 좁은 굴 말고 넓은 방도 생긴다", async (page) => {
@@ -3818,17 +3847,20 @@ test("v20 얼음: 헤엄치는 사람을 얼음 속에 가두지 않는다", asy
   const r = await page.evaluate(() => {
     const B = window.__blockyard, X = 30, Z = 30;
     B.setPaused(true); B.beginPlay();
+    // 얼음은 **해수면 위**의 드러난 물만 언다 — 해수면은 세계마다 다르다(v79).
+    // 좌표를 손으로 적으면 예전 판에 굳는다.
+    const W = B.SEA + 3, TOP = W + 2;          // 물 W~TOP · 그 아래는 돌
     for (let x = X - 2; x <= X + 2; x++) for (let z = Z - 2; z <= Z + 2; z++) {
-      for (let y = 14; y <= 26; y++) B.set(x, y, z, y <= 17 ? B.B.STONE : B.B.AIR);
-      for (let y = 18; y <= 20; y++) B.set(x, y, z, B.B.WATER);
+      for (let y = W - 4; y <= TOP + 6; y++) B.set(x, y, z, y < W ? B.B.STONE : B.B.AIR);
+      for (let y = W; y <= TOP; y++) B.set(x, y, z, B.B.WATER);
       B.biomeMap[z * B.WX + x] = 1;             // 설원 — 얼 수 있는 곳
     }
     B.refreshAllTops(); B.relightAll(false);
-    B.player.pos.set(X + 0.5, 19, Z + 0.5); B.player.vel.set(0, 0, 0);
+    B.player.pos.set(X + 0.5, W + 1, Z + 0.5); B.player.vel.set(0, 0, 0);
     for (let x = X - 2; x <= X + 2; x++) for (let z = Z - 2; z <= Z + 2; z++)
-      B.enqueueFreeze(x, 20, z);
+      B.enqueueFreeze(x, TOP, z);
     B.freezeTick(999);
-    const mine = B.get(X, 20, Z), near = B.get(X + 2, 20, Z);
+    const mine = B.get(X, TOP, Z), near = B.get(X + 2, TOP, Z);
     const out = { mine, near, ICE: B.B.ICE, WATER: B.B.WATER };
     B.endPlay(); B.setPaused(false);
     return out;
@@ -6390,6 +6422,18 @@ test("v65 비행: 날면서도 달린다", async (page) => {
   const r = await page.evaluate(() => {
     const B = window.__blockyard;
     B.setPaused(true); B.beginPlay();
+    // 의존하는 양을 여기서 못 박는다 — 앞선 시험이 저장을 불러오면 S.flySpeed 가
+    // 1 이 아니게 남는다. 그러면 느린 쪽·빠른 쪽이 둘 다 가속 한계에 눌려
+    // 2배 차이가 1.5배로 읽힌다 (단독 통과 + 전체 실패 = 오염, 여덟 번째).
+    B.S.flySpeed = 1;
+    B.S.sneaking = false; B.S.sneakLatch = false; B.S.sprintTap = false;
+    B.S.keys.KeyW = false; B.S.keys.Space = false;
+    B.S.keys.ControlLeft = false; B.S.keys.ControlRight = false;
+    // 예전에는 (48,45,48) 이 늘 허공이었는데, 지형이 올라가(v79) 산속일 수 있다.
+    // 날아갈 길을 손으로 비운다 — 시험대는 지형에 기대지 않는다.
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -12; dz <= 12; dz++)
+      for (let dy = -4; dy <= 14; dy++) B.set(48 + dx, 45 + dy, 48 + dz, 0);
+    B.refreshAllTops(); B.relightAll(false);
     B.player.pos.set(48, 45, 48); B.player.vel.set(0, 0, 0);
     B.player.flying = true; B.player.yaw = 0; B.player.pitch = 0;
     B.S.keys.ControlLeft = false; B.S.sprintTap = false;
@@ -8493,6 +8537,169 @@ test("v78 날씨: 눈이 오면 드러난 땅이 하얘지고, 내 건축물은 
   assert(r.roofOk, "날씨가 사람이 놓은 판자를 바꿨다 — 세계가 내 건축물을 말없이 개조했다");
   assert(r.melted < r.snowed,
      "비가 " + (r.snowed - r.melted) + "칸만 녹였다 — 개도 그대로 하얗다");
+});
+
+test("v79 지하: 새 세계는 깊어지고, 예전 저장은 그 바다 그대로 열린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const slotKey = B.curKey();
+    const keepSave = localStorage.getItem(slotKey);
+
+    // ── 새 세계 — 지형 판 2 · 바다 23
+    B.generate(777); B.relightAll(false);
+    const genNew = B.GEN, seaNew = B.SEA;
+    function depths() {
+      let sum = 0, n = 0, min = 999, caveAir = 0;
+      for (let z = 1; z < B.WZ - 1; z++) for (let x = 1; x < B.WX - 1; x++) {
+        const h = B.heightMap[z * B.WX + x];
+        if (h <= B.SEA) continue;             // 뭍만
+        sum += h; n++; if (h < min) min = h;
+      }
+      for (let y = 1; y < 40; y++) for (let z = 2; z < B.WZ - 2; z += 2)
+        for (let x = 2; x < B.WX - 2; x += 2) {
+          if (B.world[B.idx(x, y, z)] !== 0) continue;
+          if (y >= B.topMap[z * B.WX + x]) continue;
+          caveAir++;
+        }
+      return { mean: n ? sum / n : 0, min, caveAir, land: n };
+    }
+    const deep = depths();
+
+    // ── 예전 판을 손으로 세워 본다 — SEA 가 11 로 돌아와야 한다
+    B.setGen(1);
+    const seaOld = B.SEA;
+    const ceilOld = B.oreCeil();
+    B.setGen(2);
+    const ceilNew = B.oreCeil();
+
+    // ── 저장 → 불러오기: 지형 판이 이어지는가
+    B.saveGame();
+    const raw = JSON.parse(localStorage.getItem(slotKey));
+    const savedGn = raw.gn;
+    B.setGen(1);                              // 흐트러뜨린다
+    B.loadGame();
+    const afterLoad = { gen: B.GEN, sea: B.SEA };
+
+    // ── gn 이 없는 **예전 저장** — 바다 11 로 열려야 한다
+    delete raw.gn;
+    localStorage.setItem(slotKey, JSON.stringify(raw));
+    B.setGen(2);
+    const oldOk = B.loadGame();
+    const afterOld = { gen: B.GEN, sea: B.SEA, ver: raw.v };
+
+    if (keepSave === null) localStorage.removeItem(slotKey);
+    else localStorage.setItem(slotKey, keepSave);
+    B.loadGame();
+    B.endPlay(); B.setPaused(false);
+    return { genNew, seaNew, seaOld, ceilOld, ceilNew, deep,
+             savedGn, afterLoad, oldOk, afterOld };
+  });
+  eq(r.genNew, 2, "새로 만든 세계의 지형 판");
+  eq(r.seaNew, 23, "새 세계의 해수면");
+  eq(r.seaOld, 11, "예전 판의 해수면 — 여기가 흔들리면 옛 세계가 물에 잠긴다");
+  // 지하가 실제로 깊어졌는가 — v78 까지는 뭍 평균 높이가 12.5~13.5 였다
+  assert(r.deep.mean >= 22,
+     "뭍 평균 높이가 " + r.deep.mean.toFixed(1) + " — 지하가 그만큼밖에 안 된다");
+  assert(r.deep.min >= 12, "가장 낮은 뭍이 " + r.deep.min + " — 기반암에 너무 가깝다");
+  assert(r.deep.caveAir > 800, "지하 공기가 " + r.deep.caveAir + "칸뿐 — 굴이 안 늘었다");
+  // 광석 사다리도 같이 늘어난다
+  assert(r.ceilNew.dia > r.ceilOld.dia && r.ceilNew.gold > r.ceilOld.gold &&
+         r.ceilNew.iron > r.ceilOld.iron,
+     "깊어졌는데 광석 사다리는 그대로다: " + JSON.stringify(r.ceilNew));
+  assert(r.ceilNew.iron < r.seaNew,
+     "철 천장(" + r.ceilNew.iron + ")이 해수면(" + r.seaNew + ") 위다 — 얕은 곳에도 철이 난다");
+  // 저장에 실려 이어지는가
+  eq(r.savedGn, 2, "저장에 지형 판이 안 실렸다");
+  eq(r.afterLoad.gen, 2, "불러왔는데 지형 판이 " + r.afterLoad.gen);
+  eq(r.afterLoad.sea, 23, "불러왔는데 해수면이 " + r.afterLoad.sea);
+  // 예전 저장 — gn 이 없어도 열리고, 그 세계의 바다로 선다
+  assert(r.oldOk, "gn 이 없는 예전 저장을 못 읽었다");
+  eq(r.afterOld.gen, 1, "예전 저장을 새 판으로 읽었다 — 그 세계가 통째로 물에 잠긴다");
+  eq(r.afterOld.sea, 11, "예전 저장의 해수면이 " + r.afterOld.sea);
+  eq(r.afterOld.ver, 5, "저장 버전은 v5 그대로여야 한다 (선택 필드만 늘었다)");
+});
+
+test("v79 지하: 카브가 지표를 뚫어도 풀·덤불이 허공에 안 남는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    let floating = 0, plants = 0, cactus = 0, cactusBad = 0;
+    const bad = [];
+    for (const seed of [99999, 4242, 777, 20260904]) {
+      B.generate(seed);
+      for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++)
+        for (let y = 1; y < B.WY; y++) {
+          const b = B.world[B.idx(x, y, z)];
+          const under = B.world[B.idx(x, y - 1, z)];
+          // 선인장은 통짜 블록이라 isCross 가 아니다 — 걷어내기에 휩쓸리지 않았는지 따로 센다
+          if (b === B.B.CACTUS) {
+            cactus++;
+            if (!B.isSolid(under) && under !== B.B.CACTUS) cactusBad++;
+            continue;
+          }
+          if (!B.isCross(b)) continue;
+          plants++;
+          if (!B.isSolid(under) && under !== b) {
+            floating++;
+            if (bad.length < 4) bad.push({ seed, x, y, z, b, under });
+          }
+        }
+    }
+    return { floating, plants, cactus, cactusBad, bad };
+  });
+  assert(r.plants > 800, "네 시드를 합쳐 풀·꽃이 " + r.plants + "개뿐이다");
+  assert(r.cactus > 0, "선인장이 한 그루도 없다 — 걷어내다 같이 지웠다");
+  eq(r.cactusBad, 0, "허공에 뜬 선인장이 " + r.cactusBad + "칸");
+  eq(r.floating, 0, "허공에 뜬 풀·덤불: " + JSON.stringify(r.bad));
+});
+
+test("v79 지하: 예전 판도 그대로 만들어지고, 광석 균형이 안 무너진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    function stats(seed, gen) {
+      B.generate(seed, gen); B.refreshAllTops();
+      let sum = 0, n = 0, stone = 0;
+      const ore = { coal: 0, iron: 0, gold: 0, dia: 0 };
+      for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++) {
+        const h = B.heightMap[z * B.WX + x];
+        if (h > B.SEA) { sum += h; n++; }
+      }
+      for (let y = 1; y < B.WY; y++) for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++) {
+        const b = B.world[B.idx(x, y, z)];
+        if (b === B.B.STONE) stone++;
+        else if (b === B.B.COAL) ore.coal++;
+        else if (b === B.B.IRON) ore.iron++;
+        else if (b === B.B.GOLD) ore.gold++;
+        else if (b === B.B.DIAMOND) ore.dia++;
+      }
+      return { sea: B.SEA, gen: B.GEN, mean: n ? sum / n : 0, stone, ore };
+    }
+    const old = stats(333, 1);
+    const neu = stats(333, 2);
+    B.setPaused(false);
+    return { old, neu };
+  });
+  // 예전 판을 지정하면 예전 세계가 그대로 나온다 — 불러오기 경로가 이것에 기댄다
+  eq(r.old.gen, 1, "판 1 을 지정했는데 " + r.old.gen + " 이 나왔다");
+  eq(r.old.sea, 11, "예전 판의 해수면");
+  assert(r.old.mean < 20,
+     "예전 판인데 뭍 평균이 " + r.old.mean.toFixed(1) + " — 새 판이 새어 들어왔다");
+  assert(r.neu.mean > r.old.mean + 8,
+     "새 판이 예전 판보다 " + (r.neu.mean - r.old.mean).toFixed(1) + "칸밖에 안 높다");
+  assert(r.neu.stone > r.old.stone * 1.4,
+     "돌 부피가 " + (r.neu.stone / r.old.stone).toFixed(2) + "배뿐 — 지하가 안 깊어졌다");
+  // 귀한 순서 — 깊어졌다고 다이아가 흔해지면 내려갈 이유가 사라진다
+  for (const w of ["old", "neu"]) {
+    const o = r[w].ore;
+    assert(o.dia < o.gold && o.gold < o.iron && o.iron < o.coal,
+       w + " 판의 귀한 순서가 뒤집혔다 — " + JSON.stringify(o));
+  }
+  // 부피는 1.8배인데 다이아가 4배면 귀할 것이 없다
+  const volume = r.neu.stone / r.old.stone;
+  const dia = r.neu.ore.dia / r.old.ore.dia;
+  assert(dia < volume * 1.6,
+     "돌이 " + volume.toFixed(2) + "배인데 다이아는 " + dia.toFixed(2) + "배다 — 너무 흔해졌다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

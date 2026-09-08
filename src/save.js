@@ -1,6 +1,6 @@
 // save.js — 저장 · 불러오기
 import { S } from "./state.js";
-import { LEGACY_WY, WX, WZ, idx } from "./dims.js";
+import { LEGACY_WY, GEN, setGen, WX, WZ, idx } from "./dims.js";
 import { DEFAULT_BAR, SH_FULL } from "./blocks.js";
 import { seenMap, touched, refreshAllTops, set, shape, world, waterLvl } from "./world.js";
 
@@ -148,7 +148,10 @@ export function saveGame() {
       wt: S.weather, wk: S.weatherLock ? 1 : 0,
       nm: S.worldName || "",       // 세계 이름 — 시드 번호로 "성 지은 게 1번인지 2번인지" 를 기억할 순 없다
       // G 로 고른 모양도 손에 든 것의 일부다
-      sm: S.shapeMode
+      sm: S.shapeMode,
+      // 지형 판 — 이 세계의 해수면이 여기서 따라온다 (없으면 1 = v78 까지의 바다 11).
+      // 세계 데이터는 그대로 담기므로 저장 버전(v5)은 올리지 않는다.
+      gn: GEN
     }));
     try { localStorage.removeItem(OLD_KEY); } catch (e2) {}
     S.worldDirty = false;
@@ -210,6 +213,9 @@ export function loadGame() {
     S.weather = (d.wt | 0) || 0;
     S.weatherLock = !!d.wk;
     S.shapeMode = (d.sm | 0) || 0;
+    // 지형 판을 먼저 세운다 — SEA 가 여기서 정해지고, 물·얼음·동물·미니맵이 전부 그것을 본다.
+    // 예전 저장에는 gn 이 없다 → 1 → 바다 11 → 그 세계가 만들어졌을 때 그대로다.
+    setGen(d.gn | 0);
     S.worldName = typeof d.nm === "string" ? d.nm : "";
     S.weatherMix = S.weather ? 1 : 0;      // 불러오자마자 그 날씨로 보이게
     applyWeather();                        // 빗줄기·눈송이를 실제로 켠다 (S.weather 만 넣으면 안 보인다)

@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-08 · 모듈 28개 · 합계 10,121줄
+생성일 2026-09-08 · 모듈 28개 · 합계 10,193줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -11,22 +11,22 @@
 | 모듈 | 하는 일 | 줄 | 기대는 곳 |
 |---|---|---:|---|
 | [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 171 | — |
-| [`dims.js`](../src/dims.js) | 세계 치수와 좌표 계산 (의존성 없음) | 10 | — |
+| [`dims.js`](../src/dims.js) | 세계 치수와 좌표 계산 (의존성 없음) | 28 | — |
 | [`queues.js`](../src/queues.js) | 시뮬레이션 대기열 (의존성 없음) | 36 | — |
 | [`boot.js`](../src/boot.js) | 부팅 가드 · 환경 판별 | 29 | state |
 | [`blocks.js`](../src/blocks.js) | 블록 정의 · 모양 · 성질 | 285 | state |
 | [`tree.js`](../src/tree.js) | 나무 한 그루의 모양 | 47 | — |
 | [`atlas.js`](../src/atlas.js) | 텍스처 아틀라스 (코드로 그리는 16×16 도트) | 554 | blocks |
-| [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 720 | state · tree · queues · dims · blocks · atlas |
+| [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 763 | state · tree · queues · dims · blocks · atlas |
 | [`light.js`](../src/light.js) | 광원 — 햇빛과 블록광 BFS | 182 | state · dims · blocks · world · mesh · player |
 | [`fluids.js`](../src/fluids.js) | 물 흐름 · 낙하 블록 · 잎 부패 | 779 | state · settings · queues · dims · blocks · world · tree · light · mesh · scene · audio · player · edit |
 | [`mesh.js`](../src/mesh.js) | 면 데이터 + 청크 메싱 | 272 | dims · blocks · atlas · world · light |
-| [`scene.js`](../src/scene.js) | three.js 씬 · 셰이더 · 파티클 | 537 | dims · boot · blocks · atlas · world · mesh |
+| [`scene.js`](../src/scene.js) | three.js 씬 · 셰이더 · 파티클 | 539 | dims · boot · blocks · atlas · world · mesh |
 | [`daynight.js`](../src/daynight.js) | 낮과 밤 | 83 | state · world · scene |
 | [`settings.js`](../src/settings.js) | 설정 | 43 | state · boot · scene |
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 323 | state · dims · blocks · world · scene |
 | [`audio.js`](../src/audio.js) | 소리 | 257 | state · blocks · daynight · settings |
-| [`save.js`](../src/save.js) | 저장 · 불러오기 | 291 | state · dims · blocks · world · player · mobs · hud · sky |
+| [`save.js`](../src/save.js) | 저장 · 불러오기 | 297 | state · dims · blocks · world · player · mobs · hud · sky |
 | [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 986 | state · queues · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
 | [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 489 | state · version · dims · blocks · atlas · world · player · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 165 | state · settings · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
@@ -37,7 +37,7 @@
 | [`cloud.js`](../src/cloud.js) | 기기 사이 이어하기 (GitHub Gist 에 세계를 올리고 내려받는다) | 226 | state · save |
 | [`loop.js`](../src/loop.js) | 게임 루프 | 822 | state · input · mobs · queues · dims · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · mine · sky |
 | [`version.js`](../src/version.js) | 빌드 도장 (자동 생성) | 8 | — |
-| [`main.js`](../src/main.js) | 조립과 시작 | 244 | state · tree · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · input · mine · sky · loop |
+| [`main.js`](../src/main.js) | 조립과 시작 | 247 | state · tree · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · input · mine · sky · loop |
 
 ## 모듈별 공개 함수
 
@@ -49,10 +49,12 @@
 
 | 함수 | 줄 |
 |---|---:|
-| `idx(x, y, z)` | 7 |
-| `inside(x, y, z)` | 8 |
+| `setGen(g)` | 19 |
+| `seaLift()` | 24 |
+| `idx(x, y, z)` | 25 |
+| `inside(x, y, z)` | 26 |
 
-내보내는 값 — `WX` · `LEGACY_WY` · `CX` · `N` · `SEA` · `DIRS`
+내보내는 값 — `WX` · `LEGACY_WY` · `CX` · `N` · `SEA_V1` · `SEA_V2` · `GEN_LATEST` · `GEN` · `SEA` · `DIRS`
 
 ### `queues.js` — 시뮬레이션 대기열 (의존성 없음)
 
@@ -157,7 +159,8 @@
 | `lerp(a, b, t)` | 260 |
 | `noise2(x, y, seed)` | 262 |
 | `noise3(x, y, z, seed)` | 269 |
-| `generate(seed)` | 279 |
+| `oreCeil()` | 280 |
+| `generate(seed, gen)` | 285 |
 
 내보내는 값 — `world` · `shape` · `heightMap` · `topMap` · `biomeMap` · `waterLvl` · `BIOME_NAMES` · `touched` · `SEEN_TOP` · `seenMap`
 
@@ -240,17 +243,18 @@
 | 함수 | 줄 |
 |---|---:|
 | `voxMaterial(extra)` | 95 |
-| `updateOuterSea(camY)` | 203 |
-| `updateChunkVisibility(farDist)` | 222 |
-| `boxesToEdges(boxes)` | 278 |
-| `dynamicHighlight(boxes)` | 300 |
-| `burst(x, y, z, blockId, count)` | 407 |
-| `updateParticles(dt)` | 428 |
-| `updateEdge(px, pz)` | 485 |
-| `updatePasteBox(c, p)` | 513 |
-| `updateSelectionBox(b, anchor)` | 523 |
+| `outerSeaY()` | 146 |
+| `updateOuterSea(camY)` | 205 |
+| `updateChunkVisibility(farDist)` | 224 |
+| `boxesToEdges(boxes)` | 280 |
+| `dynamicHighlight(boxes)` | 302 |
+| `burst(x, y, z, blockId, count)` | 409 |
+| `updateParticles(dt)` | 430 |
+| `updateEdge(px, pz)` | 487 |
+| `updatePasteBox(c, p)` | 515 |
+| `updateSelectionBox(b, anchor)` | 525 |
 
-내보내는 값 — `matOpaque` · `scene` · `stage` · `VOX_VS` · `VOX_FS` · `voxUniforms` · `skyUniforms` · `sky` · `OUTER_SEA_Y` · `outerSea` · `FREE_DIST` · `chunkFreed` · `cloudMat` · `cloudMatHigh` · `cloudGroup` · `cloudGroupHigh` · `HL_EDGES` · `HL_GEO` · `HL_CROSS` · `SHAPE_BOUNDS` · `PRIMED_MAX` · `primedMat` · `primedBoxes` · `highlight` · `crackMat` · `crackMesh` · `PMAX` · `pPos` · `pVel` · `pCount` · `pGeo` · `pMat` · `particles` · `edgeMat` · `edgeGroup` · `SEL_DONE` · `selMat` · `selBox` · `pasteMat` · `pasteBox`
+내보내는 값 — `matOpaque` · `scene` · `stage` · `VOX_VS` · `VOX_FS` · `voxUniforms` · `skyUniforms` · `sky` · `outerSea` · `FREE_DIST` · `chunkFreed` · `cloudMat` · `cloudMatHigh` · `cloudGroup` · `cloudGroupHigh` · `HL_EDGES` · `HL_GEO` · `HL_CROSS` · `SHAPE_BOUNDS` · `PRIMED_MAX` · `primedMat` · `primedBoxes` · `highlight` · `crackMat` · `crackMesh` · `PMAX` · `pPos` · `pVel` · `pCount` · `pGeo` · `pMat` · `particles` · `edgeMat` · `edgeGroup` · `SEL_DONE` · `selMat` · `selBox` · `pasteMat` · `pasteBox`
 
 ### `daynight.js` — 낮과 밤
 
@@ -339,16 +343,16 @@
 | `decodeWorld(runs, dst, len)` | 100 |
 | `liftLegacy(src, dst, asRuns)` | 115 |
 | `saveGame()` | 130 |
-| `loadGame()` | 162 |
-| `clearSave()` | 220 |
-| `backupKey(n)` | 227 |
-| `pushBackup()` | 230 |
-| `prevKey(n)` | 240 |
-| `pushPrev()` | 241 |
-| `hasBackup()` | 248 |
-| `restoreBackup()` | 253 |
-| `exportWorld()` | 264 |
-| `importWorldText(text)` | 280 |
+| `loadGame()` | 165 |
+| `clearSave()` | 226 |
+| `backupKey(n)` | 233 |
+| `pushBackup()` | 236 |
+| `prevKey(n)` | 246 |
+| `pushPrev()` | 247 |
+| `hasBackup()` | 254 |
+| `restoreBackup()` | 259 |
+| `exportWorld()` | 270 |
+| `importWorldText(text)` | 286 |
 
 내보내는 값 — `SAVE_KEY` · `OLD_KEY` · `SLOTS`
 

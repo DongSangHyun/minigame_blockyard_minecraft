@@ -4,13 +4,13 @@ import { growTree } from "./tree.js";
 import { breedTick, MOB_MAX, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, mobs, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { atlasSample, SWATCH_SIDE, animateLiquids, atlas } from "./atlas.js";
 import { Q, resetQueues } from "./queues.js";
-import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
+import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, GEN, setGen, WX, WY, WZ, idx, inside } from "./dims.js";
 import { needsFloor, BOOKSHELF, CARPET, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SAPLING, doorOpen, doorFacing, doorShapeFor, DOOR, AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DEFAULT_BAR2, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLINT, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, ITEMS, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, categoryOf, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isItem, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
-import { markX, markY, markZ, markName, SEEN_TOP, SEEN_UNDER, seenMap, seenRatio, markSeen, biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBoxes, heightMap, isTouched, markTouched, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, touched, waterLvl, world } from "./world.js";
+import { markX, markY, markZ, markName, SEEN_TOP, SEEN_UNDER, seenMap, seenRatio, markSeen, biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBoxes, heightMap, isTouched, markTouched, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, touched, waterLvl, world , oreCeil} from "./world.js";
 import { WATER_DIM, lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
 import { growTick, enqueueGrow, lavaFlowTick, lavaDryTick, LAVA_FLOW, grassTick, primeTNT, primeTick, TNT_FUSE, lavaTick, BLAST_R, FIRE_REACH, MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueFreeze, enqueueWaterAround, explode, fallTick, fireTick, freezeTick, ignite, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
 import { markDirty, FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll, setBuildFocus } from "./mesh.js";
-import { selBox, selMat, SEL_DONE, SEL_ANCHOR, pasteBox, updatePasteBox, outerSea, updateOuterSea, OUTER_SEA_Y, pCol, pCount, FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
+import { selBox, selMat, SEL_DONE, SEL_ANCHOR, pasteBox, updatePasteBox, outerSea, updateOuterSea, outerSeaY, pCol, pCount, FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { OPT_KEY, applyOpts, calmMotion, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, playerOccupies, pointSolid, rayBox, raycast, spawn, stats, unstick } from "./player.js";
@@ -75,7 +75,9 @@ player.yaw = -0.72; player.pitch = -0.42;
 // ── 테스트 훅 (헤드리스 검증용)
 window.__blockyard = {
   booted: false,          // 맨 아래에서 true 가 된다
-  WX: WX, WY: WY, WZ: WZ, CH: CH, CX: CX, CY: CY, CZ: CZ, SEA: SEA, N: N,
+  WX: WX, WY: WY, WZ: WZ, CH: CH, CX: CX, CY: CY, CZ: CZ, N: N,
+  // SEA·GEN 은 세계마다 다르다 (v79) — 훅에 값으로 박으면 시험이 예전 판에 굳는다
+  get SEA() { return SEA; }, get GEN() { return GEN; }, setGen: setGen,
   B: { AIR: AIR, GRASS: GRASS, DIRT: DIRT, STONE: STONE, SAND: SAND, LOG: LOG,
        LEAVES: LEAVES, PLANKS: PLANKS, GLASS: GLASS, BRICK: BRICK, WATER: WATER,
        COBBLE: COBBLE, COAL: COAL, IRON: IRON, SNOW: SNOW, LAMP: LAMP, GRAVEL: GRAVEL,
@@ -88,7 +90,7 @@ window.__blockyard = {
        SAPLING: SAPLING, BOOKSHELF: BOOKSHELF, CARPET: CARPET },
   world: world, lightSky: lightSky, lightBlk: lightBlk,
   topMap: topMap, heightMap: heightMap, biomeMap: biomeMap,
-  idx: idx, get: get, set: set, inside: inside, lightPass: lightPass,
+  idx: idx, get: get, set: set, inside: inside, lightPass: lightPass, oreCeil: oreCeil,
   isSolid: isSolid, hardnessOf: hardnessOf,
   generate: generate, relightAll: relightAll, rebuildAll: rebuildAll,
   markDirty: markDirty, settleWorld: settleWorld,
@@ -110,7 +112,8 @@ window.__blockyard = {
   fallTick: fallTick, enqueueFall: enqueueFall, isFalling: isFalling,
   rayBox: rayBox, canPlaceAt: canPlaceAt, chunkFilled: chunkFilled,
   updateChunkVisibility: updateChunkVisibility, drawMinimap: drawMinimap,
-  outerSea: outerSea, updateOuterSea: updateOuterSea, OUTER_SEA_Y: OUTER_SEA_Y,
+  outerSea: outerSea, updateOuterSea: updateOuterSea,
+  get OUTER_SEA_Y() { return outerSeaY(); },
   growTree: growTree, growTick: growTick, enqueueGrow: enqueueGrow, resetQueues: resetQueues,
   blueprintList: blueprintList, deleteBlueprint: deleteBlueprint, refreshBlueprints: refreshBlueprints,
   curKey: curKey, editLabel: editLabel, renameSlot: renameSlot, slotInfo: slotInfo, refreshSlots: refreshSlots,
