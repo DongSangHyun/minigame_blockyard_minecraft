@@ -146,7 +146,17 @@ export function batchPush(b, x, y, z, from, to, fromSh, toSh, wl) {
 }
 
 // 대량 편집(채우기·붙여넣기)은 한 덩어리로 묶어 한 번에 되돌린다
-export function beginBatch(cap) { S.batch = makeBatch(cap || 1024); S.batchCells = 0; S.fallOwner = null; }
+export function beginBatch(cap) {
+  S.batch = makeBatch(cap || 1024); S.batchCells = 0;
+  S.fallOwner = null; S.fireOwner = null;   // 새 편집이 시작되면 지난 주인은 놓는다
+}
+// 방금 기록된 편집을 "이 불의 주인" 으로 삼는다 — 번짐과 타 없어짐이 여기에 실린다.
+// 불은 오래 타므로 상한을 둔다. 넘으면 그때부터는 기록하지 않는다(대부분은 이미 담겼다).
+export var FIRE_UNDO_MAX = 20000;
+export function ownFire() {
+  var last = S.history[S.history.length - 1];
+  S.fireOwner = (last && last.batch) ? last.batch : null;
+}
 // 묶음이 끝나면 조명과 기둥 높이를 한 번에 맞춘다.
 // 400칸이 넘으면 세계 전체를 다시 켜는 게 칸마다 BFS 를 도는 것보다 싸다 (relightAll 은 25ms 고정).
 export var BATCH_RELIGHT_ALL = 400;

@@ -11,7 +11,7 @@ import { touch } from "./mesh.js";
 import { burst } from "./scene.js";
 import { at, crunch, lavaHiss, tone } from "./audio.js";
 import { playerOccupies } from "./player.js";
-import { applyEdit, batchPush, beginBatch, endBatch, unlock } from "./edit.js";
+import { applyEdit, batchPush, beginBatch, endBatch, ownFire, FIRE_UNDO_MAX, unlock } from "./edit.js";
 
 export var MAXFLOW = 7; // 근원에서 옆으로 뻗을 수 있는 칸 수 (마크와 같은 7칸)
 
@@ -306,6 +306,18 @@ export function removeWater(i, y) {
 export var FIRE_LIFE = 6;          // 불 한 칸이 버티는 대략적인 틱 수
 export var FIRE_REACH = 9;         // 처음 붙인 자리에서 이만큼까지만 번진다
 
+// 불이 스스로 바꾸는 칸을 "그 불의 주인" 묶음에 담는다 —
+// 번짐과 타 없어짐이 기록에 없으면, 12×12 오두막이 139장 사라져도 Ctrl+Z 가 한 칸도 못 돌린다.
+// (v69 는 번짐을 끌 수 있게 했고, 이건 켜 둔 채로도 되돌아가게 한다)
+function fireEdit(x, y, z, to) {
+  var i = idx(x, y, z);
+  var from = world[i], fromSh = shape[i], fromWl = waterLvl[i];
+  if (!applyEdit(x, y, z, to, false)) return false;
+  if (S.fireOwner && S.fireOwner.n < FIRE_UNDO_MAX)
+    batchPush(S.fireOwner, x, y, z, from, to, fromSh, SH_FULL, fromWl);
+  return true;
+}
+
 export function ignite(x, y, z) {
   if (!inside(x, y, z)) return false;
   var i = idx(x, y, z);
@@ -318,6 +330,7 @@ export function ignite(x, y, z) {
   if (!fuel) return false;
   // applyEdit 을 거쳐야 Ctrl+Z 로 되돌릴 수 있다 (TNT 는 되는데 불은 안 됐다)
   if (!applyEdit(x, y, z, FIRE, true)) return false;
+  ownFire();                 // 이 불이 앞으로 바꿀 칸은 방금 만든 그 묶음에 실린다
   Q.fireQ.push(i);
   // 원점을 하나만 두면, 두 번째로 불을 붙인 순간 첫 불이 새 원점 기준으로 상한을 재
   // 갑자기 번지기를 멈춘다. 불마다 원점을 따로 기억한다.
@@ -557,7 +570,7 @@ export function fireTick(budget) {
       if (wet) continue;
       if (!spread) continue;                   // 번짐 끄기 — 옮겨 붙지 않는다
       var ni = idx(nx, ny, nz);
-      applyEdit(nx, ny, nz, FIRE, false);      // 번짐은 세계가 하는 일 — 되돌리기 기록을 먹지 않는다
+      fireEdit(nx, ny, nz, FIRE);              // 번짐도 그 불의 일이다 — 붙인 사람 묶음에 실린다
       Q.fireQ.push(ni);
       burned = true;
       acted++;
@@ -575,7 +588,7 @@ export function fireTick(budget) {
     }
     if (raining && y > topMap[z * WX + x] - 0.5 && Math.random() < 0.25) doused = true;
     if (doused || (!fuel && Math.random() < 0.5)) {
-      applyEdit(x, y, z, AIR, false);        // 꺼지는 것도 마찬가지
+      fireEdit(x, y, z, AIR);                // 꺼지는 것도 마찬가지
       burst(x, y, z, FIRE, 3);
       if (doused) crunch(0.3, 0.10, 1800);
       acted++;

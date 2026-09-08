@@ -106,6 +106,9 @@ export const S = {
   // 방금 닫힌 사람의 편집 묶음 — 그 편집 때문에 떨어지는 모래·자갈을 여기에 같이 담는다.
   // 안 담으면 "되돌리기 — 모래 놓기" 라고 말해 놓고 떨어진 모래는 그대로 남는다.
   fallOwner: null,
+  // 붙인 불이 연 묶음 — 번짐과 타 없어짐을 여기에 담아야 Ctrl+Z 한 번에 집이 돌아온다.
+  // v69 는 "번짐 끄기" 설정으로 막았고, 이건 켜 둔 채로도 되돌아가게 한다.
+  fireOwner: null,
   achListStale: false,
   lavaTimer: 0,
   caveTimer: 6,

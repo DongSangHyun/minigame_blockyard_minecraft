@@ -7604,6 +7604,57 @@ phoneTest("이어서 짓던 곳이 화면 안에 들어온다", async (page) => 
   assert(r.shotVisible, "섬 그림이 폰에서 사라졌다");
 });
 
+test("v72 불: 번져서 탄 집이 Ctrl+Z 한 번에 돌아온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keep = B.opts.firespread, keepW = B.S.weather;
+    B.opts.firespread = 1;                 // 번짐을 켠 채로도 되돌아가야 한다
+    B.S.weather = 0;
+    const X = 70, Y = 40, Z = 70;
+    B.resetQueues();
+    B.S.fireOrigins.length = 0;
+    for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++)
+      for (let dy = -1; dy <= 8; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    let built = 0;
+    for (let dx = 0; dx < 12; dx++) for (let dz = 0; dz < 12; dz++)
+      for (let dy = 0; dy < 5; dy++) {
+        if (dx > 0 && dx < 11 && dz > 0 && dz < 11) continue;
+        B.set(X + dx, Y + dy, Z + dz, B.B.PLANKS); built++;
+      }
+    B.refreshAllTops(); B.relightAll(false);
+    function planks() {
+      let n = 0;
+      for (let dx = -2; dx <= 14; dx++) for (let dz = -2; dz <= 14; dz++)
+        for (let dy = -1; dy <= 8; dy++)
+          if (B.get(X + dx, Y + dy, Z + dz) === B.B.PLANKS) n++;
+      return n;
+    }
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.ignite(X - 1, Y, Z);
+    const hist = B.S.history.length;
+    for (let k = 0; k < 3000; k++) B.fireTick(80);
+    const burnt = planks();
+    B.undo();
+    const back = planks();
+    const histAfter = B.S.history.length;
+
+    B.opts.firespread = keep; B.S.weather = keepW;
+    B.resetQueues(); B.S.fireOrigins.length = 0;
+    B.S.fireOwner = null;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { built, burnt, back, hist, histAfter };
+  });
+  eq(r.hist, 1, "불 붙이기가 되돌리기 " + r.hist + "개를 먹었다");
+  assert(r.burnt < r.built - 20,
+     "시험대가 안 섰다 — 번졌는데 " + (r.built - r.burnt) + "장만 탔다");
+  eq(r.back, r.built,
+     "되돌렸는데 " + (r.built - r.back) + "장이 안 돌아왔다 — " +
+     "불은 이 게임에서 유일하게 영영 사라지는 길이었다 (탄 것 " + (r.built - r.burnt) + "장)");
+  eq(r.histAfter, 0, "되돌리기 한 번에 다 안 돌아온다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
