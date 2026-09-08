@@ -7,6 +7,8 @@
 ```
 CLAUDE.md          지침 · 절대 규칙 · 모듈 규칙 · 작업 루프    (항상 읽음)
 docs/INDEX.md      이 파일 — 어디를 볼지 알려주는 색인        (항상 읽음)
+docs/HANDOFF.md    마지막 세션이 남긴 것 — 상태·진행 중·다음 후보·함정
+                   ("새세션 시작" 이라고 하면 이것부터 읽는다)
 ├── memory.md          개발 진행내역(시간순)              ← "지금까지 뭘 했나"
 ├── docs/CODEMAP.md    모듈 지도 · 함수 색인 (자동 생성)   ← "그 함수 어느 파일이지"
 ├── docs/GAMEPLAY.md   기능 명세 · 조작 · 블록 표          ← "이 게임이 뭘 할 수 있나"
@@ -19,7 +21,8 @@ docs/INDEX.md      이 파일 — 어디를 볼지 알려주는 색인        (�
 
 | 하려는 일 | 먼저 볼 곳 |
 |---|---|
-| 이어서 개발한다 | `memory.md` 맨 아래 → `docs/BACKLOG.md` |
+| **새 세션을 시작한다** | **`docs/HANDOFF.md`** — 세 장(CLAUDE·INDEX·HANDOFF)이면 이어집니다 |
+| 이어서 개발한다 | `docs/HANDOFF.md` → `memory.md` 맨 아래 → `docs/BACKLOG.md` |
 | 특정 기능을 고친다 | `docs/CODEMAP.md` 모듈 지도 → 해당 `src/*.js` |
 | 새 블록을 추가한다 | `docs/GAMEPLAY.md` "블록 추가 체크리스트" |
 | 조작을 바꾼다 | `docs/GAMEPLAY.md` "조작" → `src/input.js` |
@@ -36,11 +39,13 @@ docs/INDEX.md      이 파일 — 어디를 볼지 알려주는 색인        (�
 | `src/*.js` | 게임 코드 (모듈 28개 — `docs/CODEMAP.md` 참고) |
 | `manifest.webmanifest` · `icon-*.png` · `sw.js` | 홈 화면 추가 · 오프라인 플레이 |
 | `tests/harness.mjs` | 헤드리스 브라우저 · 정적 서버 · 단언 헬퍼 |
-| `tests/run.mjs` | 회귀 테스트 281항목 |
+| `tests/run.mjs` | 회귀 테스트 281항목(+폰 6 +오류 2 = 러너 289) |
 | `tools/codemap.mjs` | `docs/CODEMAP.md` 생성 |
 | `tools/tidy-imports.mjs` | 안 쓰는 import 정리 |
 | `tools/make-icons.mjs` | PWA 아이콘 생성 |
 | `tools/stamp.mjs` | `src/version.js` — 시작 화면의 "마지막 업데이트" 도장 |
+| `tools/handoff.mjs` | `docs/HANDOFF.md` 생성 · `--check` 로 인계 정합성 검사 |
+| `tools/check-live.mjs` | 배포본이 진짜 켜지는지 (push 뒤에 돌린다) |
 | `docs/` | 이 색인이 가리키는 문서들 |
 | `memory.md` | 개발 진행내역 |
 
@@ -58,5 +63,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v? — 임시 스크립트가 src/ 를 고쳤다 되돌리지 못하게 (규칙 9) · 회귀 테스트 281항목 전부 통과.**
+**v76 — 오두막이 채마다 달라졌다 · 회귀 테스트 281항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/

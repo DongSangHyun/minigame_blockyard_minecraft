@@ -84,12 +84,22 @@ patch("CLAUDE.md", [
    " 셀 · 청크 " + CH + "³ (" + chunks + ") |"]
 ]);
 // "현재 상태 한 줄" 은 마지막 커밋 제목에서 가져온다 — v19 에 멈춰 있었다
-const lastTitle = git("log -1 --format=%s", "").replace(/\s*\(v\d+[^)]*\)\s*$/, "").trim();
-const lastVer = (git("log -1 --format=%s", "").match(/\(v(\d+)/) || [, ""])[1];
+// 마지막 커밋 하나만 보면, "도장 갱신" 커밋 위에서 돌 때 판 번호를 잃는다(실제로 v? 가 됐다).
+// 최근 이력에서 **도장 갱신이 아닌 첫 줄**을 찾는다.
+const titles = git("log --format=%s -30", "").split("\n").filter(Boolean);
+const featTitle = titles.find((t) => !/^도장 갱신/.test(t)) || titles[0] || "";
+const lastTitle = featTitle.replace(/\s*\(v\d+[^)]*\)\s*$/, "").trim();
+const lastVer = (featTitle.match(/\(v(\d+)/) ||
+                 (titles.join("\n").match(/\(v(\d+)/) || []) || [, ""])[1];
+const phoneTests = (fs.readFileSync(path.join(ROOT, "tests", "run.mjs"), "utf8")
+  .match(/^phoneTest\(/gm) || []).length;
 patch("docs/INDEX.md", [
   [/모듈 \d+개/g, "모듈 " + src.modules + "개"],
-  [/회귀 테스트 \d+항목/g, "회귀 테스트 " + tests + "항목"],
-  [/\*\*v\d+ — [^\n]*\*\*/,
+  // 러너는 폰 항목과 오류 검사까지 세어 더 큰 수를 찍는다 — 둘 다 적어 멈칫할 일을 없앤다
+  [/회귀 테스트 \d+항목(\([^)]*\))?/g,
+   "회귀 테스트 " + tests + "항목(+폰 " + phoneTests + " +오류 2 = 러너 " +
+   (tests + phoneTests + 2) + ")"],
+  [/\*\*v[\d?]+ — [^\n]*\*\*/,
    "**v" + (lastVer || "?") + " — " + (lastTitle || "최신") +
    " · 회귀 테스트 " + tests + "항목 전부 통과.**"]
 ]);
