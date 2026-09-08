@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-08 · 모듈 28개 · 합계 9,822줄
+생성일 2026-09-08 · 모듈 28개 · 합계 9,870줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -14,10 +14,10 @@
 | [`dims.js`](../src/dims.js) | 세계 치수와 좌표 계산 (의존성 없음) | 10 | — |
 | [`queues.js`](../src/queues.js) | 시뮬레이션 대기열 (의존성 없음) | 36 | — |
 | [`boot.js`](../src/boot.js) | 부팅 가드 · 환경 판별 | 26 | state |
-| [`blocks.js`](../src/blocks.js) | 블록 정의 · 모양 · 성질 | 274 | state |
+| [`blocks.js`](../src/blocks.js) | 블록 정의 · 모양 · 성질 | 285 | state |
 | [`tree.js`](../src/tree.js) | 나무 한 그루의 모양 | 47 | — |
-| [`atlas.js`](../src/atlas.js) | 텍스처 아틀라스 (코드로 그리는 16×16 도트) | 525 | blocks |
-| [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 591 | state · tree · queues · dims · blocks · atlas |
+| [`atlas.js`](../src/atlas.js) | 텍스처 아틀라스 (코드로 그리는 16×16 도트) | 554 | blocks |
+| [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 599 | state · tree · queues · dims · blocks · atlas |
 | [`light.js`](../src/light.js) | 광원 — 햇빛과 블록광 BFS | 182 | state · dims · blocks · world · mesh · player |
 | [`fluids.js`](../src/fluids.js) | 물 흐름 · 낙하 블록 · 잎 부패 | 748 | state · settings · queues · dims · blocks · world · tree · light · mesh · scene · audio · player · edit |
 | [`mesh.js`](../src/mesh.js) | 면 데이터 + 청크 메싱 | 272 | dims · blocks · atlas · world · light |
@@ -74,37 +74,38 @@
 
 | 함수 | 줄 |
 |---|---:|
-| `isWool(b)` | 24 |
-| `hardnessOf(b)` | 117 |
-| `isUnbreakable(b)` | 120 |
-| `isCross(b)` | 139 |
-| `needsFloor(b)` | 140 |
-| `isItem(b)` | 151 |
-| `isConnecting(b)` | 155 |
-| `isClimbable(b)` | 157 |
-| `isOpenable(b)` | 159 |
-| `isFlammable(b)` | 161 |
-| `connectsTo(self, other)` | 167 |
-| `isLog(b)` | 174 |
-| `isLeaf(b)` | 175 |
-| `isDoorShape(sh)` | 195 |
-| `doorOpen(sh)` | 196 |
-| `doorFacing(sh)` | 197 |
-| `doorShapeFor(facing, open)` | 198 |
-| `isWallShape(sh)` | 201 |
-| `isStairShape(sh)` | 203 |
-| `wallShapeFor(nx, nz)` | 206 |
-| `crossOffset(sh)` | 213 |
-| `faceKindFor(sh, f, base)` | 243 |
-| `isAxisShape(sh)` | 248 |
-| `isLiquid(b)` | 250 |
-| `isTransparent(b)` | 251 |
-| `isSolid(b)` | 252 |
-| `blocksLight(b)` | 253 |
-| `lightPass(b)` | 254 |
-| `categoryOf(b)` | 264 |
+| `isWool(b)` | 27 |
+| `hardnessOf(b)` | 124 |
+| `isUnbreakable(b)` | 127 |
+| `isCross(b)` | 146 |
+| `needsFloor(b)` | 147 |
+| `isItem(b)` | 158 |
+| `isConnecting(b)` | 162 |
+| `isClimbable(b)` | 164 |
+| `isOpenable(b)` | 166 |
+| `isFlammable(b)` | 168 |
+| `connectsTo(self, other)` | 175 |
+| `isLog(b)` | 182 |
+| `isLeaf(b)` | 183 |
+| `isDoorShape(sh)` | 203 |
+| `doorOpen(sh)` | 204 |
+| `doorFacing(sh)` | 205 |
+| `doorShapeFor(facing, open)` | 206 |
+| `isWallShape(sh)` | 209 |
+| `isStairShape(sh)` | 211 |
+| `wallShapeFor(nx, nz)` | 214 |
+| `crossOffset(sh)` | 221 |
+| `faceKindFor(sh, f, base)` | 251 |
+| `isAxisShape(sh)` | 256 |
+| `isLiquid(b)` | 258 |
+| `isTransparent(b)` | 259 |
+| `isSolid(b)` | 260 |
+| `isThin(b)` | 262 |
+| `blocksLight(b)` | 263 |
+| `lightPass(b)` | 264 |
+| `categoryOf(b)` | 274 |
 
-내보내는 값 — `AIR` · `TNT` · `DOOR` · `SAPLING` · `WOOL0` · `WOOL_COLORS` · `TILES` · `NAMES` · `NAMES_EN` · `HARDNESS` · `EMIT` · `CROSS` · `ALL_BLOCKS` · `ITEMS` · `DEFAULT_BAR` · `DEFAULT_BAR2` · `SH_FULL` · `SH_UP_OFF` · `SH_SLAB_UP` · `SH_AXIS_X` · `SH_WALL_N` · `WALL_DIR` · `SH_DOOR_N` · `SH_DOOR_OPEN_OFF` · `SHAPE_BOXES` · `SHAPE_NAMES`
+내보내는 값 — `AIR` · `TNT` · `DOOR` · `SAPLING` · `BOOKSHELF` · `WOOL0` · `WOOL_COLORS` · `TILES` · `NAMES` · `NAMES_EN` · `HARDNESS` · `EMIT` · `CROSS` · `ALL_BLOCKS` · `ITEMS` · `DEFAULT_BAR` · `DEFAULT_BAR2` · `SH_FULL` · `SH_UP_OFF` · `SH_SLAB_UP` · `SH_AXIS_X` · `SH_WALL_N` · `WALL_DIR` · `SH_DOOR_N` · `SH_DOOR_OPEN_OFF` · `SHAPE_BOXES` · `SHAPE_NAMES`
 
 ### `tree.js` — 나무 한 그루의 모양
 
@@ -121,10 +122,10 @@
 | `paint(index, fn)` | 21 |
 | `pick(rng, list)` | 29 |
 | `orePaint(tint1, tint2)` | 124 |
-| `tileAvg(i)` | 422 |
-| `tileSwatch(i)` | 437 |
-| `atlasSample(i)` | 511 |
-| `animateLiquids(t)` | 518 |
+| `tileAvg(i)` | 451 |
+| `tileSwatch(i)` | 466 |
+| `atlasSample(i)` | 540 |
+| `animateLiquids(t)` | 547 |
 
 내보내는 값 — `TILE` · `atlas` · `actx` · `atlasTex` · `SWATCH_N` · `AVG_TOP` · `crackTex`
 
@@ -137,26 +138,26 @@
 | `shapeAt(x, y, z)` | 26 |
 | `refreshTop(x, z)` | 28 |
 | `surfaceTop(x, y, z)` | 37 |
-| `crossBase(x, y, z)` | 46 |
-| `dynamicBoxes(b, x, y, z)` | 53 |
-| `hasDynamicBoxes(b)` | 110 |
-| `boxesAt(b, sh, x, y, z)` | 183 |
-| `markX(m)` | 198 |
-| `markY(m)` | 199 |
-| `markZ(m)` | 200 |
-| `markName(m)` | 201 |
-| `markSeen(px, pz, r, bit)` | 205 |
-| `seenRatio()` | 220 |
-| `markTouched(x, y, z)` | 226 |
-| `isTouched(x, y, z)` | 229 |
-| `refreshAllTops()` | 233 |
-| `hash2(x, y, seed)` | 237 |
-| `hash3(x, y, z, seed)` | 242 |
-| `smooth(t)` | 248 |
-| `lerp(a, b, t)` | 249 |
-| `noise2(x, y, seed)` | 251 |
-| `noise3(x, y, z, seed)` | 258 |
-| `generate(seed)` | 268 |
+| `crossBase(x, y, z)` | 49 |
+| `dynamicBoxes(b, x, y, z)` | 56 |
+| `hasDynamicBoxes(b)` | 118 |
+| `boxesAt(b, sh, x, y, z)` | 191 |
+| `markX(m)` | 206 |
+| `markY(m)` | 207 |
+| `markZ(m)` | 208 |
+| `markName(m)` | 209 |
+| `markSeen(px, pz, r, bit)` | 213 |
+| `seenRatio()` | 228 |
+| `markTouched(x, y, z)` | 234 |
+| `isTouched(x, y, z)` | 237 |
+| `refreshAllTops()` | 241 |
+| `hash2(x, y, seed)` | 245 |
+| `hash3(x, y, z, seed)` | 250 |
+| `smooth(t)` | 256 |
+| `lerp(a, b, t)` | 257 |
+| `noise2(x, y, seed)` | 259 |
+| `noise3(x, y, z, seed)` | 266 |
+| `generate(seed)` | 276 |
 
 내보내는 값 — `world` · `shape` · `heightMap` · `topMap` · `biomeMap` · `waterLvl` · `BIOME_NAMES` · `touched` · `SEEN_TOP` · `seenMap`
 

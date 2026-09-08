@@ -304,6 +304,35 @@ paint(58, function (p, r) {  // 묘목 — 가는 줄기에 어린 잎 두어 �
   p(5, 10, pick(r, leaf)); p(10, 11, pick(r, leaf));
 });
 
+paint(59, function (p, r) {  // 책장 옆면 — 꽂힌 책들
+  var wood = ["#6b4a28", "#5e4023", "#75522e"];
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) p(x, y, pick(r, wood));
+  var books = ["#8e3a30", "#3c5a8e", "#4e7d31", "#b08a2e", "#6b3a7a", "#a8532e"];
+  // 두 칸(위·아래)에 책을 꽂는다 — 가운데 선반 널을 남긴다
+  for (var row = 0; row < 2; row++) {
+    var y0 = row === 0 ? 1 : 9, h = 6;
+    var x2 = 1;
+    while (x2 < 15) {
+      var w = 1 + Math.floor(r() * 2);
+      if (x2 + w > 15) w = 15 - x2;
+      var c = pick(r, books);
+      var top = y0 + (r() < 0.35 ? 1 : 0);          // 키가 조금씩 다르다
+      for (var yy = top; yy < y0 + h; yy++)
+        for (var xx = x2; xx < x2 + w; xx++) p(xx, yy, c);
+      x2 += w + 1;
+    }
+  }
+});
+
+paint(60, function (p, r) {  // 카펫 — 촘촘한 짜임에 테두리 무늬
+  var base = ["#8e3a30", "#9a4238", "#84342c"];
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) p(x, y, pick(r, base));
+  var trim = "#d8c07a";
+  for (var k = 1; k < 15; k++) { p(k, 1, trim); p(k, 14, trim); p(1, k, trim); p(14, k, trim); }
+  for (var y2 = 5; y2 < 11; y2++) for (var x2 = 5; x2 < 11; x2++)
+    if ((x2 + y2) % 3 === 0) p(x2, y2, "#c8a95e");
+});
+
 paint(28, function (p, r) {  // 죽은 덤불 — 마른 가지
   var b = ["#7a5a2e", "#8d6a37", "#694d27"];
   for (var k = 0; k < 5; k++) {

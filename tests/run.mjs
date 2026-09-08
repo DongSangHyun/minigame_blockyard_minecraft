@@ -7764,6 +7764,75 @@ phoneTest("반블록·계단에 갈 길이 있다", async (page) => {
   eq(r.seq.join(","), "1,2,0", "모양이 전체→반블록→계단→전체로 안 돈다: " + r.seq.join(","));
 });
 
+test("v74 소품: 책장은 통짜, 카펫은 얇게 깔린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 12, Y = 44, Z = 68;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy <= 4; dy++) B.applyEdit(X + dx, Y + dy, Z + dz, B.B.AIR, false);
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      B.applyEdit(X + dx, Y - 1, Z + dz, B.B.STONE, false, 0);
+    B.refreshAllTops(); B.relightAll(false);
+
+    // ① 카펫은 한 겹 — 딛고 서되 걸리지 않는다
+    B.applyEdit(X, Y, Z, B.B.CARPET, false, 0);
+    const box = B.boxesAt(B.B.CARPET, B.shapeAt(X, Y, Z), X, Y, Z);
+    const thin = box.length === 1 && box[0][4] <= 0.1;
+    const top = B.surfaceTop(X, Y, Z);
+
+    // ② 빛을 막지 않는다 — 카펫 한 장에 방이 어두워지면 안 된다
+    B.relightAll(false);
+    const litUnder = B.lightSky[B.idx(X, Y, Z)];
+
+    // ③ 책장은 통짜 — 빛을 막고 딛고 선다
+    B.applyEdit(X + 2, Y, Z, B.B.BOOKSHELF, false, 0);
+    B.relightAll(false);
+    const shelfBox = B.boxesAt(B.B.BOOKSHELF, B.shapeAt(X + 2, Y, Z), X + 2, Y, Z);
+    const shelfFull = shelfBox.length === 1 && shelfBox[0][4] === 1;
+    const shelfSolid = B.isSolid(B.B.BOOKSHELF);
+    const darkUnder = B.lightSky[B.idx(X + 2, Y - 1, Z)];
+
+    // ④ 받칠 바닥이 없으면 못 놓는다 (허공에 뜬 카펫이 없게)
+    const needsIt = B.needsFloor(B.B.CARPET);
+
+    // ⑤ 옆면이 안 뚫린다 — 얇은 블록 옆의 통짜 면이 사라지면 벽이 비쳐 보인다 (v21)
+    B.applyEdit(X + 1, Y, Z, B.B.STONE, false, 0);
+    const ccx = (X / B.CH) | 0, ccy = (Y / B.CH) | 0, ccz = (Z / B.CH) | 0;
+    B.buildChunk(ccx, ccy, ccz);
+    const m = B.opaqueMeshes[B.chunkId(ccx, ccy, ccz)];
+    const p = m.geometry.getAttribute("position");
+    const ia = m.geometry.getIndex();
+    let sideArea = 0;
+    for (let t = 0; t < ia.count; t += 3) {
+      const a = ia.getX(t), b2 = ia.getX(t + 1), c = ia.getX(t + 2);
+      const ax = p.getX(a), bx = p.getX(b2), cx = p.getX(c);
+      if (ax !== bx || bx !== cx) continue;              // x 면만
+      if (Math.abs(ax - (X + 1)) > 0.01) continue;       // 돌의 -x 면
+      const ay = p.getY(a), by = p.getY(b2), cy = p.getY(c);
+      const az = p.getZ(a), bz = p.getZ(b2), cz = p.getZ(c);
+      if (Math.min(ay, by, cy) < Y || Math.max(ay, by, cy) > Y + 1) continue;
+      if (Math.min(az, bz, cz) < Z || Math.max(az, bz, cz) > Z + 1) continue;
+      sideArea += Math.abs((by - ay) * (cz - az) - (bz - az) * (cy - ay)) / 2;
+    }
+
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy <= 4; dy++) B.applyEdit(X + dx, Y + dy, Z + dz, B.B.AIR, false);
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { thin, top, litUnder, shelfFull, shelfSolid, darkUnder, needsIt, sideArea };
+  });
+  assert(r.thin, "카펫이 얇지 않다 — 걸려 넘어진다");
+  assert(r.top > 0 && r.top <= 0.1, "카펫을 딛고 설 수 없거나 너무 높다: " + r.top);
+  eq(r.litUnder, 15, "카펫 한 장이 빛을 막는다 — 방이 어두워진다");
+  assert(r.shelfFull, "책장이 통짜가 아니다");
+  assert(r.shelfSolid, "책장을 딛고 설 수 없다");
+  eq(r.darkUnder, 0, "책장이 빛을 안 막는다 — 통짜 블록이어야 한다");
+  assert(r.needsIt, "카펫이 받칠 바닥을 요구하지 않는다 — 허공에 뜬 카펫이 생긴다");
+  assert(r.sideArea > 0.9,
+     "카펫 옆의 돌 면이 " + r.sideArea.toFixed(2) + " 만 그려졌다 — 얇은 블록 옆이 뚫려 보인다 (v21)");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

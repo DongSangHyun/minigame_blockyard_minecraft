@@ -1,6 +1,6 @@
 // audio.js — 소리
 import { S } from "./state.js";
-import { DEADBUSH, DIRT, DRYGRASS, FLOWER_R, FLOWER_Y, GLASS, GRASS, ICE, LAMP, LEAVES, LOG, PLANKS, SAND, SNOW, TALLGRASS, TORCH } from "./blocks.js";
+import { CARPET, DEADBUSH, DIRT, DRYGRASS, FLOWER_R, FLOWER_Y, GLASS, GRASS, ICE, LAMP, LEAVES, LOG, PLANKS, SAND, SNOW, TALLGRASS, TORCH } from "./blocks.js";
 import { dayLight } from "./daynight.js";
 import { opts } from "./settings.js";
 
@@ -107,7 +107,7 @@ export function updateAmbient(dt) {
 export var SOFT = {};
 SOFT[GRASS] = 1; SOFT[DIRT] = 1; SOFT[SAND] = 1; SOFT[LEAVES] = 1; SOFT[SNOW] = 1;
 SOFT[TALLGRASS] = 1; SOFT[FLOWER_R] = 1; SOFT[FLOWER_Y] = 1; SOFT[TORCH] = 1;
-SOFT[DEADBUSH] = 1; SOFT[DRYGRASS] = 1;
+SOFT[DEADBUSH] = 1; SOFT[DRYGRASS] = 1; SOFT[CARPET] = 1;   // 카펫은 발소리가 푹신하다
 export function breakSound(b) {
   if (SOFT[b]) crunch(0.16, 0.16, 900);
   else if (b === GLASS || b === LAMP) { tone(1400, 0.09, "square", 0.05); crunch(0.1, 0.1, 4200); }

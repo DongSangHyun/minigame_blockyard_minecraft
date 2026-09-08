@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { growTree } from "./tree.js";
 import { resetQueues } from "./queues.js";
 import { DIRS, N, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { DOOR, doorFacing, doorOpen, AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, CACTUS, COAL, COBBLE, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAVA, LEAVES, LOG, PANE, PLANKS, SAND, SHAPE_BOXES, SH_FULL, SH_STAIR_N, SH_STAIR_E, SH_STAIR_S, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TORCH, WALL_DIR, WATER, connectsTo, isCross, isSolid } from "./blocks.js";
+import { DOOR, doorFacing, doorOpen, AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, CACTUS, COAL, COBBLE, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAVA, LEAVES, LOG, PANE, PLANKS, SAND, CARPET, SHAPE_BOXES, SH_FULL, SH_STAIR_N, SH_STAIR_E, SH_STAIR_S, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TORCH, WALL_DIR, WATER, connectsTo, isCross, isSolid } from "./blocks.js";
 import { makeRng } from "./atlas.js";
 
 export var world = new Uint8Array(N);
@@ -35,8 +35,11 @@ export function refreshTop(x, z) {
 }
 // 그 칸이 딛을 수 있는 윗면의 높이 (0 = 딛을 것이 없음)
 export function surfaceTop(x, y, z) {
-  if (!isSolid(get(x, y, z))) return 0;
-  var boxes = SHAPE_BOXES[shapeAt(x, y, z)] || SHAPE_BOXES[SH_FULL];
+  var b = get(x, y, z);
+  if (!isSolid(b)) return 0;
+  // boxesAt 을 거친다 — SHAPE_BOXES 를 직접 읽으면 이웃에 따라 달라지는 모양
+  // (울타리·유리판·계단 모서리·카펫)이 통짜 1칸으로 읽혀 그 위에 서면 한 칸 떠오른다
+  var boxes = boxesAt(b, shapeAt(x, y, z), x, y, z);
   var top = 0;
   for (var i = 0; i < boxes.length; i++) if (boxes[i][4] > top) top = boxes[i][4];
   return top;
@@ -69,6 +72,11 @@ export function dynamicBoxes(b, x, y, z) {
     }
     if (w || e) _dynBoxes.push([w ? 0 : 0.437, 0, 0.437, e ? 1 : 0.563, 1, 0.563]);
     if (n || s2) _dynBoxes.push([0.437, 0, n ? 0 : 0.437, 0.563, 1, s2 ? 1 : 0.563]);
+    return _dynBoxes;
+  }
+  if (b === CARPET) {
+    // 바닥에 깔리는 한 겹 — 딛고 서되 걸리지 않는다 (마크 카펫과 같은 1/16)
+    _dynBoxes.push([0, 0, 0, 1, 0.0625, 1]);
     return _dynBoxes;
   }
   if (b === GATE) {
@@ -108,7 +116,7 @@ export function dynamicBoxes(b, x, y, z) {
   return null;
 }
 export function hasDynamicBoxes(b) {
-  return b === FENCE || b === PANE || b === GATE || b === DOOR || b === LADDER;
+  return b === FENCE || b === PANE || b === GATE || b === DOOR || b === LADDER || b === CARPET;
 }
 // ── 계단 모서리 ──────────────────────────────────────────────
 // 꺾이는 자리마다 네모 반 칸이 툭 튀어나와, 나선계단 층계참과 박공지붕 모서리가 뭉툭했다.

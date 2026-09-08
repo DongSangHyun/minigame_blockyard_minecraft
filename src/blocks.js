@@ -14,6 +14,9 @@ export var AIR = 0, GRASS = 1, DIRT = 2, STONE = 3, SAND = 4, LOG = 5, LEAVES = 
 export var TNT = 52, FIRE = 53, FLINT = 54;
 export var DOOR = 55;      // 2칸짜리 진짜 문 — 아래위 두 칸을 함께 쓴다
 export var SAPLING = 56;   // 묘목 — 심어 두면 나무로 자란다 (베어 낸 숲을 되살릴 유일한 방법)
+// 실내 소품 — 놓을 수 있는 53종에 가구가 하나도 없어, 방을 다 지으면 텅 빈 상자였다.
+// 둘 다 마크에서 텍스처만 다른 통짜 블록(책장)과 얇은 판(카펫)이다.
+export var BOOKSHELF = 57, CARPET = 58;
 export var WOOL0 = 36, WOOL_COUNT = 16;
 export var WOOL_COLORS = [
   ["흰색", "#e9ecec"], ["연회색", "#8e8e86"], ["회색", "#3e4447"], ["검정", "#1d1c21"],
@@ -50,6 +53,8 @@ TILES[TORCH]     = [25, 25, 25];
 TILES[CACTUS]    = [27, 26, 27];
 TILES[DEADBUSH]  = [28, 28, 28];
 TILES[SAPLING]   = [58, 58, 58];
+TILES[BOOKSHELF] = [7, 59, 7];      // 위아래는 판자 나이테, 옆은 꽂힌 책들
+TILES[CARPET]    = [60, 60, 60];
 TILES[DRYGRASS]  = [29, 29, 29];
 TILES[BIRCH_LOG]    = [31, 30, 31];
 TILES[BIRCH_LEAVES] = [32, 32, 32];
@@ -81,6 +86,7 @@ nm(TALLGRASS, "풀", "GRASS TUFT"); nm(FLOWER_R, "양귀비", "POPPY");
 nm(FLOWER_Y, "민들레", "DANDELION"); nm(TORCH, "횃불", "TORCH");
 nm(CACTUS, "선인장", "CACTUS"); nm(DEADBUSH, "죽은 덤불", "DEAD BUSH");
 nm(SAPLING, "묘목", "SAPLING");
+nm(BOOKSHELF, "책장", "BOOKSHELF"); nm(CARPET, "카펫", "CARPET");
 nm(DRYGRASS, "마른 풀", "DRY GRASS");
 nm(BIRCH_LOG, "자작나무 원목", "BIRCH"); nm(BIRCH_LEAVES, "자작나무 잎", "BIRCH LEAVES");
 nm(SPRUCE_LEAVES, "가문비 잎", "SPRUCE LEAVES");
@@ -101,6 +107,7 @@ HARDNESS[TALLGRASS] = 0.05; HARDNESS[FLOWER_R] = 0.05;
 HARDNESS[FLOWER_Y] = 0.05; HARDNESS[TORCH] = 0.06;
 HARDNESS[CACTUS] = 0.34; HARDNESS[DEADBUSH] = 0.05; HARDNESS[DRYGRASS] = 0.05;
 HARDNESS[SAPLING] = 0.05;
+HARDNESS[BOOKSHELF] = 0.62; HARDNESS[CARPET] = 0.06;
 HARDNESS[GOLD] = 2.35; HARDNESS[DIAMOND] = 2.9;
 HARDNESS[TNT] = 0.30; HARDNESS[FIRE] = 0.02; HARDNESS[FLINT] = 0.20;
 HARDNESS[FENCE] = 0.55; HARDNESS[GATE] = 0.55; HARDNESS[DOOR] = 0.62;
@@ -137,12 +144,12 @@ CROSS[SAPLING]   = { w: 0.40, h: 0.66, sway: 0.28 };   // 어린 싹이라 풀�
 CROSS[DRYGRASS]  = { w: 0.46, h: 0.80, sway: 0.50 };
 CROSS[FIRE]      = { w: 0.50, h: 0.96, sway: 0.85 };
 export function isCross(b) { return CROSS[b] !== undefined; }
-export function needsFloor(b) { return isCross(b) || b === DOOR; }
+export function needsFloor(b) { return isCross(b) || b === DOOR || b === CARPET; }
 
 export var ALL_BLOCKS = [GRASS, DIRT, STONE, COBBLE, SAND, GRAVEL, SNOW, LOG,
                   LEAVES, PLANKS, GLASS, BRICK, LAMP, TORCH, COAL, IRON, ICE,
                   WATER, LAVA, CACTUS, TALLGRASS, FLOWER_R, FLOWER_Y,
-                  DEADBUSH, DRYGRASS, SAPLING, BIRCH_LOG, BIRCH_LEAVES, SPRUCE_LEAVES,
+                  DEADBUSH, DRYGRASS, SAPLING, BOOKSHELF, CARPET, BIRCH_LOG, BIRCH_LEAVES, SPRUCE_LEAVES,
                   GOLD, DIAMOND, FENCE, GATE, DOOR, PANE, LADDER, TNT];
 
 // 도구 — 목록에는 나오지만 "놓는 블록" 이 아니다.
@@ -161,7 +168,8 @@ export function isOpenable(b) { return b === GATE || b === DOOR; }
 export function isFlammable(b) {
   return b === LOG || b === BIRCH_LOG || b === PLANKS || b === LEAVES ||
          b === BIRCH_LEAVES || b === SPRUCE_LEAVES || b === TALLGRASS ||
-         b === DRYGRASS || b === DEADBUSH || b === SAPLING || b === FENCE || b === GATE || isWool(b);
+         b === DRYGRASS || b === DEADBUSH || b === SAPLING || b === BOOKSHELF || b === CARPET ||
+         b === FENCE || b === GATE || isWool(b);
 }
 // 울타리·유리판이 이어 붙는 상대인가
 export function connectsTo(self, other) {
@@ -250,10 +258,12 @@ export function isAxisShape(sh) { return sh === SH_AXIS_X || sh === SH_AXIS_Z; }
 export function isLiquid(b) { return b === WATER || b === LAVA; }
 export function isTransparent(b) { return b === GLASS || b === WATER || b === ICE || b === PANE; }
 export function isSolid(b) { return b !== AIR && !isLiquid(b) && !isCross(b) && b !== LADDER; }
-export function blocksLight(b) { return b !== AIR && !isTransparent(b) && !isCross(b); }
+// 얇아서 이웃 면을 가리지 못하는 블록 — 카펫은 딛고 설 수 있지만 통짜가 아니다
+export function isThin(b) { return b === CARPET; }
+export function blocksLight(b) { return b !== AIR && !isTransparent(b) && !isCross(b) && b !== CARPET; }
 export function lightPass(b) {
   return b === AIR || b === WATER || b === GLASS || b === ICE || b === PANE ||
-         b === FENCE || b === GATE || b === DOOR || b === LADDER || isCross(b);
+         b === FENCE || b === GATE || b === DOOR || b === LADDER || b === CARPET || isCross(b);
 }
 
 
@@ -265,6 +275,7 @@ export function categoryOf(b) {
   if (isWool(b)) return "color";
   if (b === WATER || b === LAVA || b === LAMP || b === TORCH || b === FIRE ||
       b === ICE || b === FLINT) return "light";
+  if (b === BOOKSHELF || b === CARPET) return "build";
   if (b === GRASS || b === DIRT || b === STONE || b === SAND || b === GRAVEL || b === SNOW ||
       b === LOG || b === BIRCH_LOG || b === LEAVES || b === BIRCH_LEAVES || b === SPRUCE_LEAVES ||
       b === COAL || b === IRON || b === GOLD || b === DIAMOND || b === CACTUS ||
