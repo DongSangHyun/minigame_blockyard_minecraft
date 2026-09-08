@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { padState, pollGamepad, pollGamepadMenu } from "./input.js";
 import { breedTick, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
-import { CH, WX, WY, WZ, idx, inside } from "./dims.js";
+import { CH, CX, CZ, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
 import { FIRE, isStairShape, SH_FULL, SH_SLAB, AIR, DEFAULT_BAR, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isSolid, isUnbreakable } from "./blocks.js";
 import { animateLiquids, crackTex } from "./atlas.js";
 import { boxesAt, seenRatio, BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, set, shape, topMap, world } from "./world.js";
@@ -23,6 +23,23 @@ import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
 import { localBiome, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather } from "./sky.js";
 
 export var GRAVITY = 26, JUMP = 8.4, WALK = 4.6, SPRINT = 6.0, FLY = 12;
+
+// 청크 기둥(16×16)마다 그 안에서 가장 낮은 지표 — 발밑 지하 청크를 걸러내는 데 쓴다 (v80).
+// scene.js 가 world.js 를 import 하지 않도록 여기서 재어 넘긴다.
+export var chunkFloor = new Int16Array(CX * CZ);
+export function refreshChunkFloor() {
+  var k;
+  for (k = 0; k < chunkFloor.length; k++) chunkFloor[k] = 30000;
+  for (var z = 0; z < WZ; z++) {
+    var cz = (z / CH) | 0;
+    for (var x = 0; x < WX; x++) {
+      var t = topMap[z * WX + x];
+      k = cz * CX + ((x / CH) | 0);
+      if (t < chunkFloor[k]) chunkFloor[k] = t;
+    }
+  }
+  S.floorReady = true;
+}
 // 우클릭을 누르고 있을 때 — 두 번째가 나가기까지 뜸(초) · 그 뒤 반복 간격(초)
 // 반복 간격은 오래 0.35 였다. 그렇게 늦춘 까닭은 "조준한 칸이 바뀌면 쿨다운을 건너뛰어
 // 손이 조금만 떨려도 한 번 누른 것이 여러 개로 놓이던 것" 이었는데, **원인은 건너뛴 것이지
@@ -461,12 +478,23 @@ export function step(dt) {
     if (playing) moodChord(dayLight(S.timeOfDay) < 0.35, 1);
   }
 
-  // 동굴 울림 — 깊고 어두운 곳에서만
+  // 동굴 울림 — 깊고 어두운 곳에서만.
+  // **절대 높이가 아니라 "머리 위에 흙이 얼마나 있느냐"** 로 잰다 (v79).
+  // y < 22 로 못 박아 두면 판 2(지표 27 언저리)에서 굴을 19칸 파고 내려가도록
+  // 완전한 무음이고, 겨우 들리기 시작하는 y=20 에서도 음량이 y=4 의 1/9 이다.
+  // 지하 두께가 판마다 다르니 분모도 그 두께로 잡는다.
   S.caveTimer -= dt;
   if (S.caveTimer <= 0) {
     S.caveTimer = 7 + Math.random() * 12;
-    if (playing && player.pos.y < 22 && lightAtPlayer() <= 4) {
-      caveSound(Math.min(1, (22 - player.pos.y) / 18));
+    if (playing && lightAtPlayer() <= 4) {
+      var cvx = Math.floor(player.pos.x), cvz = Math.floor(player.pos.z);
+      var roof = (cvx >= 0 && cvx < WX && cvz >= 0 && cvz < WZ)
+        ? topMap[cvz * WX + cvx] : -1;
+      var under = roof - player.pos.y;          // 머리 위 흙 두께
+      if (under > 5) {
+        caveSound(Math.min(1, (under - 5) / Math.max(6, SEA * 0.6)));
+        S.caveHeard++;                       // 시험이 "울렸나" 를 셀 수 있게 (소리는 헤드리스에서 안 들린다)
+      }
     }
   }
 
@@ -637,7 +665,15 @@ function snowSticksTo(b) {
   // 청크 재생성 — 프레임당 8ms 예산
   setBuildFocus(camera.position);
   buildBudget(8);
-  updateChunkVisibility(eyeInLiquid ? 26 : farNow());
+  // 청크 기둥마다 "그 16×16 안에서 가장 낮은 지표" 를 1초에 한 번 다시 잰다 —
+  // 9,216칸을 훑어도 0.05ms 다. 그 사이 잠깐 낡아도 눈에 안 보인다.
+  S.floorTimer = (S.floorTimer || 0) + dt;
+  if (S.floorTimer > 1 || !S.floorReady) { S.floorTimer = 0; refreshChunkFloor(); }
+  var eyeCx = Math.floor(camera.position.x), eyeCz = Math.floor(camera.position.z);
+  var eyeTop = (eyeCx >= 0 && eyeCx < WX && eyeCz >= 0 && eyeCz < WZ)
+    ? topMap[eyeCz * WX + eyeCx] : -1;
+  updateChunkVisibility(eyeInLiquid ? 26 : farNow(), chunkFloor,
+                        camera.position.y > eyeTop + 1);
   updateOuterSea(camera.position.y);      // 물속에서는 바깥 바다 판을 감춘다
 
   // 플레이 시간과 상황별 도전 과제

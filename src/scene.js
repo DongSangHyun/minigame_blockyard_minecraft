@@ -1,5 +1,5 @@
 // scene.js — three.js 씬 · 셰이더 · 파티클
-import { SEA, CH, CX, CY, CZ, WX, WY, WZ } from "./dims.js";
+import { SEA, seaLift, CH, CX, CY, CZ, WX, WY, WZ } from "./dims.js";
 import { IS_TOUCH, bail } from "./boot.js";
 import { CROSS, SHAPE_BOXES, isSolid } from "./blocks.js";
 import { SWATCH_SIDE, AVG_SIDE, atlasTex, crackTex, makeRng } from "./atlas.js";
@@ -195,15 +195,29 @@ export var outerSea = (function () {
     ].join("\n")
   });
   var m = new THREE.Mesh(geo, mat);
-  m.position.y = outerSeaY();
+  m.position.y = outerSeaY();     // 세계를 갈아타면 updateOuterSea 가 다시 맞춘다
   m.frustumCulled = false;
   m.renderOrder = 1;                          // 하늘 뒤 · 반투명(유리 2) 앞
   scene.add(m);
   return m;
 })();
-// 물 아래에서는 그리지 않는다 — 잠수 중에 머리 위로 판이 지나가면 안 된다
+// 물 아래에서는 그리지 않는다 — 잠수 중에 머리 위로 판이 지나가면 안 된다.
+//
+// 높이도 **매 프레임 다시 맞춘다.** 해수면은 세계마다 다른데(v79) 이 판은 모듈이
+// 로드될 때 한 번 놓이고 끝이라, 판 2 세계에서 발밑 물은 23 인데 수평선은 11.88 에
+// 깔려 있었다 — 바다가 세계 끝에서 절벽처럼 떨어지고 수평선이 활처럼 휘었다.
+// 구름도 같다: 하늘 높이가 안 따라 올라와 봉우리(39~44) 위 여유가 26칸에서 14칸이 됐다.
+// (`export var` 라이브 바인딩을 최상위에서 한 번 먹으면 굳는다 — v79 에서 두 군데를
+//  풀었는데 "먹은 값을 오브젝트에 넣어 둔" 세 번째 자리가 남아 있었다.)
 export function updateOuterSea(camY) {
-  outerSea.visible = camY > outerSeaY();
+  var y = outerSeaY();
+  if (outerSea.position.y !== y) outerSea.position.y = y;
+  var lift = seaLift();
+  if (cloudGroup.position.y !== lift) {
+    cloudGroup.position.y = lift;
+    cloudGroupHigh.position.y = lift;
+  }
+  outerSea.visible = camY > y;
 }
 
 for (var mi = 0; mi < CX * CY * CZ; mi++) {
@@ -220,10 +234,24 @@ for (var ci2 = 0; ci2 < CX * CY * CZ; ci2++) {
 }
 export var FREE_DIST = 2.4;    // 시야의 이 배를 넘어가면 지오메트리를 놓아 준다
 export var chunkFreed = 0;
+// 지상에 서 있는 동안, **이 거리 밖의 통째로 묻힌 청크**는 안 그린다 (v80).
+// 이 안쪽은 묻혀 있어도 그린다 — 굴 어귀를 내려다볼 때 구멍이 보이면 안 된다.
+export var BURIED_KEEP = 34;
+export var chunkBuried = 0;    // 이번 프레임에 그렇게 걸러낸 수 (계측용)
 
-export function updateChunkVisibility(farDist) {
+// floor — 청크 기둥(16×16)마다 그 안에서 **가장 낮은 지표**. loop.js 가 1초에 한 번 잰다.
+// aboveGround — 눈이 지표 위에 있는가.
+//
+// v79 로 지하가 두 배가 되자 **그리는 삼각형의 89% 가 발밑 지하 청크**였고 프레임이 19% 느려졌다.
+// 시야를 40m 로 줄여도 보이는 청크가 하나밖에 안 줄었다 — 96칸 섬은 그 거리 안에
+// 세계가 거의 다 들어와서, 자동 조절의 유일한 손잡이가 이 비용에는 안 먹었다.
+// 청크가 제 발자국의 가장 낮은 지표보다도 통째로 아래면, 지상에서 그 안을 볼 길이 없다.
+export function updateChunkVisibility(farDist, floor, aboveGround) {
   var lim = farDist + CH * 1.8;
   var lim2 = lim * lim;
+  var keep2 = BURIED_KEEP * BURIED_KEEP;
+  var canHide = !!(floor && aboveGround);
+  chunkBuried = 0;
   var free2 = (lim * FREE_DIST) * (lim * FREE_DIST);
   var px = camera.position.x, py = camera.position.y, pz = camera.position.z;
   for (var id = 0; id < chunkCenters.length; id++) {
@@ -231,6 +259,10 @@ export function updateChunkVisibility(farDist) {
     var dx = c.x - px, dy = c.y - py, dz = c.z - pz;
     var d2 = dx * dx + dy * dy + dz * dz;
     var near = d2 < lim2;
+    if (near && canHide && d2 > keep2 &&
+        (chunkCY(id) + 1) * CH - 1 < floor[chunkCZ(id) * CX + chunkCX(id)]) {
+      near = false; chunkBuried++;
+    }
     opaqueMeshes[id].visible = near && opaqueMeshes[id].userData.hasGeo === true;
     glassMeshes[id].visible = near && glassMeshes[id].userData.hasGeo === true;
     // 아주 멀어진 청크는 정점 버퍼를 놓아 준다 — 다시 다가오면 dirty 로 굽는다

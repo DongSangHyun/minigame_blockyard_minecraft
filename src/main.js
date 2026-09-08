@@ -4,13 +4,13 @@ import { growTree } from "./tree.js";
 import { breedTick, MOB_MAX, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, mobs, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { atlasSample, SWATCH_SIDE, animateLiquids, atlas } from "./atlas.js";
 import { Q, resetQueues } from "./queues.js";
-import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, GEN, setGen, WX, WY, WZ, idx, inside } from "./dims.js";
+import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, GEN, setGen, seaLift, WX, WY, WZ, idx, inside } from "./dims.js";
 import { needsFloor, BOOKSHELF, CARPET, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SAPLING, doorOpen, doorFacing, doorShapeFor, DOOR, AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DEFAULT_BAR2, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLINT, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, ITEMS, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, categoryOf, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isItem, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
-import { markX, markY, markZ, markName, SEEN_TOP, SEEN_UNDER, seenMap, seenRatio, markSeen, biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBoxes, heightMap, isTouched, markTouched, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, touched, waterLvl, world , oreCeil} from "./world.js";
+import { markX, markY, markZ, markName, SEEN_TOP, SEEN_UNDER, seenMap, seenRatio, markSeen, biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBoxes, heightMap, isTouched, markTouched, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, touched, waterLvl, world , oreCeil, lavaTop} from "./world.js";
 import { WATER_DIM, lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
 import { growTick, enqueueGrow, lavaFlowTick, lavaDryTick, LAVA_FLOW, grassTick, primeTNT, primeTick, TNT_FUSE, lavaTick, BLAST_R, FIRE_REACH, MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueFreeze, enqueueWaterAround, explode, fallTick, fireTick, freezeTick, ignite, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
 import { markDirty, FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll, setBuildFocus } from "./mesh.js";
-import { selBox, selMat, SEL_DONE, SEL_ANCHOR, pasteBox, updatePasteBox, outerSea, updateOuterSea, outerSeaY, pCol, pCount, FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
+import { selBox, selMat, SEL_DONE, SEL_ANCHOR, pasteBox, updatePasteBox, outerSea, updateOuterSea, outerSeaY, pCol, pCount, FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, chunkBuried, BURIED_KEEP, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { OPT_KEY, applyOpts, calmMotion, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, playerOccupies, pointSolid, rayBox, raycast, spawn, stats, unstick } from "./player.js";
@@ -23,7 +23,7 @@ import { updateGhost, ghostMesh, updateHandLight, handMat, makeBlockGeometry, tr
 import { refreshResume, advanceTut, setStick, advanceTutTouch, HINT_TOUCH, refreshBlueprints, afterWorldSwap, aimCell, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink , swapBarPage} from "./input.js";
 import { canPlaceAt, mineAt, place, tryInteract, upperFromHit } from "./mine.js";
 import { weatherPoints, applyWeather, HIDE_Y, MOON_PHASES, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
-import { newWorld, PLACE_DELAY, PLACE_REPEAT, SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, farNow, refreshPerf, step } from "./loop.js";
+import { newWorld, PLACE_DELAY, PLACE_REPEAT, SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, farNow, refreshPerf, step , chunkFloor, refreshChunkFloor} from "./loop.js";
 
 // 주소에 ?seed=1234&t=2 가 있으면 그 세계로 연다 — 링크 하나로 같은 세계를 나눈다
 (function fromUrl() {
@@ -68,8 +68,10 @@ if (!S.mobsRestored) seedMobs();
 seedFlocks();
 seedCreatures();
 
-// 시작 화면 뒤로 보이는 풍경 — 섬을 내려다보는 위치
-player.pos.set(WX / 2 - 26, 34 - EYE, WZ / 2 + 30);
+// 시작 화면 뒤로 보이는 풍경 — 섬을 **내려다보는** 위치.
+// 눈높이는 해수면을 따라간다 — 34 로 못 박아 두면 판 2 세계(바다 23 · 최고봉 39~44)에서
+// 카메라가 봉우리보다 5~10칸 아래에 서서, 내려다보는 그림 대신 눈앞에 산비탈이 선다.
+player.pos.set(WX / 2 - 26, 34 + seaLift() - EYE, WZ / 2 + 30);
 player.yaw = -0.72; player.pitch = -0.42;
 
 // ── 테스트 훅 (헤드리스 검증용)
@@ -90,7 +92,7 @@ window.__blockyard = {
        SAPLING: SAPLING, BOOKSHELF: BOOKSHELF, CARPET: CARPET },
   world: world, lightSky: lightSky, lightBlk: lightBlk,
   topMap: topMap, heightMap: heightMap, biomeMap: biomeMap,
-  idx: idx, get: get, set: set, inside: inside, lightPass: lightPass, oreCeil: oreCeil,
+  idx: idx, get: get, set: set, inside: inside, lightPass: lightPass, oreCeil: oreCeil, lavaTop: lavaTop,
   isSolid: isSolid, hardnessOf: hardnessOf,
   generate: generate, relightAll: relightAll, rebuildAll: rebuildAll,
   markDirty: markDirty, settleWorld: settleWorld,
@@ -112,6 +114,8 @@ window.__blockyard = {
   fallTick: fallTick, enqueueFall: enqueueFall, isFalling: isFalling,
   rayBox: rayBox, canPlaceAt: canPlaceAt, chunkFilled: chunkFilled,
   updateChunkVisibility: updateChunkVisibility, drawMinimap: drawMinimap,
+  get chunkBuried() { return chunkBuried; }, BURIED_KEEP: BURIED_KEEP,
+  chunkFloor: chunkFloor, refreshChunkFloor: refreshChunkFloor,
   outerSea: outerSea, updateOuterSea: updateOuterSea,
   get OUTER_SEA_Y() { return outerSeaY(); },
   growTree: growTree, growTick: growTick, enqueueGrow: enqueueGrow, resetQueues: resetQueues,

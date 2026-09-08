@@ -282,6 +282,9 @@ export function oreCeil() {
   return { dia: deep ? 8 : 7, gold: deep ? 14 : 11, iron: deep ? 20 : 16 };
 }
 
+// 용암이 고이는 높이 상한 — 지하 두께를 따라간다. 시험도 여기를 읽는다.
+export function lavaTop() { return SEA > 11 ? 12 : 4; }
+
 export function generate(seed, gen) {
   S.worldSeed = seed >>> 0;
   world.fill(AIR);
@@ -307,6 +310,11 @@ export function generate(seed, gen) {
   // gen 을 주면 그 판으로 만든다 (시험이 예전 판과 견줄 때만 쓴다).
   setGen(gen || GEN_LATEST);
   var LIFT = seaLift();
+  // 지표를 뚫고 나오는 굴 어귀의 문턱.
+  // 깊은 판에서 0.638 까지 낮춰 봤지만 어귀가 178→189 로 거의 안 늘었다 —
+  // 병목은 문턱이 아니라 **바로 아래 칸이 이미 뚫려 있어야 한다(carvedBelow)** 는 조건이다.
+  // 지형을 흔들 값이 아니라 그대로 둔다. 대신 지도가 어귀를 표시한다 (자문 13차 #10).
+  var SURF_CARVE = 0.66;
 
   for (var x = 0; x < WX; x++) {
     for (var z = 0; z < WZ; z++) {
@@ -361,7 +369,7 @@ export function generate(seed, gen) {
         } else if (carvedBelow && h > SEA + 1) {
           // 지표 3칸은 **아래가 이미 뚫렸을 때만** 이어서 뚫는다 — 언덕 옆구리에 입이 벌어진다.
           // 이 조건이 없으면 굴은 어디에도 입구가 없어 아무 데나 파 내려가야 했다.
-          if (noise3(x * 0.105, y * 0.17, z * 0.105, S.worldSeed + 55) > 0.66) carve = true;
+          if (noise3(x * 0.105, y * 0.17, z * 0.105, S.worldSeed + 55) > SURF_CARVE) carve = true;
         }
         if (carve) { carvedBelow = true; continue; }
         carvedBelow = false;
@@ -385,6 +393,7 @@ export function generate(seed, gen) {
   // 50~60개가 됐다(낮은 층이 통째로 돌이라 씨앗이 안 걸러진다).
   // 0.018 이면 30~40개 · 금의 3분의 1쯤이 되어 "귀한 순서" 가 눈에 보인다.
   var ROLL_DIA = DEEP ? 0.018 : 0.030, ROLL_GOLD = 0.095;
+  var LAVA_TOP = lavaTop();
   function growVein(kind, sx0, sy0, sz0, size) {
     var cx = sx0, cy = sy0, cz = sz0, laid = 0;
     for (var s2 = 0; s2 < size * 4 && laid < size; s2++) {
@@ -466,13 +475,42 @@ export function generate(seed, gen) {
   exposeVeins(DIAMOND, 6);
   exposeVeins(GOLD, 8);
 
+  // ── 지하 위쪽을 채운다 (v80). 씨앗을 온 지도에 고르게 뿌리면 **바다 기둥이 68% 를 먹는다** —
+  // 바다 밑은 얕아서(vTop 7~18) 씨앗이 전부 낮은 층에 떨어지고, 뭍 기둥의
+  // 지표 아래 첫 15칸이 텅 빈 회색 돌이 됐다 (자문 13차: 석탄의 80% · 철의 82% 가 아래 12칸).
+  // "내려갈수록 좋은 것" 이 아니라 "한참 아무것도 없다가 바닥에서 몰아서" 였다.
+  //
+  // **별도 난수 줄기**를 쓴다 — 위의 rng 를 이어 쓰면 호출 차례가 밀려
+  // 나무·풀·오두막·바다 장식이 전부 달라진다 (v61·v75 교훈).
+  if (DEEP) {
+    var upRng = makeRng(S.worldSeed + 5150);
+    var upLo = DIA_MAX + 1;                       // 다이아 천장 위 — 비어 있던 구간이 여기부터다
+    var upTries = Math.round(WX * WZ * 0.075);
+    for (var ut = 0; ut < upTries; ut++) {
+      var ux = (upRng() * WX) | 0, uz = (upRng() * WZ) | 0;
+      var uTop = heightMap[uz * WX + ux] - 4;
+      if (uTop <= upLo + 2) continue;             // 바다 밑 기둥은 채울 위쪽이 없다
+      var uy = upLo + ((upRng() * (uTop - upLo)) | 0);
+      if (get(ux, uy, uz) !== STONE) continue;
+      var uroll = upRng(), ukind, usize;
+      if (uy <= GOLD_MAX && uroll < 0.10) { ukind = GOLD; usize = 2 + ((upRng() * 5) | 0); }
+      else if (uy <= IRON_MAX && uroll < 0.45) { ukind = IRON; usize = 3 + ((upRng() * 6) | 0); }
+      else { ukind = COAL; usize = 4 + ((upRng() * 9) | 0); }
+      growVein(ukind, ux, uy, uz, usize);
+    }
+  }
+
   // 용암 웅덩이 — 세계 바닥의 동굴 바닥에 고인다. 지하 탐험의 유일한 시각 목표.
   for (var lx2 = 0; lx2 < WX; lx2++) {
     for (var lz2 = 0; lz2 < WZ; lz2++) {
       // 낮은 주파수 + 높은 임계값 = 드문드문한 "호수". 예전 값(0.09/0.52)은
       // 동굴 바닥의 절반을 용암으로 만들어 찾아내는 재미가 없었다.
       if (noise2(lx2 * 0.055, lz2 * 0.055, S.worldSeed + 900) < 0.74) continue;
-      for (var ly2 = 1; ly2 <= 4; ly2++) {
+      // 용암 띠도 지하 두께를 따라간다 (v80) — 1~4 로 못 박아 두면 판 2 에서
+      // 지하가 26칸인데 용암은 4칸이라, 굴을 걸어도 오렌지빛이 안 보인다.
+      // 블록광이 닿는 동굴 공기 비율이 34% 에서 18~25% 로 떨어져 있었다.
+      // 판 1 과 같은 몫(지하의 31%)을 유지한다.
+      for (var ly2 = 1; ly2 <= LAVA_TOP; ly2++) {
         if (get(lx2, ly2, lz2) !== AIR) continue;
         if (!isSolid(get(lx2, ly2 - 1, lz2))) continue;
         set(lx2, ly2, lz2, LAVA);

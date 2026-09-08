@@ -422,16 +422,21 @@ export function checkBuildAchievements() {
   }
   if (woolN >= 8) unlock("palette");
 
-  // 갱도 — 지하(y ≤ 8)에서 사람이 파낸 칸 200개 + 횃불 10개
+  // 갱도 — 지하에서 사람이 파낸 칸 200개 + 횃불 10개.
+  // 높이 상한은 **해수면을 따라간다** (v79) — 8 로 못 박아 두면 판 2(바다 23)에서
+  // 지표 아래 30칸을 파도 안 열린다. 판 1 에서는 SEA-3 이 정확히 예전의 8 이다.
   var dug = 0, torches = 0;
+  var digTop = SEA - 3;
   if (!S.earned.mineshaft)
-  for (y = 1; y <= 8; y++)
+  for (y = 1; y <= digTop; y++)
     for (x = x0; x <= x1; x++)
       for (z = z0; z <= z1; z++) {
         i = idx(x, y, z);
         if (touched[i] !== 1) continue;
+        // 횃불을 건 칸도 **파낸 칸**이다 — 안 세면 200칸을 파고 횃불 10개를 달아도
+        // 190으로 읽혀 영영 안 열린다 (판 1 에서도 그랬다)
         if (world[i] === AIR) dug++;
-        else if (world[i] === TORCH) torches++;
+        else if (world[i] === TORCH) { torches++; dug++; }
       }
   if (dug >= 200 && torches >= 10) unlock("mineshaft");
 

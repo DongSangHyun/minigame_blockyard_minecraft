@@ -4,7 +4,7 @@ import { BUILD } from "./version.js";
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
 import { AIR, ALL_BLOCKS, GLASS, ITEMS, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross } from "./blocks.js";
 import { AVG_TOP, TILE, atlas, tileOrigin } from "./atlas.js";
-import { SEEN_TOP, SEEN_UNDER, markX, markZ, markName, seenMap, markSeen, topMap, world } from "./world.js";
+import { SEEN_TOP, SEEN_UNDER, heightMap, markX, markY, markZ, markName, seenMap, markSeen, topMap, world } from "./world.js";
 import { player } from "./player.js";
 import { updateHandBlock } from "./hand.js";
 import { advanceTut, canvas, isTouch } from "./input.js";
@@ -236,7 +236,7 @@ export function drawMinimap() {
       d[o + 3] = 255;
       // 안 가 본 칸은 흰 종이로 둔다 — 지도는 걸어서 채운다
       if (!(seenMap[z * WX + x] & seenBit)) { d[o] = 12; d[o + 1] = 16; d[o + 2] = 20; continue; }
-      var b = AIR, shade = 1;
+      var b = AIR, shade = 1, mouth = false;
       if (S.mmUnder) {
         // 지하에서는 지금 높이의 단면을 본다
         for (var k = 0; k <= 4; k++) {
@@ -250,6 +250,11 @@ export function drawMinimap() {
         if (y >= 0) {
           b = world[idx(x, y, z)];
           shade = 0.62 + (y / WY) * 0.72;
+          // 굴 어귀 — 지형이 있어야 할 높이(heightMap)보다 겉면이 3칸 넘게 꺼져 있으면
+          // 거기가 굴로 들어가는 구멍이다. v79 로 굴이 3배가 됐는데 어귀는 그대로라
+          // 들어간 굴을 다시 못 찾는 것이 지하의 가장 큰 문제였다 (자문 13차 #10).
+          // 두 배열이 이미 있으니 뺄셈 하나면 된다.
+          if (heightMap[z * WX + x] - y >= 3) mouth = true;
           // 등고선 — 일정 높이마다 한 줄씩 어둡게 해 높낮이를 읽게 한다
           if (S.contour && y > SEA) {
             var west = topMap[z * WX + Math.max(0, x - 1)];
@@ -258,6 +263,7 @@ export function drawMinimap() {
         }
       }
       if (b === AIR) { d[o] = 12; d[o + 1] = 16; d[o + 2] = 20; continue; }
+      if (mouth) { d[o] = 232; d[o + 1] = 150; d[o + 2] = 64; continue; }   // 굴 어귀 — 주황 점
       var c = AVG_TOP[b] || [120, 120, 120];
       d[o] = Math.min(255, c[0] * shade);
       d[o + 1] = Math.min(255, c[1] * shade);
@@ -291,6 +297,13 @@ export function drawMinimap() {
       mmCtx.textBaseline = "middle";
       // 이름을 붙였으면 번호 대신 이름 — 지우면 뒤 번호가 전부 밀려 번호만으로는 못 외운다
       var tag = markName(mk) || String(mi + 1);
+      // 지하 단면에서는 **그 표식이 이 층에 있는지**가 이름보다 급하다 —
+      // 지하가 26층이 되면서 위층 표식과 아래층 표식이 똑같이 그려졌다 (자문 13차 #10)
+      if (S.mmUnder) {
+        var dy = markY(mk) - Math.floor(player.pos.y);
+        if (dy >= 3) tag += " ▲" + dy;
+        else if (dy <= -3) tag += " ▼" + (-dy);
+      }
       mmCtx.fillStyle = "rgba(10,14,16,.85)";
       mmCtx.fillText(tag, mxp + 4, mzp + 1);
       mmCtx.fillStyle = "#f0d888";
@@ -469,7 +482,9 @@ export function drawPreview(target) {
     d[o + 3] = 255;
     if (y < 0) { d[o] = 12; d[o + 1] = 16; d[o + 2] = 20; continue; }
     if (y > SEA) land++;
-    if (y > 24) high++;
+    // "산" 은 해수면에서 얼마나 솟았느냐다 — 24 로 못 박아 두면 판 2(바다 23)에서
+    // 평지도 전부 산이 되어, 어느 시드를 뽑아도 캡션이 "산 90%" 로 굳는다.
+    if (y > SEA + 13) high++;
     var b = world[idx(x, y, z)];
     var col = AVG_TOP[b] || [120, 120, 120];
     var sh = 0.6 + (y / WY) * 0.8;

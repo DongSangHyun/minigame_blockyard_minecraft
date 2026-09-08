@@ -776,19 +776,30 @@ test("v6 용암: 지하에 생기고, 빛을 내며, 통과할 수 있다", asyn
   const r = await page.evaluate(() => {
     const B = window.__blockyard;
     B.generate(20260904); B.relightAll(false);
-    let count = 0, lit = 0, deep = 0, maxY = -1;
+    // 상한은 world.js 의 lavaTop() 이 정본이다 — 지하 두께를 따라간다(v80).
+    // 숫자를 여기 또 적으면 판이 늘 때마다 어긋난다.
+    const top = B.lavaTop();
+    let count = 0, lit = 0, deep = 0, maxY = -1, meanLand = 0, nLand = 0;
     for (let i = 0; i < B.N; i++) {
       if (B.world[i] !== B.B.LAVA) continue;
       count++;
       const y = Math.floor(i / (B.WX * B.WZ));
-      if (y <= 4) deep++;
+      if (y <= top) deep++;
       if (y > maxY) maxY = y;
       if (B.lightBlk[i] >= 14) lit++;
     }
-    return { count, lit, deep, maxY, solid: B.isSolid(B.B.LAVA), liquid: B.isLiquid(B.B.LAVA) };
+    for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++) {
+      const h = B.heightMap[z * B.WX + x];
+      if (h > B.SEA) { meanLand += h; nLand++; }
+    }
+    return { count, lit, deep, maxY, top, meanLand: nLand ? meanLand / nLand : 0,
+             solid: B.isSolid(B.B.LAVA), liquid: B.isLiquid(B.B.LAVA) };
   });
   assert(r.count > 50, "용암이 너무 적다: " + r.count);
-  eq(r.deep, r.count, "용암이 세계 바닥(y<=4) 밖에도 생겼다 — 최대 y " + r.maxY);
+  eq(r.deep, r.count, "용암이 상한(y<=" + r.top + ") 밖에도 생겼다 — 최대 y " + r.maxY);
+  // 지표에서 한참 아래여야 한다 — 걸어 다니다 발밑에서 용암을 만나면 안 된다
+  assert(r.maxY <= r.meanLand - 10,
+     "용암이 뭍 평균 높이(" + r.meanLand.toFixed(1) + ") 바로 아래 " + r.maxY + " 까지 올라왔다");
   eq(r.lit, r.count, "빛을 내지 않는 용암이 있다");
   eq(r.solid, false, "용암이 막고 있다");
   eq(r.liquid, true, "용암이 액체가 아니다");
@@ -8700,6 +8711,259 @@ test("v79 지하: 예전 판도 그대로 만들어지고, 광석 균형이 안 
   const dia = r.neu.ore.dia / r.old.ore.dia;
   assert(dia < volume * 1.6,
      "돌이 " + volume.toFixed(2) + "배인데 다이아는 " + dia.toFixed(2) + "배다 — 너무 흔해졌다");
+});
+
+test("v80 수평선·구름: 세계를 갈아타면 바다 판과 구름이 따라 올라온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const out = [];
+    for (const gen of [1, 2, 1]) {
+      B.generate(4242, gen); B.refreshAllTops(); B.relightAll(false);
+      B.player.pos.set(4.5, B.SEA + 2, 48.5);
+      B.camera.position.set(4.5, B.SEA + 2 + B.EYE, 48.5);
+      B.step(1 / 60);
+      out.push({ gen, sea: B.SEA,
+                 seaPlate: +B.outerSea.position.y.toFixed(2),
+                 want: +B.OUTER_SEA_Y.toFixed(2),
+                 cloud: +B.cloudGroup.position.y.toFixed(2),
+                 cloudHi: +B.cloudGroupHigh.position.y.toFixed(2),
+                 visible: B.outerSea.visible });
+    }
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  for (const o of r) {
+    near(o.seaPlate, o.want, 0.01,
+       "판 " + o.gen + ": 바깥 바다가 y=" + o.seaPlate + " 인데 해수면은 " + o.sea +
+       " — 수평선이 " + (o.want - o.seaPlate).toFixed(1) + "칸 어긋난다");
+    assert(o.visible, "판 " + o.gen + ": 물 위에 섰는데 바깥 바다가 안 보인다");
+    // 구름은 지형과 함께 올라간다 — 안 그러면 봉우리 위 하늘이 26칸에서 14칸이 된다
+    eq(o.cloud, o.sea - 11, "판 " + o.gen + ": 낮은 구름층이 안 따라 올라왔다");
+    eq(o.cloudHi, o.sea - 11, "판 " + o.gen + ": 높은 구름층이 안 따라 올라왔다");
+  }
+  const g2 = r.find(o => o.gen === 2);
+  assert(g2.seaPlate > 20, "판 2 에서 바다 판이 여전히 낮은 자리에 있다: " + g2.seaPlate);
+});
+
+test("v80 그리기: 지상에서는 발밑 지하 청크를 안 그린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.terrain = 0;      // 앞선 시험이 산악·평지를 남기면 판 1 의 묻힌 청크 수가 달라진다
+    function shot() {
+      let vis = 0, tris = 0;
+      for (const m of B.opaqueMeshes) {
+        if (!m.visible) continue;
+        vis++;
+        const ix = m.geometry.getIndex();
+        if (ix) tris += ix.count / 3;
+      }
+      return { vis, tris };
+    }
+    const out = [];
+    for (const gen of [1, 2]) {
+      B.generate(4242, gen); B.refreshAllTops(); B.relightAll(false);
+      B.markAllDirty(); B.buildBudget(1e6); B.refreshChunkFloor();
+      // 지상 — 걸러내야 한다
+      B.camera.position.set(6.5, B.SEA + 3, 6.5);
+      B.updateChunkVisibility(120, null, false);
+      const plain = shot();
+      B.updateChunkVisibility(120, B.chunkFloor, true);
+      const culled = shot();
+      const buried = B.chunkBuried;
+      // 지하 — 한 칸도 걸러내면 안 된다 (굴 안에서 벽이 사라진다)
+      B.updateChunkVisibility(120, B.chunkFloor, false);
+      const under = shot();
+      out.push({ gen, sea: B.SEA, plain, culled, under, buried });
+    }
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  const g1 = r.find(o => o.gen === 1), g2 = r.find(o => o.gen === 2);
+  // 판 1(얕은 세계)은 통째로 묻힌 청크가 거의 없다 — 동작이 안 바뀌어야 한다
+  // 판 1(얕은 세계)에는 통째로 묻힌 청크가 거의 없다 — 예전 세계의 그림이 크게 달라지면 안 된다
+  assert(g1.culled.tris > g1.plain.tris * 0.93,
+     "판 1 에서 삼각형이 " + g1.plain.tris + "→" + g1.culled.tris +
+     " 로 줄었다 — 예전 세계의 그림이 달라진다");
+  // 판 2 는 발밑 지하를 걷어낸다
+  assert(g2.culled.tris < g2.plain.tris * 0.85,
+     "판 2 지상에서 삼각형이 " + g2.plain.tris + "→" + g2.culled.tris + " 로 " +
+     Math.round(100 * (1 - g2.culled.tris / g2.plain.tris)) + "% 밖에 안 줄었다");
+  assert(g2.buried > 0, "묻힌 청크를 하나도 못 찾았다");
+  // 지하로 내려가면 전부 돌아와야 한다
+  eq(g2.under.vis, g2.plain.vis,
+     "지하인데 청크 " + (g2.plain.vis - g2.under.vis) + "개가 안 돌아왔다 — 굴 안에서 벽이 없어진다");
+});
+
+test("v80 과제: 갱도가 그 세계의 지하에서 열린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const out = [];
+    for (const gen of [1, 2]) {
+      B.generate(4242, gen); B.refreshAllTops(); B.relightAll(false);
+      // 지하 여러 높이에서 같은 갱도를 파 본다
+      for (const y of [4, Math.round(B.SEA * 0.5), B.SEA - 4]) {
+        B.S.earned = {}; B.S.history.length = 0; B.S.future.length = 0;
+        const X = 20, Z = 20;
+        // 통돌로 채운 뒤 200칸을 파고 횃불 10개
+        for (let dx = 0; dx < 30; dx++) for (let dz = 0; dz < 12; dz++)
+          for (let dy = -1; dy <= 3; dy++) B.set(X + dx, y + dy, Z + dz, B.B.STONE);
+        B.refreshAllTops(); B.relightAll(false);
+        let dug = 0, lit = 0;
+        for (let dz = 0; dz < 12 && dug < 200; dz++)
+          for (let dx = 0; dx < 30 && dug < 200; dx++) {
+            B.applyEdit(X + dx, y, Z + dz, B.B.AIR, true);
+            dug++;
+            if (lit < 10 && dug % 15 === 0) { B.applyEdit(X + dx, y, Z + dz, B.B.TORCH, true); lit++; }
+          }
+        // 과제 검사는 **플레이어 둘레**만 본다 — 판 자리로 옮겨 놓지 않으면 아무것도 안 센다
+        B.player.pos.set(X + 15.5, y + 1, Z + 6.5);
+        B.checkBuildAchievements();
+        out.push({ gen, sea: B.SEA, y, dug, lit, got: !!B.S.earned.mineshaft });
+      }
+    }
+    B.S.earned = {}; B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  for (const o of r) {
+    eq(o.lit, 10, "시험대가 안 섰다 — 횃불을 " + o.lit + "개만 달았다");
+    assert(o.got,
+       "판 " + o.gen + "(바다 " + o.sea + ") 의 y=" + o.y + " 에서 200칸을 파고 횃불 10개를 달았는데 갱도 과제가 안 열렸다");
+  }
+});
+
+test("v80 미리보기: 시드마다 산 비율이 달라진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const caps = [];
+    for (const gen of [1, 2]) {
+      const one = [];
+      for (const seed of [333, 1234, 42, 7]) {
+        B.generate(seed, gen); B.refreshAllTops();
+        B.drawPreview();          // 인자를 주면 캡션을 안 고친다
+        one.push(document.getElementById("preview-cap").textContent);
+      }
+      caps.push({ gen, one });
+    }
+    B.setPaused(false);
+    return caps;
+  });
+  for (const g of r) {
+    const highs = g.one.map(t => {
+      const m = /산\s*(\d+)%/.exec(t);
+      return m ? +m[1] : -1;
+    });
+    assert(highs.every(h => h >= 0), "판 " + g.gen + ": 캡션에서 산 비율을 못 읽었다: " + g.one[0]);
+    assert(Math.max.apply(null, highs) < 70,
+       "판 " + g.gen + ": 산 비율이 " + highs.join("/") + " — 평지도 전부 산으로 세고 있다");
+    assert(new Set(highs).size > 1,
+       "판 " + g.gen + ": 네 시드의 산 비율이 " + highs.join("/") + " 로 똑같다 — 시드를 고를 이유가 없다");
+  }
+});
+
+test("v80 소리: 동굴 울림이 머리 위 흙 두께로 걸린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const out = [];
+    for (const gen of [1, 2]) {
+      B.generate(4242, gen); B.refreshAllTops(); B.relightAll(false);
+      const X = 40, Z = 40;
+      const surf = B.topMap[Z * B.WX + X];
+      for (const depth of [3, 8, 16]) {
+        const y = surf - depth;
+        if (y < 2) continue;
+        // 캄캄한 방을 판다
+        for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+          for (let dy = -1; dy <= 3; dy++) B.set(X + dx, y + dy, Z + dz, B.B.STONE);
+        for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++)
+          for (let dy = 0; dy <= 1; dy++) B.set(X + dx, y + dy, Z + dz, 0);
+        B.refreshAllTops(); B.relightAll(false);
+        B.player.pos.set(X + 0.5, y, Z + 0.5);
+        B.player.vel.set(0, 0, 0); B.player.flying = true;
+        B.S.caveHeard = 0;
+        for (let k = 0; k < 40 * 60; k++) {
+          B.S.caveTimer = 0;                 // 뜸을 없애고 조건만 보게 한다
+          B.step(1 / 60);
+        }
+        const heard = B.S.caveHeard;
+        out.push({ gen, sea: B.SEA, surf, depth, y, heard });
+      }
+    }
+    B.player.flying = false;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  for (const o of r) {
+    if (o.depth <= 3) continue;
+    assert(o.heard > 0,
+       "판 " + o.gen + ": 지표(" + o.surf + ") 아래 " + o.depth + "칸(y=" + o.y + ")에서 동굴 울림이 한 번도 안 났다");
+  }
+});
+
+test("v80 지도: 지상 지도가 굴 어귀를 보여 주고, 단면은 표식의 층을 알려 준다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.terrain = 0;
+    B.generate(1234, 2); B.refreshAllTops(); B.relightAll(false);
+    // 지도를 통째로 밝힌다 (걸어서 채우는 부분은 다른 시험이 본다)
+    for (let i = 0; i < B.WX * B.WZ; i++) B.seenMap[i] = 3;
+
+    // 어귀가 있는 뭍 기둥을 찾는다
+    let mx = -1, mz = -1, mouths = 0;
+    for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++) {
+      const h = B.heightMap[z * B.WX + x], t = B.topMap[z * B.WX + x];
+      if (h > B.SEA && h - t >= 3) { mouths++; if (mx < 0) { mx = x; mz = z; } }
+    }
+    // 지상에서 그린다
+    B.player.pos.set(mx + 0.5, B.topMap[mz * B.WX + mx] + 3, mz + 0.5);
+    B.S.mmZoom = 1;
+    B.drawMinimap();
+    const under1 = B.S.mmUnder;
+    const cv = document.getElementById("mm");
+    const px = cv.getContext("2d").getImageData(mx, mz, 1, 1).data;
+
+    // 어귀가 아닌 평범한 뭍 칸
+    let nx = -1, nz = -1;
+    for (let z = 0; z < B.WZ && nx < 0; z++) for (let x = 0; x < B.WX; x++) {
+      const h = B.heightMap[z * B.WX + x], t = B.topMap[z * B.WX + x];
+      if (h > B.SEA && h - t === 0) { nx = x; nz = z; break; }
+    }
+    const pn = cv.getContext("2d").getImageData(nx, nz, 1, 1).data;
+
+    // 지하 단면 — 표식의 층이 이름 옆에 나와야 한다
+    B.S.marks = [[mx, 40, mz, "위층"], [mx + 2, 6, mz + 2, "아래층"]];
+    B.player.pos.set(mx + 0.5, 20, mz + 0.5);
+    // 통돌 속에 세워 지하로 인식되게 한다
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = 0; dy <= 12; dy++) B.set(mx + dx, 20 + dy, mz + dz, B.B.STONE);
+    B.set(mx, 20, mz, 0); B.set(mx, 21, mz, 0);
+    B.refreshAllTops();
+    B.drawMinimap();
+    const under2 = B.S.mmUnder;
+    const cap = B.refreshMinimapCap();
+
+    B.S.marks = [];
+    B.endPlay(); B.setPaused(false);
+    return { mouths, mx, mz, mouthPx: [px[0], px[1], px[2]], plainPx: [pn[0], pn[1], pn[2]],
+             under1, under2, cap };
+  });
+  assert(r.mouths > 30, "굴 어귀가 " + r.mouths + "개뿐이다 — 시험대가 안 섰다");
+  assert(!r.under1, "지상에 섰는데 단면 지도로 그렸다");
+  // 어귀는 주황 점 — 둘레 땅과 뚜렷이 달라야 한다
+  assert(r.mouthPx[0] > 200 && r.mouthPx[2] < 120,
+     "굴 어귀가 지도에 안 보인다: rgb(" + r.mouthPx.join(",") + ")");
+  const diff = Math.abs(r.mouthPx[0] - r.plainPx[0]) + Math.abs(r.mouthPx[1] - r.plainPx[1]) +
+               Math.abs(r.mouthPx[2] - r.plainPx[2]);
+  assert(diff > 90,
+     "어귀와 평범한 땅의 색이 너무 비슷하다: " + r.mouthPx + " vs " + r.plainPx);
+  assert(r.under2, "통돌 속에 섰는데 단면 지도로 안 바뀌었다");
+  assert(/단면/.test(r.cap), "단면 캡션이 아니다: " + r.cap);
 });
 
 // ── 실행 ───────────────────────────────────────────────

@@ -121,12 +121,15 @@ export const S = {
   achListStale: false,
   lavaTimer: 0,
   caveTimer: 6,
+  caveHeard: 0,        // 동굴 울림이 몇 번 났나 (시험용 계수기)
   moodTimer: 40,
   oxygen: 1,
   mmZoom: 1,
   contour: true,
   liquidTimer: 0,
   freezeTimer: 0,
+  floorTimer: 0,
+  floorReady: false,   // 청크 기둥 바닥을 한 번이라도 쟀나 (v80)
   torchFxTimer: 0,
   wasInLavaFeet: false,   // 용암에 발을 담그는 순간 치익 소리를 내려고
   wasUnderwater: false,
