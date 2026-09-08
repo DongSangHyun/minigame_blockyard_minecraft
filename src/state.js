@@ -50,8 +50,9 @@ export const S = {
   // 이번 프레임에 조준한 칸의 "앞면" 좌표 — F3 이 밝기를 읽는다.
   // step() 이 이미 쏜 레이캐스트 결과를 animate() 로 넘기는 통로다 (두 번 쏘지 않으려고).
   aimFace: null,
-  noSeaDecor: false,
-  noHuts: false,          // 시험용 — 오두막을 빼고 생성한다      // 시험용 — 바다 장식을 빼고 생성한다
+  noSeaDecor: false,      // 시험용 — 바다 장식을 빼고 생성한다
+  noHuts: false,          // 시험용 — 오두막을 빼고 생성한다
+  noMines: false,         // 시험용 — 갱도를 빼고 생성한다
   worldName: "",          // 사람이 붙인 세계 이름 (없으면 시드로 부른다)
   weather: 0,
   weatherLock: false,      // K 로 손수 고른 날씨는 저절로 안 바뀐다

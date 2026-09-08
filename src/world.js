@@ -211,7 +211,28 @@ export function markY(m) { return m.length >= 3 ? m[1] : -1; }   // -1 = 높이�
 export function markZ(m) { return m.length >= 3 ? m[2] : m[1]; }
 export function markName(m) { return (m.length >= 4 && typeof m[3] === "string") ? m[3] : ""; }
 
+// 지하는 **세 겹**으로 나눠 밝힌다 (v81). v79 로 지하가 13칸에서 26칸이 되면서
+// 한 장(SEEN_UNDER)이 26층을 나눠 쓰게 됐다 — 위층 굴을 밝혀 놓고 아래층으로 내려가면
+// 그 칸들이 "밝혀짐" 인 채 **전부 통돌 회색**으로 그려져, 어느 게 아는 길인지 알 수 없었다
+// (실측: y20 에서 633칸을 밝힌 뒤 y4 에서 보면 돌 82% · 공기 0%).
+// 비트 1 = 지상 · 2·4·8 = 지하 얕은/중간/깊은 층.
+// 예전 저장은 2 만 갖고 있으므로 불러올 때 세 비트로 펼친다 (`save.js` 의 `mv`).
 export var SEEN_TOP = 1, SEEN_UNDER = 2;
+export var UNDER_BANDS = 3;
+export var SEEN_UNDER_ALL = 2 | 4 | 8;
+// 층 두께는 세계마다 다르다 — 해수면이 지하 두께를 정한다 (판 1: 4~5칸 · 판 2: 8~9칸)
+export function underBand(y) {
+  var t = Math.max(1, (SEA + 2) / UNDER_BANDS);
+  var b = Math.floor(y / t);
+  if (b < 0) b = 0;
+  if (b >= UNDER_BANDS) b = UNDER_BANDS - 1;
+  return 2 << b;                       // 2 · 4 · 8
+}
+// 예전 저장(지하가 한 장이던 것)을 세 겹으로 펼친다 — 밝혀 둔 것을 잃지 않는다
+export function expandLegacySeen() {
+  for (var i = 0; i < seenMap.length; i++)
+    if (seenMap[i] & SEEN_UNDER) seenMap[i] |= SEEN_UNDER_ALL;
+}
 export var seenMap = new Uint8Array(WX * WZ);
 export function markSeen(px, pz, r, bit) {
   var b = bit || SEEN_TOP;
@@ -623,21 +644,6 @@ export function generate(seed, gen) {
     }
   }
 
-  // 가라앉힌 뒤 받침을 잃은 풀·꽃·덤불을 걷어낸다.
-  // 동굴이 지표를 뚫은 자리에서는 장식을 얹은 **뒤에** 모래가 내려앉아,
-  // 얹혔던 것이 허공에 남는다 (시드 99999 에서 죽은 덤불 3개).
-  // 아래에서 위로 훑으므로 밑동이 사라지면 그 위 선인장까지 줄줄이 걷힌다.
-  for (var cx3 = 0; cx3 < WX; cx3++) for (var cz3 = 0; cz3 < WZ; cz3++)
-    for (var cy3 = 1; cy3 < WY; cy3++) {
-      var ci3 = idx(cx3, cy3, cz3);
-      var cb3 = world[ci3];
-      // 선인장은 통짜 블록이지만 모래 위에만 서므로 같이 본다 (모래가 내려가면 뜬다)
-      if (!isCross(cb3) && cb3 !== CACTUS) continue;
-      var un3 = world[idx(cx3, cy3 - 1, cz3)];
-      // 같은 것 위에 쌓이는 장식이 생기더라도 밑동부터 판정되어 줄줄이 걷힌다
-      if (!isSolid(un3) && un3 !== cb3) set(cx3, cy3, cz3, AIR);
-    }
-
   // 해변 마감
   for (var sx = 0; sx < WX; sx++) for (var sz = 0; sz < WZ; sz++) {
     var sh = heightMap[sz * WX + sx];
@@ -661,7 +667,128 @@ export function generate(seed, gen) {
   // 이 줄기만 쓰는 별도 난수라, 껐다 켜도 땅·동굴·나무는 한 비트도 안 달라진다.
   if (!S.noSeaDecor) decorateSea(makeRng(S.worldSeed + 90210));
 
+  // ── 버려진 갱도 — 지하에 "누가 있었다" 는 흔적을 남긴다.
+  // v79 로 동굴 공기가 34,000~58,000칸이 됐는데 굴을 파고 내려가면 볼 것이 광맥뿐이었다.
+  // 지상은 오두막(v76)이 그 자리를 채웠는데 지하는 비어 있었다.
+  //
+  // **난수를 따로 쓴다** — 위의 rng 를 이어 쓰면 호출 차례가 밀려 기존 시드의 땅이
+  // 전부 달라진다 (v61·v75 교훈). S.noMines — 시험이 "갱도 없는 세계" 와 견준다.
+  // 얕은 판(바다 11)에는 짓지 않는다 — 지하가 13칸뿐이라 통로를 놓을 자리가 없다.
+  if (DEEP && !S.noMines) buildMines(makeRng(S.worldSeed + 31337));
+
+  // ── 받침을 잃은 풀·꽃·덤불·횃불을 걷어낸다. **생성기의 맨 마지막이어야 한다.**
+  // 앞에 두면 그 뒤에 오는 것이 받침을 도로 빼 간다 —
+  // 모래 가라앉히기가 사막 덤불의 모래를 내려앉히고(v79),
+  // 뒤에 판 갱도가 앞선 갱도 횃불의 바닥을 뚫었다(v81).
+  // 아래에서 위로 훑으므로 밑동이 사라지면 그 위 선인장까지 줄줄이 걷힌다.
+  for (var cx3 = 0; cx3 < WX; cx3++) for (var cz3 = 0; cz3 < WZ; cz3++)
+    for (var cy3 = 1; cy3 < WY; cy3++) {
+      var ci3 = idx(cx3, cy3, cz3);
+      var cb3 = world[ci3];
+      // 선인장은 통짜 블록이지만 모래 위에만 서므로 같이 본다 (모래가 내려가면 뜬다)
+      if (!isCross(cb3) && cb3 !== CACTUS) continue;
+      var un3 = world[idx(cx3, cy3 - 1, cz3)];
+      // 같은 것 위에 쌓이는 장식이 생기더라도 밑동부터 판정되어 줄줄이 걷힌다
+      if (!isSolid(un3) && un3 !== cb3) set(cx3, cy3, cz3, AIR);
+    }
+
+
   refreshAllTops();
+}
+
+// 갱도 한 줄기 — 통로 2칸 폭 · 3칸 높이. 조약돌 바닥에 울타리 기둥과 원목 들보,
+// 버팀목마다 횃불. 마크의 폐광 실루엣을 새 블록 없이 있는 것만으로 만든다.
+// 통로는 **3칸 폭**이다 — 2칸이면 버팀목 기둥 둘이 폭을 통째로 막아 걸어갈 수가 없다.
+// 마크의 폐광도 기둥 사이 가운데로 걷는다.
+export var MINE_W = 3, MINE_H = 3;
+function buildMines(rng) {
+  var tries = 26;                       // 자리 조건이 까다로워 넉넉히 굴려 본다
+  var built = 0;
+  for (var t = 0; t < tries && built < 5; t++) {
+    var axis = rng() < 0.5 ? 0 : 1;                 // 0 = X 를 따라 · 1 = Z 를 따라
+    var len = 16 + ((rng() * 16) | 0);              // 16~31칸
+    var y = 4 + ((rng() * Math.max(1, SEA - 10)) | 0);   // 지하 아래쪽~중간
+    var x0 = 4 + ((rng() * (WX - 8 - (axis ? MINE_W + 1 : len))) | 0);
+    var z0 = 4 + ((rng() * (WZ - 8 - (axis ? len : MINE_W + 1))) | 0);
+    if (!mineFits(x0, y, z0, axis, len)) continue;
+    carveMine(rng, x0, y, z0, axis, len);
+    built++;
+  }
+  return built;
+}
+
+// 놓을 수 있는 자리인가 — **물·용암을 뚫으면 세계가 잠기고 되돌릴 사람이 없다.**
+// 지표를 뚫어도 안 된다 (하늘이 뚫린 갱도는 갱도가 아니다).
+// 상자 하나를 보는 함수로 두어 통로와 끝방이 **같은 잣대**를 쓴다 —
+// 통로만 재고 방은 안 재면 방이 물속에 열린다.
+function mineBoxOk(bx, y, bz, w, d) {
+  for (var ax = -1; ax <= w; ax++)
+    for (var az = -1; az <= d; az++) {
+      var x = bx + ax, z = bz + az;
+      if (x < 2 || x >= WX - 2 || z < 2 || z >= WZ - 2) return false;
+      // heightMap 은 동굴을 파기 **전**의 지형 높이다. 지표가 카브로 꺼진 자리를
+      // 헛짚지 않게 여유를 넉넉히 둔다 (생성 중에는 topMap 이 아직 낡았다).
+      if (heightMap[z * WX + x] < y + MINE_H + 5) return false;
+      for (var dy = -1; dy <= MINE_H + 1; dy++) {
+        if (y + dy <= 0) return false;                 // 기반암을 안 판다
+        var b = get(x, y + dy, z);
+        if (b === WATER || b === LAVA || b === ICE) return false;
+      }
+    }
+  return true;
+}
+function mineFits(x0, y, z0, axis, len) {
+  return mineBoxOk(x0, y, z0, axis ? MINE_W : len, axis ? len : MINE_W);
+}
+
+function carveMine(rng, x0, y, z0, axis, len) {
+  var plankFloor = rng() < 0.4;
+  for (var s = 0; s < len; s++) {
+    var frame = (s % (4 + ((s * 7) % 3))) === 0;    // 4~6칸마다 버팀목
+    for (var w = 0; w < MINE_W; w++) {
+      var x = axis ? x0 + w : x0 + s;
+      var z = axis ? z0 + s : z0 + w;
+      set(x, y - 1, z, plankFloor ? PLANKS : COBBLE);
+      for (var dy = 0; dy < MINE_H; dy++) set(x, y + dy, z, AIR);
+    }
+    if (frame) {
+      // 버팀목 — 양옆 기둥(울타리)과 그 위 들보(원목). 가운데는 비워 둔다.
+      for (var f = 0; f < MINE_W; f++) {
+        var fx = axis ? x0 + f : x0 + s;
+        var fz = axis ? z0 + s : z0 + f;
+        if (f === 0 || f === MINE_W - 1)
+          for (var py2 = 0; py2 < MINE_H - 1; py2++) set(fx, y + py2, fz, FENCE);
+        set(fx, y + MINE_H - 1, fz, LOG);
+      }
+      continue;
+    }
+    // 횃불 — 버팀목 사이에 서 있는 횃불. 멀리서도 "저기 뭔가 있다" 로 읽힌다.
+    // 바닥에 세운다(받침이 조약돌 바닥이다) — 공중에 뜬 횃불은 만들지 않는다.
+    if (s % 5 !== 2) continue;
+    var mid = MINE_W >> 1;
+    var tx = axis ? x0 + mid : x0 + s;
+    var tz = axis ? z0 + s : z0 + mid;
+    if (get(tx, y, tz) === AIR && isSolid(get(tx, y - 1, tz))) set(tx, y, tz, TORCH);
+  }
+  // 끝방 — 줄기 하나에 한 번. 여기가 "끝까지 걸어가 볼 이유" 다.
+  if (rng() < 0.6) {
+    var rx = axis ? x0 - 2 : x0 + len - 3;
+    var rz = axis ? z0 + len - 3 : z0 - 2;
+    if (mineBoxOk(rx, y, rz, 5, 5)) {
+      for (var ax = 0; ax < 5; ax++)
+        for (var az = 0; az < 5; az++)
+          for (var ay = -1; ay < MINE_H; ay++) {
+            var wx3 = rx + ax, wz3 = rz + az;
+            set(wx3, y + ay, wz3, ay === -1 ? COBBLE : AIR);
+          }
+      var ix3 = rx + 1 + ((rng() * 3) | 0), iz3 = rz + 1 + ((rng() * 3) | 0);
+      var pick = rng();
+      set(ix3, y, iz3, pick < 0.34 ? BOOKSHELF : (pick < 0.67 ? LAMP : CARPET));
+      set(rx + 2, y + MINE_H - 1, rz + 2, LOG);
+      if (get(rx + 2, y + MINE_H - 2, rz + 2) === AIR)
+        set(rx + 2, y + MINE_H - 2, rz + 2, TORCH);
+    }
+  }
 }
 
 // 버려진 오두막 — 크기·재료·지붕·창·안에 놓인 것을 뽑아 채마다 다르게 짓는다.

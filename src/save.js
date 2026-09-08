@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { LEGACY_WY, GEN, setGen, WX, WZ, idx } from "./dims.js";
 import { DEFAULT_BAR, SH_FULL } from "./blocks.js";
-import { seenMap, touched, refreshAllTops, set, shape, world, waterLvl } from "./world.js";
+import { seenMap, expandLegacySeen, touched, refreshAllTops, set, shape, world, waterLvl } from "./world.js";
 
 import { player, stats } from "./player.js";
 import { dumpMobs, loadMobs } from "./mobs.js";
@@ -151,7 +151,9 @@ export function saveGame() {
       sm: S.shapeMode,
       // 지형 판 — 이 세계의 해수면이 여기서 따라온다 (없으면 1 = v78 까지의 바다 11).
       // 세계 데이터는 그대로 담기므로 저장 버전(v5)은 올리지 않는다.
-      gn: GEN
+      gn: GEN,
+      // 밝힌 지도의 판 — 2 부터 지하가 세 겹이다 (v81). 없으면 1(지하 한 장)로 읽고 펼친다.
+      mv: 2
     }));
     try { localStorage.removeItem(OLD_KEY); } catch (e2) {}
     S.worldDirty = false;
@@ -196,6 +198,9 @@ export function loadGame() {
     S.growDirty = true;
     seenMap.fill(0);
     if (d.mm) decodeArrB64(d.mm, seenMap);   // 예전 저장은 흰 종이에서 다시 시작한다
+    // 지하를 한 장으로 밝히던 저장(v80 까지) — 세 겹으로 펼쳐 밝혀 둔 것을 잃지 않는다.
+    // 층 정보는 원래 없었으니 "어느 층에서 봤는지" 는 복원할 수 없다. 전부 봤다고 친다.
+    if (!((d.mv | 0) >= 2)) expandLegacySeen();
     player.flying = !!d.f;
     if (Array.isArray(d.bar) && d.bar.length === DEFAULT_BAR.length) S.bar = d.bar.slice();
     S.earned = (d.ach && typeof d.ach === "object") ? d.ach : {};

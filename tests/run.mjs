@@ -6088,10 +6088,14 @@ test("v60 미니맵: 지하를 걸었다고 지상 지도가 밝혀지지 않는
     B.player.flying = false;
     B.endPlay(); B.setPaused(false);
     return { under, cell, ratioUnder, cell2, ratioTop,
-             TOP: B.SEEN_TOP, UNDER: B.SEEN_UNDER };
+             TOP: B.SEEN_TOP, UNDER: B.SEEN_UNDER,
+             band: B.underBand(21), ALL: B.SEEN_UNDER_ALL, sea: B.SEA };
   });
   assert(r.under, "지붕 아래인데 미니맵이 지하로 안 넘어갔다 — 시험대가 틀렸다");
-  eq(r.cell & r.UNDER, r.UNDER, "지하를 걸었는데 지하 지도가 안 밝혀졌다");
+  // 지하는 세 겹이다 (v81) — 서 있던 **그 층**만 밝혀져야 한다
+  eq(r.cell & r.band, r.band, "지하를 걸었는데 그 층의 지도가 안 밝혀졌다");
+  eq(r.cell & r.ALL, r.band,
+     "한 층만 걸었는데 지하 " + (r.cell & r.ALL).toString(2) + " 층이 밝혀졌다 — 층을 나눈 뜻이 없다");
   eq(r.cell & r.TOP, 0, "굴만 파고 다녔는데 지상 지도가 밝혀졌다 — 가 본 적 없는 산이 보인다");
   eq(r.ratioUnder, 0, "지도장이 과제가 지하만 걸어도 올라간다");
   eq(r.cell2 & r.TOP, r.TOP, "지상으로 올라왔는데 지상 지도가 안 밝혀졌다");
@@ -8964,6 +8968,162 @@ test("v80 지도: 지상 지도가 굴 어귀를 보여 주고, 단면은 표식
      "어귀와 평범한 땅의 색이 너무 비슷하다: " + r.mouthPx + " vs " + r.plainPx);
   assert(r.under2, "통돌 속에 섰는데 단면 지도로 안 바뀌었다");
   assert(/단면/.test(r.cap), "단면 캡션이 아니다: " + r.cap);
+});
+
+test("v81 갱도: 지하에 사람이 지나간 흔적이 있고, 물·용암을 안 뚫는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.S.terrain = 0;
+    function survey(seed, gen) {
+      // 조명을 새로 켠다 — 안 그러면 아래 lightSky 단언이 **앞 세계의 낡은 값**을 읽는다
+      B.generate(seed, gen); B.refreshAllTops(); B.relightAll(false);
+      let fence = 0, beam = 0, torch = 0, floor = 0, room = 0;
+      let wet = 0, sky = 0, walk = 0;
+      for (let y = 1; y < B.WY; y++) for (let z = 1; z < B.WZ - 1; z++) for (let x = 1; x < B.WX - 1; x++) {
+        const b = B.world[B.idx(x, y, z)];
+        if (y >= B.SEA) continue;
+        if (b === B.B.FENCE) {
+          fence++;
+          // 갱도가 물·용암과 맞닿으면 세계가 잠긴다 — 되돌릴 사람이 없다
+          for (const d of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]) {
+            const nb = B.world[B.idx(x + d[0], y + d[1], z + d[2])];
+            if (nb === B.B.WATER || nb === B.B.LAVA) wet++;
+          }
+          // 지표를 뚫었나 — 기둥 위로 하늘이 트여 있으면 갱도가 아니다
+          if (B.lightSky[B.idx(x, y + 1, z)] === 15) sky++;
+        } else if (b === B.B.LOG) beam++;
+        else if (b === B.B.TORCH) torch++;
+        else if (b === B.B.BOOKSHELF || b === B.B.LAMP || b === B.B.CARPET) room++;
+      }
+      // 걸어 다닐 수 있나 — 들보 아래 가운데가 뚫려 있어야 한다
+      for (let y = 1; y < B.SEA; y++) for (let z = 1; z < B.WZ - 1; z++) for (let x = 1; x < B.WX - 1; x++) {
+        if (B.world[B.idx(x, y, z)] !== B.B.LOG) continue;
+        for (const d of [[1,0],[-1,0],[0,1],[0,-1]]) {
+          const mx = x + d[0], mz = z + d[1];
+          if (B.world[B.idx(mx, y, mz)] !== B.B.LOG) continue;   // 들보 줄
+        }
+        // 들보 두 칸 아래(사람 키)가 비어 있는 칸을 센다
+        if (B.world[B.idx(x, y - 1, z)] === 0 && B.world[B.idx(x, y - 2, z)] === 0) walk++;
+      }
+      return { fence, beam, torch, floor, room, wet, sky, walk };
+    }
+    const deep = [];
+    for (const seed of [333, 1234, 42, 7]) deep.push(Object.assign({ seed }, survey(seed, 2)));
+    const shallow = survey(333, 1);
+
+    // 난수 줄기 — 갱도를 껐다 켜도 땅·동굴·나무가 한 비트도 안 달라져야 한다
+    function hash() {
+      let h = 2166136261;
+      for (let i = 0; i < B.N; i += 7) { h ^= B.world[i]; h = Math.imul(h, 16777619); }
+      for (let i = 0; i < B.WX * B.WZ; i++) {
+        h ^= B.heightMap[i]; h = Math.imul(h, 16777619);
+        h ^= B.biomeMap[i]; h = Math.imul(h, 16777619);
+      }
+      return h >>> 0;
+    }
+    B.S.noMines = true;  B.generate(4242, 2); B.refreshAllTops(); const off = hash();
+    B.S.noMines = false; B.generate(4242, 2); B.refreshAllTops(); const on = hash();
+    // 갱도만 빼고 견주려면 갱도 블록을 지운 뒤 견줘야 한다 — 지형만 따로 잰다
+    function terrainHash() {
+      let h = 2166136261;
+      for (let i = 0; i < B.WX * B.WZ; i++) {
+        h ^= B.heightMap[i]; h = Math.imul(h, 16777619);
+        h ^= B.biomeMap[i]; h = Math.imul(h, 16777619);
+      }
+      return h >>> 0;
+    }
+    B.S.noMines = true;  B.generate(4242, 2); B.refreshAllTops(); const tOff = terrainHash();
+    B.S.noMines = false; B.generate(4242, 2); B.refreshAllTops(); const tOn = terrainHash();
+    B.S.noMines = false;
+    B.setPaused(false);
+    return { deep, shallow, off, on, tOff, tOn };
+  });
+  for (const d of r.deep) {
+    assert(d.fence >= 24,
+       "시드 " + d.seed + ": 갱도 기둥이 " + d.fence + "개뿐 — 지하에 흔적이 없다");
+    assert(d.beam >= 20, "시드 " + d.seed + ": 들보가 " + d.beam + "개뿐이다");
+    assert(d.torch >= 8, "시드 " + d.seed + ": 갱도 횃불이 " + d.torch + "개뿐 — 캄캄해서 못 찾는다");
+    eq(d.wet, 0, "시드 " + d.seed + ": 갱도가 물·용암과 " + d.wet + "칸 맞닿았다 — 세계가 잠긴다");
+    eq(d.sky, 0, "시드 " + d.seed + ": 갱도가 지표를 " + d.sky + "칸 뚫었다");
+    assert(d.walk >= 15, "시드 " + d.seed + ": 들보 아래로 지나갈 자리가 " + d.walk + "칸뿐이다");
+  }
+  assert(r.deep.some(d => d.room > 0), "네 시드 어디에도 끝방이 없다 — 끝까지 걸어갈 이유가 없다");
+  // 얕은 판(바다 11)에는 안 짓는다 — 지하가 13칸뿐이라 자리가 없다
+  eq(r.shallow.fence, 0, "판 1 에 갱도가 생겼다 — 지하 13칸에 통로를 놓을 자리가 없다");
+  // 별도 난수 줄기 — 갱도를 껐다 켜도 지형은 그대로
+  eq(r.tOn, r.tOff, "갱도를 넣자 지형이 달라졌다 — 난수 줄기를 이어 썼다");
+  assert(r.on !== r.off, "갱도를 켰는데 세계가 한 칸도 안 달라졌다 — 시험대가 안 섰다");
+});
+
+test("v81 지도: 지하가 세 겹이고, 예전 저장은 펼쳐서 읽는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const slotKey = B.curKey();
+    const keepSave = localStorage.getItem(slotKey);
+    const X = 40, Z = 40;
+    // 세 층에 각각 캄캄한 방을 파고, 한 층씩만 걸어 본다
+    const ys = [4, Math.round(B.SEA * 0.45), B.SEA - 3];
+    for (const y of ys)
+      for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++) {
+        for (let dy = 0; dy <= 3; dy++) B.set(X + dx, y + dy, Z + dz, 0);
+        for (let dy = 6; dy <= 12; dy++) B.set(X + dx, y + dy, Z + dz, B.B.STONE);
+      }
+    B.refreshAllTops();
+    B.seenMap.fill(0);
+    B.player.flying = true; B.player.vel.set(0, 0, 0);
+
+    const bands = ys.map(y => B.underBand(y));
+    // 가운데 층만 걷는다
+    B.player.pos.set(X + 0.5, ys[1] + 1, Z + 0.5);
+    B.drawMinimap();
+    const cell = B.seenMap[Z * B.WX + X];
+    const underNow = B.S.mmUnder;
+
+    // 다른 층에서 보면 그 칸은 아직 흰 종이여야 한다
+    B.player.pos.set(X + 0.5, ys[0] + 1, Z + 0.5);
+    B.drawMinimap();
+    const cellAfterLow = B.seenMap[Z * B.WX + X];
+
+    // 저장 → 불러오기: 층이 그대로 이어지나
+    B.saveGame();
+    const raw = JSON.parse(localStorage.getItem(slotKey));
+    const mv = raw.mv;
+    B.seenMap.fill(0);
+    B.loadGame();
+    const afterLoad = B.seenMap[Z * B.WX + X];
+
+    // 예전 저장 — mv 가 없고 지하 비트가 한 장뿐이다. 세 겹으로 펼쳐져야 한다.
+    delete raw.mv;
+    const legacy = new Uint8Array(B.WX * B.WZ);
+    legacy[Z * B.WX + X] = B.SEEN_TOP | B.SEEN_UNDER;
+    raw.mm = B.encodeArrB64(legacy);
+    localStorage.setItem(slotKey, JSON.stringify(raw));
+    B.seenMap.fill(0);
+    const oldOk = B.loadGame();
+    const afterOld = B.seenMap[Z * B.WX + X];
+
+    if (keepSave === null) localStorage.removeItem(slotKey);
+    else localStorage.setItem(slotKey, keepSave);
+    B.player.flying = false;
+    B.endPlay(); B.setPaused(false);
+    return { bands, cell, underNow, cellAfterLow, mv, afterLoad, oldOk, afterOld,
+             ALL: B.SEEN_UNDER_ALL, TOP: B.SEEN_TOP, ver: raw.v, ys, sea: B.SEA };
+  });
+  assert(new Set(r.bands).size === 3,
+     "세 층이 같은 비트를 쓴다: " + r.bands.join("/") + " (해수면 " + r.sea + " · y " + r.ys.join("/") + ")");
+  assert(r.underNow, "지붕 아래인데 지하로 안 넘어갔다");
+  eq(r.cell & r.ALL, r.bands[1], "가운데 층을 걸었는데 밝혀진 층이 다르다");
+  eq(r.cellAfterLow & r.ALL, r.bands[1] | r.bands[0],
+     "아래층으로 내려갔는데 층 표시가 " + (r.cellAfterLow & r.ALL).toString(2) + " 다");
+  eq(r.mv, 2, "저장에 지도 판이 안 실렸다");
+  eq(r.afterLoad & r.ALL, r.cellAfterLow & r.ALL, "불러오니 층 표시가 달라졌다");
+  assert(r.oldOk, "지도 판이 없는 예전 저장을 못 읽었다");
+  eq(r.afterOld & r.ALL, r.ALL,
+     "예전 저장의 지하 한 장을 세 겹으로 안 펼쳤다 — 밝혀 둔 지도를 잃는다");
+  eq(r.afterOld & r.TOP, r.TOP, "예전 저장의 지상 지도가 사라졌다");
+  eq(r.ver, 5, "저장 버전은 v5 그대로여야 한다");
 });
 
 // ── 실행 ───────────────────────────────────────────────
