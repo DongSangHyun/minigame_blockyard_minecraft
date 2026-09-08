@@ -7833,6 +7833,62 @@ test("v74 소품: 책장은 통짜, 카펫은 얇게 깔린다", async (page) =>
      "카펫 옆의 돌 면이 " + r.sideArea.toFixed(2) + " 만 그려졌다 — 얇은 블록 옆이 뚫려 보인다 (v21)");
 });
 
+test("v75 바다: 장식을 얹어도 뭍은 한 비트도 안 달라진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    // bound 를 주면 **그 높이까지만** 해시한다 — 두 판을 같은 자로 재야 견줄 수 있다.
+    // 안 그러면 새로 생긴 바위섬만큼 더 훑어 "달라졌다" 가 나온다.
+    function snap(seed, decor, bound) {
+      B.S.noSeaDecor = !decor;
+      B.generate(seed);
+      const hm = new Int16Array(B.WX * B.WZ);
+      hm.set(B.heightMap);
+      const lim = bound || hm;
+      let h = 2166136261 >>> 0;
+      for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++)
+        for (let y = 0; y < lim[z * B.WX + x]; y++) {
+          h ^= B.world[B.idx(x, y, z)]; h = Math.imul(h, 16777619) >>> 0;
+        }
+      return { hm, hash: h >>> 0 };
+    }
+    const out = [];
+    for (const seed of [777, 12345, 42]) {
+      const plain = snap(seed, false);
+      const decorated = snap(seed, true, plain.hm);   // 장식 없는 쪽 높이를 자로 쓴다
+      // 뭍(원래 지표가 바다 위)은 높이도 그대로여야 한다
+      let landSame = true, landCols = 0, raised = 0, seabedChanged = 0;
+      for (let i = 0; i < plain.hm.length; i++) {
+        if (plain.hm[i] > B.SEA) {
+          landCols++;
+          if (plain.hm[i] !== decorated.hm[i]) landSame = false;
+        } else if (decorated.hm[i] > plain.hm[i]) raised++;   // 새로 생긴 바위섬
+      }
+      // 해저가 실제로 다양해졌는가
+      let gravel = 0;
+      for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++) {
+        const hh = plain.hm[z * B.WX + x];
+        if (hh > B.SEA) continue;
+        if (B.world[B.idx(x, decorated.hm[z * B.WX + x], z)] === B.B.GRAVEL) gravel++;
+      }
+      out.push({ seed, landSame, landCols, raised, gravel,
+                 deepSame: plain.hash === decorated.hash });
+    }
+    B.S.noSeaDecor = false;
+    B.setPaused(false);
+    return out;
+  });
+  for (const o of r) {
+    assert(o.landCols > 1500, "시험대가 안 섰다 — 시드 " + o.seed + " 의 뭍이 " + o.landCols + "칸");
+    assert(o.landSame,
+       "시드 " + o.seed + " 에서 바다 장식이 **뭍의 높이**를 바꿨다 — 기존 세계가 달라진다");
+    assert(o.deepSame,
+       "시드 " + o.seed + " 에서 지표 아래(동굴·광맥)가 달라졌다 — 난수 줄기가 섞였다");
+    assert(o.raised > 5, "시드 " + o.seed + " 에 바위섬이 " + o.raised + "칸뿐이다");
+    assert(o.gravel > 100, "시드 " + o.seed + " 의 해저가 " + o.gravel + "칸만 바뀌었다");
+  }
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

@@ -594,5 +594,74 @@ export function generate(seed) {
     if (get(ix2, SEA, iz2) === WATER) set(ix2, SEA, iz2, ICE);
   }
 
+  // ── 바다 — 지표 기둥의 63~80%가 바다인데 그 안에 볼 것이 없었다(자문 11차 실측).
+  // 탑에 올라가면 눈에 들어오는 것의 3/4 가 균일한 파랑이다.
+  // 세계를 키우지 않고 넓어 보이게 하는 가장 싼 방법이 여기에 눈길 붙일 것을 두는 것이다.
+  //
+  // **난수를 따로 쓴다.** 위의 rng 를 이어 쓰면 호출 차례가 밀려 기존 시드의 지형이
+  // 전부 달라진다(v61 에서 배운 것). 이 줄기만 쓰는 별도 난수라 땅·동굴·나무는 그대로다.
+  // S.noSeaDecor — 시험이 "장식을 뺀 세계" 와 견주려고 쓴다.
+  // 이 줄기만 쓰는 별도 난수라, 껐다 켜도 땅·동굴·나무는 한 비트도 안 달라진다.
+  if (!S.noSeaDecor) decorateSea(makeRng(S.worldSeed + 90210));
+
   refreshAllTops();
+}
+
+// 바다 바닥을 다양하게 하고, 수면 위로 작은 바위섬·모래톱을 띄운다.
+// 새 블록 없이 있는 것만 쓴다 — 물속 교차 쿼드(해초)는 물 면이 갈라져 보인다.
+function decorateSea(rng) {
+  // ① 해저 — 자갈·돌 무늬를 얼룩덜룩 깔아 잠수했을 때 바닥이 한 색이 아니게
+  for (var x = 0; x < WX; x++) {
+    for (var z = 0; z < WZ; z++) {
+      var h = heightMap[z * WX + x];
+      if (h >= SEA) continue;                       // 물 밑만
+      var b = get(x, h, z);
+      if (b !== SAND && b !== DIRT && b !== GRASS) continue;
+      var m = noise2(x * 0.11, z * 0.11, S.worldSeed + 4242);
+      if (m > 0.62 && rng() < 0.55) set(x, h, z, GRAVEL);
+      else if (m < 0.34 && rng() < 0.35) set(x, h, z, STONE);
+    }
+  }
+  // ② 작은 바위섬·모래톱 — 수평선을 끊어 준다. 섬 본체에서 떨어진 깊은 물에만.
+  var tries = 90, made = 0;
+  for (var t = 0; t < tries && made < 7; t++) {
+    var cx = 6 + ((rng() * (WX - 12)) | 0);
+    var cz = 6 + ((rng() * (WZ - 12)) | 0);
+    var ch = heightMap[cz * WX + cx];
+    if (ch > SEA - 3) continue;                     // 얕은 곳(본섬 주변)은 건너뛴다
+    // 본섬과 붙지 않게 — 둘레 6칸에 뭍이 있으면 그만둔다
+    var nearLand = false;
+    for (var ox = -6; ox <= 6 && !nearLand; ox += 2)
+      for (var oz = -6; oz <= 6; oz += 2) {
+        var nx = cx + ox, nz = cz + oz;
+        if (nx < 0 || nx >= WX || nz < 0 || nz >= WZ) continue;
+        if (heightMap[nz * WX + nx] > SEA) { nearLand = true; break; }
+      }
+    if (nearLand) continue;
+    var rad = 2 + ((rng() * 2) | 0);                // 반경 2~3
+    var top = SEA + 1 + ((rng() * 2) | 0);          // 수면 위 1~2칸
+    var rocky = rng() < 0.45;
+    for (var dx = -rad; dx <= rad; dx++) {
+      for (var dz = -rad; dz <= rad; dz++) {
+        var d2 = dx * dx + dz * dz;
+        if (d2 > rad * rad) continue;
+        var ix = cx + dx, iz = cz + dz;
+        if (ix < 1 || ix >= WX - 1 || iz < 1 || iz >= WZ - 1) continue;
+        // 가장자리는 한 칸 낮게 — 네모난 판이 아니라 섬으로 보이게
+        var ty = top - (d2 > (rad - 1) * (rad - 1) ? 1 : 0);
+        var base = heightMap[iz * WX + ix];
+        for (var yy = base; yy <= ty; yy++) {
+          if (yy >= WY - 1) break;
+          set(ix, yy, iz, rocky ? STONE : SAND);
+        }
+        // 물기둥을 걷어 낸다
+        for (var wy = ty + 1; wy <= SEA + 3 && wy < WY; wy++)
+          if (get(ix, wy, iz) === WATER) set(ix, wy, iz, AIR);
+        heightMap[iz * WX + ix] = ty;
+      }
+    }
+    // 식물은 심지 않는다 — 마른 덤불은 사막 것이라 "엉뚱한 바이옴의 식물" 이 된다.
+    // 맨 바위·모래만으로도 수평선을 끊는 데는 충분하다.
+    made++;
+  }
 }
