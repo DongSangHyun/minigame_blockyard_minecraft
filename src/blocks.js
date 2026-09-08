@@ -17,6 +17,13 @@ export var SAPLING = 56;   // 묘목 — 심어 두면 나무로 자란다 (베�
 // 실내 소품 — 놓을 수 있는 53종에 가구가 하나도 없어, 방을 다 지으면 텅 빈 상자였다.
 // 둘 다 마크에서 텍스처만 다른 통짜 블록(책장)과 얇은 판(카펫)이다.
 export var BOOKSHELF = 57, CARPET = 58;
+// 색 카펫 16색 — 양털 16색과 짝이다 (v84). 방을 다 지어 놓고 바닥에 깔 색이 하나뿐이었다.
+// 59~74 를 연속으로 쓴다. 텍스처는 양털 색 + 카펫 짜임(아틀라스 61~76).
+export var CARPET0 = 59, CARPET_COUNT = 16;
+// 실내 소품 둘 — 화분(바닥에 놓는 작은 상자)과 액자(벽에 붙는 얇은 판) (v84).
+// 방을 다 지어 놓고 놓을 것이 책장·카펫·램프뿐이라 어느 집이나 안이 똑같았다.
+export var POT = 75, FRAME = 76;
+export function isCarpet(b) { return b === CARPET || (b >= CARPET0 && b < CARPET0 + CARPET_COUNT); }
 export var WOOL0 = 36, WOOL_COUNT = 16;
 export var WOOL_COLORS = [
   ["흰색", "#e9ecec"], ["연회색", "#8e8e86"], ["회색", "#3e4447"], ["검정", "#1d1c21"],
@@ -55,6 +62,8 @@ TILES[DEADBUSH]  = [28, 28, 28];
 TILES[SAPLING]   = [58, 58, 58];
 TILES[BOOKSHELF] = [7, 59, 7];      // 위아래는 판자 나이테, 옆은 꽂힌 책들
 TILES[CARPET]    = [60, 60, 60];
+TILES[POT]       = [78, 77, 77];      // 위는 흙, 옆·아래는 토분
+TILES[FRAME]     = [79, 79, 79];
 TILES[DRYGRASS]  = [29, 29, 29];
 TILES[BIRCH_LOG]    = [31, 30, 31];
 TILES[BIRCH_LEAVES] = [32, 32, 32];
@@ -87,6 +96,7 @@ nm(FLOWER_Y, "민들레", "DANDELION"); nm(TORCH, "횃불", "TORCH");
 nm(CACTUS, "선인장", "CACTUS"); nm(DEADBUSH, "죽은 덤불", "DEAD BUSH");
 nm(SAPLING, "묘목", "SAPLING");
 nm(BOOKSHELF, "책장", "BOOKSHELF"); nm(CARPET, "카펫", "CARPET");
+nm(POT, "화분", "FLOWER POT"); nm(FRAME, "액자", "PAINTING");
 nm(DRYGRASS, "마른 풀", "DRY GRASS");
 nm(BIRCH_LOG, "자작나무 원목", "BIRCH"); nm(BIRCH_LEAVES, "자작나무 잎", "BIRCH LEAVES");
 nm(SPRUCE_LEAVES, "가문비 잎", "SPRUCE LEAVES");
@@ -108,6 +118,7 @@ HARDNESS[FLOWER_Y] = 0.05; HARDNESS[TORCH] = 0.06;
 HARDNESS[CACTUS] = 0.34; HARDNESS[DEADBUSH] = 0.05; HARDNESS[DRYGRASS] = 0.05;
 HARDNESS[SAPLING] = 0.05;
 HARDNESS[BOOKSHELF] = 0.62; HARDNESS[CARPET] = 0.06;
+HARDNESS[POT] = 0.10; HARDNESS[FRAME] = 0.10;
 HARDNESS[GOLD] = 2.35; HARDNESS[DIAMOND] = 2.9;
 HARDNESS[TNT] = 0.30; HARDNESS[FIRE] = 0.02; HARDNESS[FLINT] = 0.20;
 HARDNESS[FENCE] = 0.55; HARDNESS[GATE] = 0.55; HARDNESS[DOOR] = 0.62;
@@ -144,12 +155,14 @@ CROSS[SAPLING]   = { w: 0.40, h: 0.66, sway: 0.28 };   // 어린 싹이라 풀�
 CROSS[DRYGRASS]  = { w: 0.46, h: 0.80, sway: 0.50 };
 CROSS[FIRE]      = { w: 0.50, h: 0.96, sway: 0.85 };
 export function isCross(b) { return CROSS[b] !== undefined; }
-export function needsFloor(b) { return isCross(b) || b === DOOR || b === CARPET; }
+export function needsFloor(b) { return isCross(b) || b === DOOR || isCarpet(b) || b === POT; }
+// 벽에 붙는 것 — 벽이 사라지면 같이 떨어진다 (사다리와 같은 규칙)
+export function needsWall(b) { return b === FRAME; }
 
 export var ALL_BLOCKS = [GRASS, DIRT, STONE, COBBLE, SAND, GRAVEL, SNOW, LOG,
                   LEAVES, PLANKS, GLASS, BRICK, LAMP, TORCH, COAL, IRON, ICE,
                   WATER, LAVA, CACTUS, TALLGRASS, FLOWER_R, FLOWER_Y,
-                  DEADBUSH, DRYGRASS, SAPLING, BOOKSHELF, CARPET, BIRCH_LOG, BIRCH_LEAVES, SPRUCE_LEAVES,
+                  DEADBUSH, DRYGRASS, SAPLING, BOOKSHELF, CARPET, POT, FRAME, BIRCH_LOG, BIRCH_LEAVES, SPRUCE_LEAVES,
                   GOLD, DIAMOND, FENCE, GATE, DOOR, PANE, LADDER, TNT];
 
 // 도구 — 목록에는 나오지만 "놓는 블록" 이 아니다.
@@ -157,6 +170,14 @@ export var ALL_BLOCKS = [GRASS, DIRT, STONE, COBBLE, SAND, GRAVEL, SNOW, LOG,
 export var ITEMS = [FLINT];
 export function isItem(b) { return ITEMS.indexOf(b) >= 0; }
 for (var wj = 0; wj < WOOL_COUNT; wj++) ALL_BLOCKS.push(WOOL0 + wj);
+// 색 카펫 — 양털과 같은 색 이름을 쓴다. 아틀라스 타일 61~76.
+for (var ck = 0; ck < CARPET_COUNT; ck++) {
+  TILES[CARPET0 + ck] = [61 + ck, 61 + ck, 61 + ck];
+  NAMES[CARPET0 + ck] = WOOL_COLORS[ck][0] + " 카펫";
+  NAMES_EN[CARPET0 + ck] = "CARPET " + WOOL_COLORS[ck][0];
+  HARDNESS[CARPET0 + ck] = 0.06;
+  ALL_BLOCKS.push(CARPET0 + ck);
+}
 
 // ── 이웃에 따라 모양이 바뀌는 블록 (울타리 · 유리판)
 export function isConnecting(b) { return b === FENCE || b === PANE; }
@@ -168,7 +189,8 @@ export function isOpenable(b) { return b === GATE || b === DOOR; }
 export function isFlammable(b) {
   return b === LOG || b === BIRCH_LOG || b === PLANKS || b === LEAVES ||
          b === BIRCH_LEAVES || b === SPRUCE_LEAVES || b === TALLGRASS ||
-         b === DRYGRASS || b === DEADBUSH || b === SAPLING || b === BOOKSHELF || b === CARPET ||
+         b === DRYGRASS || b === DEADBUSH || b === SAPLING || b === BOOKSHELF || isCarpet(b) ||
+         b === POT || b === FRAME ||
          b === FENCE || b === GATE || isWool(b);
 }
 // 울타리·유리판이 이어 붙는 상대인가
@@ -259,11 +281,14 @@ export function isLiquid(b) { return b === WATER || b === LAVA; }
 export function isTransparent(b) { return b === GLASS || b === WATER || b === ICE || b === PANE; }
 export function isSolid(b) { return b !== AIR && !isLiquid(b) && !isCross(b) && b !== LADDER; }
 // 얇아서 이웃 면을 가리지 못하는 블록 — 카펫은 딛고 설 수 있지만 통짜가 아니다
-export function isThin(b) { return b === CARPET; }
-export function blocksLight(b) { return b !== AIR && !isTransparent(b) && !isCross(b) && b !== CARPET; }
+export function isThin(b) { return isCarpet(b); }
+export function blocksLight(b) {
+  return b !== AIR && !isTransparent(b) && !isCross(b) && !isCarpet(b) && b !== POT && b !== FRAME;
+}
 export function lightPass(b) {
   return b === AIR || b === WATER || b === GLASS || b === ICE || b === PANE ||
-         b === FENCE || b === GATE || b === DOOR || b === LADDER || b === CARPET || isCross(b);
+         b === FENCE || b === GATE || b === DOOR || b === LADDER || isCarpet(b) || isCross(b) ||
+         b === POT || b === FRAME;
 }
 
 
@@ -279,7 +304,8 @@ export function categoryOf(b) {
   if (isWool(b)) return "color";
   if (b === WATER || b === LAVA || b === LAMP || b === TORCH || b === FIRE ||
       b === ICE || b === FLINT) return "light";
-  if (b === BOOKSHELF || b === CARPET) return "build";
+  if (b >= CARPET0 && b < CARPET0 + CARPET_COUNT) return "color";   // 색 카펫은 양털 옆에
+  if (b === BOOKSHELF || b === CARPET || b === POT || b === FRAME) return "build";
   if (b === GRASS || b === DIRT || b === STONE || b === SAND || b === GRAVEL || b === SNOW ||
       b === LOG || b === BIRCH_LOG || b === LEAVES || b === BIRCH_LEAVES || b === SPRUCE_LEAVES ||
       b === COAL || b === IRON || b === GOLD || b === DIAMOND || b === CACTUS ||

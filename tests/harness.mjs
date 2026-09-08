@@ -12,10 +12,39 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(HERE, "..");
 export const GAME = path.join(ROOT, "index.html");
 
-const SCRATCH = process.env.BY_SCRATCH ||
-  "/private/tmp/claude-501/-Users-masterd-Documents-Claude-Document-Minigame/7f39fe21-d743-4b9b-b93a-6aaf67f2a3bd/scratchpad";
-const require = createRequire(path.join(SCRATCH, "package.json"));
-const { chromium } = require("playwright-core");
+// playwright-core 는 저장소 밖(세션 스크래치패드)에 있다 — node_modules 를 저장소에 두지 않는다.
+// **경로를 하나만 박아 두면 안 된다.** 그 임시 폴더는 청소되면 사라지고, 그러면
+// 시험이 통째로 안 돈다 (실제로 한 번 겪었다 — 낡은 세션 폴더가 비워졌다).
+// 후보를 차례로 짚어 **실제로 불러와지는 첫 번째**를 쓴다.
+const SCRATCH_ROOT = "/private/tmp/claude-501/-Users-masterd-Documents-Claude-Document-Minigame";
+function scratchCandidates() {
+  const out = [];
+  if (process.env.BY_SCRATCH) out.push(process.env.BY_SCRATCH);
+  try {
+    // 최근에 손댄 세션 폴더부터 본다
+    const dirs = fs.readdirSync(SCRATCH_ROOT)
+      .map((d) => path.join(SCRATCH_ROOT, d, "scratchpad"))
+      .filter((d) => fs.existsSync(path.join(d, "node_modules")))
+      .sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+    out.push.apply(out, dirs);
+  } catch (e) {}
+  out.push(ROOT);                     // 저장소에 직접 깔아 뒀다면 그것도
+  return out;
+}
+let chromium = null, SCRATCH = null;
+for (const cand of scratchCandidates()) {
+  try {
+    const req = createRequire(path.join(cand, "package.json"));
+    chromium = req("playwright-core").chromium;
+    SCRATCH = cand;
+    break;
+  } catch (e) { /* 다음 후보 */ }
+}
+if (!chromium) {
+  throw new Error("playwright-core 를 찾을 수 없습니다. 후보: " +
+    scratchCandidates().join(", ") + "\n" +
+    "스크래치패드에서 `npm i playwright-core` 하거나 BY_SCRATCH 로 경로를 주세요.");
+}
 
 const CHROME = process.env.BY_CHROME || path.join(
   os.homedir(),

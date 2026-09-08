@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { MOB_MAX, aimingAtMob, feedNearbyMob } from "./mobs.js";
 import { primeTNT, ignite } from "./fluids.js";
 import { WY, idx, inside } from "./dims.js";
-import { FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, ALL_BLOCKS, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
+import { FRAME, FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, ALL_BLOCKS, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
 import { get, shape } from "./world.js";
 import { burst } from "./scene.js";
 import { BODY, HALF, currentShape, player, raycast, stats } from "./player.js";
@@ -175,11 +175,11 @@ export function place(repeating) {
   }
   // 횃불은 벽에도 붙는다 — 옆면을 클릭했고 그 벽이 단단하면 벽 횃불
   var wallSh = 0;
-  if ((b === TORCH || b === LADDER) && !onCross &&
+  if ((b === TORCH || b === LADDER || b === FRAME) && !onCross &&
       (hit.nx !== 0 || hit.nz !== 0) && isSolid(hit.block)) {
     wallSh = wallShapeFor(hit.nx, hit.nz);
   }
-  if (b === LADDER && !wallSh) { toast("벽에 붙여야 합니다"); return; }
+  if ((b === LADDER || b === FRAME) && !wallSh) { toast("벽에 붙여야 합니다"); return; }
   if (needsFloor(b) && !wallSh && !isSolid(get(px, py - 1, pz))) {
     toast("받칠 바닥이 필요합니다"); return;
   }

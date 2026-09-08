@@ -333,6 +333,63 @@ paint(60, function (p, r) {  // 카펫 — 촘촘한 짜임에 테두리 무늬
     if ((x2 + y2) % 3 === 0) p(x2, y2, "#c8a95e");
 });
 
+// 색 카펫 16색 — 양털 색 바탕에 카펫과 같은 짜임·테두리 (v84).
+// 새 그림을 그리지 않고 두 가지를 겹친다: 색은 양털에서, 무늬는 카펫에서.
+WOOL_COLORS.forEach(function (wc, wi) {
+  paint(61 + wi, function (p, r) {
+    var hex = wc[1];
+    var rgb = [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16),
+               parseInt(hex.slice(5, 7), 16)];
+    function shade(d) {
+      return "rgb(" + Math.max(0, Math.min(255, rgb[0] + d)) + "," +
+                      Math.max(0, Math.min(255, rgb[1] + d)) + "," +
+                      Math.max(0, Math.min(255, rgb[2] + d)) + ")";
+    }
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++)
+      p(x, y, shade((r() - 0.5) * 22));
+    // 테두리와 가운데 무늬는 바탕보다 밝게/어둡게 — 어떤 색이든 짜임이 읽힌다
+    var lum = (rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114);
+    var trim = shade(lum > 128 ? -46 : 52);
+    for (var k = 1; k < 15; k++) { p(k, 1, trim); p(k, 14, trim); p(1, k, trim); p(14, k, trim); }
+    var mid = shade(lum > 128 ? -26 : 32);
+    for (var y2 = 5; y2 < 11; y2++) for (var x2 = 5; x2 < 11; x2++)
+      if ((x2 + y2) % 3 === 0) p(x2, y2, mid);
+  });
+});
+
+paint(77, function (p, r) {  // 화분 옆면 — 토분에 테두리 한 줄
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+    // 아래 절반만 화분이고 위는 비운다 (작은 상자에 늘여 붙는다)
+    var t = ["#9c5a3c", "#8c4f34", "#a86444"];
+    p(x, y, pick(r, t));
+  }
+  for (var k = 0; k < 16; k++) { p(k, 2, "#6f3d28"); p(k, 3, "#b06a48"); }
+  for (var k2 = 0; k2 < 16; k2 += 4) for (var y2 = 5; y2 < 15; y2++) p(k2, y2, "#844a30");
+});
+
+paint(78, function (p, r) {  // 화분 윗면 — 검은 흙에 어린 싹
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++)
+    p(x, y, pick(r, ["#9c5a3c", "#8c4f34"]));
+  for (var y2 = 3; y2 < 13; y2++) for (var x2 = 3; x2 < 13; x2++)
+    p(x2, y2, pick(r, ["#4a3524", "#3d2b1d", "#55402c"]));
+  for (var g = 0; g < 5; g++) {
+    var gx = 6 + Math.floor(r() * 4), gy = 6 + Math.floor(r() * 4);
+    p(gx, gy, pick(r, ["#4f7a2a", "#639338"]));
+  }
+});
+
+paint(79, function (p, r) {  // 액자 — 나무 테두리 안에 그림 한 장
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++)
+    p(x, y, pick(r, ["#6b4a2a", "#7a5632", "#5d4024"]));      // 테두리
+  // 안쪽 그림 — 언덕과 하늘, 해 하나
+  for (var y2 = 3; y2 < 13; y2++) for (var x2 = 3; x2 < 13; x2++) {
+    var c = y2 < 8 ? pick(r, ["#8fb8d8", "#a3c6e0"]) : pick(r, ["#4f7a2a", "#5b8a30"]);
+    p(x2, y2, c);
+  }
+  p(10, 5, "#f0d878"); p(11, 5, "#f0d878"); p(10, 6, "#f0d878"); p(11, 6, "#f0d878");
+  for (var h = 4; h < 9; h++) p(h, 8 - Math.floor(Math.abs(h - 6) / 2), "#3f6522");
+});
+
 paint(28, function (p, r) {  // 죽은 덤불 — 마른 가지
   var b = ["#7a5a2e", "#8d6a37", "#694d27"];
   for (var k = 0; k < 5; k++) {

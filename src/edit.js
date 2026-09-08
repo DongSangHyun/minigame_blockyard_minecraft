@@ -4,7 +4,7 @@ import { Q } from "./queues.js";
 import { opts } from "./settings.js";
 import { encodeArrB64, decodeArrB64, SLOTS } from "./save.js";
 import { SEA, DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
-import { FENCE, GLASS, PLANKS, BRICK, SAPLING, SH_STAIR_N, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
+import { isCarpet, POT, FRAME, FENCE, GLASS, PLANKS, BRICK, SAPLING, SH_STAIR_N, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
 import { markX, markY, markZ, markName, topMap, refreshAllTops, touched, get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightAll, relightLocal } from "./light.js";
 import { enqueueGrow, enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
@@ -40,7 +40,16 @@ function dropCross(x, y, z, wall, record, depth) {
   // 사다리도 벽 횃불과 같은 규칙이다 — 벽이 사라지면 같이 떨어진다.
   // 문도 받칠 바닥이 필요하다(needsFloor) — 밑을 캐면 허공에 뜨면 안 된다.
   var db = world[i];
-  if (!isCross(db) && !isClimbable(db) && db !== DOOR) return;
+  // 카펫도 바닥이 있어야 한다(needsFloor) — 놓을 때는 막으면서 **밑을 캐면 허공에 떠 있었다**.
+  // v74 에서 카펫을 넣을 때 여기 목록에 안 넣은 것이다 (v84 에서 색 카펫 시험이 잡았다).
+  if (!isCross(db) && !isClimbable(db) && db !== DOOR &&
+      !isCarpet(db) && db !== POT && db !== FRAME) return;
+  if (isCarpet(db) || db === POT) {
+    if (wall) return;                          // 카펫·화분은 벽이 아니라 바닥에 놓인다
+    if (isSolid(get(x, y - 1, z))) return;
+    applyEdit(x, y, z, AIR, record, SH_FULL, (depth || 0) + 1);
+    return;
+  }
   if (db === DOOR) {
     if (wall) return;                          // 문은 벽이 아니라 바닥에 선다
     if (world[idx(x, y - 1, z)] === DOOR) return;   // 아래가 문이면 내가 윗쪽 — 아래가 판단한다

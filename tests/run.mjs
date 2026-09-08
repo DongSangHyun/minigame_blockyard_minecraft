@@ -2927,11 +2927,17 @@ test("v16 블록 목록: 갈래와 이름으로 걸러진다", async (page) => {
     const search = count();
     find.value = "";
     find.dispatchEvent(new Event("input", { bubbles: true }));
-    return { all, color, search, cats: [B.categoryOf(B.WOOL0), B.categoryOf(B.B.STONE),
-                                        B.categoryOf(B.B.LAMP), B.categoryOf(B.B.BRICK)] };
+    return { all, color, search,
+             wools: B.WOOL_COUNT, carpets: B.CARPET_COUNT,
+             cats: [B.categoryOf(B.WOOL0), B.categoryOf(B.B.STONE),
+                    B.categoryOf(B.B.LAMP), B.categoryOf(B.B.BRICK),
+                    B.categoryOf(B.CARPET0)] };
   });
   assert(r.all > 30, "전체 목록이 너무 짧다: " + r.all);
-  eq(r.color, 16, "색 갈래가 양털 16개가 아니다: " + r.color);
+  // 색 갈래 = 양털 16 + 색 카펫 16 (v84). 숫자를 여기 적지 않고 상수에서 유도한다.
+  eq(r.color, r.wools + r.carpets,
+     "색 갈래가 " + r.color + "개 — 양털 " + r.wools + " + 카펫 " + r.carpets + " 이어야 한다");
+  eq(r.cats[4], "color", "색 카펫이 색 갈래에 없다");
   eq(r.search, 16, "이름 검색이 안 걸린다: " + r.search);
   eq(r.cats[0], "color", "양털 갈래");
   eq(r.cats[1], "nature", "돌 갈래");
@@ -8278,10 +8284,14 @@ test("v78 번식: 따라오는 동안에는 사랑이 안 식고, 하트가 계�
     B.mobs.length = 0;
     B.seedMobs();
     B.mobs.forEach(mm => { mm.x = 5; mm.z = 5; mm.y = 30; mm.follow = 0; mm.love = 0; mm.baby = 0; });
-    // 같은 종 두 마리를 고른다
-    const a = B.mobs[0];
-    let b = null;
-    for (let i = 1; i < B.mobs.length; i++) if (B.mobs[i].kind === a.kind) { b = B.mobs[i]; break; }
+    // 같은 종 **두 마리가 있는 종**을 고른다.
+    // mobs[0] 의 종을 그냥 쓰면, 그 종이 한 마리뿐인 판에서 시험이 터진다 (10회 중 1회).
+    const byKind = {};
+    B.mobs.forEach(m => { (byKind[m.kind] = byKind[m.kind] || []).push(m); });
+    let pair = null;
+    for (const k in byKind) if (byKind[k].length >= 2) { pair = byKind[k]; break; }
+    if (!pair) return { sameKind: false };
+    const a = pair[0], b = pair[1];
     B.player.pos.set(50, 30, 50);
     a.x = 51; a.z = 50; a.y = 30;
     const born0 = B.mobs.length;
@@ -9617,6 +9627,216 @@ phoneTest("지도를 눌러 표식을 찍고, 길게 눌러 확대한다", async
      "지도를 길게 눌렀는데 확대가 " + r.zoom0 + "→" + r.zoom1 + " 다 — 폰에는 [ ] 키가 없다");
   eq(r.marksAfterHold, 1, "길게 눌렀는데 표식까지 같이 찍혔다");
   eq(r.afterSecond, 0, "같은 자리를 다시 탭했는데 표식이 안 지워졌다");
+});
+
+test("v84 색 카펫: 열여섯 색이 양털과 짝을 이루고, 카펫답게 군다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 46, Y = 38, Z = 46;
+    for (let dx = -2; dx <= 20; dx++) for (let dz = -2; dz <= 6; dz++)
+      for (let dy = -2; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dx = -2; dx <= 20; dx++) for (let dz = -2; dz <= 6; dz++)
+      B.set(X + dx, Y - 1, Z + dz, B.B.PLANKS);
+    B.refreshAllTops(); B.relightAll(false);
+
+    const names = [], tiles = [], cats = [], soft = [];
+    for (let i = 0; i < B.CARPET_COUNT; i++) {
+      const b = B.CARPET0 + i;
+      names.push(B.NAMES[b]);
+      tiles.push(B.TILES[b] ? B.TILES[b][0] : -1);
+      cats.push(B.categoryOf(b));
+      soft.push(!!B.isCarpet(b));
+    }
+    // 놓아 본다 — 바닥이 있어야 놓이고, 한 겹이라 딛고 서되 걸리지 않는다
+    B.applyEdit(X, Y, Z, B.CARPET0 + 4, false);
+    const placed = B.get(X, Y, Z);
+    // boxesAt(b, sh, x, y, z) — 블록과 모양을 같이 준다
+    const boxes = B.boxesAt(placed, B.shapeAt(X, Y, Z), X, Y, Z);
+    const thin = boxes && boxes.length === 1 ? boxes[0][4] : -1;
+    // 성질은 **원래 카펫과 똑같아야** 한다 — 하나라도 어긋나면 그 색만 다르게 군다
+    function traits(b) {
+      return [B.isSolid(b), B.blocksLight(b), B.isThin(b), B.lightPass(b),
+              B.needsFloor(b), B.isCross(b), B.hardnessOf(b)].join("|");
+    }
+    const plain = traits(B.B.CARPET);
+    const odd = [];
+    for (let i = 0; i < B.CARPET_COUNT; i++)
+      if (traits(B.CARPET0 + i) !== plain) odd.push(i + ":" + traits(B.CARPET0 + i));
+    // 바닥을 빼면 함께 사라진다
+    B.applyEdit(X, Y - 1, Z, B.B.AIR, false);
+    const afterFloor = B.get(X, Y, Z);
+    // 허공에는 못 놓는다 — place() 가 "받칠 바닥이 필요합니다" 로 막는다
+    const airNeeds = B.needsFloor(B.CARPET0 + 7);
+    // 빛을 막지 않는다
+    B.set(X, Y - 1, Z, B.B.PLANKS);
+    B.applyEdit(X, Y, Z, B.CARPET0 + 9, false);
+    B.relightAll(false);
+    const lightUnder = B.lightSky[B.idx(X, Y, Z)];
+
+    // 목록에 다 나오나 · 수집가 과제가 셀 수 있나
+    let inAll = 0;
+    for (const b of B.ALL_BLOCKS) if (B.isCarpet(b) && b !== B.B.CARPET) inAll++;
+
+    B.endPlay(); B.setPaused(false);
+    return { names, tiles, cats, soft, placed, thin, plain, odd, afterFloor, airNeeds,
+             lightUnder, inAll, count: B.CARPET_COUNT, wool0: B.WOOL0,
+             plainCarpet: B.B.CARPET, first: B.CARPET0 };
+  });
+  eq(r.count, 16, "색 카펫이 16색이 아니다");
+  eq(r.inAll, 16, "블록 목록에 색 카펫이 " + r.inAll + "개만 있다");
+  eq(new Set(r.names).size, 16, "이름이 겹친다: " + r.names.join(","));
+  eq(new Set(r.tiles).size, 16, "텍스처 타일이 겹친다: " + r.tiles.join(","));
+  assert(r.tiles.every(t => t > 0), "타일이 없는 색 카펫이 있다: " + r.tiles.join(","));
+  assert(r.cats.every(c => c === "color"), "색 갈래가 아닌 카펫이 있다: " + r.cats.join(","));
+  assert(r.soft.every(Boolean), "isCarpet 이 못 알아보는 색 카펫이 있다");
+  eq(r.placed, r.first + 4, "색 카펫이 안 놓였다");
+  // 한 겹(1/16) — 딛고 서되 걸리지 않는다
+  assert(r.thin > 0 && r.thin <= 0.07,
+     "색 카펫의 두께가 " + r.thin + " — 한 겹(0.0625)이어야 한다");
+  eq(r.odd.length, 0,
+     "원래 카펫(" + r.plain + ")과 다르게 구는 색 카펫이 있다: " + r.odd.join(" · "));
+  eq(r.afterFloor, 0, "받치던 바닥이 사라졌는데 색 카펫이 남았다");
+  eq(r.airNeeds, true, "색 카펫이 바닥 없이도 놓인다");
+  eq(r.lightUnder, 15, "색 카펫이 하늘빛을 막는다: " + r.lightUnder);
+});
+
+test("v84 저장: 색 카펫이 저장에 실려 돌아온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const slotKey = B.curKey();
+    const keepSave = localStorage.getItem(slotKey);
+    const X = 60, Y = 36, Z = 60;
+    for (let dx = 0; dx < 16; dx++) {
+      B.set(X + dx, Y - 1, Z, B.B.PLANKS);
+      B.set(X + dx, Y, Z, B.CARPET0 + dx);
+      B.set(X + dx, Y + 1, Z, 0);
+    }
+    B.refreshAllTops();
+    B.saveGame();
+    for (let dx = 0; dx < 16; dx++) B.set(X + dx, Y, Z, 0);
+    const wiped = B.get(X + 3, Y, Z);
+    const ok = B.loadGame();
+    const back = [];
+    for (let dx = 0; dx < 16; dx++) back.push(B.get(X + dx, Y, Z));
+    if (keepSave === null) localStorage.removeItem(slotKey);
+    else localStorage.setItem(slotKey, keepSave);
+    B.endPlay(); B.setPaused(false);
+    return { ok, wiped, back, first: B.CARPET0 };
+  });
+  assert(r.ok, "저장을 못 읽었다");
+  eq(r.wiped, 0, "시험대가 안 섰다 — 지우지 못했다");
+  for (let i = 0; i < 16; i++)
+    eq(r.back[i], r.first + i, i + "번 색 카펫이 안 돌아왔다");
+});
+
+test("v84 소품: 화분은 바닥에, 액자는 벽에 붙는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 34, Y = 34, Z = 34;
+    for (let dx = -2; dx <= 6; dx++) for (let dz = -2; dz <= 6; dz++)
+      for (let dy = -2; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dx = -2; dx <= 6; dx++) for (let dz = -2; dz <= 6; dz++)
+      B.set(X + dx, Y - 1, Z + dz, B.B.PLANKS);
+    for (let dy = 0; dy <= 3; dy++) B.set(X, Y + dy, Z, B.B.BRICK);   // 벽 한 장
+    B.refreshAllTops(); B.relightAll(false);
+
+    // 화분 — 바닥에 놓이고, 낮은 상자라 넘어 다닐 수 있고, 빛을 안 막는다
+    B.applyEdit(X + 3, Y, Z + 3, B.POT, false);
+    const potThere = B.get(X + 3, Y, Z + 3);
+    const potBox = B.boxesAt(B.POT, B.shapeAt(X + 3, Y, Z + 3), X + 3, Y, Z + 3);
+    const potH = potBox && potBox.length === 1 ? potBox[0][4] : -1;
+    const potFloor = B.needsFloor(B.POT);
+    const potWall = B.needsWall(B.POT);
+    const potLight = B.blocksLight(B.POT);
+    // 바닥을 빼면 걷힌다
+    B.applyEdit(X + 3, Y - 1, Z + 3, B.B.AIR, false);
+    const potAfter = B.get(X + 3, Y, Z + 3);
+
+    // 액자 — 벽에 붙는다. 벽 모양이 붙어야 얇은 판으로 그려진다.
+    B.applyEdit(X + 1, Y + 1, Z, B.FRAME, false, B.wallShapeFor(1, 0));
+    const frameThere = B.get(X + 1, Y + 1, Z);
+    const frameSh = B.shapeAt(X + 1, Y + 1, Z);
+    const frameBox = B.boxesAt(B.FRAME, frameSh, X + 1, Y + 1, Z);
+    const frameThin = frameBox && frameBox.length === 1
+      ? (frameBox[0][3] - frameBox[0][0]) : -1;
+    const frameWall = B.needsWall(B.FRAME);
+    const frameLight = B.blocksLight(B.FRAME);
+
+    // 목록·이름·텍스처
+    const inAll = B.ALL_BLOCKS.indexOf(B.POT) >= 0 && B.ALL_BLOCKS.indexOf(B.FRAME) >= 0;
+    const tiles = [B.TILES[B.POT], B.TILES[B.FRAME]];
+    const names = [B.NAMES[B.POT], B.NAMES[B.FRAME]];
+    const cats = [B.categoryOf(B.POT), B.categoryOf(B.FRAME)];
+
+    B.endPlay(); B.setPaused(false);
+    return { potThere, potH, potFloor, potWall, potLight, potAfter,
+             frameThere, frameSh, frameThin, frameWall, frameLight,
+             inAll, tiles, names, cats, POT: B.POT, FRAME: B.FRAME, E: B.wallShapeFor(1, 0) };
+  });
+  eq(r.potThere, r.POT, "화분이 안 놓였다");
+  assert(r.potH > 0.2 && r.potH < 0.7, "화분 높이가 " + r.potH + " — 낮은 상자여야 한다");
+  eq(r.potFloor, true, "화분이 바닥 없이도 놓인다");
+  eq(r.potWall, false, "화분이 벽에 붙는 것으로 돼 있다");
+  eq(r.potLight, false, "화분이 빛을 막는다");
+  eq(r.potAfter, 0, "받치던 바닥이 사라졌는데 화분이 허공에 남았다");
+  eq(r.frameThere, r.FRAME, "액자가 안 놓였다");
+  eq(r.frameSh, r.E, "액자에 벽 모양이 안 붙었다");
+  assert(r.frameThin > 0 && r.frameThin < 0.2,
+     "액자 두께가 " + r.frameThin + " — 벽에 붙는 얇은 판이어야 한다");
+  eq(r.frameWall, true, "액자가 벽을 안 찾는다");
+  eq(r.frameLight, false, "액자가 빛을 막는다");
+  assert(r.inAll, "화분·액자가 블록 목록에 없다");
+  assert(r.tiles.every(t => t && t.length === 3), "텍스처가 빠졌다: " + JSON.stringify(r.tiles));
+  assert(r.names.every(n => n && n.length), "이름이 빠졌다: " + JSON.stringify(r.names));
+  assert(r.cats.every(c => c === "build"), "갈래가 건축이 아니다: " + r.cats.join(","));
+});
+
+test("v84 소품: 액자는 벽이 없으면 안 놓이고, 벽이 사라지면 같이 걷힌다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 24, Y = 44, Z = 24;
+    for (let dx = -3; dx <= 5; dx++) for (let dz = -3; dz <= 5; dz++)
+      for (let dy = -2; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dx = -3; dx <= 5; dx++) for (let dz = -3; dz <= 5; dz++)
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    for (let dy = 0; dy <= 3; dy++) B.set(X, Y + dy, Z, B.B.BRICK);
+    B.refreshAllTops(); B.relightAll(false);
+    B.S.bar[B.S.selected] = B.FRAME;
+    B.S.shapeMode = 0;
+
+    // 벽이 아닌 바닥을 조준하고 놓으려 하면 막힌다.
+    // 날아서 내려다본다 — 서서 발밑을 보면 그 자리를 내가 차지해 canPlaceAt 에서 먼저 걸린다.
+    const toastEl = document.getElementById("toast");
+    B.player.flying = true; B.player.vel.set(0, 0, 0);
+    B.player.pos.set(X + 3.5, Y + 2, Z + 3.5);
+    B.player.yaw = 0; B.player.pitch = -Math.PI / 2 + 0.01;
+    B.camera.rotation.order = "YXZ";
+    B.camera.rotation.y = 0; B.camera.rotation.x = B.player.pitch;
+    B.camera.position.set(B.player.pos.x, B.player.pos.y + B.EYE, B.player.pos.z);
+    B.camera.updateMatrixWorld(true);
+    toastEl.textContent = "";
+    B.place(false);
+    const floorMsg = toastEl.textContent;
+    const onFloor = B.get(X + 3, Y, Z + 3);
+
+    // 벽에 붙인 액자는 벽을 캐면 같이 걷힌다
+    B.applyEdit(X + 1, Y + 1, Z, B.FRAME, false, B.wallShapeFor(1, 0));
+    const before = B.get(X + 1, Y + 1, Z);
+    B.applyEdit(X, Y + 1, Z, B.B.AIR, false);
+    const after = B.get(X + 1, Y + 1, Z);
+
+    B.player.flying = false;
+    B.endPlay(); B.setPaused(false);
+    return { floorMsg, onFloor, before, after, FRAME: B.FRAME };
+  });
+  eq(r.onFloor, 0, "벽이 아닌 바닥에 액자가 놓였다");
+  assert(/벽/.test(r.floorMsg), "액자를 바닥에 놓으려는데 안내가 없다: \"" + r.floorMsg + "\"");
+  eq(r.before, r.FRAME, "시험대가 안 섰다 — 액자가 벽에 안 붙었다");
+  eq(r.after, 0, "벽을 캤는데 액자가 허공에 남았다");
 });
 
 // ── 실행 ───────────────────────────────────────────────
