@@ -63,5 +63,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v76 — 오두막이 채마다 달라졌다 · 회귀 테스트 281항목 전부 통과.**
+**v77 — 세션 인계 체계 — "새세션 준비해줘" / "새세션 시작" · 회귀 테스트 281항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/
