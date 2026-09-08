@@ -318,7 +318,7 @@ export var ACHIEVEMENTS = [
   { id: "coal", name: "검은 돌", desc: "석탄 광석을 캔다" },
   { id: "iron", name: "쇠맛", desc: "철 광석을 캔다" },
   { id: "deep", name: "깊은 곳", desc: "높이 3 아래로 내려간다" },
-  { id: "high", name: "꼭대기", desc: "높이 50 위로 올라간다" },
+  { id: "high", name: "꼭대기", desc: "해수면보다 9칸 높은 곳에 딛고 선다 (날아서는 안 된다)" },
   { id: "lamp10", name: "등대지기", desc: "램프를 10개 놓는다" },
   { id: "flood", name: "수문장", desc: "바닷물을 끌어들인다" },
   { id: "gravity", name: "사태", desc: "모래나 자갈을 무너뜨린다" },

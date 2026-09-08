@@ -80,7 +80,11 @@ export function refreshBar() {
   updateHandBlock();
 }
 export function selectSlot(i) {
+  // 떠나는 칸의 모양을 그 칸에 남기고, 새 칸이 기억하던 모양을 꺼내 온다 (v82).
+  // 이게 없으면 G 로 고른 모양이 전역 하나라 칸을 바꿔도 계단이 따라온다.
+  if (S.shapeBar) S.shapeBar[S.selected] = S.shapeMode;
   S.selected = ((i % S.bar.length) + S.bar.length) % S.bar.length;
+  if (S.shapeBar) S.shapeMode = S.shapeBar[S.selected] | 0;
   for (var k = 0; k < hotbarEl.children.length; k++) {
     hotbarEl.children[k].setAttribute("aria-current", k === S.selected ? "true" : "false");
   }
@@ -253,11 +257,14 @@ export function drawMinimap() {
         if (y >= 0) {
           b = world[idx(x, y, z)];
           shade = 0.62 + (y / WY) * 0.72;
-          // 굴 어귀 — 지형이 있어야 할 높이(heightMap)보다 겉면이 3칸 넘게 꺼져 있으면
-          // 거기가 굴로 들어가는 구멍이다. v79 로 굴이 3배가 됐는데 어귀는 그대로라
-          // 들어간 굴을 다시 못 찾는 것이 지하의 가장 큰 문제였다 (자문 13차 #10).
-          // 두 배열이 이미 있으니 뺄셈 하나면 된다.
-          if (heightMap[z * WX + x] - y >= 3) mouth = true;
+          // 굴 어귀 — 지형이 있어야 할 높이(heightMap)보다 겉면이 4칸 넘게 꺼져 있으면
+          // 거기가 굴로 들어가는 구멍이다. 들어간 굴을 다시 못 찾는 것이 지하의
+          // 가장 큰 문제였다 (자문 13차 #10). 두 배열이 이미 있으니 뺄셈 하나면 된다.
+          // **뭍만** 본다 — 바다 밑 카브까지 찍으면 걸어서 못 가는 자리로 지도가 얼룩진다.
+          // **뭍인지는 겉면(y)이 아니라 지형 높이(heightMap)로 판단한다** —
+          // 어귀는 겉면이 파여 내려간 자리라, 겉면으로 재면 언덕의 어귀가 통째로 빠진다.
+          var gh = heightMap[z * WX + x];
+          if (gh > SEA && gh - y >= 4) mouth = true;
           // 등고선 — 일정 높이마다 한 줄씩 어둡게 해 높낮이를 읽게 한다
           if (S.contour && y > SEA) {
             var west = topMap[z * WX + Math.max(0, x - 1)];

@@ -69,6 +69,8 @@ export function newWorld(seed) {
   S.walked = 0; S.achPrevX = null; S.achPrevZ = null;
   S.growDirty = true;      // 새 세계의 묘목을 큐에 다시 담는다
   S.shapeMode = 0;
+  if (S.shapeBar) { for (var sq = 0; sq < S.shapeBar.length; sq++) S.shapeBar[sq] = 0; }
+  if (S.shapeBarAlt) { for (var sq2 = 0; sq2 < S.shapeBarAlt.length; sq2++) S.shapeBarAlt[sq2] = 0; }
   S.stepLift = 0;
   S.spawnPoint = null;
   S.marks = [];
@@ -696,7 +698,10 @@ function snowSticksTo(b) {
       if (player.pos.y < 3) unlock("deep");
       if (moved && get(Math.floor(player.pos.x), Math.floor(player.pos.y - 0.1),
               Math.floor(player.pos.z)) === ICE) unlock("ice");
-      if (player.pos.y > 50) unlock("high");
+      // 꼭대기 — **딛고 서야** 한다. 예전에는 "높이 50 위" 라 크리에이티브에서는
+      // 그냥 위로 날면 열렸고, 반대로 산은 아무리 올라도 안 열렸다
+      // (최고봉이 판 1 은 20~32 · 판 2 는 32~44 다). 해수면 기준으로 옮긴다.
+      if (!player.flying && player.onGround && player.pos.y > SEA + 9) unlock("high");
       if (!S.earned.cartographer && seenRatio() > 0.8) unlock("cartographer");
       var lb = localBiome();
       if (moved && lb === 1) unlock("snow");

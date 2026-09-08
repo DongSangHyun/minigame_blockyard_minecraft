@@ -759,14 +759,29 @@ export function cycleTime() {
   toast(label);
 }
 
+// 모양을 바꾼다 — **지금 칸에 기억시킨다** (v82).
+// 이 한 함수를 거치지 않는 대입이 하나라도 남으면 그 경로에서만 모양이 안 남는다.
+export function setShapeMode(m) {
+  S.shapeMode = ((m % 3) + 3) % 3;
+  if (S.shapeBar) S.shapeBar[S.selected] = S.shapeMode;
+}
+
 // 핫바 두 쪽을 맞바꾼다 — Tab 과 터치의 "목록 길게 누르기" 가 같은 길을 탄다
 export function swapBarPage() {
+  // 쪽마다 칸의 모양도 따로 기억한다 — 블록만 바꾸고 모양을 안 바꾸면
+  // 2쪽으로 넘어갔을 때 1쪽의 계단이 따라온다
+  if (S.shapeBar) S.shapeBar[S.selected] = S.shapeMode;
+  var swapShape = S.shapeBar;
+  S.shapeBar = S.shapeBarAlt;
+  S.shapeBarAlt = swapShape;
   var swapBar = S.bar;
   S.bar = S.barAlt;
   S.barAlt = swapBar;
   S.barPage = S.barPage === 1 ? 2 : 1;
   refreshBar();
   S.worldDirty = true;
+  if (S.shapeBar) S.shapeMode = S.shapeBar[S.selected] | 0;
+  updateHandBlock();
   toast("핫바 " + S.barPage + "쪽");
   tone(520 + S.barPage * 90, 0.06, "square", 0.04);
 }
@@ -783,7 +798,7 @@ export function pickBlock() {
   // 예전에는 여기서 그냥 나가 버려 그 절반이 통과했다.
   if (S.bar[S.selected] === hit.block && S.shapeMode === mode) { toast(NAMES[hit.block]); return; }
   S.bar[S.selected] = hit.block;
-  S.shapeMode = mode;
+  setShapeMode(mode);
   refreshSlot(S.selected);
   updateHandBlock();
   S.worldDirty = true;
@@ -968,7 +983,7 @@ window.addEventListener("keydown", function (e) {
     toast(player.flying ? "비행 모드" : "걷기 모드");
   }
   if (e.code === S.binds.shape) {
-    S.shapeMode = (S.shapeMode + 1) % 3;
+    setShapeMode(S.shapeMode + 1);
     updateHandBlock();
     toast(["전체 블록", "반블록", "계단"][S.shapeMode]);
     tone(560 + S.shapeMode * 120, 0.06, "square", 0.04);
@@ -1283,7 +1298,7 @@ bindHold("tb-menu", function () {
 // 폰에는 G 키가 없어 **반블록·계단에 갈 길이 화면에 하나도 없었다** —
 // 30분을 지어도 나오는 건 네모 상자뿐이었다. 계단 모서리(v66)를 폰은 본 적이 없다.
 bindHold("tb-shape", function () {
-  S.shapeMode = (S.shapeMode + 1) % 3;
+  setShapeMode(S.shapeMode + 1);
   toast(["전체 블록", "반블록", "계단"][S.shapeMode]);
   updateHandBlock();
   advanceTutTouch(3);

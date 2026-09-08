@@ -674,6 +674,14 @@ export function generate(seed, gen) {
   // **난수를 따로 쓴다** — 위의 rng 를 이어 쓰면 호출 차례가 밀려 기존 시드의 땅이
   // 전부 달라진다 (v61·v75 교훈). S.noMines — 시험이 "갱도 없는 세계" 와 견준다.
   // 얕은 판(바다 11)에는 짓지 않는다 — 지하가 13칸뿐이라 통로를 놓을 자리가 없다.
+  // ── 굴 어귀를 더 뚫는다. 지하가 3배가 됐는데(v79) 어귀는 그대로라
+  // 굴 1,000칸당 어귀가 판 1 의 14~31개에서 2.4~5.2개로 떨어졌다 —
+  // 들어갈 데도 나올 데도 없는 굴이 됐다.
+  // 지표 카브 문턱(0.66)을 낮춰 봤지만 178→189 로 거의 안 늘었다 (v80 실측) —
+  // 병목은 문턱이 아니라 **"바로 아래 칸이 이미 뚫려 있어야 한다"** 는 조건이다.
+  // 그래서 아래에서 위로 뚫는 길을 따로 낸다. **별도 난수 줄기**를 쓴다.
+  if (DEEP && !S.noMouths) openCaveMouths(makeRng(S.worldSeed + 24680));
+
   if (DEEP && !S.noMines) buildMines(makeRng(S.worldSeed + 31337));
 
   // ── 받침을 잃은 풀·꽃·덤불·횃불을 걷어낸다. **생성기의 맨 마지막이어야 한다.**
@@ -698,6 +706,50 @@ export function generate(seed, gen) {
 
 // 갱도 한 줄기 — 통로 2칸 폭 · 3칸 높이. 조약돌 바닥에 울타리 기둥과 원목 들보,
 // 버팀목마다 횃불. 마크의 폐광 실루엣을 새 블록 없이 있는 것만으로 만든다.
+// 지표 아래에 있는 굴을 하늘로 이어 준다 — 언덕 옆구리에 입이 벌어진다.
+// 위에서 아래로 파는 게 아니라 **이미 있는 굴을 찾아 그 위를 뚫는다** —
+// 아무 데나 구멍을 내면 자연스럽지 않고, 굴과 안 이어지면 어귀가 아니다.
+export var MOUTH_DEPTH = 14;        // 지표에서 이만큼 아래까지 굴을 찾아본다
+function openCaveMouths(rng) {
+  var made = 0, tries = 1500;
+  for (var t = 0; t < tries && made < 220; t++) {
+    var x = 3 + ((rng() * (WX - 6)) | 0), z = 3 + ((rng() * (WZ - 6)) | 0);
+    var h = heightMap[z * WX + x];
+    if (h <= SEA + 2 || h + 2 >= WY) continue;          // 뭍만
+    if (get(x, h, z) === AIR) continue;                 // 이미 뚫린 자리
+    // 지표 아래에서 굴을 찾는다
+    var cave = -1;
+    for (var d = 3; d <= MOUTH_DEPTH; d++) {
+      var y = h - d;
+      if (y < 2) break;
+      if (get(x, y, z) === AIR) { cave = y; break; }
+    }
+    if (cave < 0) continue;
+    // 뚫을 기둥에 물·용암이 섞여 있으면 그만둔다 — 어귀가 폭포나 용암 굴뚝이 되면 안 된다
+    var bad = false;
+    for (var cy = cave; cy <= h + 1 && !bad; cy++)
+      for (var dd = 0; dd < 6 && !bad; dd++) {
+        var b = get(x + DIRS[dd][0], cy + DIRS[dd][1], z + DIRS[dd][2]);
+        if (b === WATER || b === LAVA || b === ICE) bad = true;
+      }
+    if (bad) continue;
+    // 뚫는다 — 위로 갈수록 조금 넓혀 자연스러운 입이 되게
+    for (var uy = cave; uy <= h; uy++) {
+      var wide = (uy >= h - 1) ? 1 : 0;                 // 맨 위 두 칸만 2×2 로
+      for (var ox = 0; ox <= wide; ox++)
+        for (var oz = 0; oz <= wide; oz++) {
+          var b2 = get(x + ox, uy, z + oz);
+          if (b2 === WATER || b2 === LAVA || b2 === ICE) continue;
+          if (isUnbreakableGen(b2)) continue;
+          set(x + ox, uy, z + oz, AIR);
+        }
+    }
+    made++;
+  }
+  return made;
+}
+function isUnbreakableGen(b) { return b === BEDROCK; }
+
 // 통로는 **3칸 폭**이다 — 2칸이면 버팀목 기둥 둘이 폭을 통째로 막아 걸어갈 수가 없다.
 // 마크의 폐광도 기둥 사이 가운데로 걷는다.
 export var MINE_W = 3, MINE_H = 3;

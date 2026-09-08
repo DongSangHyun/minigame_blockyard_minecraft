@@ -9126,6 +9126,192 @@ test("v81 지도: 지하가 세 겹이고, 예전 저장은 펼쳐서 읽는다"
   eq(r.ver, 5, "저장 버전은 v5 그대로여야 한다");
 });
 
+test("v82 핫바: 모양을 칸마다 기억한다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const slotKey = B.curKey();
+    const keepSave = localStorage.getItem(slotKey);
+    const keepBar = B.S.bar.slice(), keepAlt = B.S.barAlt.slice();
+
+    B.selectSlot(0); B.setShapeMode(2);        // 0번 칸 = 계단
+    B.selectSlot(1); B.setShapeMode(0);        // 1번 칸 = 전체
+    B.selectSlot(2); B.setShapeMode(1);        // 2번 칸 = 반블록
+
+    B.selectSlot(0); const s0 = B.S.shapeMode;
+    B.selectSlot(1); const s1 = B.S.shapeMode;
+    B.selectSlot(2); const s2 = B.S.shapeMode;
+    // 계단 칸으로 돌아오면 계단이어야 한다
+    B.selectSlot(0); const back = B.S.shapeMode;
+
+    // 핫바 2쪽도 각자 기억한다
+    const page1 = B.S.barPage;
+    B.swapBarPage();
+    const altShape = B.S.shapeMode;            // 2쪽 0번 칸은 아직 전체
+    B.setShapeMode(1);
+    B.swapBarPage();
+    const back1 = B.S.shapeMode;               // 1쪽 0번 칸은 여전히 계단
+    B.swapBarPage();
+    const back2 = B.S.shapeMode;               // 2쪽 0번 칸은 반블록
+    B.swapBarPage();
+
+    // 놓을 때 그 칸의 모양이 나오나
+    B.selectSlot(2);
+    const shapeSlab = B.currentShape(false);
+    B.selectSlot(1);
+    const shapeFull = B.currentShape(false);
+
+    // 저장 → 불러오기
+    B.selectSlot(0);
+    B.saveGame();
+    B.setShapeMode(0);
+    for (let i = 0; i < 10; i++) { B.selectSlot(i); B.setShapeMode(0); }
+    B.selectSlot(0);
+    B.loadGame();
+    B.selectSlot(2); const loaded2 = B.S.shapeMode;
+    B.selectSlot(0); const loaded0 = B.S.shapeMode;
+
+    // 예전 저장 — sb 가 없고 sm 하나뿐이다. 고른 칸에만 들어가야 한다.
+    const raw = JSON.parse(localStorage.getItem(slotKey));
+    delete raw.sb; delete raw.sb2;
+    raw.sm = 2;
+    localStorage.setItem(slotKey, JSON.stringify(raw));
+    B.selectSlot(3);
+    const oldOk = B.loadGame();
+    const old3 = B.S.shapeMode;
+    B.selectSlot(4); const old4 = B.S.shapeMode;
+
+    if (keepSave === null) localStorage.removeItem(slotKey);
+    else localStorage.setItem(slotKey, keepSave);
+    B.S.bar = keepBar; B.S.barAlt = keepAlt; B.refreshBar();
+    for (let i = 0; i < 10; i++) { B.selectSlot(i); B.setShapeMode(0); }
+    B.selectSlot(0);
+    B.endPlay(); B.setPaused(false);
+    return { s0, s1, s2, back, altShape, back1, back2, shapeSlab, shapeFull,
+             loaded0, loaded2, oldOk, old3, old4, page1,
+             SLAB: B.SH.SLAB, FULL: B.SH.FULL };
+  });
+  eq(r.s0, 2, "0번 칸이 계단을 안 기억한다");
+  eq(r.s1, 0, "1번 칸이 전체를 안 기억한다");
+  eq(r.s2, 1, "2번 칸이 반블록을 안 기억한다");
+  eq(r.back, 2, "계단 칸으로 돌아왔는데 모양이 " + r.back + " 다");
+  // 놓는 모양이 실제로 따라온다
+  eq(r.shapeSlab, r.SLAB, "반블록 칸인데 놓이는 모양이 반블록이 아니다");
+  eq(r.shapeFull, r.FULL, "전체 칸인데 놓이는 모양이 통짜가 아니다");
+  // 핫바 두 쪽이 각자 기억한다
+  eq(r.altShape, 0, "2쪽으로 넘어갔는데 1쪽의 계단이 따라왔다");
+  eq(r.back1, 2, "1쪽으로 돌아왔는데 계단을 잃었다");
+  eq(r.back2, 1, "2쪽으로 다시 갔는데 반블록을 잃었다");
+  // 저장에 실린다
+  eq(r.loaded0, 2, "불러오니 0번 칸의 계단이 사라졌다");
+  eq(r.loaded2, 1, "불러오니 2번 칸의 반블록이 사라졌다");
+  // 예전 저장 — 고른 칸에만
+  assert(r.oldOk, "칸별 모양이 없는 예전 저장을 못 읽었다");
+  eq(r.old3, 2, "예전 저장의 모양이 고른 칸에 안 들어갔다");
+  eq(r.old4, 0, "예전 저장의 모양이 다른 칸까지 물들였다");
+});
+
+test("v82 과제: 꼭대기는 날아서가 아니라 딛고 서야 열린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const out = [];
+    for (const gen of [1, 2]) {
+      B.generate(4242, gen); B.refreshAllTops(); B.relightAll(false);
+      const X = 30, Z = 30, top = B.SEA + 12;
+      for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+        for (let dy = -2; dy <= 6; dy++) B.set(X + dx, top + dy, Z + dz, dy === -1 ? B.B.STONE : 0);
+      B.refreshAllTops(); B.relightAll(false);
+
+      // (a) 날아서 그 높이에 있어도 안 열린다
+      B.S.earned = {}; B.S.walked = 99;
+      B.player.pos.set(X + 0.5, top, Z + 0.5); B.player.vel.set(0, 0, 0);
+      B.player.flying = true;
+      for (let k = 0; k < 130; k++) B.step(1 / 60);
+      const flying = !!B.S.earned.high;
+
+      // (b) 딛고 서면 열린다
+      B.S.earned = {}; B.S.walked = 99;
+      B.player.flying = false;
+      B.player.pos.set(X + 0.5, top, Z + 0.5); B.player.vel.set(0, 0, 0);
+      for (let k = 0; k < 130; k++) B.step(1 / 60);
+      const standing = !!B.S.earned.high;
+
+      // (c) 해수면 근처 땅에서는 안 열린다
+      B.S.earned = {}; B.S.walked = 99;
+      B.player.pos.set(X + 0.5, B.SEA + 2, Z + 0.5); B.player.vel.set(0, 0, 0);
+      for (let k = 0; k < 130; k++) B.step(1 / 60);
+      const low = !!B.S.earned.high;
+
+      out.push({ gen, sea: B.SEA, top, flying, standing, low });
+    }
+    B.S.earned = {}; B.player.flying = false;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  for (const o of r) {
+    assert(o.standing,
+       "판 " + o.gen + ": 해수면(" + o.sea + ")보다 12칸 높은 땅을 딛고 섰는데 꼭대기가 안 열렸다");
+    assert(!o.flying, "판 " + o.gen + ": 날고 있는데 꼭대기가 열렸다");
+    assert(!o.low, "판 " + o.gen + ": 해수면 바로 위에서 꼭대기가 열렸다");
+  }
+});
+
+test("v82 굴 어귀: 굴이 지표로 이어지고, 물·용암을 안 뚫는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.S.terrain = 0;
+    function survey(seed, gen, off) {
+      B.S.noMouths = !!off;
+      B.generate(seed, gen); B.refreshAllTops();
+      let land = 0, mouths = 0, wet = 0;
+      for (let z = 1; z < B.WZ - 1; z++) for (let x = 1; x < B.WX - 1; x++) {
+        const h = B.heightMap[z * B.WX + x], t = B.topMap[z * B.WX + x];
+        if (h <= B.SEA) continue;
+        land++;
+        if (h - t < 3) continue;
+        mouths++;
+        // 어귀 기둥에 물·용암이 섞이면 폭포나 용암 굴뚝이 된다
+        for (let y = t + 1; y <= h; y++) {
+          const b = B.world[B.idx(x, y, z)];
+          if (b === B.B.WATER || b === B.B.LAVA) wet++;
+        }
+      }
+      let hh = 2166136261;
+      for (let i = 0; i < B.WX * B.WZ; i++) {
+        hh ^= B.heightMap[i]; hh = Math.imul(hh, 16777619);
+        hh ^= B.biomeMap[i]; hh = Math.imul(hh, 16777619);
+      }
+      B.S.noMouths = false;
+      return { land, mouths, wet, pct: 100 * mouths / land, terrain: hh >>> 0 };
+    }
+    const rows = [];
+    for (const seed of [333, 1234, 42]) {
+      rows.push({ seed, on: survey(seed, 2, false), off: survey(seed, 2, true) });
+    }
+    const shallow = survey(333, 1, false);
+    B.setPaused(false);
+    return { rows, shallow };
+  });
+  for (const row of r.rows) {
+    assert(row.on.pct >= 6.5,
+       "시드 " + row.seed + ": 뭍 기둥의 " + row.on.pct.toFixed(1) +
+       "% 만 굴로 이어진다 — 들어갈 데도 나올 데도 없다");
+    assert(row.on.mouths > row.off.mouths,
+       "시드 " + row.seed + ": 어귀 뚫기를 켰는데 어귀가 " + row.off.mouths +
+       "→" + row.on.mouths + " 로 안 늘었다");
+    eq(row.on.wet, 0,
+       "시드 " + row.seed + ": 어귀 기둥에 물·용암이 " + row.on.wet + "칸 있다");
+    // 별도 난수 줄기 — 어귀를 껐다 켜도 땅은 그대로
+    eq(row.on.terrain, row.off.terrain,
+       "시드 " + row.seed + ": 어귀를 뚫자 지형이 달라졌다 — 난수 줄기를 이어 썼다");
+  }
+  // 얕은 판은 손대지 않는다
+  assert(r.shallow.pct >= 6,
+     "판 1 의 어귀 비율이 " + r.shallow.pct.toFixed(1) + "% — 예전 세계를 건드렸다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

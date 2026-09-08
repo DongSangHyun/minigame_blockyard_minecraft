@@ -20,7 +20,7 @@ import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, 
 import { undoEmptyWhy, HISTORY_CELLS_MAX, editLabel, blueprintList, deleteBlueprint, settleWorld, mirrorClip, rotateClip, BATCH_RELIGHT_ALL, checkBuildAchievements, ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
 import { refreshMinimapCap, openPicker, closePicker, pickBtns, airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp , setHelpTab} from "./hud.js";
 import { updateGhost, ghostMesh, updateHandLight, handMat, makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
-import { refreshResume, advanceTut, setStick, advanceTutTouch, HINT_TOUCH, refreshBlueprints, afterWorldSwap, aimCell, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink , swapBarPage} from "./input.js";
+import { refreshResume, advanceTut, setStick, advanceTutTouch, HINT_TOUCH, refreshBlueprints, afterWorldSwap, aimCell, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink , swapBarPage, setShapeMode} from "./input.js";
 import { canPlaceAt, mineAt, place, tryInteract, upperFromHit } from "./mine.js";
 import { weatherPoints, applyWeather, HIDE_Y, MOON_PHASES, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
 import { newWorld, PLACE_DELAY, PLACE_REPEAT, SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, farNow, refreshPerf, step , chunkFloor, refreshChunkFloor} from "./loop.js";
@@ -134,7 +134,7 @@ window.__blockyard = {
   checkBuildAchievements: checkBuildAchievements, BATCH_RELIGHT_ALL: BATCH_RELIGHT_ALL,
   getEarned: function () { return S.earned; },
   resetAch: function () { S.earned = {}; S.placedKinds = {}; S.lampsPlaced = 0; refreshAchList(); },
-  setShapeMode: function (m) { S.shapeMode = m; }, currentShape: currentShape,
+  setShapeMode: setShapeMode, currentShape: currentShape,
   setWeather: function (w) { setWeather(w); }, getWeather: function () { return S.weather; },
   updateWeather: updateWeather, weatherPoints: weatherPoints, applyWeather: applyWeather, updateCreatures: updateCreatures, updateSkyBodies: updateSkyBodies,
   SAVE_KEY: SAVE_KEY, OLD_KEY: OLD_KEY,

@@ -39,7 +39,7 @@ docs/HANDOFF.md    마지막 세션이 남긴 것 — 상태·진행 중·다음
 | `src/*.js` | 게임 코드 (모듈 28개 — `docs/CODEMAP.md` 참고) |
 | `manifest.webmanifest` · `icon-*.png` · `sw.js` | 홈 화면 추가 · 오프라인 플레이 |
 | `tests/harness.mjs` | 헤드리스 브라우저 · 정적 서버 · 단언 헬퍼 |
-| `tests/run.mjs` | 회귀 테스트 299항목(+폰 9 +오류 2 = 러너 310) |
+| `tests/run.mjs` | 회귀 테스트 302항목(+폰 9 +오류 2 = 러너 313) |
 | `tools/codemap.mjs` | `docs/CODEMAP.md` 생성 |
 | `tools/tidy-imports.mjs` | 안 쓰는 import 정리 |
 | `tools/make-icons.mjs` | PWA 아이콘 생성 |
@@ -63,5 +63,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v80 — 인계 문서에 v80 반영 · 회귀 테스트 299항목 전부 통과.**
+**v81 — 지하에 갈 이유와 돌아올 길 · 회귀 테스트 302항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/

@@ -269,6 +269,10 @@ export function lightPass(b) {
 
 S.bar = DEFAULT_BAR.slice();
 S.barAlt = DEFAULT_BAR2.slice();   // state.js 는 import 를 하지 않으므로 여기서 채운다
+// 칸마다 기억하는 모양 (v82) — 0 전체 · 1 반블록 · 2 계단
+function zeros(n) { var a = []; for (var i = 0; i < n; i++) a.push(0); return a; }
+S.shapeBar = zeros(DEFAULT_BAR.length);
+S.shapeBarAlt = zeros(DEFAULT_BAR2.length);
 
 // ── 블록 갈래 — 목록이 35종을 넘어가면 분류가 필요하다
 export function categoryOf(b) {

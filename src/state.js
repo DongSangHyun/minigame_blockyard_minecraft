@@ -27,7 +27,12 @@ export const S = {
   tut: 0,
   muted: false,
   relightQueued: false,
-  shapeMode: 0, // 0 전체 · 1 반블록 · 2 계단
+  shapeMode: 0, // 0 전체 · 1 반블록 · 2 계단 — **지금 고른 칸**의 모양이다
+  // 모양은 핫바 **칸마다** 기억한다 (v82). 전역 하나면 3번 칸(계단)에서 2번 칸(유리)으로
+  // 바꿨을 때 유리도 계단으로 나온다 — 지붕 한 채에 G 를 스무 번 치게 된다.
+  // 두 쪽(Tab)도 각자 기억한다. blocks.js 가 채운다 (state.js 는 import 를 하지 않는다).
+  shapeBar: null,
+  shapeBarAlt: null,
   bobPhase: 0,
   bobAmount: 0,
   stepPhase: 0,
@@ -53,6 +58,7 @@ export const S = {
   noSeaDecor: false,      // 시험용 — 바다 장식을 빼고 생성한다
   noHuts: false,          // 시험용 — 오두막을 빼고 생성한다
   noMines: false,         // 시험용 — 갱도를 빼고 생성한다
+  noMouths: false,        // 시험용 — 굴 어귀 뚫기를 빼고 생성한다
   worldName: "",          // 사람이 붙인 세계 이름 (없으면 시드로 부른다)
   weather: 0,
   weatherLock: false,      // K 로 손수 고른 날씨는 저절로 안 바뀐다

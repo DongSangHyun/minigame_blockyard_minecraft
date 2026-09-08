@@ -147,8 +147,11 @@ export function saveGame() {
       // 눈 오는 밤 사진을 찍으려고 K 로 잠가 놓아도 탭을 닫으면 맑음으로 돌아왔다.
       wt: S.weather, wk: S.weatherLock ? 1 : 0,
       nm: S.worldName || "",       // 세계 이름 — 시드 번호로 "성 지은 게 1번인지 2번인지" 를 기억할 순 없다
-      // G 로 고른 모양도 손에 든 것의 일부다
+      // G 로 고른 모양도 손에 든 것의 일부다.
+      // sb·sb2 — 칸마다 기억한 모양 (v82). 없으면 sm 하나로 읽는 예전 저장이다.
       sm: S.shapeMode,
+      sb: S.shapeBar ? S.shapeBar.slice() : null,
+      sb2: S.shapeBarAlt ? S.shapeBarAlt.slice() : null,
       // 지형 판 — 이 세계의 해수면이 여기서 따라온다 (없으면 1 = v78 까지의 바다 11).
       // 세계 데이터는 그대로 담기므로 저장 버전(v5)은 올리지 않는다.
       gn: GEN,
@@ -218,6 +221,18 @@ export function loadGame() {
     S.weather = (d.wt | 0) || 0;
     S.weatherLock = !!d.wk;
     S.shapeMode = (d.sm | 0) || 0;
+    // 칸마다 기억한 모양 — 없으면 예전 저장이다. 그때 쓰던 모양 하나를
+    // **고른 칸에만** 넣는다 (전부에 넣으면 다음 칸이 계단으로 나온다).
+    function liftShapes(arr, from, cur, sel) {
+      var out = [];
+      for (var i = 0; i < arr.length; i++) out.push(0);
+      if (Array.isArray(from) && from.length === arr.length) {
+        for (var j = 0; j < from.length; j++) out[j] = ((from[j] | 0) % 3 + 3) % 3;
+      } else if (cur) out[sel] = cur;
+      return out;
+    }
+    if (S.shapeBar) S.shapeBar = liftShapes(S.shapeBar, d.sb, S.shapeMode, S.selected);
+    if (S.shapeBarAlt) S.shapeBarAlt = liftShapes(S.shapeBarAlt, d.sb2, 0, 0);
     // 지형 판을 먼저 세운다 — SEA 가 여기서 정해지고, 물·얼음·동물·미니맵이 전부 그것을 본다.
     // 예전 저장에는 gn 이 없다 → 1 → 바다 11 → 그 세계가 만들어졌을 때 그대로다.
     setGen(d.gn | 0);
