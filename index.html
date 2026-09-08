@@ -247,6 +247,10 @@
      거기 두면 지도의 87% 가 단추 뒤로 비쳐서 둘 다 안 읽힌다 (자문 12차 #3).
      화면 위 가운데는 왼쪽 계기판과도, 오른쪽 아래 단추와도 안 겹치는 유일한 자리다. */
   html.touch #minimap { right: auto; left: 50%; transform: translateX(-50%); }
+  /* 폰에서는 지도가 조작이다 — 탭하면 표식, 길게 누르면 확대 (v83).
+     폰에는 B·V·[ ] 가 없어서 지도의 정교함(굴 어귀 점·층별 밝힘·▲n)이
+     전부 "표식을 찍을 수 있다" 는 없는 전제 위에 서 있었다. */
+  html.touch #minimap { pointer-events: auto; }
   /* 조작 안내는 입력 장치를 따라간다 — 폰에서 키보드 설명서를 읽히지 않는다 (자문 12차 #6) */
   html.touch #help-keys, html.touch .onlykeys { display: none; }
   html:not(.touch) #help-touch, html:not(.touch) .onlytouch { display: none; }

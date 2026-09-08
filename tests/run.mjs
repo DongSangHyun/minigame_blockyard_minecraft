@@ -9312,6 +9312,313 @@ test("v82 굴 어귀: 굴이 지표로 이어지고, 물·용암을 안 뚫는�
      "판 1 의 어귀 비율이 " + r.shallow.pct.toFixed(1) + "% — 예전 세계를 건드렸다");
 });
 
+test("v83 지도: 층이 바뀌어도 백지가 되지 않고, 지하에도 어귀가 찍힌다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.terrain = 0;
+    B.generate(4242, 2); B.refreshAllTops(); B.relightAll(false);
+    const X = 40, Z = 40;
+    // 층 경계를 걸치는 굴 하나 — 위 칸과 아래 칸이 다른 층이 되게 고른다
+    const t = Math.max(1, (B.SEA + 2) / B.UNDER_BANDS);
+    const edge = Math.round(t);                 // 첫 경계
+    const lo = edge - 1, hi = edge + 1;
+    for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++) {
+      for (let dy = lo - 2; dy <= hi + 3; dy++) B.set(X + dx, dy, Z + dz, 0);
+      for (let dy = hi + 6; dy <= hi + 16; dy++) B.set(X + dx, dy, Z + dz, B.B.STONE);
+      B.set(X + dx, lo - 2, Z + dz, B.B.STONE);
+    }
+    B.refreshAllTops();
+    B.seenMap.fill(0);
+    B.player.flying = true; B.player.vel.set(0, 0, 0);
+
+    function inked() {
+      const cv = document.getElementById("mm");
+      const d = cv.getContext("2d").getImageData(0, 0, B.WX, B.WZ).data;
+      let n = 0;
+      for (let i = 0; i < B.WX * B.WZ; i++)
+        if (!(d[i*4] === 12 && d[i*4+1] === 16 && d[i*4+2] === 20)) n++;
+      return n;
+    }
+    // 아래 층을 걷는다
+    B.player.pos.set(X + 0.5, lo, Z + 0.5);
+    B.drawMinimap();
+    const bandLo = B.underBand(lo), bandHi = B.underBand(hi);
+    const inkLo = inked();
+    // 한 칸 올라가 층이 바뀐다 — 예전에는 여기서 지도가 통째로 백지가 됐다
+    B.player.pos.set(X + 0.5, hi, Z + 0.5);
+    B.drawMinimap();
+    const inkHi = inked();
+    const underNow = B.S.mmUnder;
+
+    B.player.flying = false;
+    B.endPlay(); B.setPaused(false);
+    return { bandLo, bandHi, inkLo, inkHi, underNow, lo, hi, sea: B.SEA };
+  });
+  assert(r.bandLo !== r.bandHi,
+     "시험대가 안 섰다 — y" + r.lo + " 와 y" + r.hi + " 가 같은 층이다");
+  assert(r.underNow, "굴 속인데 단면 지도로 안 바뀌었다");
+  assert(r.inkLo > 60, "시험대가 안 섰다 — 아래 층에서 그려진 칸이 " + r.inkLo + "개뿐이다");
+  // 층이 바뀌어도 지도가 통째로 사라지면 안 된다 (흐리게라도 남는다)
+  assert(r.inkHi > r.inkLo * 0.7,
+     "층이 바뀌자 지도가 " + r.inkLo + "→" + r.inkHi + "칸으로 무너졌다 — 한 칸 오르내릴 때마다 백지가 된다");
+});
+
+test("v83 지도: 지하 단면에도 굴 어귀가 그려진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.terrain = 0;
+    B.generate(777, 2); B.refreshAllTops(); B.relightAll(false);
+    for (let i = 0; i < B.WX * B.WZ; i++) B.seenMap[i] = 15;
+    // 어귀 기둥을 하나 고른다
+    let mx = -1, mz = -1;
+    for (let z = 2; z < B.WZ - 2 && mx < 0; z++) for (let x = 2; x < B.WX - 2; x++) {
+      const h = B.heightMap[z * B.WX + x], t = B.topMap[z * B.WX + x];
+      if (h > B.SEA && h - t >= 4) { mx = x; mz = z; break; }
+    }
+    const cv = document.getElementById("mm");
+    B.S.mmZoom = 1;
+    function px(x, z) {
+      const d = cv.getContext("2d").getImageData(x, z, 1, 1).data;
+      return [d[0], d[1], d[2]];
+    }
+    // 지하 단면에서 본다 — 통돌 속에 세워 mmUnder 로 만든다
+    const y = Math.max(3, Math.round(B.SEA * 0.4));
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = 0; dy <= 14; dy++) B.set(48 + dx, y + dy, 48 + dz, B.B.STONE);
+    B.set(48, y, 48, 0); B.set(48, y + 1, 48, 0);
+    B.refreshAllTops();
+    B.player.flying = true;
+    B.player.pos.set(48.5, y, 48.5);
+    B.drawMinimap();
+    const under = B.S.mmUnder;
+    const p = px(mx, mz);
+    B.player.flying = false;
+    B.endPlay(); B.setPaused(false);
+    return { mx, mz, under, p };
+  });
+  assert(r.mx >= 0, "시험대가 안 섰다 — 어귀 기둥을 못 찾았다");
+  assert(r.under, "통돌 속인데 단면 지도로 안 바뀌었다");
+  assert(r.p[0] > 90 && r.p[0] > r.p[2] * 1.5,
+     "지하 단면에 굴 어귀가 안 그려졌다: rgb(" + r.p.join(",") + ") — 길을 잃는 화면이 여긴데");
+});
+
+test("v83 하늘: 새가 지형을 따라 올라간다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const out = [];
+    for (const gen of [1, 2]) {
+      B.generate(4242, gen); B.refreshAllTops(); B.relightAll(false);
+      let peak = 0;
+      for (let i = 0; i < B.WX * B.WZ; i++) if (B.heightMap[i] > peak) peak = B.heightMap[i];
+      // 봉우리에 선다
+      let px = 0, pz = 0;
+      for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++)
+        if (B.heightMap[z * B.WX + x] === peak) { px = x; pz = z; }
+      B.player.pos.set(px + 0.5, peak + 1, pz + 0.5);
+      B.player.vel.set(0, 0, 0); B.player.flying = true;
+      B.seedFlocks();
+      for (let k = 0; k < 400; k++) B.step(1 / 60);
+      const eye = B.player.pos.y + B.EYE;
+      let below = 0, total = 0;
+      const arr = B.birds.pos;      // makePoints 가 { pos, geo, pts } 를 돌려준다
+      for (let i = 0; i < arr.length; i += 3) {
+        if (arr[i + 1] < -100) continue;             // 아직 안 뿌려진 것
+        total++;
+        if (arr[i + 1] < eye) below++;
+      }
+      out.push({ gen, sea: B.SEA, peak, eye, below, total });
+    }
+    B.player.flying = false;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  for (const o of r) {
+    assert(o.total > 0, "판 " + o.gen + ": 새가 한 마리도 안 뿌려졌다");
+    const pct = 100 * o.below / o.total;
+    assert(pct < 25,
+       "판 " + o.gen + "(최고봉 " + o.peak + "): 새의 " + pct.toFixed(0) +
+       "% 가 눈높이(" + o.eye.toFixed(1) + ") 아래를 난다");
+  }
+});
+
+test("v83 짓기: 세계의 천장에 닿으면 그렇다고 말한다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 20, Z = 20;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = B.WY - 6; dy < B.WY; dy++) B.set(X + dx, dy, Z + dz, 0);
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++)
+      B.set(X + dx, B.WY - 1, Z + dz, B.B.STONE);   // 천장 한 판 (조준이 옆으로 새도 맞게)
+    B.refreshAllTops(); B.relightAll(false);
+    // 천장 위에 놓으려면 맨 윗 블록의 **윗면**을 조준해야 한다 —
+    // 그 자리는 세계 밖이라 날아올라 내려다보는 길뿐이다 (비행에는 높이 제한이 없다)
+    B.player.pos.set(X + 0.5, B.WY + 3, Z + 0.5);
+    B.player.vel.set(0, 0, 0); B.player.flying = true;
+    B.player.yaw = 0; B.player.pitch = -Math.PI / 2 + 0.01;   // 곧장 아래를 본다
+    B.camera.rotation.order = "YXZ";
+    B.camera.rotation.y = 0; B.camera.rotation.x = B.player.pitch;
+    B.camera.position.set(B.player.pos.x, B.player.pos.y + B.EYE, B.player.pos.z);
+    B.camera.updateMatrixWorld(true);
+    B.S.bar[B.S.selected] = B.B.PLANKS;
+    const toastEl = document.getElementById("toast");
+    toastEl.textContent = "";
+    const hit = B.raycast(6);
+    B.place(false);
+    const msg = toastEl.textContent;
+    const dbg = { sel: B.S.bar[B.S.selected], active: B.S.active, uiOpen: B.S.uiOpen };
+    B.player.flying = false;
+    B.endPlay(); B.setPaused(false);
+    return { msg, dbg, aimed: hit ? [hit.x, hit.y, hit.z, hit.ny] : null, WY: B.WY };
+  });
+  assert(r.aimed, "시험대가 안 섰다 — 천장 블록을 조준하지 못했다");
+  assert(/천장/.test(r.msg),
+     "천장에 닿았는데 아무 말이 없다 (토스트: \"" + r.msg + "\" · 조준 " +
+     JSON.stringify(r.aimed) + " · " + JSON.stringify(r.dbg) + ") — 마우스만 계속 누르게 된다");
+});
+
+test("v83 그리기: 시야를 줄이면 실제로 청크가 줄어든다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.terrain = 0;
+    B.generate(4242, 2); B.refreshAllTops(); B.relightAll(false);
+    B.markAllDirty(); B.buildBudget(1e6); B.refreshChunkFloor();
+    function shot() {
+      let v = 0, t = 0;
+      for (const m of B.opaqueMeshes) {
+        if (!m.visible) continue;
+        v++;
+        const ix = m.geometry.getIndex();
+        if (ix) t += ix.count / 3;
+      }
+      return { v, t };
+    }
+    const out = [];
+    // 섬 한가운데 — 예전에는 여기서 far 를 40 으로 줄여도 한 청크도 안 줄었다
+    for (const [tag, pos, above, deep] of [
+      ["지상", [48.5, 40, 48.5], true, false],
+      ["지하", [48.5, 6, 48.5], false, true],
+      ["어귀", [48.5, 6, 48.5], false, false]]) {
+      B.camera.position.set(pos[0], pos[1], pos[2]);
+      B.updateChunkVisibility(120, B.chunkFloor, above, deep);
+      const wide = shot();
+      B.updateChunkVisibility(40, B.chunkFloor, above, deep);
+      const narrow = shot();
+      out.push({ tag, wide: wide.v, narrow: narrow.v, wideT: wide.t, narrowT: narrow.t });
+    }
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  const surf = r.find(o => o.tag === "지상");
+  const under = r.find(o => o.tag === "지하");
+  const mouth = r.find(o => o.tag === "어귀");
+  assert(surf.narrow < surf.wide,
+     "지상에서 시야를 120→40 으로 줄였는데 청크가 " + surf.wide + "→" + surf.narrow +
+     " 다 — 시야만 뺏고 프레임은 그대로다");
+  assert(under.wide < mouth.wide,
+     "굴 속(깊이)인데 어귀에 선 것과 같은 " + under.wide + "청크를 그린다 — 위아래 바위 너머를 그린다");
+  // 어귀에서는 걸지 않는다 — 먼 산이 사라지면 바로 눈에 띈다
+  assert(mouth.wide >= surf.wide,
+     "어귀에 섰는데 지상보다 적게 그린다 (" + mouth.wide + " vs " + surf.wide + ") — 밖이 뚫린다");
+});
+
+test("v83 과제: 세계가 지어 둔 갱도와 오두막을 찾으면 열린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.terrain = 0;
+    B.generate(1234, 2); B.refreshAllTops(); B.relightAll(false);
+
+    // 갱도 기둥 하나를 찾아 그 옆에 선다
+    let mine = null, hut = null;
+    for (let y = 1; y < B.SEA && !mine; y++)
+      for (let z = 2; z < B.WZ - 2 && !mine; z++)
+        for (let x = 2; x < B.WX - 2; x++)
+          if (B.world[B.idx(x, y, z)] === B.B.FENCE) { mine = [x, y, z]; break; }
+    // 오두막 유리 한 장
+    for (let y = B.SEA + 1; y < B.WY && !hut; y++)
+      for (let z = 2; z < B.WZ - 2 && !hut; z++)
+        for (let x = 2; x < B.WX - 2; x++)
+          if (B.world[B.idx(x, y, z)] === B.B.GLASS) { hut = [x, y, z]; break; }
+
+    B.S.earned = {};
+    B.player.pos.set(mine[0] + 0.5, mine[1], mine[2] + 0.5);
+    B.checkFoundAchievements();
+    const gotMine = !!B.S.earned.findMine;
+    const hutFromMine = !!B.S.earned.findHut;
+
+    B.S.earned = {};
+    B.player.pos.set(hut[0] + 0.5, hut[1], hut[2] + 0.5);
+    B.checkFoundAchievements();
+    const gotHut = !!B.S.earned.findHut;
+
+    // 내가 지은 것으로는 안 열려야 한다 — 사람이 놓은 칸은 안 센다
+    B.S.earned = {};
+    const X = 8, Z = 8, Y = 4;
+    for (let dx = 0; dx < 4; dx++) for (let dz = 0; dz < 4; dz++)
+      B.applyEdit(X + dx, Y, Z + dz, B.B.FENCE, true);
+    B.player.pos.set(X + 1.5, Y, Z + 1.5);
+    B.checkFoundAchievements();
+    const mineFromMyBuild = !!B.S.earned.findMine;
+
+    B.S.earned = {}; B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { mine, hut, gotMine, gotHut, hutFromMine, mineFromMyBuild,
+             ids: B.ACHIEVEMENTS.map(a => a.id) };
+  });
+  assert(r.mine, "시험대가 안 섰다 — 갱도 기둥을 못 찾았다");
+  assert(r.hut, "시험대가 안 섰다 — 오두막 유리를 못 찾았다");
+  assert(r.ids.indexOf("findMine") >= 0 && r.ids.indexOf("findHut") >= 0,
+     "찾기 과제가 목록에 없다");
+  assert(r.gotMine, "갱도 안에 섰는데 '먼저 온 사람' 이 안 열렸다");
+  assert(r.gotHut, "오두막 옆에 섰는데 '빈집' 이 안 열렸다");
+  assert(!r.mineFromMyBuild,
+     "내가 놓은 울타리로 '먼저 온 사람' 이 열렸다 — 찾은 게 아니라 지은 것이다");
+});
+
+phoneTest("지도를 눌러 표식을 찍고, 길게 눌러 확대한다", async (page) => {
+  const r = await page.evaluate(async () => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const mm = document.getElementById("minimap");
+    const style = getComputedStyle(mm);
+    B.S.marks = [];
+    B.player.pos.set(40.5, 30, 40.5);
+
+    // 탭 = 표식
+    mm.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
+    mm.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true }));
+    const afterTap = B.S.marks.length;
+
+    // 길게 = 확대
+    const zoom0 = B.S.mmZoom;
+    mm.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
+    await new Promise(res => setTimeout(res, 620));
+    mm.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true }));
+    const zoom1 = B.S.mmZoom;
+    const marksAfterHold = B.S.marks.length;
+
+    // 다시 탭하면 그 표식이 지워진다 (같은 자리)
+    mm.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
+    mm.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true }));
+    const afterSecond = B.S.marks.length;
+
+    B.S.marks = []; B.S.mmZoom = zoom0;
+    B.endPlay(); B.setPaused(false);
+    return { pe: style.pointerEvents, afterTap, zoom0, zoom1, marksAfterHold, afterSecond };
+  });
+  eq(r.pe, "auto", "폰인데 지도가 터치를 안 받는다 (pointer-events: " + r.pe + ")");
+  eq(r.afterTap, 1, "지도를 탭했는데 표식이 안 찍혔다 — 폰에는 B 키가 없다");
+  assert(r.zoom1 !== r.zoom0,
+     "지도를 길게 눌렀는데 확대가 " + r.zoom0 + "→" + r.zoom1 + " 다 — 폰에는 [ ] 키가 없다");
+  eq(r.marksAfterHold, 1, "길게 눌렀는데 표식까지 같이 찍혔다");
+  eq(r.afterSecond, 0, "같은 자리를 다시 탭했는데 표식이 안 지워졌다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

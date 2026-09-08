@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { MOB_MAX, aimingAtMob, feedNearbyMob } from "./mobs.js";
 import { primeTNT, ignite } from "./fluids.js";
-import { idx, inside } from "./dims.js";
+import { WY, idx, inside } from "./dims.js";
 import { FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, ALL_BLOCKS, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
 import { get, shape } from "./world.js";
 import { burst } from "./scene.js";
@@ -159,7 +159,13 @@ export function place(repeating) {
   var px = onCross ? hit.x : hit.x + hit.nx;
   var py = onCross ? hit.y : hit.y + hit.ny;
   var pz = onCross ? hit.z : hit.z + hit.nz;
-  if (!canPlaceAt(px, py, pz)) return;
+  if (!canPlaceAt(px, py, pz)) {
+    // 세계의 천장에 닿았으면 그렇다고 말한다 (v83).
+    // 지형이 12칸 올라가면서(v79) 지을 하늘이 45칸에서 33칸으로 줄었는데,
+    // 천장에서는 **토스트도 소리도 없이** 아무 일이 안 일어나 마우스만 계속 누르게 됐다.
+    if (py >= WY) toast("세계의 천장입니다 — 여기보다 위에는 놓을 수 없습니다");
+    return;
+  }
 
   if (isItem(b)) { toast("부싯돌은 놓는 물건이 아닙니다 — 탈 것을 우클릭하세요"); return; }
   if (needsFloor(b) && isLiquid(get(px, py, pz))) {

@@ -4,7 +4,7 @@ import { Q } from "./queues.js";
 import { opts } from "./settings.js";
 import { encodeArrB64, decodeArrB64, SLOTS } from "./save.js";
 import { SEA, DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
-import { SAPLING, SH_STAIR_N, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
+import { FENCE, GLASS, PLANKS, BRICK, SAPLING, SH_STAIR_N, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
 import { markX, markY, markZ, markName, topMap, refreshAllTops, touched, get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightAll, relightLocal } from "./light.js";
 import { enqueueGrow, enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
@@ -348,7 +348,12 @@ export var ACHIEVEMENTS = [
   { id: "room", name: "내 집", desc: "문이 달린 방을 짓는다 (27칸 이상 · 밖이 안 보이게)" },
   { id: "tower", name: "전망대", desc: "20칸 높이로 쌓아 올린다" },
   { id: "bridge", name: "다리", desc: "물 위로 20칸을 잇는다" },
-  { id: "mineshaft", name: "갱도", desc: "지하 깊이 200칸을 파고 횃불 10개를 단다" },
+  { id: "mineshaft", name: "내 갱도", desc: "지하 깊이 200칸을 파고 횃불 10개를 단다" },
+  // 세계가 만들어 둔 것을 찾는 과제 — v76 오두막과 v81 갱도에 그 고리가 안 달려 있었다.
+  // 크리에이티브에서 "다음에 뭐 하지" 를 막아 주는 건 과제뿐인데,
+  // 가장 최근에 만든 콘텐츠를 게임이 한 번도 가리키지 않았다 (자문 14차 #7).
+  { id: "findMine", name: "먼저 온 사람", desc: "버려진 갱도를 찾아낸다 (지하의 나무 버팀목)" },
+  { id: "findHut", name: "빈집", desc: "버려진 오두막을 찾아낸다" },
   { id: "palette", name: "색칠", desc: "한자리에 양털 여덟 빛깔을 쓴다" },
   { id: "cartographer", name: "지도장이", desc: "섬의 8할을 걸어서 지도에 밝힌다" }
 ];
@@ -378,6 +383,36 @@ export function refreshAchList() {
 // 자연 지형이 우연히 조건을 채워 과제를 주면 "내가 지었다" 는 느낌이 사라진다.
 export var BUILD_R = 32;          // 플레이어 주변 이만큼만 본다 (44만 칸을 다 볼 이유가 없다)
 export var BUILD_IDS = ["room", "tower", "bridge", "mineshaft", "palette"];
+// 세계가 지어 둔 것을 찾는 과제 — 사람이 놓지 않은(`touched` 가 아닌) 블록만 센다.
+// 그게 "만들어진 것" 과 "내가 지은 것" 을 가르는 유일한 잣대다.
+export var FOUND_IDS = ["findMine", "findHut"];
+export var FOUND_R = 6;
+export function checkFoundAchievements() {
+  var left = false;
+  for (var q = 0; q < FOUND_IDS.length && !left; q++) if (!S.earned[FOUND_IDS[q]]) left = true;
+  if (!left) return;
+  var px = Math.floor(player.pos.x), py = Math.floor(player.pos.y), pz = Math.floor(player.pos.z);
+  var wood = 0, glass = 0, built = 0;
+  for (var y = py - 4; y <= py + 4; y++) {
+    if (y < 1 || y >= WY) continue;
+    for (var x = px - FOUND_R; x <= px + FOUND_R; x++) {
+      if (x < 0 || x >= WX) continue;
+      for (var z = pz - FOUND_R; z <= pz + FOUND_R; z++) {
+        if (z < 0 || z >= WZ) continue;
+        var i = idx(x, y, z);
+        if (touched[i] === 1) continue;              // 사람이 놓은 것은 안 센다
+        var b = world[i];
+        if (y < SEA && b === FENCE) wood++;           // 갱도 버팀목
+        else if (y > SEA) {
+          if (b === GLASS) glass++;                   // 오두막 창 — 자연에는 없다
+          else if (b === PLANKS || b === BRICK) built++;
+        }
+      }
+    }
+  }
+  if (wood >= 2) unlock("findMine");
+  if (glass >= 1 || built >= 24) unlock("findHut");
+}
 export function checkBuildAchievements() {
   // 다섯을 다 땄으면 아예 돌지 않는다 — 이 검사는 10초에 한 번이지만 최악 8ms 다
   var left = false;

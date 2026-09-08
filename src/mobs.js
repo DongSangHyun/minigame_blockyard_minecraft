@@ -1,5 +1,5 @@
 // mobs.js — 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다.
-import { SEA, WX, WY, WZ, idx } from "./dims.js";
+import { SEA, seaLift, WX, WY, WZ, idx } from "./dims.js";
 import { shapeAt, topMap, world } from "./world.js";
 import { WOOL0, DOOR, doorOpen, FENCE, GATE, AIR, ICE, LAVA, WATER, isSolid } from "./blocks.js";
 import { burst, scene } from "./scene.js";
@@ -522,7 +522,10 @@ export function updateFlocks(dt) {
       s2.t = 14 + Math.random() * 16;
       s2.x = player.pos.x + (Math.random() - 0.5) * 60;
       s2.z = player.pos.z + (Math.random() - 0.5) * 60;
-      s2.y = 34 + Math.random() * 16;
+      // 새도 지형을 따라 올라간다 — 34 로 못 박아 두면 판 2(최고봉 42)에서
+      // 봉우리에 서면 새의 66%가 **눈 아래**를 날고 1.4%는 바위 속에 뜬다.
+      // v80 이 구름·카메라·용암·광맥에 seaLift() 를 태울 때 새만 빠졌다 (자문 14차 #9).
+      s2.y = 34 + seaLift() + Math.random() * 16;
       s2.a = Math.random() * 6.3;
     } else {
       s2.a += (Math.random() - 0.5) * dt * 1.2;

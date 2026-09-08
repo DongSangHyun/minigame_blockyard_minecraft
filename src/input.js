@@ -766,6 +766,41 @@ export function setShapeMode(m) {
   if (S.shapeBar) S.shapeBar[S.selected] = S.shapeMode;
 }
 
+// 표식을 찍거나 지운다 — `B` 키와 폰의 "지도 탭" 이 같은 길을 탄다 (v83).
+// 폰에는 표식을 찍을 길이 하나도 없었는데, v80 의 굴 어귀 점과 v81 의 ▲n/▼n 이
+// 전부 "표식을 찍을 수 있다" 는 전제 위에 서 있었다.
+export function toggleMark(named) {
+  var mx = Math.round(player.pos.x), my = Math.round(player.pos.y), mz = Math.round(player.pos.z);
+  var near = -1;
+  for (var mi = 0; mi < S.marks.length; mi++)
+    if (Math.abs(S.marks[mi][0] - mx) < 3 && Math.abs(markZ(S.marks[mi]) - mz) < 3) near = mi;
+  if (near >= 0) { S.marks.splice(near, 1); toast("표식 지움"); }
+  else if (S.marks.length >= 12) toast("표식은 12개까지입니다");
+  else {
+    // 높이까지 담는다 — 지하 갱도 입구와 지상 탑이 지도에서 같은 점이었다.
+    // 예전 저장의 [x, z] 두 원소도 그대로 읽히게, 길이로 구분한다 (저장 버전은 v5 그대로).
+    // 이름을 붙이면 번호 대신 이름이 지도에 뜬다 — 사흘 뒤에 3번이 뭐였는지는 모른다.
+    var nm = named ? (window.prompt("표식 이름 (비우면 번호만)", "") || "").slice(0, 16) : "";
+    S.marks.push([mx, my, mz, nm]);
+    // 좌표를 알려 준다 — 안 그러면 /tp 에 넣을 숫자를 알 길이 없다
+    toast("표식 " + S.marks.length + (nm ? " · " + nm : "") + " · " + mx + " " + my + " " + mz);
+    if (S.marks.length >= 5) unlock("explorer");
+  }
+  S.worldDirty = true;
+  tone(620, 0.08, "triangle", 0.05);
+}
+
+// 미니맵 확대 — `[` `]` 와 폰의 "지도 길게 누르기" 가 같은 길을 탄다
+export var MM_ZOOMS = [1, 2, 4];
+export function cycleMinimapZoom(dir) {
+  var zi = MM_ZOOMS.indexOf(S.mmZoom);
+  if (zi < 0) zi = 0;
+  zi = (zi + (dir > 0 ? 1 : MM_ZOOMS.length - 1)) % MM_ZOOMS.length;
+  S.mmZoom = MM_ZOOMS[zi];
+  toast("미니맵 ×" + S.mmZoom);
+  tone(700 + S.mmZoom * 40, 0.05, "square", 0.04);
+}
+
 // 핫바 두 쪽을 맞바꾼다 — Tab 과 터치의 "목록 길게 누르기" 가 같은 길을 탄다
 export function swapBarPage() {
   // 쪽마다 칸의 모양도 따로 기억한다 — 블록만 바꾸고 모양을 안 바꾸면
@@ -996,26 +1031,7 @@ window.addEventListener("keydown", function (e) {
     return;
   }
   if (e.code === "F2") { e.preventDefault(); S.wantShot = true; }
-  if (e.code === "KeyB") {
-    var mx = Math.round(player.pos.x), my = Math.round(player.pos.y), mz = Math.round(player.pos.z);
-    var near = -1;
-    for (var mi = 0; mi < S.marks.length; mi++)
-      if (Math.abs(S.marks[mi][0] - mx) < 3 && Math.abs(markZ(S.marks[mi]) - mz) < 3) near = mi;
-    if (near >= 0) { S.marks.splice(near, 1); toast("표식 지움"); }
-    else if (S.marks.length >= 12) toast("표식은 12개까지입니다");
-    else {
-      // 높이까지 담는다 — 지하 갱도 입구와 지상 탑이 지도에서 같은 점이었다.
-      // 예전 저장의 [x, z] 두 원소도 그대로 읽히게, 길이로 구분한다 (저장 버전은 v5 그대로).
-      // Shift 를 같이 누르면 이름을 붙인다 — 번호만으로는 사흘 뒤에 3번이 뭐였는지 모른다.
-      var nm = e.shiftKey ? (window.prompt("표식 이름 (비우면 번호만)", "") || "").slice(0, 16) : "";
-      S.marks.push([mx, my, mz, nm]);
-      // 좌표를 알려 준다 — 안 그러면 /tp 에 넣을 숫자를 알 길이 없다
-      toast("표식 " + S.marks.length + (nm ? " · " + nm : "") + " · " + mx + " " + my + " " + mz);
-      if (S.marks.length >= 5) unlock("explorer");
-    }
-    S.worldDirty = true;
-    tone(620, 0.08, "triangle", 0.05);
-  }
+  if (e.code === "KeyB") toggleMark(e.shiftKey);
   if (e.code === "KeyV") {
     S.spawnPoint = [player.pos.x, player.pos.y, player.pos.z];
     S.worldDirty = true;
@@ -1053,13 +1069,8 @@ window.addEventListener("keydown", function (e) {
     S.contour = !S.contour;
     toast(S.contour ? "미니맵 등고선 켬" : "미니맵 등고선 끔");
   }
-  if (e.code === "BracketLeft" || e.code === "BracketRight") {
-    var zs = [1, 2, 4];
-    var zi = zs.indexOf(S.mmZoom);
-    zi = Math.max(0, Math.min(zs.length - 1, zi + (e.code === "BracketRight" ? 1 : -1)));
-    S.mmZoom = zs[zi];
-    toast("미니맵 ×" + S.mmZoom);
-  }
+  if (e.code === "BracketLeft" || e.code === "BracketRight")
+    cycleMinimapZoom(e.code === "BracketRight" ? 1 : -1);
   if (e.code === S.binds.help) { toggleHelp(true); setHelpTab(false); refreshAchList(); S.achListStale = false; advanceTut(6); }
   if (e.code === "KeyT") cycleTime();
   if (e.code === "KeyK") {
@@ -1308,6 +1319,30 @@ bindHold("tb-undo", function () {
   toast(ok ? ("되돌리기" + (lastEditLabel ? " — " + lastEditLabel : ""))
            : (undoEmptyWhy || "더 없음"));
 });
+
+// ── 폰: 미니맵을 조작으로 쓴다 (v83)
+// 폰에는 표식(B)도 시작 지점(V)도 확대([ ])도 갈 길이 하나도 없었다.
+// 지도 자체가 그 셋의 자리다 — 탭하면 표식, 길게 누르면 확대.
+// (#minimap 은 pointer-events:none 이라 CSS 에서 이 기기에만 켠다)
+(function bindMinimapTouch() {
+  var mm = document.getElementById("minimap");
+  if (!mm || !IS_TOUCH) return;
+  var held = 0, longed = false;
+  mm.addEventListener("touchstart", function (e) {
+    e.preventDefault();
+    longed = false;
+    clearTimeout(held);
+    held = setTimeout(function () { longed = true; cycleMinimapZoom(1); }, 450);
+  }, { passive: false });
+  mm.addEventListener("touchend", function (e) {
+    e.preventDefault();
+    clearTimeout(held);
+    if (longed) { longed = false; return; }
+    if (!S.active || S.uiOpen) return;
+    toggleMark(false);
+  }, { passive: false });
+  mm.addEventListener("touchcancel", function () { clearTimeout(held); longed = false; });
+})();
 
 window.addEventListener("resize", function () {
   camera.aspect = window.innerWidth / window.innerHeight;

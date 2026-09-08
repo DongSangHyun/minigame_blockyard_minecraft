@@ -69,7 +69,13 @@ export var VOX_FS = [
   "  float blk = vLight.y;",
   "  float l = max(sky, blk);",
   "  float litness = 0.045 + 0.955 * pow(l, 1.30);",
+  // 밤 색조(uNight)는 **하늘빛에만** 걸려야 한다. 지하는 sky=0 이라 블록광이 15여도
+  // tint 가 통째로 달빛색이 되어, 횃불을 박은 조약돌 방이 군청색으로 보였다
+  // (블록광 11 에서 파랑이 빨강의 1.57배 — 자문 14차 #2).
+  // v79·v81 로 화면의 절반이 지하가 된 뒤로는 그 절반이 통째로 달빛색이었다.
+  // 횃불빛 쪽은 따뜻한 흰색으로 되돌린다 — 마크에서 "여기는 내가 밝힌 곳" 을 읽게 하는 대비다.
   "  vec3 tint = mix(uNight, vec3(1.0), clamp(sky * 1.25, 0.0, 1.0));",
+  "  tint = mix(tint, vec3(1.0, 0.95, 0.88), clamp(blk * 1.15, 0.0, 1.0));",
   "  vec3 c = t.rgb * vCol * litness * tint;",
   "  c += t.rgb * vCol * blk * blk * vec3(0.20, 0.11, 0.02);",
   "  if (vLight.z > 0.5) {",
@@ -237,6 +243,8 @@ export var chunkFreed = 0;
 // 지상에 서 있는 동안, **이 거리 밖의 통째로 묻힌 청크**는 안 그린다 (v80).
 // 이 안쪽은 묻혀 있어도 그린다 — 굴 어귀를 내려다볼 때 구멍이 보이면 안 된다.
 export var BURIED_KEEP = 34;
+// 지하에서 눈높이 위아래로 이만큼 넘게 떨어진 층은 안 그린다 (바위가 막고 있다)
+export var UNDER_SPAN = 20;
 export var chunkBuried = 0;    // 이번 프레임에 그렇게 걸러낸 수 (계측용)
 
 // floor — 청크 기둥(16×16)마다 그 안에서 **가장 낮은 지표**. loop.js 가 1초에 한 번 잰다.
@@ -246,11 +254,22 @@ export var chunkBuried = 0;    // 이번 프레임에 그렇게 걸러낸 수 (�
 // 시야를 40m 로 줄여도 보이는 청크가 하나밖에 안 줄었다 — 96칸 섬은 그 거리 안에
 // 세계가 거의 다 들어와서, 자동 조절의 유일한 손잡이가 이 비용에는 안 먹었다.
 // 청크가 제 발자국의 가장 낮은 지표보다도 통째로 아래면, 지상에서 그 안을 볼 길이 없다.
-export function updateChunkVisibility(farDist, floor, aboveGround) {
-  var lim = farDist + CH * 1.8;
+// deepUnder — 눈이 지표보다 이만큼 아래면 "굴 속" 으로 본다.
+// 어귀에 서서 밖을 내다볼 때는 걸지 않는다 — 먼 산이 사라지면 바로 눈에 띈다.
+export var DEEP_UNDER = 12;
+export function updateChunkVisibility(farDist, floor, aboveGround, deepUnder) {
+  // 여유는 **청크의 반대각선**(8√3 ≈ 13.9)이면 충분하다. 안개 반경에 걸친 청크가
+  // 통째로 사라지지 않을 만큼만 넓히면 된다. CH*1.8(28.8)은 그 두 배라,
+  // 프레임이 낮아 시야를 40m 로 줄여도 **한 청크도 안 줄어드는** 자리가 있었다 —
+  // "시야거리를 줄였습니다" 토스트가 시야만 뺏고 프레임은 그대로였다 (자문 14차 #6).
+  var lim = farDist + CH * 0.9;
   var lim2 = lim * lim;
   var keep2 = BURIED_KEEP * BURIED_KEEP;
   var canHide = !!(floor && aboveGround);
+  // 지하에서는 위아래 바위 너머가 안 보인다 — 눈높이에서 멀리 떨어진 **층**을 걸러낸다.
+  // 지상 컬링(발밑 지하)이 꺼지는 자리가 정작 가장 무거웠다 (지상보다 +35%).
+  // 굴에서 하늘로 뚫린 구멍을 올려다볼 수 있으니 가까운 것은 그대로 그린다.
+  var underCull = !!(floor && !aboveGround && deepUnder);
   chunkBuried = 0;
   var free2 = (lim * FREE_DIST) * (lim * FREE_DIST);
   var px = camera.position.x, py = camera.position.y, pz = camera.position.z;
@@ -262,6 +281,10 @@ export function updateChunkVisibility(farDist, floor, aboveGround) {
     if (near && canHide && d2 > keep2 &&
         (chunkCY(id) + 1) * CH - 1 < floor[chunkCZ(id) * CX + chunkCX(id)]) {
       near = false; chunkBuried++;
+    }
+    if (near && underCull && d2 > keep2) {
+      var cyLo = chunkCY(id) * CH, cyHi = cyLo + CH - 1;
+      if (cyLo > py + UNDER_SPAN || cyHi < py - UNDER_SPAN) { near = false; chunkBuried++; }
     }
     opaqueMeshes[id].visible = near && opaqueMeshes[id].userData.hasGeo === true;
     glassMeshes[id].visible = near && glassMeshes[id].userData.hasGeo === true;

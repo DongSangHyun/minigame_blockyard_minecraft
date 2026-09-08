@@ -4,7 +4,7 @@ import { BUILD } from "./version.js";
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
 import { AIR, ALL_BLOCKS, GLASS, ITEMS, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross } from "./blocks.js";
 import { AVG_TOP, TILE, atlas, tileOrigin } from "./atlas.js";
-import { SEEN_TOP, underBand, heightMap, markX, markY, markZ, markName, seenMap, markSeen, topMap, world } from "./world.js";
+import { SEEN_TOP, SEEN_UNDER_ALL, UNDER_BANDS, underBand, heightMap, markX, markY, markZ, markName, seenMap, markSeen, topMap, world } from "./world.js";
 import { player } from "./player.js";
 import { updateHandBlock } from "./hand.js";
 import { advanceTut, canvas, isTouch } from "./input.js";
@@ -241,17 +241,34 @@ export function drawMinimap() {
       var x = x0 + Math.floor(ox * spanX / WX);
       var o = (oz * WX + ox) * 4;
       d[o + 3] = 255;
-      // 안 가 본 칸은 흰 종이로 둔다 — 지도는 걸어서 채운다
-      if (!(seenMap[z * WX + x] & seenBit)) { d[o] = 12; d[o + 1] = 16; d[o + 2] = 20; continue; }
-      var b = AIR, shade = 1, mouth = false;
+      // 안 가 본 칸은 흰 종이로 둔다 — 지도는 걸어서 채운다.
+      // 지하에서는 **다른 층에서 밝힌 것도 흐리게 남긴다** (v83).
+      // 층만 보고 지우면, 굴 하나를 걷는데 바닥이 한 칸 오르내릴 때마다
+      // 지도가 통째로 하얘졌다 다시 찬다 — 실측 15걸음에 한 번, 초당 최대 5번.
+      // 고친 문제(위층 굴이 아래층에 통돌로 뜨는 것)보다 새 문제가 더 자주 눈에 띄었다.
+      var seenHere = seenMap[z * WX + x];
+      var faded = false;
+      if (!(seenHere & seenBit)) {
+        if (S.mmUnder && (seenHere & SEEN_UNDER_ALL)) faded = true;   // 다른 층에서 본 자리
+        else { d[o] = 12; d[o + 1] = 16; d[o + 2] = 20; continue; }
+      }
+      var b = AIR, shade = 1, mouth = false, hollow = false;
       if (S.mmUnder) {
-        // 지하에서는 지금 높이의 단면을 본다
-        for (var k = 0; k <= 4; k++) {
+        // 지하에서는 지금 높이의 단면을 본다.
+        // 훑는 깊이는 층 두께를 따라간다 — 5칸 고정이면 지하가 26칸이 된 뒤
+        // 천장이 높은 방에서 바닥을 못 찾아 "밝힌 곳" 이 배경색으로 그려진다.
+        var deep = Math.max(4, Math.round((SEA + 2) / UNDER_BANDS));
+        for (var k = 0; k <= deep; k++) {
           var yq = py - k;
           if (yq < 0) break;
           var bb = world[idx(x, yq, z)];
-          if (bb !== AIR) { b = bb; shade = 1 - k * 0.17; break; }
+          if (bb !== AIR) { b = bb; shade = 1 - Math.min(0.68, k * 0.17); break; }
         }
+        if (b === AIR) hollow = true;      // 밝혔는데 아래가 통째로 비었다 (넓은 방·벼랑)
+        // 굴 어귀 — **지하에서도** 찍는다. 길을 잃는 화면이 여기인데
+        // 여태 지상 갈래에만 있었다 (자문 14차 #5). 층과 무관하게 "머리 위 어딘가에 구멍" 이다.
+        var gh2 = heightMap[z * WX + x], t2 = topMap[z * WX + x];
+        if (gh2 > SEA && gh2 - t2 >= 4) mouth = true;
       } else {
         var y = topMap[z * WX + x];
         if (y >= 0) {
@@ -272,12 +289,24 @@ export function drawMinimap() {
           }
         }
       }
-      if (b === AIR) { d[o] = 12; d[o + 1] = 16; d[o + 2] = 20; continue; }
-      if (mouth) { d[o] = 232; d[o + 1] = 150; d[o + 2] = 64; continue; }   // 굴 어귀 — 주황 점
+      // 밝혔는데 아래가 빈 칸 — 안 가 본 곳과 **같은 색이면 안 된다**.
+      // 실측 밝혀진 칸의 15~17%가 배경색으로 그려져, "밝힌 것을 기억해 준다" 는
+      // 약속이 화면에서 안 지켜졌다 (자문 14차 #8).
+      if (b === AIR) {
+        if (!hollow) { d[o] = 12; d[o + 1] = 16; d[o + 2] = 20; continue; }
+        d[o] = 34; d[o + 1] = 42; d[o + 2] = 50;                 // 지나온 빈 자리 — 흐린 회색
+        if (faded) { d[o] = 20; d[o + 1] = 25; d[o + 2] = 30; }
+        continue;
+      }
+      var dim = faded ? 0.45 : 1;
+      if (mouth) {                                               // 굴 어귀 — 주황 점
+        d[o] = 232 * dim; d[o + 1] = 150 * dim; d[o + 2] = 64 * dim;
+        continue;
+      }
       var c = AVG_TOP[b] || [120, 120, 120];
-      d[o] = Math.min(255, c[0] * shade);
-      d[o + 1] = Math.min(255, c[1] * shade);
-      d[o + 2] = Math.min(255, c[2] * shade);
+      d[o] = Math.min(255, c[0] * shade * dim);
+      d[o + 1] = Math.min(255, c[1] * shade * dim);
+      d[o + 2] = Math.min(255, c[2] * shade * dim);
     }
   }
   mmCtx.putImageData(mmImage, 0, 0);

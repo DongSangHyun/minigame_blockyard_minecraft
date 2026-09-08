@@ -10,13 +10,13 @@ import { boxesAt, seenRatio, BIOME_NAMES, biomeMap, crossBase, generate, get, is
 import { lightAtPlayer, lightBlk, lightSky, relightAll } from "./light.js";
 import { growTick, lavaFlowTick, lavaDryTick, grassTick, lavaTick, primeTick, TNT_FUSE, decayTick, dryTick, fallTick, fireTick, freezeTick, waterTick } from "./fluids.js";
 import { buildBudget, dirty, markAllDirty, opaqueMeshes, setBuildFocus } from "./mesh.js";
-import { dynamicHighlight, updatePasteBox, updateOuterSea, primedBoxes, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
+import { DEEP_UNDER, dynamicHighlight, updatePasteBox, updateOuterSea, primedBoxes, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { calmMotion, opts } from "./settings.js";
 import { EYE, HALF, moveAxis, moveHorizontal, player, pointSolid, raycast, spawn, stats, unstick } from "./player.js";
 import { splash, waterLap, fireCrackle, at, caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { pushPrev, saveGame } from "./save.js";
-import { checkBuildAchievements, ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
+import { checkBuildAchievements, checkFoundAchievements, ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
 import { refreshMinimapCap, airBar, airEl, drawMinimap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
 import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
@@ -675,7 +675,8 @@ function snowSticksTo(b) {
   var eyeTop = (eyeCx >= 0 && eyeCx < WX && eyeCz >= 0 && eyeCz < WZ)
     ? topMap[eyeCz * WX + eyeCx] : -1;
   updateChunkVisibility(eyeInLiquid ? 26 : farNow(), chunkFloor,
-                        camera.position.y > eyeTop + 1);
+                        camera.position.y > eyeTop + 1,
+                        eyeTop - camera.position.y > DEEP_UNDER);
   updateOuterSea(camera.position.y);      // 물속에서는 바깥 바다 판을 감춘다
 
   // 플레이 시간과 상황별 도전 과제
@@ -708,7 +709,11 @@ function snowSticksTo(b) {
       if (moved && lb === 2) unlock("desert");
       // 지은 것을 보는 과제는 훨씬 무거우니 10초에 한 번만
       S.buildAchTimer = (S.buildAchTimer || 0) + 0.5;
-      if (S.buildAchTimer >= 10) { S.buildAchTimer = 0; checkBuildAchievements(); }
+      if (S.buildAchTimer >= 10) {
+        S.buildAchTimer = 0;
+        checkBuildAchievements();
+        checkFoundAchievements();     // 세계가 지어 둔 것을 찾았나 (v83)
+      }
       if (dayLight(S.timeOfDay) < 0.2) {
         var ax2 = Math.max(0, Math.min(WX - 1, Math.floor(player.pos.x)));
         var az2 = Math.max(0, Math.min(WZ - 1, Math.floor(player.pos.z)));
