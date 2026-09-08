@@ -4018,9 +4018,15 @@ test("v22 우클릭: 한 번 누르면 하나만, 홀드는 천천히 반복된�
   });
   eq(r.tap, 1, "한 번 클릭했는데 여러 개가 놓였다");
   assert(r.delay >= 0.4, "홀드 첫 반복까지의 뜸이 너무 짧다");
-  assert(r.repeat >= 0.3, "홀드 반복 간격이 너무 짧다");
-  // 3초 = 첫 하나 + 뜸 0.5초 뒤부터 0.35초 간격 → 7~8개
-  assert(r.held >= 5 && r.held <= 10, "홀드 3초에 " + r.held + "개 — 예상은 5~10개");
+  // 간격은 v78 에서 0.35 → 0.20 으로 옮겼다 (마크는 4틱 = 0.20초).
+  // 여기서 지키는 것은 "간격을 지키는가" 지 특정 숫자가 아니다 —
+  // 정확한 값은 `v78 놓기` 가 문서와 함께 못 박는다.
+  assert(r.repeat >= 0.15, "홀드 반복 간격이 없다시피 하다 — 손이 떨리면 여러 개가 놓인다");
+  // 3초 = 첫 하나 + 뜸(PLACE_DELAY) 뒤부터 PLACE_REPEAT 간격
+  const cap = 1 + Math.floor((3 - r.delay) / r.repeat);
+  assert(r.held <= cap, "홀드 3초에 " + r.held + "개 — 상한 " + cap + "개를 넘었다");
+  assert(r.held >= cap * 0.45,
+     "홀드 3초에 " + r.held + "개 — 상한 " + cap + "개에 견줘 너무 적다");
 });
 
 test("v23 영역: 한 번에 비우고 한 번에 되돌린다", async (page) => {
@@ -7957,6 +7963,536 @@ test("v76 오두막: 채마다 다르고, 난수 줄기가 안 밀린다", async
   assert(shelf + carpet + lamp > 0, "오두막 안에 놓인 것이 하나도 없다 — 들어가 볼 이유가 없다");
   assert(brick > 0, "벽돌집이 한 채도 없다 — 재료가 한 갈래다");
   assert(slab > 0, "반블록 처마가 한 채도 없다 — 지붕이 한 갈래다");
+});
+
+test("v78 유체: 밀려든 물과 흘러간 용암이 Ctrl+Z 한 번에 걷힌다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 60, Y = 30, Z = 60;
+    // ── 물: 방을 파고 한쪽에 물통을 두고, 사이 벽 한 장을 캔다
+    B.resetQueues();
+    B.S.fluidOwner = null; B.S.fallOwner = null;
+    for (let dx = -2; dx <= 14; dx++) for (let dz = -2; dz <= 12; dz++)
+      for (let dy = -2; dy <= 8; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    // 돌 상자 하나 — 안쪽만 비운다
+    for (let dx = 0; dx <= 12; dx++) for (let dz = 0; dz <= 10; dz++)
+      for (let dy = 0; dy <= 5; dy++) {
+        const edge = dx === 0 || dx === 12 || dz === 0 || dz === 10 || dy === 0 || dy === 5;
+        B.set(X + dx, Y + dy, Z + dz, edge ? B.B.STONE : 0);
+      }
+    // 왼쪽 칸(dx 1~4)을 물로 채우고, dx=5 를 벽으로 세워 오른쪽과 가른다
+    for (let dz = 1; dz <= 9; dz++) for (let dy = 1; dy <= 3; dy++)
+      B.set(X + 5, Y + dy, Z + dz, B.B.STONE);
+    for (let dx = 1; dx <= 4; dx++) for (let dz = 1; dz <= 9; dz++)
+      for (let dy = 1; dy <= 3; dy++) { B.set(X + dx, Y + dy, Z + dz, B.B.WATER); }
+    B.refreshAllTops(); B.relightAll(false);
+    function water() {
+      let n = 0;
+      for (let dx = 0; dx <= 12; dx++) for (let dz = 0; dz <= 10; dz++)
+        for (let dy = 0; dy <= 5; dy++)
+          if (B.get(X + dx, Y + dy, Z + dz) === B.B.WATER) n++;
+      return n;
+    }
+    B.S.history.length = 0; B.S.future.length = 0;
+    const before = water();
+    // 벽 한 장을 캔다 — 이 한 번의 편집이 뒤이은 범람의 주인이다
+    // 바닥에 닿은 층(dy=1)의 벽을 캔다 — 옆으로 퍼지려면 단단한 바닥을 딛어야 한다
+    B.applyEdit(X + 5, Y + 1, Z + 5, 0, true);
+    const hist = B.S.history.length;
+    for (let k = 0; k < 400; k++) { B.waterTick(400); B.dryTick(400); }
+    const flooded = water();
+    B.undo();
+    for (let k = 0; k < 400; k++) { B.waterTick(400); B.dryTick(400); }
+    const backW = water();
+    const wallBack = B.get(X + 5, Y + 1, Z + 5) === B.B.STONE;
+    const histAfter = B.S.history.length;
+
+    // ── 용암: 판 위에 한 칸 놓고 흐르게 뒀다가 되돌린다
+    B.resetQueues();
+    B.S.fluidOwner = null; B.S.fallOwner = null;
+    B.S.history.length = 0; B.S.future.length = 0;
+    const LX = 30, LY = 30, LZ = 30;
+    for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++)
+      for (let dy = -2; dy <= 6; dy++) B.set(LX + dx, LY + dy, LZ + dz, dy === -1 ? B.B.STONE : 0);
+    B.refreshAllTops(); B.relightAll(false);
+    function lava() {
+      let n = 0;
+      for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++)
+        for (let dy = -2; dy <= 6; dy++)
+          if (B.get(LX + dx, LY + dy, LZ + dz) === B.B.LAVA) n++;
+      return n;
+    }
+    B.applyEdit(LX, LY, LZ, B.B.LAVA, true);
+    for (let k = 0; k < 600; k++) { B.lavaFlowTick(200); B.lavaDryTick(200); }
+    const spread = lava();
+    B.undo();
+    for (let k = 0; k < 600; k++) { B.lavaFlowTick(200); B.lavaDryTick(200); }
+    const backL = lava();
+
+    B.resetQueues();
+    B.S.fluidOwner = null; B.S.fallOwner = null;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { before, hist, flooded, backW, wallBack, histAfter, spread, backL };
+  });
+  eq(r.hist, 1, "벽 한 장 캐기가 되돌리기 " + r.hist + "칸을 먹었다");
+  assert(r.flooded > r.before + 20,
+     "시험대가 안 섰다 — 벽을 캤는데 물이 " + (r.flooded - r.before) + "칸만 늘었다");
+  assert(r.wallBack, "되돌렸는데 벽이 안 돌아왔다");
+  eq(r.backW, r.before,
+     "되돌린 뒤 물이 " + r.backW + "칸 — 원래 " + r.before + "칸이어야 한다 (" +
+     (r.backW - r.before) + "칸이 남았다)");
+  eq(r.histAfter, 0, "되돌리기 뒤에도 기록이 " + r.histAfter + "개 남았다");
+  assert(r.spread >= 3, "시험대가 안 섰다 — 용암이 " + r.spread + "칸에서 멈췄다");
+  eq(r.backL, 0, "되돌린 뒤 용암이 " + r.backL + "칸 남았다");
+});
+
+test("v78 유체: 되돌린 물을 다시 하면 근원이 되어 불어나지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 40, Y = 34, Z = 40;
+    B.resetQueues();
+    B.S.fluidOwner = null; B.S.fallOwner = null;
+    for (let dx = -10; dx <= 10; dx++) for (let dz = -10; dz <= 10; dz++)
+      for (let dy = -2; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, dy === -1 ? B.B.STONE : 0);
+    B.refreshAllTops(); B.relightAll(false);
+    function count() {
+      let n = 0, src = 0;
+      for (let dx = -10; dx <= 10; dx++) for (let dz = -10; dz <= 10; dz++)
+        for (let dy = -2; dy <= 6; dy++)
+          if (B.get(X + dx, Y + dy, Z + dz) === B.B.WATER) {
+            n++;
+            if (B.waterLvl[B.idx(X + dx, Y + dy, Z + dz)] === 0) src++;
+          }
+      return { n: n, src: src };
+    }
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.applyEdit(X, Y, Z, B.B.WATER, true);
+    for (let k = 0; k < 400; k++) { B.waterTick(400); B.dryTick(400); }
+    const a = count();
+    B.undo();
+    for (let k = 0; k < 400; k++) { B.waterTick(400); B.dryTick(400); }
+    const mid = count();
+    B.redo();
+    const justRedone = count();
+    for (let k = 0; k < 400; k++) { B.waterTick(400); B.dryTick(400); }
+    const b = count();
+
+    B.resetQueues();
+    B.S.fluidOwner = null; B.S.fallOwner = null;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { a: a, mid: mid, justRedone: justRedone, b: b };
+  });
+  assert(r.a.n > 5, "시험대가 안 섰다 — 물이 " + r.a.n + "칸만 퍼졌다");
+  eq(r.mid.n, 0, "되돌렸는데 물이 " + r.mid.n + "칸 남았다");
+  eq(r.justRedone.src, r.a.src,
+     "다시 하니 근원이 " + r.justRedone.src + "칸 — 원래 " + r.a.src + "칸이어야 한다");
+  eq(r.b.n, r.a.n, "다시 한 뒤 물이 " + r.b.n + "칸 — 원래 " + r.a.n + "칸이어야 한다");
+});
+
+test("v78 스텝: 계단을 걸어 올라도 눈이 순간이동하지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 20, Y = 34, Z = 20;
+    // 반블록 열두 단짜리 오르막을 깐다 (한 단 0.5칸 = 계단 여섯 단과 같다)
+    for (let dx = -3; dx <= 30; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy <= 18; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dz = -3; dz <= 3; dz++) {
+      B.set(X - 1, Y - 1, Z + dz, B.B.STONE);
+      B.set(X - 2, Y - 1, Z + dz, B.B.STONE);
+      for (let n = 0; n < 26; n++) {
+        const bx = X + n, by = Y - 1 + ((n / 2) | 0);
+        B.set(bx, by, Z + dz, B.B.STONE, (n % 2 === 0) ? B.SH.SLAB : B.SH.FULL);
+      }
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.pos.set(X - 1.5, Y, Z + 0.5);
+    B.player.yaw = -Math.PI / 2; B.player.pitch = 0;
+    B.player.vel.set(0, 0, 0);
+    B.player.onGround = true; B.player.flying = false;
+    B.S.stepLift = 0; B.S.sneakEye = 0;
+    B.setKey("KeyW", true);
+    let maxFoot = 0, maxEye = 0, prevFoot = B.player.pos.y, prevEye = null, climbed = 0;
+    for (let f = 0; f < 200; f++) {
+      B.step(1 / 60);
+      const foot = B.player.pos.y, eye = B.camera.position.y;
+      const df = foot - prevFoot;
+      if (df > maxFoot) maxFoot = df;
+      if (prevEye !== null) { const de = eye - prevEye; if (de > maxEye) maxEye = de; }
+      prevFoot = foot; prevEye = eye;
+    }
+    climbed = B.player.pos.y - Y;
+    B.setKey("KeyW", false);
+    B.player.vel.set(0, 0, 0);
+    B.S.stepLift = 0;
+    B.endPlay(); B.setPaused(false);
+    return { maxFoot, maxEye, climbed };
+  });
+  assert(r.climbed > 2, "시험대가 안 섰다 — 오르막을 " + r.climbed.toFixed(2) + "칸밖에 못 올랐다");
+  assert(r.maxFoot > 0.3, "시험대가 안 섰다 — 발이 한 번에 " + r.maxFoot.toFixed(3) + "칸씩만 올랐다");
+  assert(r.maxEye < 0.2,
+     "눈이 한 프레임에 " + r.maxEye.toFixed(3) + "칸 튀었다 — 순간이동으로 읽힌다");
+});
+
+phoneTest("미니맵이 터치 단추에 안 덮인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    function box(id) {
+      const el = document.getElementById(id);
+      if (!el || el.hidden) return null;
+      const b = el.getBoundingClientRect();
+      return { x: b.left, y: b.top, w: b.width, h: b.height, r: b.right, b: b.bottom };
+    }
+    const mm = box("minimap"), mc = box("mm"), tb = box("tbtns"), tel = box("telemetry");
+    function overlap(a, c) {
+      if (!a || !c) return 0;
+      const w = Math.max(0, Math.min(a.r, c.r) - Math.max(a.x, c.x));
+      const h = Math.max(0, Math.min(a.b, c.b) - Math.max(a.y, c.y));
+      return (w * h) / (a.w * a.h);
+    }
+    return {
+      mm: mm, mc: mc, tb: tb,
+      onBtns: overlap(mm, tb), canvasOnBtns: overlap(mc, tb), onTel: overlap(mm, tel),
+      vw: window.innerWidth, vh: window.innerHeight
+    };
+  });
+  assert(r.mm && r.tb, "미니맵이나 터치 단추가 화면에 없다");
+  assert(r.onBtns < 0.01,
+     "미니맵의 " + Math.round(r.onBtns * 100) + "% 가 터치 단추에 덮였다 — 둘 다 안 읽힌다");
+  assert(r.canvasOnBtns < 0.01,
+     "지도 그림의 " + Math.round(r.canvasOnBtns * 100) + "% 가 단추에 덮였다");
+  assert(r.onTel < 0.01,
+     "미니맵의 " + Math.round(r.onTel * 100) + "% 가 계기판에 겹쳤다");
+  assert(r.mm.x >= -0.5 && r.mm.r <= r.vw + 0.5 && r.mm.y >= -0.5 && r.mm.b <= r.vh + 0.5,
+     "미니맵이 화면 밖으로 나갔다: " + JSON.stringify(r.mm));
+});
+
+test("v78 동물: 같은 종끼리 무리를 지어 나온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const rows = [];
+    for (const seed of [111, 222, 333, 444, 555]) {
+      B.generate(seed); B.relightAll(false); B.spawn();
+      B.mobs.length = 0;
+      B.seedMobs();
+      const near = [];
+      let pairs3 = 0;
+      for (let i = 0; i < B.mobs.length; i++) {
+        const a = B.mobs[i];
+        let best = 1e9;
+        for (let j = 0; j < B.mobs.length; j++) {
+          if (i === j) continue;
+          const b = B.mobs[j];
+          if (b.kind !== a.kind) continue;
+          const d = Math.hypot(a.x - b.x, a.z - b.z);
+          if (d < best) best = d;
+        }
+        if (best < 1e8) near.push(best);
+        if (best <= 3) pairs3++;
+      }
+      near.sort((p, q) => p - q);
+      rows.push({ seed, n: B.mobs.length, med: near.length ? near[near.length >> 1] : -1, pairs3 });
+    }
+    B.setPaused(false);
+    return rows;
+  });
+  for (const row of r) {
+    eq(row.n, 14, "시드 " + row.seed + " 의 마릿수가 " + row.n + " — 무리로 묶느라 수가 달라졌다");
+    assert(row.pairs3 >= 4,
+       "시드 " + row.seed + ": 같은 종이 3칸 안에 붙어 있는 동물이 " + row.pairs3 +
+       "마리뿐 — 번식 조건(같은 종·3칸)에 닿을 수가 없다");
+    assert(row.med <= 6,
+       "시드 " + row.seed + ": 같은 종 최근접 거리 중앙값이 " + row.med.toFixed(1) + "칸이다");
+  }
+});
+
+test("v78 번식: 따라오는 동안에는 사랑이 안 식고, 하트가 계속 뜬다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.mobs.length = 0;
+    B.seedMobs();
+    B.mobs.forEach(mm => { mm.x = 5; mm.z = 5; mm.y = 30; mm.follow = 0; mm.love = 0; mm.baby = 0; });
+    // 같은 종 두 마리를 고른다
+    const a = B.mobs[0];
+    let b = null;
+    for (let i = 1; i < B.mobs.length; i++) if (B.mobs[i].kind === a.kind) { b = B.mobs[i]; break; }
+    B.player.pos.set(50, 30, 50);
+    a.x = 51; a.z = 50; a.y = 30;
+    const born0 = B.mobs.length;
+    B.feedNearbyMob(B.player.pos);
+    const followA = a.follow, loveA = a.love;
+    // 21초 — 짝을 찾아 끌고 가는 데 걸리는 시간. 예전에는 20초에 사랑이 식어
+    // 아직 졸졸 따라오는데 번식 창은 이미 닫혀 있었다.
+    let hearts = 0;
+    const seen = [];
+    for (let k = 0; k < 21 * 60; k++) {
+      B.breedTick(1 / 60);
+      if (k % 60 === 0) seen.push(a.love > 0);
+    }
+    hearts = seen.filter(Boolean).length;
+    const loveAfter = a.love, followAfter = a.follow;
+    // 이제 둘째에게 먹이를 준다 — 첫째 곁으로 데려온 셈이다
+    b.x = 51.5; b.z = 50.5; b.y = 30;
+    a.x = 51; a.z = 50; a.y = 30;
+    const fed2 = B.feedNearbyMob(B.player.pos);
+    for (let k = 0; k < 60; k++) B.breedTick(1 / 60);
+    const born = B.mobs.length - born0;
+
+    B.mobs.forEach(mm => { mm.follow = 0; mm.love = 0; });
+    B.setPaused(false);
+    return { followA, loveA, loveAfter, followAfter, hearts, fed2, born, sameKind: !!b };
+  });
+  assert(r.sameKind, "시험대가 안 섰다 — 같은 종이 둘 이상 없다");
+  eq(r.loveA, r.followA, "먹인 직후 사랑(" + r.loveA + ")과 따라오기(" + r.followA + ")가 다르다");
+  assert(r.hearts >= 21,
+     "21초 중 사랑이 살아 있던 초가 " + r.hearts + "초뿐 — 따라오는 동안 사랑이 식는다");
+  assert(r.loveAfter > 0,
+     "21초 뒤 사랑이 식었다 — 따라오기는 최소 22초인데 창이 먼저 닫힌다");
+  assert(r.fed2, "둘째에게 먹이를 못 줬다");
+  eq(r.born, 1, "새끼가 " + r.born + "마리 났다 — 1마리여야 한다");
+});
+
+phoneTest("픽블록과 핫바 2쪽에 갈 길이 있다", async (page) => {
+  const r = await page.evaluate(async () => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 46, Y = 46, Z = 46;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      B.set(X + dx, Y - 1, Z + dz, B.B.GRASS);
+    B.set(X, Y, Z, B.B.BRICK, B.SH.SLAB);      // 벽돌 반블록 하나를 세워 둔다
+    B.refreshAllTops(); B.relightAll(false);
+
+    const pick = document.getElementById("tb-pick");
+    const list = document.getElementById("tb-list");
+    const has = { pick: !!pick && !pick.hidden, list: !!list };
+    if (!pick) return { has };
+
+    // 단추가 전부 화면 안에 있는가 (뽑기를 더해 한 줄이 늘었다)
+    const btns = Array.from(document.querySelectorAll("#tbtns button"));
+    let offscreen = 0;
+    for (const b of btns) {
+      const q = b.getBoundingClientRect();
+      if (q.top < -0.5 || q.bottom > window.innerHeight + 0.5 ||
+          q.left < -0.5 || q.right > window.innerWidth + 0.5) offscreen++;
+    }
+
+    // ── 뽑기: 반블록을 조준하고 단추를 누르면 손에 그 블록·그 모양이 들어와야 한다
+    B.S.bar[B.S.selected] = B.B.STONE;
+    B.S.shapeMode = 0;
+    B.player.pos.set(X + 0.5, Y + 1, Z + 2.5);
+    B.player.yaw = 0;
+    let aimed = false;
+    for (let pi = 0; pi <= 25 && !aimed; pi++) {
+      B.player.pitch = -pi * 0.05;
+      B.camera.rotation.order = "YXZ";
+      B.camera.rotation.y = 0; B.camera.rotation.x = B.player.pitch;
+      B.camera.position.set(B.player.pos.x, B.player.pos.y + B.EYE, B.player.pos.z);
+      B.camera.updateMatrixWorld(true);
+      const h = B.raycast(6);
+      if (h && h.x === X && h.y === Y && h.z === Z) aimed = true;
+    }
+    pick.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
+    pick.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true }));
+    const picked = B.S.bar[B.S.selected], pickedShape = B.S.shapeMode;
+
+    // ── 목록 짧게 누르기 = 목록 열기
+    const page0 = B.S.barPage;
+    list.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
+    list.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true }));
+    const opened = B.S.uiOpen;
+    B.closePicker(true);
+
+    // ── 목록 길게 누르기 = 핫바 2쪽
+    const before = B.S.bar.slice();
+    list.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
+    await new Promise(res => setTimeout(res, 620));
+    list.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true }));
+    const page1 = B.S.barPage;
+    const swapped = B.S.bar.some((b, i) => b !== before[i]);
+    const openedByHold = B.S.uiOpen;
+    if (B.S.uiOpen) B.closePicker(true);
+    if (B.S.barPage !== page0) B.swapBarPage();
+
+    B.endPlay(); B.setPaused(false);
+    return { has, offscreen, aimed, picked, pickedShape, opened, page0, page1, swapped,
+             openedByHold, BRICK: B.B.BRICK };
+  });
+  assert(r.has.pick, "폰에 픽블록 단추가 없다 — 이미 놓은 블록을 다시 들 길이 목록뿐이다");
+  eq(r.offscreen, 0, r.offscreen + "개의 터치 단추가 화면 밖으로 나갔다");
+  assert(r.aimed, "시험대가 안 섰다 — 반블록을 조준하지 못했다");
+  eq(r.picked, r.BRICK, "뽑기 단추를 눌렀는데 손에 그 블록이 안 들어왔다");
+  eq(r.pickedShape, 1, "뽑기가 모양(반블록)까지 안 가져왔다");
+  assert(r.opened, "목록 단추를 짧게 눌렀는데 목록이 안 열렸다");
+  assert(r.page1 !== r.page0, "목록을 길게 눌렀는데 핫바 쪽이 안 넘어갔다");
+  assert(r.swapped, "핫바 쪽은 바뀌었다는데 내용이 그대로다");
+  assert(!r.openedByHold, "길게 눌렀는데 목록까지 같이 열렸다");
+});
+
+phoneTest("도움말이 터치 조작을 설명한다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    B.toggleHelp(true);
+    const help = document.getElementById("help");
+    // 접힌 것은 세지 않는다 — textContent 는 display:none 도 읽는다 (v71 에서 데인 자리)
+    function visibleText(root) {
+      let out = "";
+      const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let n;
+      while ((n = w.nextNode())) {
+        const el = n.parentElement;
+        if (el && el.getClientRects().length) out += n.nodeValue + " ";
+      }
+      return out;
+    }
+    let body = "";
+    help.querySelectorAll(".help-cols").forEach(c => { body += visibleText(c); });
+    let kbds = 0;
+    help.querySelectorAll("kbd").forEach(k => { if (k.getClientRects().length) kbds++; });
+    // 도전 과제 탭으로 넘어가면 조작 안내는 한 벌도 안 남아야 한다
+    B.setHelpTab(true);
+    let achLeftover = 0;
+    help.querySelectorAll(".help-cols").forEach(c => {
+      achLeftover += visibleText(c).replace(/\s+/g, "").length;
+    });
+    B.setHelpTab(false);
+    B.toggleHelp(false);
+
+    // 블록 목록의 닫는 안내도 터치여야 한다
+    B.openPicker();
+    const pickNote = visibleText(document.querySelector(".pick-card"));
+    B.closePicker(true);
+    B.endPlay();
+    return { body, kbds, achLeftover, pickNote };
+  });
+  assert(r.kbds <= 2,
+     "폰 도움말에 키 표시가 " + r.kbds + "개 — 있지도 않은 키 이야기다");
+  assert(!/WASD|Ctrl\+|Alt\+|우클릭|좌클릭|휠/.test(r.body),
+     "폰 도움말이 키보드·마우스 조작을 말한다");
+  const touchWords = ["스틱", "단추", "끌면", "길게"].filter(w => r.body.includes(w));
+  assert(touchWords.length >= 3,
+     "폰 도움말에 터치 낱말이 " + touchWords.length + "개뿐: " + touchWords.join(","));
+  assert(r.body.includes("키보드에서만"),
+     "폰에서 못 하는 것(영역 도구·명령창)을 못 한다고 알려 주지 않는다");
+  assert(r.achLeftover < 40,
+     "도전 과제 탭으로 넘어갔는데 조작 안내가 " + r.achLeftover + "자 남아 있다");
+  assert(!/E.{0,3}로 닫기/.test(r.pickNote),
+     "블록 목록이 폰에 없는 E 키로 닫으라고 한다: " + r.pickNote.slice(0, 90));
+});
+
+test("v78 놓기: 끌어서 줄을 그으면 문서에 적힌 속도로 놓인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 62, Y = 42, Z = 62;
+    for (let dx = -8; dx <= 26; dx++) for (let dz = -6; dz <= 6; dz++)
+      for (let dy = -2; dy <= 8; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dx = -8; dx <= 26; dx++) for (let dz = -6; dz <= 6; dz++)
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.flying = true;
+    B.player.vel.set(0, 0, 0);
+    B.player.yaw = -Math.PI / 2;          // +X 를 본다
+    B.player.pitch = -0.95;               // 앞아래 바닥을 훑는다
+    B.S.bar[B.S.selected] = B.B.PLANKS;
+    B.S.shapeMode = 0;
+    function planks() {
+      let n = 0;
+      for (let dx = -8; dx <= 26; dx++) for (let dz = -6; dz <= 6; dz++)
+        for (let dy = -1; dy <= 8; dy++)
+          if (B.get(X + dx, Y + dy, Z + dz) === B.B.PLANKS) n++;
+      return n;
+    }
+    // 놓기를 누른 채 5초간 시선을 쓴다 — 벽 밑단에 줄을 긋는 그 동작이다.
+    // (loop 의 PLACE_DELAY/REPEAT 경로를 그대로 탄다)
+    B.S.touchPlace = true; B.S.placeCooldown = 0; B.S.lastPlaceCell = -1;
+    const t0 = planks();
+    const SECS = 5;
+    for (let k = 0; k < SECS * 60; k++) {
+      B.player.pos.set(X - 5 + k * 0.05, Y + 2.2, Z + 0.5);
+      B.player.vel.set(0, 0, 0);
+      B.step(1 / 60);
+    }
+    const laid = planks() - t0;
+    B.S.touchPlace = false;
+    B.player.flying = false;
+    B.endPlay(); B.setPaused(false);
+    return { laid, secs: SECS, DELAY: B.PLACE_DELAY, REPEAT: B.PLACE_REPEAT };
+  });
+  eq(r.REPEAT, 0.2, "반복 간격 상수 — docs/GAMEPLAY.md 가 0.2초라고 적어 두었다");
+  // 이론 상한: 첫 것 + (남은 시간 / 간격)
+  const cap = 1 + Math.floor((r.secs - r.DELAY) / r.REPEAT);
+  const rate = r.laid / r.secs;
+  // 예전(간격 0.35초)에는 같은 조건에서 1.79칸/초였다 — 마크는 5칸/초다
+  assert(rate >= 2.6,
+     "줄 긋기가 " + rate.toFixed(2) + "칸/초 — 손은 벌써 끝까지 갔는데 블록이 뒤따라온다");
+  assert(r.laid <= cap,
+     "5초에 " + r.laid + "칸 — 상한 " + cap + "칸을 넘었다 (쿨다운을 건너뛴다)");
+});
+
+test("v78 날씨: 눈이 오면 드러난 땅이 하얘지고, 내 건축물은 그대로다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 48, Y = 30, Z = 48;
+    // 돌·자갈·모래·판자를 한 겹 깐 평지 — 예전에는 풀·흙 위에만 눈이 쌓였다
+    const R = 12;
+    for (let dx = -R; dx <= R; dx++) for (let dz = -R; dz <= R; dz++) {
+      for (let dy = 0; dy <= 8; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      const kinds = [B.B.STONE, B.B.GRAVEL, B.B.SAND, B.B.COBBLE];
+      B.set(X + dx, Y - 1, Z + dz, kinds[((dx + R) >> 1) % kinds.length]);
+    }
+    // 사람이 놓은 판자 지붕 한 조각 — 날씨가 여기는 못 건드린다
+    const roof = [];
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+      B.applyEdit(X + dx, Y + 3, Z + dz, B.B.PLANKS, true);
+      roof.push([X + dx, Y + 3, Z + dz]);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    B.player.vel.set(0, 0, 0);
+    B.player.flying = false;
+
+    function snowOn() {
+      let n = 0;
+      for (let dx = -R; dx <= R; dx++) for (let dz = -R; dz <= R; dz++)
+        for (let dy = 0; dy <= 2; dy++)
+          if (B.get(X + dx, Y + dy, Z + dz) === B.B.SNOW) n++;
+      return n;
+    }
+    function roofIntact() {
+      return roof.every(c => B.get(c[0], c[1], c[2]) === B.B.PLANKS);
+    }
+    const before = snowOn();
+    B.setWeather(2); B.S.weatherLock = true;
+    for (let k = 0; k < 90 * 60; k++) B.step(1 / 60);
+    const snowed = snowOn();
+    const roofOk = roofIntact();
+    const onRoof = B.get(X, Y + 4, Z) === B.B.SNOW;
+
+    // 개면 녹는다 (설원이 아닌 곳)
+    B.setWeather(1);                       // 비
+    for (let k = 0; k < 120 * 60; k++) B.step(1 / 60);
+    const melted = snowOn();
+    B.setWeather(0); B.S.weatherLock = false;
+    B.endPlay(); B.setPaused(false);
+    return { before, snowed, melted, roofOk, onRoof };
+  });
+  eq(r.before, 0, "시험대가 안 섰다 — 시작부터 눈이 " + r.before + "칸 있다");
+  assert(r.snowed >= 40,
+     "90초를 눈이 왔는데 " + r.snowed + "칸만 하얘졌다 — 눈이 세계를 안 바꾼다");
+  assert(r.roofOk, "날씨가 사람이 놓은 판자를 바꿨다 — 세계가 내 건축물을 말없이 개조했다");
+  assert(r.melted < r.snowed,
+     "비가 " + (r.snowed - r.melted) + "칸만 녹였다 — 개도 그대로 하얗다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

@@ -759,6 +759,18 @@ export function cycleTime() {
   toast(label);
 }
 
+// 핫바 두 쪽을 맞바꾼다 — Tab 과 터치의 "목록 길게 누르기" 가 같은 길을 탄다
+export function swapBarPage() {
+  var swapBar = S.bar;
+  S.bar = S.barAlt;
+  S.barAlt = swapBar;
+  S.barPage = S.barPage === 1 ? 2 : 1;
+  refreshBar();
+  S.worldDirty = true;
+  toast("핫바 " + S.barPage + "쪽");
+  tone(520 + S.barPage * 90, 0.06, "square", 0.04);
+}
+
 export function pickBlock() {
   var hit = raycast(6);
   if (!hit) return;
@@ -948,17 +960,7 @@ window.addEventListener("keydown", function (e) {
     var n = parseInt(e.code.slice(5), 10);
     selectSlot(n === 0 ? 9 : n - 1);
   }
-  if (e.code === "Tab") {
-    e.preventDefault();
-    var swapBar = S.bar;
-    S.bar = S.barAlt;
-    S.barAlt = swapBar;
-    S.barPage = S.barPage === 1 ? 2 : 1;
-    refreshBar();
-    S.worldDirty = true;
-    toast("핫바 " + S.barPage + "쪽");
-    tone(520 + S.barPage * 90, 0.06, "square", 0.04);
-  }
+  if (e.code === "Tab") { e.preventDefault(); swapBarPage(); }
   if (e.code === S.binds.pick) pickBlock();
   if (e.code === S.binds.fly) {
     player.flying = !player.flying; player.vel.y = 0;
@@ -1248,7 +1250,21 @@ bindHold("tb-mine", function () { S.touchBreak = true; }, function () { S.touchB
 bindHold("tb-place", function () { S.touchPlace = true; S.placeCooldown = 0; S.lastPlaceCell = -1; },
                      function () { S.touchPlace = false; });
 bindHold("tb-jump", function () { S.keys.Space = true; }, function () { S.keys.Space = false; });
-bindHold("tb-list", function () { if (S.uiOpen) closePicker(true); else openPicker(); });
+// 폰에는 픽블록이 없었다 — 이미 놓은 블록을 하나 더 놓으려면 55칸짜리 목록을 열어
+// 찾아 누르는 길밖에 없었다. 크리에이티브 건축에서 가장 자주 쓰는 조작이다 (자문 12차 #5).
+bindHold("tb-pick", function () { pickBlock(); });
+// 목록을 **길게 누르면** 핫바 2쪽 — 울타리·문·사다리·유리판·TNT·부싯돌 열 종이
+// 폰에서는 아예 핫바로 못 나왔다. 짧게 누르면 예전처럼 목록이 열린다.
+var listHold = 0, listHeld = false;
+bindHold("tb-list", function () {
+  listHeld = false;
+  clearTimeout(listHold);
+  listHold = setTimeout(function () { listHeld = true; swapBarPage(); }, 450);
+}, function () {
+  clearTimeout(listHold);
+  if (listHeld) { listHeld = false; return; }
+  if (S.uiOpen) closePicker(true); else openPicker();
+});
 bindHold("tb-sneak", function () {
   S.keys.ShiftLeft = true;
   advanceTutTouch(6);            // 마지막 줄("웅크림 버튼을 누른 채면 안 떨어집니다")

@@ -4,7 +4,7 @@ import { padState, pollGamepad, pollGamepadMenu } from "./input.js";
 import { breedTick, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, WX, WY, WZ, idx, inside } from "./dims.js";
-import { FIRE, isStairShape, SH_SLAB, AIR, DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isSolid, isUnbreakable } from "./blocks.js";
+import { FIRE, isStairShape, SH_FULL, SH_SLAB, AIR, DEFAULT_BAR, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isSolid, isUnbreakable } from "./blocks.js";
 import { animateLiquids, crackTex } from "./atlas.js";
 import { boxesAt, seenRatio, BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, set, shape, topMap, world } from "./world.js";
 import { lightAtPlayer, lightBlk, lightSky, relightAll } from "./light.js";
@@ -24,7 +24,12 @@ import { localBiome, seedCreatures, setWeather, updateCreatures, updateSkyBodies
 
 export var GRAVITY = 26, JUMP = 8.4, WALK = 4.6, SPRINT = 6.0, FLY = 12;
 // 우클릭을 누르고 있을 때 — 두 번째가 나가기까지 뜸(초) · 그 뒤 반복 간격(초)
-export var PLACE_DELAY = 0.50, PLACE_REPEAT = 0.35;
+// 반복 간격은 오래 0.35 였다. 그렇게 늦춘 까닭은 "조준한 칸이 바뀌면 쿨다운을 건너뛰어
+// 손이 조금만 떨려도 한 번 누른 것이 여러 개로 놓이던 것" 이었는데, **원인은 건너뛴 것이지
+// 간격이 짧은 것이 아니었다.** 지금은 늘 간격을 지키므로 마크(4틱 = 0.20초)에 맞춘다.
+// 20칸 줄이 7.15초에서 4.4초로 줄어든다 (자문 12차 #7).
+// 첫 뜸(PLACE_DELAY)은 그대로 둔다 — 한 번 톡 누른 것이 둘로 늘어나지 않게 하는 자리다.
+export var PLACE_DELAY = 0.50, PLACE_REPEAT = 0.20;
 export var SNEAK_MUL = 0.32; // 웅크릴 때 이동 배율
 export var AIR_CONTROL = 0.24; // 공중에서는 방향을 거의 못 바꾼다
 export var fwd = new THREE.Vector3(), right = new THREE.Vector3();
@@ -47,6 +52,7 @@ export function newWorld(seed) {
   S.walked = 0; S.achPrevX = null; S.achPrevZ = null;
   S.growDirty = true;      // 새 세계의 묘목을 큐에 다시 담는다
   S.shapeMode = 0;
+  S.stepLift = 0;
   S.spawnPoint = null;
   S.marks = [];
   S.selA = S.selB = null;
@@ -252,6 +258,10 @@ export function step(dt) {
   }
   var sneakTarget = (S.sneaking && player.onGround) ? 0.22 : 0;
   S.sneakEye += (sneakTarget - S.sneakEye) * Math.min(1, dt * 12);
+  // 스텝업으로 올라선 높이를 0 으로 녹인다 — 계단 여섯 단이 딸깍 여섯 번이 아니라
+  // 한 줄기 경사로 읽힌다 (자문 12차 #2)
+  if (S.stepLift > 0.002) S.stepLift -= S.stepLift * Math.min(1, dt * 16);
+  else S.stepLift = 0;
 
   // 달리는 중이라는 유일한 시각 신호 — 시야각이 살짝 넓어진다
   var fovTarget = opts.fov + ((S.sprintingNow && !calm) ? 5.5 : 0);
@@ -263,7 +273,7 @@ export function step(dt) {
   }
 
   camera.position.set(player.pos.x + bobX * 0.4,
-                      player.pos.y + EYE - S.sneakEye + bobY, player.pos.z);
+                      player.pos.y + EYE - S.sneakEye - S.stepLift + bobY, player.pos.z);
   camera.rotation.y = player.yaw;
   camera.rotation.x = player.pitch;
 
@@ -569,13 +579,20 @@ export function step(dt) {
   // 큐가 비어 있으면 바로 돌아오니 프레임마다 불러도 공짜다.
   if (playing) growTick(dt);
 
-  // 눈이 오면 주변 지표에 조금씩 쌓인다 (비가 오면 다시 녹는다)
+  // 눈이 얹힐 수 있는 겉면인가 — 이미 하얀 것·액체·얼음·풀꽃 위에는 안 쌓인다.
+// 이미 눈이면 건너뛰므로 **스스로 멈춘다** (한 겹 덮고 나면 더 두꺼워지지 않는다).
+function snowSticksTo(b) {
+  if (b === SNOW || b === ICE || b === WATER || b === LAVA) return false;
+  return isSolid(b) && !isCross(b);
+}
+
+// 눈이 오면 주변 지표에 조금씩 쌓인다 (비가 오면 다시 녹는다)
   if (playing && S.weatherMix > 0.4) {
     S.snowTimer -= dt;
     if (S.snowTimer <= 0) {
       S.snowTimer = 0.45;
       var sx0 = Math.floor(player.pos.x), sz0 = Math.floor(player.pos.z);
-      for (var t2 = 0; t2 < 6; t2++) {
+      for (var t2 = 0; t2 < 10; t2++) {
         var ax3 = sx0 + ((Math.random() * 33) | 0) - 16;
         var az3 = sz0 + ((Math.random() * 33) | 0) - 16;
         if (ax3 < 0 || ax3 >= WX || az3 < 0 || az3 >= WZ) continue;
@@ -585,7 +602,10 @@ export function step(dt) {
         // 사람이 손댄 칸은 날씨가 건드리지 않는다 — 크리에이티브에서
         // 세계가 내 건축물을 말없이 개조하는 것만큼 신뢰를 깨는 게 없다
         if (isTouched(ax3, ty3, az3)) continue;
-        if (S.weather === 2 && (tb3 === GRASS || tb3 === DIRT)) {
+        // 눈은 드러난 것 위라면 어디에나 쌓인다 — 풀·흙만 하얘지면 설원(지도의 30%)은
+        // 겉이 이미 눈이라 5분을 서 있어도 세계가 31칸밖에 안 바뀌었다.
+        // 돌 봉우리·자갈길·모래톱이 하얘지는 것이 "눈이 왔다" 의 실체다 (자문 12차 #9).
+        if (S.weather === 2 && snowSticksTo(tb3) && shape[idx(ax3, ty3, az3)] === SH_FULL) {
           // 위에 얹는다 (덮어쓰지 않는다)
           if (ty3 + 1 < WY && world[idx(ax3, ty3 + 1, az3)] === AIR)
             // record=false — 날씨가 되돌리기 기록을 먹으면 안 되고, markTouched 를 찍으면

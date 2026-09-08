@@ -230,6 +230,10 @@ export function moveHorizontal(dx, dz) {
     if (boxHitsWorld(p.x, settle, p.z)) { settle += 0.005; break; }
   }
   p.y = settle;
+  // 눈은 순간이동하지 않는다 — 올라선 만큼을 카메라에서 빼 두면
+  // loop.js 가 몇 프레임에 걸쳐 0 으로 녹여 경사처럼 이어 준다 (자문 12차 #2).
+  // 웅크릴 때 눈높이가 부드럽게 내려가는 S.sneakEye 와 같은 틀이다.
+  S.stepLift = Math.min(STEP_UP, S.stepLift + (p.y - fromY));
   player.onGround = true;
   player.vel.y = 0;
 }

@@ -243,6 +243,13 @@
     pointer-events: none; line-height: 0;
   }
   #minimap { position: fixed; }
+  /* 터치 기기에서는 오른쪽 위를 캐기·놓기 단추가 차지한다 —
+     거기 두면 지도의 87% 가 단추 뒤로 비쳐서 둘 다 안 읽힌다 (자문 12차 #3).
+     화면 위 가운데는 왼쪽 계기판과도, 오른쪽 아래 단추와도 안 겹치는 유일한 자리다. */
+  html.touch #minimap { right: auto; left: 50%; transform: translateX(-50%); }
+  /* 조작 안내는 입력 장치를 따라간다 — 폰에서 키보드 설명서를 읽히지 않는다 (자문 12차 #6) */
+  html.touch #help-keys, html.touch .onlykeys { display: none; }
+  html:not(.touch) #help-touch, html:not(.touch) .onlytouch { display: none; }
   #minimap canvas { width: 128px; height: 128px; image-rendering: pixelated; display: block; }
   #mm-n {
     position: absolute; top: 7px; left: 50%; transform: translateX(-50%);
@@ -817,6 +824,7 @@
     <button id="tb-jump" type="button">점프</button>
     <button id="tb-fly" type="button">비행</button>
     <button id="tb-list" type="button">목록</button>
+    <button id="tb-pick" type="button">뽑기</button>
     <button id="tb-sneak" type="button">웅크림</button>
     <button id="tb-shape" type="button">모양</button>
     <button id="tb-undo" type="button">되돌리기</button>
@@ -830,7 +838,7 @@
       <h2>조작</h2>
       <button type="button" id="help-ach">도전 과제 보기</button>
     </div>
-    <div class="help-cols">
+    <div class="help-cols" id="help-keys">
       <dl>
         <dt>이동</dt><dd><kbd>WASD</kbd> 걷기 · <kbd>Space</kbd> 점프 · <kbd>Shift</kbd> 웅크리기</dd>
         <dd><kbd>Ctrl</kbd> 또는 <kbd>W</kbd>×2 달리기 · <kbd data-bind="fly">F</kbd> / <kbd>Space</kbd>×2 비행</dd>
@@ -867,6 +875,46 @@
         <dt>도움말</dt><dd><kbd data-bind="help">H</kbd> 로 열고 닫습니다 · <kbd>ESC</kbd> 메뉴</dd>
       </dl>
     </div>
+
+    <!-- 터치 기기용 — 폰에서 도움말을 열면 있지도 않은 키 이야기가 1,155자 나왔다.
+         30분 뒤 "영역 채우기가 있다던데" 하고 열면 Alt+좌클릭만 나오고,
+         그게 폰에서 도달할 수 없는 기능이라는 사실조차 안 알려 줬다. (자문 12차 #6) -->
+    <div class="help-cols" id="help-touch">
+      <dl>
+        <dt>이동</dt>
+        <dd>화면 <b>왼쪽</b>을 눌러 끌면 걷습니다 (가상 스틱) · <b>오른쪽</b>을 끌면 시점입니다</dd>
+        <dd><b>점프</b> 단추 · <b>비행</b> 단추로 걷기와 비행을 오갑니다 (비행 중엔 점프가 상승, 웅크림이 하강)</dd>
+        <dd>물에서는 <b>점프</b>로 떠오르고, 사다리에 붙어 <b>점프</b>로 오릅니다</dd>
+        <dd><b>웅크림</b>을 누른 채면 발판 밖으로 발을 안 내밉니다</dd>
+        <dt>짓기</dt>
+        <dd><b>캐기</b>를 누른 채 두면 캡니다 · <b>놓기</b>를 누른 채 시점을 쓸면 줄이 그어집니다</dd>
+        <dd><b>목록</b> — 블록 55종에서 고릅니다 (이름으로 찾기·갈래 탭)</dd>
+        <dd><b>뽑기</b> — 보고 있는 블록을 모양까지 그대로 손에 듭니다</dd>
+        <dd><b>목록을 길게</b> 누르면 핫바 2쪽 — 울타리·문·사다리·유리판·TNT·부싯돌이 있습니다</dd>
+        <dd><b>모양</b> — 전체 블록 → 반블록 → 계단 (계단 방향은 보고 있는 쪽)</dd>
+        <dd>아래 <b>핫바 칸</b>을 눌러 고릅니다 · <b>되돌리기</b>는 대량 편집도 한 번에 되돌립니다</dd>
+        <dt>불·TNT</dt>
+        <dd><b>부싯돌</b>을 든 채 <b>놓기</b> — 불을 붙이고, TNT 에는 3초 도화선을 답니다</dd>
+      </dl>
+      <dl>
+        <dt>동물</dt>
+        <dd>꽃이나 <b>키큰풀</b>을 들고 동물을 향해 <b>놓기</b> — 잠시 따라옵니다</dd>
+        <dd>따라오는 동안 머리 위에 <b>하트</b>가 뜹니다. 같은 종 두 마리를 <b>3칸</b> 안에 모으면 새끼가 납니다</dd>
+        <dd>울타리와 울타리문으로 우리를 지으면 가둔 동물은 사라지지 않습니다</dd>
+        <dt>나무</dt>
+        <dd><b>묘목</b>을 흙·풀·모래 위에 심으면 스스로 나무가 됩니다 (10~20초)</dd>
+        <dd>어둡거나 위가 6칸 넘게 트이지 않으면 자라지 않습니다 — 실내에서는 안 자랍니다</dd>
+        <dt>세계</dt>
+        <dd><b>메뉴</b> 단추 — 설정 · 저장 슬롯 · 청사진 · 새 세계로 갑니다</dd>
+        <dd>설정에서 <b>왼손잡이 배치</b>와 <b>단추 크기</b>를 바꿉니다</dd>
+        <dd>지도는 화면 위 가운데에 있습니다 — 땅속으로 들어가면 단면도로 바뀝니다</dd>
+        <dt>아직 키보드에서만</dt>
+        <dd>영역 도구(채우기·복사·붙여넣기) · 명령창(<b>/</b>) · 시간·날씨 바꾸기 · 미니맵 표식은
+            지금 <b>키보드에서만</b> 됩니다. 폰에서는 안 나오는 게 맞습니다</dd>
+        <dt>도움말</dt>
+        <dd><b>메뉴</b> 단추를 누르면 이 창이 닫힙니다</dd>
+      </dl>
+    </div>
     <div id="help-achlist" hidden></div>
   </div>
 </div>
@@ -874,7 +922,7 @@
 <div id="picker" hidden role="dialog" aria-modal="true" aria-label="블록 고르기">
   <div class="pick-card">
     <h2>블록 고르기</h2>
-    <p>고른 블록이 지금 선택된 칸에 들어갑니다 · <kbd>E</kbd> 로 닫기</p>
+    <p>고른 블록이 지금 선택된 칸에 들어갑니다 · <span class="onlykeys"><kbd>E</kbd> 로 닫기</span><span class="onlytouch"><b>목록</b> 단추로 닫기</span></p>
     <div class="pick-tools">
       <input id="pick-find" type="text" placeholder="이름으로 찾기 (예: wool, stone)" autocomplete="off">
       <div id="pick-tabs">

@@ -361,10 +361,12 @@ if (helpEl) helpEl.addEventListener("click", function (e) {
 // 도움말 안에서 도전 과제도 볼 수 있게 — 지금까지는 메뉴에만 있었다
 export var helpAchBtn = document.getElementById("help-ach");
 export var helpAchList = document.getElementById("help-achlist");
-export var helpCols = helpEl ? helpEl.querySelector(".help-cols") : null;
+// 조작 안내는 키보드용·터치용 두 벌이다 (자문 12차 #6) — querySelector 하나만 잡으면
+// 도전 과제 탭으로 넘어갔을 때 나머지 한 벌이 그대로 남는다
+export var helpCols = helpEl ? helpEl.querySelectorAll(".help-cols") : [];
 export function setHelpTab(showAch) {
-  if (!helpCols || !helpAchList) return;
-  helpCols.hidden = showAch;
+  if (!helpCols.length || !helpAchList) return;
+  for (var hc = 0; hc < helpCols.length; hc++) helpCols[hc].hidden = showAch;
   helpAchList.hidden = !showAch;
   if (helpAchBtn) helpAchBtn.textContent = showAch ? "조작 보기" : "도전 과제 보기";
 }

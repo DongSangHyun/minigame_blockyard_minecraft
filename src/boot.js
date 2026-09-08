@@ -23,3 +23,6 @@ export var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").
 // 터치 기기 판별 — 렌더 해상도·기본 설정·전체화면 요청이 모두 이 값을 본다
 export var IS_TOUCH = window.matchMedia("(hover: none)").matches ||
                (navigator.maxTouchPoints || 0) > 0 || "ontouchstart" in window;
+// CSS 도 이 판정을 그대로 써야 한다 — 미디어 쿼리로 다시 재면 JS 와 어긋난 화면이 나온다.
+// (터치 단추가 미니맵의 87% 를 덮던 것을 CSS 로 피하는 데 쓴다 — 자문 12차 #3)
+document.documentElement.classList.toggle("touch", IS_TOUCH);

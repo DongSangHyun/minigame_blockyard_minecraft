@@ -11,7 +11,7 @@ import { touch } from "./mesh.js";
 import { burst } from "./scene.js";
 import { at, crunch, lavaHiss, tone } from "./audio.js";
 import { playerOccupies } from "./player.js";
-import { applyEdit, batchPush, beginBatch, endBatch, ownFire, FIRE_UNDO_MAX, unlock } from "./edit.js";
+import { applyEdit, batchPush, beginBatch, endBatch, ownFire, FIRE_UNDO_MAX, FLUID_UNDO_MAX, unlock } from "./edit.js";
 
 export var MAXFLOW = 7; // 근원에서 옆으로 뻗을 수 있는 칸 수 (마크와 같은 7칸)
 
@@ -144,6 +144,27 @@ export function fallTick(budget) {
   return moved;
 }
 
+// ── 물·용암이 스스로 바꾸는 칸을 "그것을 일으킨 편집" 묶음에 담는다 (자문 12차 #1)
+// 지하실 벽 한 장을 잘못 캐서 물이 192칸 밀려들었는데, Ctrl+Z 는 벽만 돌려놓고
+// 물은 그대로 뒀다. 좌클릭으로는 물을 못 지우니(레이캐스트가 액체를 건너뛴다)
+// 되돌리기가 유일한 안전망인데 그 안전망만 물·용암을 안 잡고 있었다.
+// 모래(S.fallOwner · v69)·불(S.fireOwner · v72)과 같은 틀이다.
+// 이 함수들은 applyEdit 을 안 거치고 world[] 를 직접 쓰므로(속도 때문에)
+// 기록도 손으로 남긴다 — 쓰기 **직전에** 부른다.
+function fluidRec(i, x, y, z, to, toWl) {
+  var o = S.fluidOwner;
+  if (!o || o.n >= FLUID_UNDO_MAX) return;
+  batchPush(o, x, y, z, world[i], to, shape[i], SH_FULL, waterLvl[i], toWl || 0);
+}
+// 네 큐가 다 비면 그 편집이 일으킨 흐름은 끝난 것이다 —
+// 뒤이어 세계가 스스로 하는 일까지 남의 묶음에 실으면 엉뚱한 것이 같이 되돌아온다
+function releaseFluidOwner() {
+  if (!S.fluidOwner) return;
+  if (Q.waterHead < Q.waterQ.length || Q.dryHead < Q.dryQ.length) return;
+  if (Q.lavaHead < Q.lavaQ.length || Q.lavaDryHead < Q.lavaDryQ.length) return;
+  S.fluidOwner = null;
+}
+
 export function waterTick(budget) {
   budget = budget || 300;
   var changed = 0;
@@ -192,6 +213,7 @@ export function waterTick(budget) {
       if (get(x + DIRS[m][0], y + DIRS[m][1], z + DIRS[m][2]) === LAVA) { meltsLava = true; break; }
     }
     if (meltsLava) {
+      fluidRec(i, x, y, z, COBBLE, 0);
       world[i] = COBBLE; shape[i] = SH_FULL; waterLvl[i] = 0;
       touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z);
       burst(x, y, z, COBBLE, 6);
@@ -201,6 +223,7 @@ export function waterTick(budget) {
       continue;
     }
 
+    fluidRec(i, x, y, z, WATER, lvl);
     world[i] = WATER;
     // 설원의 노출된 수면은 잠시 뒤 얼어붙는다 (바로 얼리면 물이 퍼지지도 못한다)
     enqueueFreeze(x, y, z);
@@ -213,6 +236,7 @@ export function waterTick(budget) {
     }
   }
   if (Q.waterHead > 4096 && Q.waterHead === Q.waterQ.length) { Q.waterQ.length = 0; Q.waterHead = 0; }
+  releaseFluidOwner();
   if (changed) unlock("flood");
   return changed;
 }
@@ -271,6 +295,7 @@ export function dryTick(budget) {
     dried++;
   }
   if (Q.dryHead > 4096 && Q.dryHead === Q.dryQ.length) { Q.dryQ.length = 0; Q.dryHead = 0; }
+  releaseFluidOwner();
   return dried;
 }
 
@@ -293,6 +318,7 @@ export function fedSideways(i, y, lvl) {
 }
 export function removeWater(i, y) {
   var rem = i - y * PLANE, z = (rem / WX) | 0, x = rem - z * WX;
+  fluidRec(i, x, y, z, AIR, 0);
   world[i] = AIR; waterLvl[i] = 0;
   touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z);
   enqueueDryAround(x, y, z);
@@ -456,6 +482,7 @@ export function lavaFlowTick(budget) {
       if (get(x + DIRS[m][0], y + DIRS[m][1], z + DIRS[m][2]) === WATER) { wet = true; break; }
     }
     if (wet) {
+      fluidRec(i, x, y, z, COBBLE, 0);
       world[i] = COBBLE; shape[i] = SH_FULL; waterLvl[i] = 0;
       touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z);
       burst(x, y, z, COBBLE, 6);
@@ -464,6 +491,7 @@ export function lavaFlowTick(budget) {
       continue;
     }
 
+    fluidRec(i, x, y, z, LAVA, lvl);
     world[i] = LAVA; waterLvl[i] = lvl;
     changed++;
     touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z);   // 용암은 광원이라 조명도 다시
@@ -472,6 +500,7 @@ export function lavaFlowTick(budget) {
     S.worldDirty = true;
   }
   if (Q.lavaHead > 4096 && Q.lavaHead === Q.lavaQ.length) { Q.lavaQ.length = 0; Q.lavaHead = 0; }
+  releaseFluidOwner();
   return changed;
 }
 
@@ -489,6 +518,7 @@ export function lavaDryTick(budget) {
     if (get2(i, 0, 1, 0) === LAVA) continue;       // 위에서 대 주고 있다
     if (lavaFedSideways(i, y, lvl)) continue;
     var rem2 = i - y * PLANE, z2 = (rem2 / WX) | 0, x2 = rem2 - z2 * WX;
+    fluidRec(i, x2, y, z2, AIR, 0);
     world[i] = AIR; waterLvl[i] = 0;
     touch(x2, y, z2); refreshTop(x2, z2); relightLocal(x2, y, z2);
     enqueueLavaDryAround(x2, y, z2);
@@ -499,6 +529,7 @@ export function lavaDryTick(budget) {
   if (Q.lavaDryHead > 4096 && Q.lavaDryHead === Q.lavaDryQ.length) {
     Q.lavaDryQ.length = 0; Q.lavaDryHead = 0;
   }
+  releaseFluidOwner();
   return dried;
 }
 

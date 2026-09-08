@@ -68,7 +68,7 @@ function makeMob(kind) {
   mobGroup.add(g);
   return { g: g, legs: legs, kind: kind, x: 0, y: 0, z: 0, yaw: 0,
            turn: 0, walk: 0, phase: Math.random() * 6, cry: 3 + Math.random() * 12,
-           follow: 0, love: 0, baby: 0 };
+           follow: 0, love: 0, loveHint: 0, baby: 0 };
 }
 
 // ── 저장 · 복원 — 동물이 저장에 없어서, 목장을 만들어도 탭을 닫으면 빈 우리가 됐다.
@@ -99,18 +99,42 @@ export function loadMobs(arr) {
   return mobs.length > 0;
 }
 
+// 한 무리 마릿수 — 마크의 패시브 몹도 같은 종 서너 마리가 한 덩어리로 나온다
+export var HERD = 4;
 export function seedMobs() {
   while (mobs.length < MOB_COUNT) mobs.push(makeMob((Math.random() * MOB_KINDS.length) | 0));
-  for (var i = 0; i < mobs.length; i++) placeMob(mobs[i], true);
+  // 낱개로 흩뿌리면 같은 종 최근접 거리의 중앙값이 8~18칸이라(자문 12차 #8),
+  // 번식 조건(같은 종 · 3칸 안)에 영영 못 닿는다 — 우리를 지어도 채울 방법이 없었다.
+  // 같은 종끼리 서너 마리를 한 덩어리로 놓는다. **총 마릿수는 그대로다.**
+  var byKind = [], k;
+  for (k = 0; k < MOB_KINDS.length; k++) byKind.push([]);
+  for (var i = 0; i < mobs.length; i++) byKind[mobs[i].kind].push(mobs[i]);
+  for (k = 0; k < byKind.length; k++) {
+    var list = byKind[k];
+    for (var s = 0; s < list.length; s += HERD) {
+      var lead = list[s];
+      var led = placeMob(lead, true);
+      for (var n = 1; n < HERD && s + n < list.length; n++) {
+        var m = list[s + n];
+        // 무리 짝은 우두머리 곁에 — 실패하면 예전처럼 혼자 선다
+        if (!led || !placeAround(m, lead.x, lead.z, 1.2, 3.0, 48)) placeMob(m, true);
+      }
+    }
+  }
 }
 
 function placeMob(m, far) {
-  // 플레이어 주변, 물이 아닌 마른 땅에 놓는다
-  for (var t = 0; t < 24; t++) {
+  return far ? placeAround(m, player.pos.x, player.pos.z, 8, 30, 24)
+             : placeAround(m, player.pos.x, player.pos.z, 18, 30, 24);
+}
+
+// 주어진 자리 둘레의 마른 땅에 놓는다 (물·용암·얼음·해저를 피한다)
+function placeAround(m, cx, cz, dmin, dmax, tries) {
+  for (var t = 0; t < tries; t++) {
     var a = Math.random() * Math.PI * 2;
-    var d = far ? 8 + Math.random() * 22 : 18 + Math.random() * 12;
-    var x = player.pos.x + Math.cos(a) * d;
-    var z = player.pos.z + Math.sin(a) * d;
+    var d = dmin + Math.random() * (dmax - dmin);
+    var x = cx + Math.cos(a) * d;
+    var z = cz + Math.sin(a) * d;
     if (x < 2 || x > WX - 2 || z < 2 || z > WZ - 2) continue;
     var y = groundAt(x, z);
     if (y < 2 || y >= WY - 2) continue;
@@ -384,7 +408,11 @@ export function feedNearbyMob(pos) {
   if (best < 0) return false;
   var mm = mobs[best], k = MOB_KINDS[mm.kind];
   mm.follow = 22 + Math.random() * 14;
-  mm.love = 20;                        // 20초 안에 같은 처지의 짝을 만나면 새끼가 난다
+  // 사랑은 따라오기와 **같이** 끝난다 (자문 12차 #4).
+  // 예전엔 20초로 짧아서, 아직 졸졸 따라오는 동물이 사실은 이미 사랑이 식은 상태였다 —
+  // 게임이 "된다" 고 보여 주는 동안 창은 닫혀 있었다. 기능이 없는 것보다 나쁘다.
+  mm.love = mm.follow;
+  mm.loveHint = 0;
   burst(mm.x, mm.y + 0.8, mm.z, LOVE_HINT, 5);
   tone(k.cry * 1.35, 0.16, "triangle", 0.06, at(mm.x, mm.y + 0.6, mm.z));
   return true;
@@ -398,6 +426,13 @@ export function breedTick(dt) {
     var a = mobs[i];
     if (!(a.love > 0)) continue;
     a.love -= dt;
+    // 사랑이 살아 있는 동안 머리 위에 하트가 계속 뜬다 —
+    // 언제 식는지가 눈에 보여야 "왜 안 되지" 하며 꽃만 계속 주지 않는다 (자문 12차 #4)
+    a.loveHint -= dt;
+    if (a.love > 0 && a.loveHint <= 0) {
+      burst(a.x, a.y + 0.8, a.z, LOVE_HINT, 1);
+      a.loveHint = 1;
+    }
     if (a.baby > 0) { a.love = 0; continue; }          // 새끼는 번식하지 않는다
     if (mobs.length >= MOB_MAX) continue;
     for (var j = i + 1; j < mobs.length; j++) {

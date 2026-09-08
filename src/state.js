@@ -85,6 +85,9 @@ export const S = {
   heldKey: -1,
   ghostKey: -1,
   sneakEye: 0, // 웅크릴 때 눈높이가 부드럽게 내려간다
+  // 계단·반블록을 걸어 오를 때 눈이 한 프레임에 0.5칸 순간이동하던 것을 녹인다.
+  // 올라선 높이를 여기 담아 두고 카메라에서 빼면, 몇 프레임에 걸쳐 따라 올라온다.
+  stepLift: 0,
   fovNow: 0, // 달릴 때 시야각 킥
   hudTimer: 0,
   fpsAccum: 0,
@@ -111,6 +114,9 @@ export const S = {
   // 붙인 불이 연 묶음 — 번짐과 타 없어짐을 여기에 담아야 Ctrl+Z 한 번에 집이 돌아온다.
   // v69 는 "번짐 끄기" 설정으로 막았고, 이건 켜 둔 채로도 되돌아가게 한다.
   fireOwner: null,
+  // 물·용암이 스스로 흐르고 마르는 것도 그것을 일으킨 편집에 실린다 (자문 12차 #1).
+  // 없으면 "되돌리기 — 돌 캐기" 라고 말해 놓고 밀려든 물 192칸은 그대로 남는다.
+  fluidOwner: null,
   wasFeetInWater: false,   // 물에 막 들어간 순간을 잡는다 (첨벙)
   achListStale: false,
   lavaTimer: 0,

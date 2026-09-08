@@ -127,7 +127,11 @@ patch("docs/TESTING.md", [
 ]);
 
 // 배포를 가리키는 짧은 도장 — 커밋 시각에서 숫자만 뽑는다 (예: 20260907T1152)
-const stampId = iso.replace(/[-:]/g, "").slice(0, 13);
+// 라벨과 **같은 KST 기준**으로 찍는다. iso 를 그대로 자르면
+// 커밋된 상태(git 의 %cI — 지역 오프셋)와 미커밋 상태(toISOString — UTC)가 9시간 어긋나서
+// 캐시 키가 **뒤로 간다** (13:36 → 05:36 을 실제로 봤다).
+const stampId = `${kst.getFullYear()}${p(kst.getMonth() + 1)}${p(kst.getDate())}T` +
+                `${p(kst.getHours())}${p(kst.getMinutes())}`;
 // 서비스 워커 캐시 이름 — 배포마다 바꿔야 옛 캐시가 청소된다.
 // 고정값이면 activate 의 `k === VERSION ? null : caches.delete(k)` 가 한 번도 안 지운다.
 patch("sw.js", [

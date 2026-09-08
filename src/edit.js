@@ -127,32 +127,37 @@ function makeBatch(cap) {
   return { n: 0, cap: cap,
            x: new Uint16Array(cap), y: new Uint16Array(cap), z: new Uint16Array(cap),
            from: new Uint8Array(cap), to: new Uint8Array(cap),
-           fromSh: new Uint8Array(cap), toSh: new Uint8Array(cap), wl: new Uint8Array(cap) };
+           fromSh: new Uint8Array(cap), toSh: new Uint8Array(cap),
+           wl: new Uint8Array(cap), toWl: new Uint8Array(cap) };
 }
 function batchGrow(b) {
-  var cap = b.cap * 2, keys = ["x", "y", "z", "from", "to", "fromSh", "toSh", "wl"];
+  var cap = b.cap * 2, keys = ["x", "y", "z", "from", "to", "fromSh", "toSh", "wl", "toWl"];
   var big = makeBatch(cap);
   for (var k = 0; k < keys.length; k++) big[keys[k]].set(b[keys[k]]);
   big.n = b.n;
   for (var k2 = 0; k2 < keys.length; k2++) b[keys[k2]] = big[keys[k2]];
   b.cap = cap;
 }
-export function batchPush(b, x, y, z, from, to, fromSh, toSh, wl) {
+// toWl — 되돌린 것을 다시 할 때(redo) 돌아갈 물 레벨. 없으면 흐르던 물 192칸이
+// 전부 근원(0)으로 되살아나 무한 물이 된다 (자문 12차 #1).
+export function batchPush(b, x, y, z, from, to, fromSh, toSh, wl, toWl) {
   if (b.n === b.cap) batchGrow(b);
   var i = b.n++;
   b.x[i] = x; b.y[i] = y; b.z[i] = z;
   b.from[i] = from; b.to[i] = to;
-  b.fromSh[i] = fromSh; b.toSh[i] = toSh; b.wl[i] = wl;
+  b.fromSh[i] = fromSh; b.toSh[i] = toSh; b.wl[i] = wl; b.toWl[i] = toWl || 0;
 }
 
 // 대량 편집(채우기·붙여넣기)은 한 덩어리로 묶어 한 번에 되돌린다
 export function beginBatch(cap) {
   S.batch = makeBatch(cap || 1024); S.batchCells = 0;
-  S.fallOwner = null; S.fireOwner = null;   // 새 편집이 시작되면 지난 주인은 놓는다
+  S.fallOwner = null; S.fireOwner = null; S.fluidOwner = null;   // 새 편집이 시작되면 지난 주인은 놓는다
 }
 // 방금 기록된 편집을 "이 불의 주인" 으로 삼는다 — 번짐과 타 없어짐이 여기에 실린다.
 // 불은 오래 타므로 상한을 둔다. 넘으면 그때부터는 기록하지 않는다(대부분은 이미 담겼다).
 export var FIRE_UNDO_MAX = 20000;
+// 물은 불보다 훨씬 많이 번진다 — 바다를 통째로 끌어들이면 끝이 없으므로 상한을 둔다
+export var FLUID_UNDO_MAX = 40000;
 export function ownFire() {
   var last = S.history[S.history.length - 1];
   S.fireOwner = (last && last.batch) ? last.batch : null;
@@ -211,6 +216,11 @@ export function endBatch(label) {
   // 이 편집 때문에 떨어질 것이 큐에 남아 있으면, 그 낙하도 이 묶음의 일이다.
   // fallTick 이 여기에 실어야 Ctrl+Z 한 번으로 떨어진 자리까지 되돌아온다.
   S.fallOwner = (Q.fallHead < Q.fallQ.length) ? b : null;
+  // 물·용암도 마찬가지다 — 벽 한 장을 캐서 밀려든 물 192칸이 기록에 없으면
+  // Ctrl+Z 가 벽만 돌려놓고 물은 그대로 둔다 (자문 12차 #1).
+  var fluidPending = Q.waterHead < Q.waterQ.length || Q.dryHead < Q.dryQ.length ||
+                     Q.lavaHead < Q.lavaQ.length || Q.lavaDryHead < Q.lavaDryQ.length;
+  S.fluidOwner = fluidPending ? b : null;
   if (b.n >= 100) unlock("build100");
   trimHistory();
   S.future.length = 0;
@@ -223,7 +233,7 @@ function applyCellAt(b, i, toSide, defer) {
   var w = idx(x, y, z);
   world[w] = toSide ? b.to[i] : b.from[i];
   shape[w] = (toSide ? b.toSh[i] : b.fromSh[i]) || SH_FULL;
-  waterLvl[w] = toSide ? 0 : b.wl[i];
+  waterLvl[w] = toSide ? (b.toWl ? b.toWl[i] : 0) : b.wl[i];
   if (!defer) { touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z); }
   if (world[w] === AIR) enqueueWaterAround(x, y, z);
   if (b.from[i] === WATER || b.to[i] === WATER) { enqueueDryAround(x, y, z); enqueueWaterAround(x, y, z); }
