@@ -183,9 +183,13 @@ if (copySeedBtn) {
 // 조준한 칸 — 블록을 맞히면 그 칸, 허공이면 시선 4칸 앞.
 // 예전에는 허공에 Alt+클릭하면 아무 일도 안 일어나 20칸 탑 자리를 고르려면
 // 임시 블록을 놓고 찍고 지우기를 반복해야 했다.
-export function aimCell(reach) {
+// strict 를 주면 **안 맞았을 때 null** 을 돌려준다.
+// 기본값(눈앞 4칸 허공)은 "늘 성공한 것처럼" 보이게 해서,
+// 20칸 앞 탑 모서리를 겨눠도 코앞 허공이 찍히고 Ctrl+F 를 누른 뒤에야 알았다.
+export function aimCell(reach, strict) {
   var h = raycast(reach || 6);
   if (h) return [h.x, h.y, h.z];
+  if (strict) return null;
   var d = new THREE.Vector3();
   camera.getWorldDirection(d);
   var ex = player.pos.x + d.x * 4;
@@ -1093,8 +1097,10 @@ canvas.addEventListener("mousedown", function (e) {
   // (Ctrl 은 달리기라, 달리며 캐려고 하면 영역이 찍혀 버렸다)
   if (e.altKey) {
     e.preventDefault();
-    var hs = aimCell(6);
-    if (!hs) return;
+    // 영역 찍기만 사거리가 길다 — 40×20 집터의 두 모서리를 잡으려고
+    // 거기까지 날아갔다 돌아올 이유가 없다 (월드에디트 나무도끼도 보이는 데까지 찍힌다).
+    var hs = aimCell(64, true);
+    if (!hs) { toast("찍을 블록이 없습니다 — 지형을 겨누세요"); return; }
     if (e.button === 0) { S.selA = [hs[0], hs[1], hs[2]]; toast("영역 시작"); }
     else if (e.button === 2) {
       S.selB = [hs[0], hs[1], hs[2]];
@@ -1257,6 +1263,14 @@ bindHold("tb-menu", function () {
   if (helpOpen()) { toggleHelp(false); return; }
   if (S.uiOpen) { closePicker(true); return; }
   endPlay();
+});
+// 폰에는 G 키가 없어 **반블록·계단에 갈 길이 화면에 하나도 없었다** —
+// 30분을 지어도 나오는 건 네모 상자뿐이었다. 계단 모서리(v66)를 폰은 본 적이 없다.
+bindHold("tb-shape", function () {
+  S.shapeMode = (S.shapeMode + 1) % 3;
+  toast(["전체 블록", "반블록", "계단"][S.shapeMode]);
+  updateHandBlock();
+  advanceTutTouch(3);
 });
 bindHold("tb-undo", function () {
   var ok = undo();

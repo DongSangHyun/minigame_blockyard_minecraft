@@ -482,7 +482,9 @@ export var crackTex = [];
 
 // ── 액체 애니메이션 — 물과 용암 타일을 세로로 흘려 정지 화면을 면한다.
 // 셰이더를 건드리지 않고 아틀라스의 두 타일만 다시 칠한다 (16×16 두 장이라 값이 싸다).
-var LIQUID_TILES = [11, 20];        // 물 · 용암
+// 물 · 용암 · 불. 불은 세계에서 가장 살아 있어 보여야 하는 블록인데
+// 정지 이미지로 박혀 있었다 — 집이 타는 걸 눈으로만 봤다.
+var LIQUID_TILES = [11, 20, 55];
 var liquidSrc = {};
 LIQUID_TILES.forEach(function (i) {
   var o = tileOrigin(i);
@@ -505,8 +507,18 @@ function scrollTile(i, shift, boost) {
   actx.putImageData(out, o[0], o[1]);
 }
 
+// 아틀라스 타일 한 장의 지문 — 시험이 "정말 움직이나" 를 볼 때 쓴다
+export function atlasSample(i) {
+  var o = tileOrigin(i);
+  var d = actx.getImageData(o[0], o[1], TILE, TILE).data;
+  var h = 2166136261 >>> 0;
+  for (var k = 0; k < d.length; k += 7) { h ^= d[k]; h = Math.imul(h, 16777619) >>> 0; }
+  return h >>> 0;
+}
 export function animateLiquids(t) {
   scrollTile(11, Math.floor(t * 6) % TILE, 1);
   scrollTile(20, Math.floor(t * 2.5) % TILE, 0.94 + 0.10 * Math.sin(t * 3.1));
+  // 불은 빠르게 위로 흐르고 밝기가 함께 떤다 — 마크의 32프레임 불꽃 자리
+  scrollTile(55, TILE - (Math.floor(t * 14) % TILE), 0.86 + 0.22 * Math.sin(t * 11.3));
   atlasTex.needsUpdate = true;
 }

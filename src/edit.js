@@ -528,7 +528,10 @@ export function selectionSize() {
 }
 export var REGION_MAX = 40000;   // 한 번에 다룰 수 있는 칸 수
 
-export function fillSelection(block, sh) {
+// only — 이 블록인 칸만 바꾼다(음수면 전부). onlyAir — 빈 칸만 채운다.
+// 다 지은 벽돌 벽을 조약돌로 바꾸려면 예전에는 200칸을 하나씩 캐고 하나씩 놓아야 했다
+// (200 × 1.4초 ≈ 4분 40초). 건축은 짓는 시간보다 고치는 시간이 길다.
+export function fillSelection(block, sh, only) {
   var b = bounds();
   if (!b) return 0;
   if (selectionSize() > REGION_MAX) return -1;
@@ -537,9 +540,11 @@ export function fillSelection(block, sh) {
   beginBatch(selectionSize());
   for (var y = b.y0; y <= b.y1; y++)
     for (var z = b.z0; z <= b.z1; z++)
-      for (var x = b.x0; x <= b.x1; x++)
+      for (var x = b.x0; x <= b.x1; x++) {
+        if (only !== undefined && only >= 0 && world[idx(x, y, z)] !== only) continue;
         applyEdit(x, y, z, block, true, sh || SH_FULL);
-  return endBatch("채우기");
+      }
+  return endBatch(only !== undefined && only >= 0 ? "바꾸기" : "채우기");
 }
 
 // 영역 비우기 — 채우기와 같은 길을 쓰되 되돌리기 이름만 다르다.
@@ -665,7 +670,7 @@ export function pasteClip(px, py, pz) {
 // ── 명령 처리 — 짧은 이름 하나로 알아듣게
 export var CMD_HELP =
   "tp <x> <y> <z> · time <아침|정오|노을|밤|0~1> · weather <맑음|비|눈> · " +
-  "tp <x y z|표식> · marks · fill <블록|공기> · expand <±dx> <±dy> <±dz> · clone <dx> <dy> <dz> · give <블록> · count · bp <save|use|list|del> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
+  "tp <x y z|표식> · marks · fill <블록|공기> [바꿀블록] · expand <±dx> <±dy> <±dz> · clone <dx> <dy> <dz> [횟수] · give <블록> · count · bp <save|use|list|del> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
 
 // 한국어 이름과 영어 이름을 둘 다 알아듣는다 — "조약돌" 도 "cobble" 도 된다
 function findBlock(name) {
@@ -780,10 +785,22 @@ export function runCommand(line) {
       if (!nc) return "먼저 Alt+클릭으로 영역을 고르세요";
       return nc.toLocaleString("ko-KR") + "칸을 비웠습니다";
     }
-    var fb = findBlock(fname);
+    // "/fill 조약돌 벽돌" — 벽돌인 칸만 조약돌로. 창문·문틀·안쪽 공기는 그대로 둔다.
+    var repl = -1, fbName = fname;
+    var two = fname.split(/\s+/);
+    if (two.length >= 2) {
+      var maybe = findBlock(two[two.length - 1]);
+      var head = two.slice(0, two.length - 1).join(" ");
+      if (maybe >= 0 && findBlock(head) >= 0) { repl = maybe; fbName = head; }
+      else if (/^(공기|빈칸|air|없음)$/i.test(two[two.length - 1]) && findBlock(head) >= 0) {
+        repl = AIR; fbName = head;
+      }
+    }
+    var fb = findBlock(fbName);
     if (fb < 0) return "그런 블록이 없습니다";
-    var n = fillSelection(fb, SH_FULL);
+    var n = fillSelection(fb, SH_FULL, repl >= 0 ? repl : undefined);
     if (n < 0) return "영역이 너무 큽니다";
+    if (repl >= 0 && !n) return (NAMES[repl] || "그 블록") + " 인 칸이 없습니다";
     if (!n) return "먼저 Alt+클릭으로 영역을 고르세요";
     return n.toLocaleString("ko-KR") + "칸을 " + NAMES[fb] + " 로";
   }
@@ -853,15 +870,24 @@ export function runCommand(line) {
   // 고른 영역을 그대로 한 벌 더 — 계단·기둥처럼 되풀이되는 것을 손으로 다시 짓지 않게
   if (cmd === "clone") {
     var ox = parseInt(parts[1], 10), oy = parseInt(parts[2], 10), oz = parseInt(parts[3], 10);
-    if (!isFinite(ox) || !isFinite(oy) || !isFinite(oz)) return "clone <dx> <dy> <dz>";
+    if (!isFinite(ox) || !isFinite(oy) || !isFinite(oz)) return "clone <dx> <dy> <dz> [횟수]";
     var bb = selectionBounds();
     if (!bb) return "먼저 Alt+클릭으로 영역을 고르세요";
+    // 횟수 — 회랑 기둥 열둘을 세우려고 같은 명령을 열두 번 치지 않게 (월드에디트 //stack)
+    var times = Math.max(1, Math.min(64, parseInt(parts[4], 10) || 1));
+    var keepClip = S.clip;                 // Ctrl+C 로 담아 둔 것을 조용히 덮지 않는다
     var cn = copySelection();
-    if (cn < 0) return "영역이 너무 큽니다";
-    if (!cn) return "영역이 비어 있습니다";
-    var pn2 = pasteClip(bb.x0 + ox, bb.y0 + oy, bb.z0 + oz);
-    if (!pn2) return "붙여넣지 못했습니다";
-    return pn2.toLocaleString("ko-KR") + "칸을 복제했습니다";
+    if (cn < 0) { S.clip = keepClip; return "영역이 너무 큽니다"; }
+    if (!cn) { S.clip = keepClip; return "영역이 비어 있습니다"; }
+    var done = 0;
+    for (var ci = 1; ci <= times; ci++) {
+      var pn2 = pasteClip(bb.x0 + ox * ci, bb.y0 + oy * ci, bb.z0 + oz * ci);
+      if (!pn2) break;
+      done += pn2;
+    }
+    S.clip = keepClip;
+    if (!done) return "붙여넣지 못했습니다";
+    return done.toLocaleString("ko-KR") + "칸을 " + times + "번 복제했습니다";
   }
 
   if (cmd === "seed") return "SEED " + S.worldSeed;

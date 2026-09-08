@@ -80,15 +80,25 @@ export function updateAmbient(dt) {
   g.value += (target - g.value) * Math.min(1, dt * 1.5);
   S.ambient.filter.frequency.value = S.weather === 1 ? 1500 : 380;
 
-  if (S.active && !S.weather && !S.muted && dayLight(S.timeOfDay) < 0.35) {
+  // 자연음 — 밤에는 귀뚜라미, 낮에는 새. 예전에는 이 블록이 밤 조건 안에만 있어서
+  // **낮에는 설계상 아무 소리도 나지 않았다** (실측: 맑은 낮 20초에 1개 · 밤 20초에 5개).
+  // 혼자 오래 짓는 사람이 게임을 끄는 이유는 대개 "심심해서" 가 아니라 "적막해서" 다.
+  if (S.active && !S.weather && !S.muted) {
+    var night = dayLight(S.timeOfDay) < 0.35;
     S.cricketTimer -= dt;
     if (S.cricketTimer <= 0) {
-      S.cricketTimer = 1.8 + Math.random() * 3.4;
-      var base = 2100 + Math.random() * 480;
-      for (var k = 0; k < 3; k++) {
-        (function (f, delay) {
-          setTimeout(function () { tone(f, 0.04, "triangle", 0.010); }, delay);
-        })(base, k * 95);
+      if (night) {
+        S.cricketTimer = 1.8 + Math.random() * 3.4;
+        var base = 2100 + Math.random() * 480;
+        for (var k = 0; k < 3; k++) {
+          (function (f, delay) {
+            setTimeout(function () { tone(f, 0.04, "triangle", 0.010); }, delay);
+          })(base, k * 95);
+        }
+      } else {
+        // 낮은 조금 더 뜸하게 — 지저귐이 잦으면 짓는 데 방해가 된다
+        S.cricketTimer = 3.2 + Math.random() * 5.0;
+        birdCall();
       }
     }
   }
@@ -200,6 +210,31 @@ export function listenAt(x, y, z, fx, fz) {
 export function lavaPop(vol, node) {
   tone(70 + Math.random() * 50, 0.22, "sine", 0.10 * vol, node);
   crunch(0.18, 0.05 * vol, 320, node);
+}
+// 물에 뛰어들 때의 첨벙 — 세계 지표의 63~80%가 바다인데 완전한 무음이었다
+export function splash(vol, node) {
+  var v = vol === undefined ? 1 : vol;
+  crunch(0.35, 0.20 * v, 1100, node);
+  tone(320, 0.16, "sine", 0.05 * v, node);
+  tone(180, 0.28, "sine", 0.04 * v, node);
+}
+// 물가에서 나는 잔물결 — 용암 뽀글과 같은 틀(방향까지 맞는 패너)을 쓴다
+export function waterLap(vol, node) {
+  var v = vol === undefined ? 1 : vol;
+  crunch(0.42, 0.035 * v, 620, node);
+  tone(240 + Math.random() * 90, 0.30, "sine", 0.018 * v, node);
+}
+// 낮의 새소리 — 낮에는 설계상 아무 소리도 안 났다 (자연음이 밤 조건 안에만 있었다)
+export function birdCall(node) {
+  var f = 900 + Math.random() * 700;
+  tone(f, 0.09, "sine", 0.035, node);
+  setTimeout(function () { tone(f * 1.28, 0.07, "sine", 0.028, node); }, 90);
+}
+// 불이 타는 소리 — 붙여 놓고 귀에는 아무것도 없었다
+export function fireCrackle(vol, node) {
+  var v = vol === undefined ? 1 : vol;
+  crunch(0.16, 0.055 * v, 1500, node);
+  if (Math.random() < 0.4) tone(120 + Math.random() * 80, 0.10, "sawtooth", 0.022 * v, node);
 }
 // 용암에 발을 담글 때의 치익 소리
 export function lavaHiss() {

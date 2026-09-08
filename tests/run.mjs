@@ -7655,6 +7655,115 @@ test("v72 불: 번져서 탄 집이 Ctrl+Z 한 번에 돌아온다", async (page
   eq(r.histAfter, 0, "되돌리기 한 번에 다 안 돌아온다");
 });
 
+test("v73 소리: 바다·불·낮이 더는 무음이 아니다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.muted = false; B.S.weather = 0;
+    let out_hasAmbient = false;
+    const ac = B.ac();
+    // 실제 발음 횟수를 센다 — 자문이 쓴 방식 그대로
+    let count = 0;
+    const osc = ac.createOscillator.bind(ac), buf = ac.createBufferSource.bind(ac);
+    ac.createOscillator = function () { count++; return osc(); };
+    ac.createBufferSource = function () { count++; return buf(); };
+    // 귀뚜라미는 setTimeout 으로 세 음을 울린다 — 동기 루프에서는 그 발음이 안 잡힌다.
+    // "울리기로 했는가" 까지 세야 밤이 조용해졌는지 알 수 있다.
+    const st = window.setTimeout;
+    window.setTimeout = function (fn, ms) { count++; return st(fn, ms); };
+    function measure(fn, secs) {
+      count = 0;
+      for (let k = 0; k < secs * 60; k++) fn(1 / 60);
+      return count;
+    }
+
+    const X = 44, Y = 40, Z = 84;
+    for (let dx = -7; dx <= 7; dx++) for (let dz = -7; dz <= 7; dz++)
+      for (let dy = -3; dy <= 5; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dx = -7; dx <= 7; dx++) for (let dz = -7; dz <= 7; dz++)
+      B.set(X + dx, Y - 3, Z + dz, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    B.player.vel.set(0, 0, 0); B.player.flying = true;
+
+    // ① 바다 옆 — 예전에는 5초에 0개
+    for (let dx = -6; dx <= -2; dx++) for (let dz = -6; dz <= 6; dz++)
+      for (let dy = -2; dy <= 0; dy++) B.set(X + dx, Y + dy, Z + dz, B.B.WATER);
+    B.refreshAllTops();
+    B.S.timeOfDay = 0.5;                       // 한낮
+    const water = measure((dt) => B.step(dt), 6);
+
+    // ② 불 옆 — 예전에는 정지 화면 + 거의 무음
+    for (let dx = -6; dx <= -2; dx++) for (let dz = -6; dz <= 6; dz++)
+      for (let dy = -2; dy <= 0; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dx = 1; dx <= 3; dx++) for (let dz = -1; dz <= 1; dz++)
+      B.set(X + dx, Y, Z + dz, B.B.FIRE);
+    B.refreshAllTops();
+    const fire = measure((dt) => B.step(dt), 6);
+    for (let dx = 1; dx <= 3; dx++) for (let dz = -1; dz <= 1; dz++)
+      B.set(X + dx, Y, Z + dz, 0);
+    B.refreshAllTops();
+
+    // ③ 한낮의 빈 들판 — 예전에는 20초에 1개.
+    // updateAmbient 는 S.ambient 가 있어야 돈다 — 없으면 조용히 0이 나온다
+    B.startAmbient();
+    out_hasAmbient = !!B.S.ambient;
+    B.S.timeOfDay = 0.5;
+    B.S.cricketTimer = 0;
+    const day = measure((dt) => B.updateAmbient(dt), 20);
+    // ④ 밤도 그대로여야 한다
+    B.S.timeOfDay = 0.0;
+    B.S.cricketTimer = 0;
+    const night = measure((dt) => B.updateAmbient(dt), 20);
+
+    // ⑤ 불 타일이 실제로 움직이는가
+    const t0 = B.atlasSample(55);
+    B.animateLiquids(1.7);
+    const t1 = B.atlasSample(55);
+
+    B.player.flying = false;
+    ac.createOscillator = osc; ac.createBufferSource = buf; window.setTimeout = st;
+    B.S.timeOfDay = 0.25;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { water, fire, day, night, moved: t0 !== t1, hasAmbient: out_hasAmbient };
+  });
+  assert(r.water > 0, "바다 옆 6초에 소리가 " + r.water + "개다 — 세계의 3/4 가 귀에는 없다");
+  assert(r.fire > 0, "불 옆 6초에 소리가 " + r.fire + "개다 — 집이 타는 걸 눈으로만 본다");
+  assert(r.hasAmbient, "시험대가 안 섰다 — 배경음이 안 켜져 updateAmbient 가 바로 돌아온다");
+  assert(r.day >= 3, "한낮 20초에 소리가 " + r.day + "개다 — 낮이 밤보다 적막하다");
+  assert(r.night >= 3, "밤 소리가 " + r.night + "개로 줄었다 — 귀뚜라미가 사라졌다");
+  assert(r.moved, "불 타일이 정지 화면이다");
+});
+
+phoneTest("반블록·계단에 갈 길이 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    const btn = document.getElementById("tb-shape");
+    if (!btn) return { missing: true };
+    const rect = btn.getBoundingClientRect();
+    const onScreen = rect.bottom <= window.innerHeight + 1 && rect.top >= -1 &&
+                     rect.right <= window.innerWidth + 1 && rect.left >= -1;
+    const keep = B.S.shapeMode;
+    B.S.shapeMode = 0;
+    function tap() {
+      btn.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
+      btn.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true }));
+      return B.S.shapeMode;
+    }
+    const seq = [tap(), tap(), tap()];
+    B.S.shapeMode = keep;
+    B.endPlay();
+    return { missing: false, onScreen, seq, big: Math.min(rect.width, rect.height) };
+  });
+  assert(!r.missing,
+     "폰에 모양 단추가 없다 — G 키가 없으니 반블록·계단에 갈 길이 화면에 하나도 없다");
+  assert(r.onScreen, "모양 단추가 화면 밖에 있다");
+  assert(r.big >= 24, "모양 단추가 너무 작다");
+  eq(r.seq.join(","), "1,2,0", "모양이 전체→반블록→계단→전체로 안 돈다: " + r.seq.join(","));
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

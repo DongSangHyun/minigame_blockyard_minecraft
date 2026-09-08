@@ -1,7 +1,7 @@
 // version.js — 빌드 도장 (자동 생성)
 // 직접 고치지 말고 `node tools/stamp.mjs` 를 실행하세요. 커밋 직전에 돌립니다.
 export var BUILD = {
-  updated: "2026-09-08 09:04",   // 마지막 업데이트 (KST)
-  iso: "2026-09-08T09:04:42+09:00",
-  commit: "d32813d"
+  updated: "2026-09-08 09:19",   // 마지막 업데이트 (KST)
+  iso: "2026-09-08T00:19:33.255Z",
+  commit: ""
 };

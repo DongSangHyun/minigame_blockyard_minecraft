@@ -109,6 +109,7 @@ export const S = {
   // 붙인 불이 연 묶음 — 번짐과 타 없어짐을 여기에 담아야 Ctrl+Z 한 번에 집이 돌아온다.
   // v69 는 "번짐 끄기" 설정으로 막았고, 이건 켜 둔 채로도 되돌아가게 한다.
   fireOwner: null,
+  wasFeetInWater: false,   // 물에 막 들어간 순간을 잡는다 (첨벙)
   achListStale: false,
   lavaTimer: 0,
   caveTimer: 6,

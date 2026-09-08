@@ -4,7 +4,7 @@ import { padState, pollGamepad, pollGamepadMenu } from "./input.js";
 import { breedTick, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, WX, WY, WZ, idx, inside } from "./dims.js";
-import { isStairShape, SH_SLAB, AIR, DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isSolid, isUnbreakable } from "./blocks.js";
+import { FIRE, isStairShape, SH_SLAB, AIR, DEFAULT_BAR, DIRT, GRASS, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isSolid, isUnbreakable } from "./blocks.js";
 import { animateLiquids, crackTex } from "./atlas.js";
 import { boxesAt, seenRatio, BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, set, shape, topMap, world } from "./world.js";
 import { lightAtPlayer, lightBlk, lightSky, relightAll } from "./light.js";
@@ -14,7 +14,7 @@ import { dynamicHighlight, updatePasteBox, updateOuterSea, primedBoxes, HL_CROSS
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { calmMotion, opts } from "./settings.js";
 import { EYE, HALF, moveAxis, moveHorizontal, player, pointSolid, raycast, spawn, stats, unstick } from "./player.js";
-import { at, caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
+import { splash, waterLap, fireCrackle, at, caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { pushPrev, saveGame } from "./save.js";
 import { checkBuildAchievements, ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
 import { refreshMinimapCap, airBar, airEl, drawMinimap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
@@ -187,6 +187,12 @@ export function step(dt) {
     // 동물을 뚫고 지나가지 않는다
     var push = pushOutOfMobs(player.pos.x, player.pos.z, HALF);
     if (push[0] || push[2]) moveHorizontal(push[0] * 0.5, push[1] * 0.5);
+
+    // 물에 들어가는 순간 첨벙 — 6칸 위에서 바다로 뛰어들어도 아무 소리가 없었다
+    if (feetInWater && !S.wasFeetInWater) {
+      splash(Math.min(1, 0.35 + Math.abs(fallSpeed) * 0.06));
+    }
+    S.wasFeetInWater = feetInWater;
 
     if (player.onGround && !S.wasOnGround && fallSpeed < -6 && !feetInWater) {
       crunch(0.12, Math.min(0.22, Math.abs(fallSpeed) * 0.014), 700);
@@ -473,6 +479,20 @@ export function step(dt) {
   if (S.liquidTimer > 0.14) { S.liquidTimer = 0; animateLiquids(voxUniforms.uTime.value); }
 
   // 용암이 가까우면 주기적으로 뽀글거린다 — 지하에서 "저쪽에 용암이 있다"를 귀로 알려 준다
+  // 둘레에서 그 블록을 찾아 가장 가까운 칸에서 소리를 낸다 (용암 뽀글에서 쓰던 모양)
+  function ambientNear(cx, cy, cz, block, r, play) {
+    var n = 0, best = 1e9, px = 0, py = 0, pz = 0;
+    for (var ax = -r; ax <= r; ax++)
+      for (var ay = -4; ay <= 4; ay += 2)      // 0 을 반드시 포함한다 — 눈높이 칸이 빠지면 옆에 있어도 안 들린다
+        for (var az = -r; az <= r; az++)
+          if (get(cx + ax, cy + ay, cz + az) === block) {
+            n++;
+            var dd = ax * ax + ay * ay + az * az;
+            if (dd < best) { best = dd; px = cx + ax; py = cy + ay; pz = cz + az; }
+          }
+    if (n > 0) play(n, at(px + 0.5, py + 0.5, pz + 0.5));
+  }
+
   S.lavaTimer -= dt;
   if (S.lavaTimer <= 0) {
     S.lavaTimer = 0.4 + Math.random() * 0.6;
@@ -492,6 +512,14 @@ export function step(dt) {
         lavaPop(Math.min(1, 0.25 + near / 30), at(bx + 0.5, by + 0.5, bz + 0.5));
         unlock("lava");
       }
+      // 물과 불도 같은 틀로 — 세계에서 가장 넓은 것(바다)과 가장 눈에 띄는 것(불)이
+      // 둘 다 귀에는 없었다. 방향까지 맞는 패너를 그대로 쓴다.
+      ambientNear(lx, ly, lz, WATER, 6, function (n, node) {
+        waterLap(Math.min(1, 0.2 + n / 60), node);
+      });
+      ambientNear(lx, ly, lz, FIRE, 5, function (n, node) {
+        fireCrackle(Math.min(1, 0.35 + n / 8), node);
+      });
     }
   }
   if (thick && !S.wasInLavaFeet) lavaHiss();
