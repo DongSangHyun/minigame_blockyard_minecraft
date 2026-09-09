@@ -794,9 +794,11 @@ function buildMines(rng) {
 }
 
 // 한 줄기 — 토막 2~4개를 꺾어 잇는다. 토막마다 축을 바꾸고, 가끔 한 칸 오르내린다.
-function carveShaft(rng, x, y, z, axis) {
+// branch — 갈래로 뻗은 줄기는 다시 갈라지지 않는다 (재귀 1단)
+function carveShaft(rng, x, y, z, axis, branch) {
   var legs = 2 + ((rng() * 3) | 0);               // 2~4 토막
   var laid = 0;
+  var lastBx = -1, lastBz = -1, lastAxis = axis, lastY = y;
   for (var g = 0; g < legs; g++) {
     var len = 10 + ((rng() * 12) | 0);            // 토막 10~21칸
     // 남쪽/동쪽으로만 뻗으면 한쪽으로 쏠린다 — 방향도 뽑는다
@@ -806,8 +808,17 @@ function carveShaft(rng, x, y, z, axis) {
     if (axis === 1 && back) bz = z - len + MINE_W;
     if (bx < 3 || bz < 3) break;
     if (!mineFits(bx, y, bz, axis, len)) break;   // 여기서 줄기를 끊는다
-    carveMine(rng, bx, y, bz, axis, len, g === legs - 1);
+    carveMine(rng, bx, y, bz, axis, len);
     laid++;
+    lastBx = bx; lastBz = bz; lastAxis = axis; lastY = y;
+    // 갈래 — 토막 중간에서 옆으로 한 줄기 더 뻗는다. 폐광은 갈라져야 폐광이다.
+    // 실측: 줄기 다섯이 따로따로였고 통로 총연장 79~146칸(17~32초면 다 걷는다).
+    if (!branch && rng() < 0.45) {
+      var mid = (len >> 1);
+      var jx = axis === 0 ? bx + mid : bx;
+      var jz = axis === 0 ? bz : bz + mid;
+      carveShaft(rng, jx, y, jz, axis ? 0 : 1, true);
+    }
     // 다음 토막의 시작점 — 이 토막의 끝 언저리에서 축을 꺾는다
     if (axis === 0) { x = back ? bx : bx + len - MINE_W; }
     else { z = back ? bz : bz + len - MINE_W; }
@@ -818,6 +829,10 @@ function carveShaft(rng, x, y, z, axis) {
       if (ny >= 4 && ny <= SEA - 6) y = ny;
     }
   }
+  // 끝방은 **실제로 놓인 마지막 토막**에 단다.
+  // `lastLeg` 를 계획한 토막 수로 정하던 때는 `mineFits` 실패로 줄기가 끊기면
+  // 마지막 토막이 영영 안 와서, 세계당 방이 기대 3개 대비 0~2개(평균 1.25)였다.
+  if (laid > 0 && !branch && lastBx >= 0) endRoom(rng, lastBx, lastY, lastBz, lastAxis);
   return laid;
 }
 
@@ -845,7 +860,7 @@ function mineFits(x0, y, z0, axis, len) {
   return mineBoxOk(x0, y, z0, axis ? MINE_W : len, axis ? len : MINE_W);
 }
 
-function carveMine(rng, x0, y, z0, axis, len, lastLeg) {
+function carveMine(rng, x0, y, z0, axis, len) {
   var plankFloor = rng() < 0.4;
   for (var s = 0; s < len; s++) {
     var frame = (s % (4 + ((s * 7) % 3))) === 0;    // 4~6칸마다 버팀목
@@ -874,25 +889,36 @@ function carveMine(rng, x0, y, z0, axis, len, lastLeg) {
     var tz = axis ? z0 + s : z0 + mid;
     if (get(tx, y, tz) === AIR && isSolid(get(tx, y - 1, tz))) set(tx, y, tz, TORCH);
   }
-  // 끝방 — 줄기의 **마지막 토막**에만. 여기가 "끝까지 걸어가 볼 이유" 다.
-  if (lastLeg && rng() < 0.6) {
-    var rx = axis ? x0 - 2 : x0 + len - 3;
-    var rz = axis ? z0 + len - 3 : z0 - 2;
-    if (mineBoxOk(rx, y, rz, 5, 5)) {
-      for (var ax = 0; ax < 5; ax++)
-        for (var az = 0; az < 5; az++)
-          for (var ay = -1; ay < MINE_H; ay++) {
-            var wx3 = rx + ax, wz3 = rz + az;
-            set(wx3, y + ay, wz3, ay === -1 ? COBBLE : AIR);
-          }
-      var ix3 = rx + 1 + ((rng() * 3) | 0), iz3 = rz + 1 + ((rng() * 3) | 0);
+}
+
+// 끝방 — 줄기 끝에 붙는 방. 여기가 "끝까지 걸어가 볼 이유" 다.
+// 5×5 가 안 되면 3×3 으로 물러선다 — 5×5 상자가 통로보다 훨씬 커서 자주 떨어졌다.
+// 놓는 것도 하나가 아니라 두세 개 — 끝까지 걸어간 사람에게 주는 것이다.
+function endRoom(rng, x0, y, z0, axis) {
+  if (rng() >= 0.75) return false;
+  var sizes = [5, 3];
+  for (var si = 0; si < sizes.length; si++) {
+    var n = sizes[si];
+    var rx = axis ? x0 - ((n - MINE_W) >> 1) : x0 + MINE_W;
+    var rz = axis ? z0 + MINE_W : z0 - ((n - MINE_W) >> 1);
+    if (!mineBoxOk(rx, y, rz, n, n)) continue;
+    for (var ax = 0; ax < n; ax++)
+      for (var az = 0; az < n; az++)
+        for (var ay = -1; ay < MINE_H; ay++)
+          set(rx + ax, y + ay, rz + az, ay === -1 ? COBBLE : AIR);
+    var items = 2 + ((rng() * 2) | 0);
+    for (var it = 0; it < items; it++) {
+      var ix3 = rx + ((rng() * n) | 0), iz3 = rz + ((rng() * n) | 0);
+      if (get(ix3, y, iz3) !== AIR) continue;
       var pick = rng();
       set(ix3, y, iz3, pick < 0.34 ? BOOKSHELF : (pick < 0.67 ? LAMP : CARPET));
-      set(rx + 2, y + MINE_H - 1, rz + 2, LOG);
-      if (get(rx + 2, y + MINE_H - 2, rz + 2) === AIR)
-        set(rx + 2, y + MINE_H - 2, rz + 2, TORCH);
     }
+    var cx3 = rx + (n >> 1), cz3 = rz + (n >> 1);
+    set(cx3, y + MINE_H - 1, cz3, LOG);
+    if (get(cx3, y + MINE_H - 2, cz3) === AIR) set(cx3, y + MINE_H - 2, cz3, TORCH);
+    return true;
   }
+  return false;
 }
 
 // 버려진 오두막 — 크기·재료·지붕·창·안에 놓인 것을 뽑아 채마다 다르게 짓는다.

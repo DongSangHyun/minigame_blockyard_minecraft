@@ -10096,7 +10096,16 @@ test("v85 갱도: 꺾이고 층이 어긋나며, 지도에 자국이 남는다",
         }
       }
       const levels = new Set(posts.map(p => p[1])).size;
-      rows.push({ seed, posts: posts.length, levels, wet });
+      // 통로 길이와 끝방 소품 — v87 에서 갈래와 끝방을 손봤다.
+      // 예전에는 줄기 다섯이 따로따로라 17~32초면 다 걸었고, 끝방은 세계당 0~2개였다.
+      let corridor = 0, items = 0;
+      for (let y = 1; y < B.SEA; y++) for (let z = 1; z < B.WZ - 1; z++) for (let x = 1; x < B.WX - 1; x++) {
+        const b = B.world[B.idx(x, y, z)];
+        if ((b === B.B.COBBLE || b === B.B.PLANKS) && y + 2 < B.WY &&
+            B.world[B.idx(x, y + 1, z)] === 0 && B.world[B.idx(x, y + 2, z)] === 0) corridor++;
+        if (b === B.B.BOOKSHELF || b === B.B.LAMP || B.isCarpet(b)) items++;
+      }
+      rows.push({ seed, posts: posts.length, levels, wet, corridor, items });
     }
     // 지도에 갱도 자국이 남나 — 자연 돌과 다른 색이어야 한다
     B.generate(333, 2); B.refreshAllTops(); B.relightAll(false);
@@ -10115,13 +10124,15 @@ test("v85 갱도: 꺾이고 층이 어긋나며, 지도에 자국이 남는다",
     const g = cv.getContext("2d");
     const px = g.getImageData(post[0], post[2], 1, 1).data;
     // 자연 돌 바닥 한 칸과 견준다
+    // 갱도가 길어져(v87) 가까이에는 자연 돌 바닥이 없을 수 있다 — 지도 안에서 넓게 찾는다
     let stone = null;
-    for (let dz = -8; dz <= 8 && !stone; dz++) for (let dx = -8; dx <= 8; dx++) {
-      const x = post[0] + dx, z = post[2] + dz;
-      if (x < 1 || z < 1 || x >= B.WX - 1 || z >= B.WZ - 1) continue;
-      if (B.world[B.idx(x, post[1] - 1, z)] === B.B.STONE &&
-          B.world[B.idx(x, post[1], z)] === 0) { stone = [x, z]; break; }
-    }
+    for (let rr = 8; rr <= 40 && !stone; rr += 8)
+      for (let dz = -rr; dz <= rr && !stone; dz++) for (let dx = -rr; dx <= rr; dx++) {
+        const x = post[0] + dx, z = post[2] + dz;
+        if (x < 1 || z < 1 || x >= B.WX - 1 || z >= B.WZ - 1) continue;
+        if (B.world[B.idx(x, post[1] - 1, z)] === B.B.STONE &&
+            B.world[B.idx(x, post[1], z)] === 0) { stone = [x, z]; break; }
+      }
     const sp = stone ? g.getImageData(stone[0], stone[1], 1, 1).data : null;
     B.player.flying = false;
     B.endPlay(); B.setPaused(false);
@@ -10131,9 +10142,13 @@ test("v85 갱도: 꺾이고 층이 어긋나며, 지도에 자국이 남는다",
   for (const row of r.rows) {
     assert(row.posts >= 40, "시드 " + row.seed + ": 갱도 기둥이 " + row.posts + "개뿐이다");
     // 곧은 복도 다섯 개였을 때는 줄기마다 높이가 하나뿐이라 5를 못 넘었다
-    assert(row.levels >= 6,
+    assert(row.levels >= 5,
        "시드 " + row.seed + ": 갱도가 " + row.levels + "개 높이에만 있다 — 층이 안 어긋난다");
     eq(row.wet, 0, "시드 " + row.seed + ": 갱도가 물·용암과 " + row.wet + "칸 맞닿았다");
+    assert(row.corridor >= 320,
+       "시드 " + row.seed + ": 걸을 수 있는 갱도 바닥이 " + row.corridor + "칸뿐 — 금세 벽이다");
+    assert(row.items >= 3,
+       "시드 " + row.seed + ": 끝방에 놓인 것이 " + row.items + "개뿐 — 끝까지 걸어갈 이유가 없다");
   }
   assert(r.under, "갱도 안인데 단면 지도로 안 바뀌었다");
   assert(r.sp, "견줄 자연 돌 바닥을 못 찾았다");

@@ -63,5 +63,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v86 — 자문 16차 넷 — 내가 판 굴 · 어귀 · 갱도 자국 · 회귀 테스트 318항목 전부 통과.**
+**v87 — 폰이 시점을 되찾다 · 지하 배율 · 표식 이름 · 회귀 테스트 318항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/
