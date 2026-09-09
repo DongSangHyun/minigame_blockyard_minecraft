@@ -10151,6 +10151,100 @@ phoneTest("도움말이 지도 조작을 알려 준다", async (page) => {
      "폰 도움말이 표식을 키보드 전용이라고 말한다 — v83 이 넣었는데");
 });
 
+test("v86 양동이: 물·용암을 걷어내고, 되돌리기에 실린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 52, Y = 34, Z = 52;
+    B.resetQueues();
+    B.S.fluidOwner = null;
+    for (let dx = -3; dx <= 9; dx++) for (let dz = -3; dz <= 9; dz++)
+      for (let dy = -2; dy <= 8; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dx = -3; dx <= 9; dx++) for (let dz = -3; dz <= 9; dz++)
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false);
+    B.S.history.length = 0; B.S.future.length = 0;
+
+    // 물 한 통을 붓고 퍼지게 둔다
+    B.applyEdit(X, Y, Z, B.B.WATER, true);
+    for (let k = 0; k < 400; k++) { B.waterTick(400); B.dryTick(400); }
+    function water() {
+      let n = 0;
+      for (let dx = -3; dx <= 9; dx++) for (let dz = -3; dz <= 9; dz++)
+        for (let dy = -1; dy <= 4; dy++)
+          if (B.get(X + dx, Y + dy, Z + dz) === B.B.WATER) n++;
+      return n;
+    }
+    const spread = water();
+
+    // ── 조준선은 여전히 액체를 건너뛴다 (물속에서 바닥을 캘 수 있어야 한다)
+    B.player.flying = true; B.player.vel.set(0, 0, 0);
+    B.player.pos.set(X + 0.5, Y + 3, Z + 0.5);
+    B.player.yaw = 0; B.player.pitch = -Math.PI / 2 + 0.01;
+    B.camera.rotation.order = "YXZ";
+    B.camera.rotation.y = 0; B.camera.rotation.x = B.player.pitch;
+    B.camera.position.set(B.player.pos.x, B.player.pos.y + B.EYE, B.player.pos.z);
+    B.camera.updateMatrixWorld(true);
+    const plain = B.raycast(6);
+    const liquid = B.raycast(6, true);
+
+    // ── 양동이로 근원을 푼다
+    B.S.bar[B.S.selected] = B.BUCKET;
+    const histBefore = B.S.history.length;
+    B.place(false);
+    for (let k = 0; k < 400; k++) { B.waterTick(400); B.dryTick(400); }
+    const afterScoop = water();
+    const histAfter = B.S.history.length;
+
+    // ── 되돌리면 물이 돌아온다
+    B.undo();
+    for (let k = 0; k < 400; k++) { B.waterTick(400); B.dryTick(400); }
+    const afterUndo = water();
+
+    // ── 용암도 된다
+    B.resetQueues(); B.S.fluidOwner = null;
+    B.S.history.length = 0; B.S.future.length = 0;
+    for (let dx = -3; dx <= 9; dx++) for (let dz = -3; dz <= 9; dz++)
+      for (let dy = 0; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.applyEdit(X, Y, Z, B.B.LAVA, true);
+    for (let k = 0; k < 600; k++) { B.lavaFlowTick(200); B.lavaDryTick(200); }
+    let lava0 = 0;
+    for (let dx = -3; dx <= 9; dx++) for (let dz = -3; dz <= 9; dz++)
+      for (let dy = 0; dy <= 4; dy++) if (B.get(X + dx, Y + dy, Z + dz) === B.B.LAVA) lava0++;
+    B.place(false);
+    for (let k = 0; k < 600; k++) { B.lavaFlowTick(200); B.lavaDryTick(200); }
+    let lava1 = 0;
+    for (let dx = -3; dx <= 9; dx++) for (let dz = -3; dz <= 9; dz++)
+      for (let dy = 0; dy <= 4; dy++) if (B.get(X + dx, Y + dy, Z + dz) === B.B.LAVA) lava1++;
+
+    // ── 놓는 물건이 아니다 (세계에 양동이가 놓이면 안 된다)
+    const placed = B.applyEdit(X + 5, Y, Z + 5, B.BUCKET, false);
+    const isItem = B.isItem(B.BUCKET);
+    const inAll = B.ALL_BLOCKS.indexOf(B.BUCKET) >= 0;
+
+    B.player.flying = false;
+    B.resetQueues(); B.S.fluidOwner = null;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { spread, plain: plain ? plain.block : -1, liquid: liquid ? liquid.block : -1,
+             afterScoop, histBefore, histAfter, afterUndo, lava0, lava1,
+             placed, isItem, inAll, WATER: B.B.WATER, STONE: B.B.STONE };
+  });
+  assert(r.spread > 5, "시험대가 안 섰다 — 물이 " + r.spread + "칸만 퍼졌다");
+  // 평소 조준선은 물을 건너뛴다 — 물속에서 바닥을 캐야 하므로 그대로여야 한다
+  eq(r.plain, r.STONE, "평소 조준선이 물에 걸렸다 — 물속에서 바닥을 못 캔다");
+  eq(r.liquid, r.WATER, "양동이 조준이 물을 못 맞혔다");
+  assert(r.afterScoop < r.spread * 0.5,
+     "양동이로 근원을 펐는데 물이 " + r.spread + "→" + r.afterScoop + "칸이다");
+  eq(r.histAfter, r.histBefore + 1, "양동이질이 되돌리기에 안 실렸다");
+  eq(r.afterUndo, r.spread, "되돌렸는데 물이 " + r.afterUndo + "칸 — 원래 " + r.spread + "칸이다");
+  assert(r.lava0 > 3, "시험대가 안 섰다 — 용암이 " + r.lava0 + "칸이다");
+  assert(r.lava1 < r.lava0, "양동이로 용암을 못 펐다: " + r.lava0 + " → " + r.lava1);
+  eq(r.placed, false, "양동이가 세계에 놓였다 — 도구는 놓는 물건이 아니다");
+  eq(r.isItem, true, "양동이가 도구로 등록되지 않았다");
+  eq(r.inAll, false, "양동이가 ALL_BLOCKS 에 들어가 '수집가' 과제를 영영 막는다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

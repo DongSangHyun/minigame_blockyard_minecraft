@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { MOB_MAX, aimingAtMob, feedNearbyMob } from "./mobs.js";
 import { primeTNT, ignite } from "./fluids.js";
 import { WY, idx, inside } from "./dims.js";
-import { FRAME, FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, ALL_BLOCKS, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
+import { BUCKET, FRAME, FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, ALL_BLOCKS, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
 import { get, shape } from "./world.js";
 import { burst } from "./scene.js";
 import { BODY, HALF, currentShape, player, raycast, stats } from "./player.js";
@@ -130,7 +130,25 @@ function tryInteractGate(hit) {
 
 // repeating — 우클릭을 누르고 있어 자동으로 반복되는 호출인가.
 // 반복 중에는 상호작용(문·점화·먹이)을 하지 않는다.
+// 양동이 — 물·용암을 한 칸씩 걷어낸다. 근원을 걷으면 흘러 나간 것은 dryTick 이 물린다.
+// **되돌리기에 실린다** (v78 의 S.fluidOwner 가 뒤따르는 마름까지 그 편집에 담는다).
+export function scoopLiquid(repeating) {
+  var hit = raycast(6, true);            // 액체도 맞히는 조준 — 평소 조준선은 액체를 건너뛴다
+  if (!hit || !isLiquid(hit.block)) {
+    if (!repeating) toast("물이나 용암을 조준하세요");
+    return;
+  }
+  var name = hit.block === WATER ? "물" : "용암";
+  if (!applyEdit(hit.x, hit.y, hit.z, AIR, true)) return;
+  triggerSwing();
+  crunch(0.18, 0.09, hit.block === WATER ? 900 : 420);
+  if (!repeating) toast(name + "을 펐습니다");
+  S.worldDirty = true;
+}
+
 export function place(repeating) {
+  // 양동이가 먼저다 — 조준선이 액체를 건너뛰므로 평소 hit 로는 물을 영영 못 집는다
+  if (S.bar[S.selected] === BUCKET) { scoopLiquid(repeating); return; }
   var hit = raycast(6);
   if (!hit) return;
   if (!repeating && tryInteract(hit)) return;

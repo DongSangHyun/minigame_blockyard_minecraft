@@ -390,6 +390,21 @@ paint(79, function (p, r) {  // 액자 — 나무 테두리 안에 그림 한 �
   for (var h = 4; h < 9; h++) p(h, 8 - Math.floor(Math.abs(h - 6) / 2), "#3f6522");
 });
 
+paint(80, function (p, r) {  // 양동이 — 쇠통에 손잡이
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) p(x, y, "rgba(0,0,0,0)");
+  var body = ["#9aa3ab", "#868f97", "#aab3ba"];
+  // 통 — 아래로 갈수록 좁아진다
+  for (var y2 = 5; y2 < 15; y2++) {
+    var inset = Math.floor((y2 - 5) * 0.22);
+    for (var x2 = 3 + inset; x2 < 13 - inset; x2++) p(x2, y2, pick(r, body));
+  }
+  for (var k = 3; k < 13; k++) p(k, 5, "#c6ced4");        // 테두리
+  for (var k2 = 6; k2 < 14; k2++) { p(3, k2, "#6f777e"); p(12, k2, "#6f777e"); }
+  // 손잡이
+  p(3, 4, "#767e85"); p(4, 3, "#767e85"); p(6, 2, "#767e85"); p(9, 2, "#767e85");
+  p(11, 3, "#767e85"); p(12, 4, "#767e85");
+});
+
 paint(28, function (p, r) {  // 죽은 덤불 — 마른 가지
   var b = ["#7a5a2e", "#8d6a37", "#694d27"];
   for (var k = 0; k < 5; k++) {

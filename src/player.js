@@ -258,7 +258,10 @@ export function rayBox(o, d, mn, mx, maxT) {
   if (hitAxis < 0) return null;
   return { t: tmin, axis: hitAxis, sign: hitSign };
 }
-export function raycast(maxDist) {
+// wantLiquid — 물·용암도 맞힌다 (양동이 전용, v86).
+// 조준선이 액체를 건너뛰는 것은 **물속에서 바닥을 캘 수 있어야** 하기 때문이라 그대로 두고,
+// 액체를 걷어내는 도구만 따로 쏜다.
+export function raycast(maxDist, wantLiquid) {
   camera.getWorldDirection(_rd);
   _ro.copy(player.pos); _ro.y += EYE;
 
@@ -274,7 +277,7 @@ export function raycast(maxDist) {
     if (inside(x, y, z)) {
       var ci = idx(x, y, z);
       var b = world[ci];
-      if (b !== AIR && !isLiquid(b)) {
+      if (b !== AIR && (wantLiquid || !isLiquid(b))) {
         var sh = shape[ci];
         if (isCross(b)) {
           var cg = CROSS[b];

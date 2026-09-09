@@ -23,6 +23,11 @@ export var CARPET0 = 59, CARPET_COUNT = 16;
 // 실내 소품 둘 — 화분(바닥에 놓는 작은 상자)과 액자(벽에 붙는 얇은 판) (v84).
 // 방을 다 지어 놓고 놓을 것이 책장·카펫·램프뿐이라 어느 집이나 안이 똑같았다.
 export var POT = 75, FRAME = 76;
+// 양동이 (v86) — 물·용암을 **걷어내는** 도구. 놓는 블록이 아니라 손에 쥐는 물건이라 ITEMS 다.
+// 물·용암은 놓기는 되는데 좌클릭으로 지울 수가 없는 유일한 블록이었다
+// (조준선이 액체를 건너뛴다 — 물속에서 바닥을 캐야 하므로 그 자체는 맞다).
+// 지우려면 /fill 공기 나 영역 비우기까지 가야 해서 결국 물을 안 쓰게 됐다.
+export var BUCKET = 77;
 export function isCarpet(b) { return b === CARPET || (b >= CARPET0 && b < CARPET0 + CARPET_COUNT); }
 export var WOOL0 = 36, WOOL_COUNT = 16;
 export var WOOL_COLORS = [
@@ -64,6 +69,7 @@ TILES[BOOKSHELF] = [7, 59, 7];      // 위아래는 판자 나이테, 옆은 꽂
 TILES[CARPET]    = [60, 60, 60];
 TILES[POT]       = [78, 77, 77];      // 위는 흙, 옆·아래는 토분
 TILES[FRAME]     = [79, 79, 79];
+TILES[BUCKET]    = [80, 80, 80];
 TILES[DRYGRASS]  = [29, 29, 29];
 TILES[BIRCH_LOG]    = [31, 30, 31];
 TILES[BIRCH_LEAVES] = [32, 32, 32];
@@ -97,6 +103,7 @@ nm(CACTUS, "선인장", "CACTUS"); nm(DEADBUSH, "죽은 덤불", "DEAD BUSH");
 nm(SAPLING, "묘목", "SAPLING");
 nm(BOOKSHELF, "책장", "BOOKSHELF"); nm(CARPET, "카펫", "CARPET");
 nm(POT, "화분", "FLOWER POT"); nm(FRAME, "액자", "PAINTING");
+nm(BUCKET, "양동이", "BUCKET");
 nm(DRYGRASS, "마른 풀", "DRY GRASS");
 nm(BIRCH_LOG, "자작나무 원목", "BIRCH"); nm(BIRCH_LEAVES, "자작나무 잎", "BIRCH LEAVES");
 nm(SPRUCE_LEAVES, "가문비 잎", "SPRUCE LEAVES");
@@ -118,7 +125,7 @@ HARDNESS[FLOWER_Y] = 0.05; HARDNESS[TORCH] = 0.06;
 HARDNESS[CACTUS] = 0.34; HARDNESS[DEADBUSH] = 0.05; HARDNESS[DRYGRASS] = 0.05;
 HARDNESS[SAPLING] = 0.05;
 HARDNESS[BOOKSHELF] = 0.62; HARDNESS[CARPET] = 0.06;
-HARDNESS[POT] = 0.10; HARDNESS[FRAME] = 0.10;
+HARDNESS[POT] = 0.10; HARDNESS[FRAME] = 0.10; HARDNESS[BUCKET] = 0.20;
 HARDNESS[GOLD] = 2.35; HARDNESS[DIAMOND] = 2.9;
 HARDNESS[TNT] = 0.30; HARDNESS[FIRE] = 0.02; HARDNESS[FLINT] = 0.20;
 HARDNESS[FENCE] = 0.55; HARDNESS[GATE] = 0.55; HARDNESS[DOOR] = 0.62;
@@ -167,7 +174,7 @@ export var ALL_BLOCKS = [GRASS, DIRT, STONE, COBBLE, SAND, GRAVEL, SNOW, LOG,
 
 // 도구 — 목록에는 나오지만 "놓는 블록" 이 아니다.
 // ALL_BLOCKS 에 넣으면 "수집가"(모든 블록 놓기) 과제가 영영 불가능해진다.
-export var ITEMS = [FLINT];
+export var ITEMS = [FLINT, BUCKET];
 export function isItem(b) { return ITEMS.indexOf(b) >= 0; }
 for (var wj = 0; wj < WOOL_COUNT; wj++) ALL_BLOCKS.push(WOOL0 + wj);
 // 색 카펫 — 양털과 같은 색 이름을 쓴다. 아틀라스 타일 61~76.
@@ -205,7 +212,7 @@ export function isLog(b) { return b === LOG || b === BIRCH_LOG; }
 export function isLeaf(b) { return b === LEAVES || b === BIRCH_LEAVES || b === SPRUCE_LEAVES; }
 export var DEFAULT_BAR = [GRASS, DIRT, STONE, COBBLE, SAND, LOG, PLANKS, GLASS, TORCH, LAMP];
 // 2쪽 — 건축 부품과 도구
-export var DEFAULT_BAR2 = [BRICK, SNOW, ICE, FENCE, GATE, DOOR, PANE, LADDER, TNT, FLINT];
+export var DEFAULT_BAR2 = [BRICK, SNOW, ICE, FENCE, GATE, DOOR, PANE, LADDER, FLINT, BUCKET];
 
 // 모양 — 0 전체 · 1 반블록(아래) · 2~5 계단(높은 쪽이 -Z/+X/+Z/-X)
 //        6 반블록(위) · 7~10 반전 계단 (아래·위가 뒤집힌 것, 처마와 아치용)
@@ -303,7 +310,7 @@ S.shapeBarAlt = zeros(DEFAULT_BAR2.length);
 export function categoryOf(b) {
   if (isWool(b)) return "color";
   if (b === WATER || b === LAVA || b === LAMP || b === TORCH || b === FIRE ||
-      b === ICE || b === FLINT) return "light";
+      b === ICE || b === FLINT || b === BUCKET) return "light";
   if (b >= CARPET0 && b < CARPET0 + CARPET_COUNT) return "color";   // 색 카펫은 양털 옆에
   if (b === BOOKSHELF || b === CARPET || b === POT || b === FRAME) return "build";
   if (b === GRASS || b === DIRT || b === STONE || b === SAND || b === GRAVEL || b === SNOW ||
