@@ -141,6 +141,9 @@
     background: color-mix(in srgb, var(--panel) 94%, transparent);
     border: 2px solid var(--moss);
     opacity: 0; transition: opacity .3s ease, transform .3s ease;
+    /* 알림일 뿐이니 누를 것을 가로채면 안 된다 — 폰에서 지도 위에 뜨면
+       3초 동안 그 자리를 탭해도 표식이 안 찍혔다 (자문 15차 #4) */
+    pointer-events: none;
   }
   #achpop.on { opacity: 1; transform: translateX(-50%) translateY(0); }
   #achpop b {
@@ -251,6 +254,10 @@
      폰에는 B·V·[ ] 가 없어서 지도의 정교함(굴 어귀 점·층별 밝힘·▲n)이
      전부 "표식을 찍을 수 있다" 는 없는 전제 위에 서 있었다. */
   html.touch #minimap { pointer-events: auto; }
+  /* 터치에서는 지도가 화면 위 가운데에 있다 — 과제 팝업이 그 자리를 48% 덮었다.
+     v78 이 "터치 단추가 지도를 덮는다" 를 고치며 옮긴 자리가 이미 팝업 자리였다.
+     세는 것을 한 종류만 세면 이렇게 된다 (자문 15차 #4). 팝업을 지도 아래로 내린다. */
+  html.touch #achpop { top: calc(150px + var(--safe-t)); }
   /* 조작 안내는 입력 장치를 따라간다 — 폰에서 키보드 설명서를 읽히지 않는다 (자문 12차 #6) */
   html.touch #help-keys, html.touch .onlykeys { display: none; }
   html:not(.touch) #help-touch, html:not(.touch) .onlytouch { display: none; }
@@ -286,6 +293,14 @@
     position: absolute; top: 1px; left: 3px;
     font-family: var(--pixel); font-size: 8px; color: var(--stone);
   }
+  /* 칸마다 기억하는 모양(v82)을 칸에서 읽게 한다 — 핫바만 봐서는
+     3번이 계단인지 반블록인지 알 수 없어, 첫 한 번은 늘 틀리게 놓았다 (자문 15차 #9) */
+  .slot .shape {
+    position: absolute; top: 0; right: 2px;
+    font-size: 11px; line-height: 1; color: var(--ember);
+    text-shadow: 0 0 3px #000, 0 0 3px #000; pointer-events: none;
+  }
+  .slot .shape:empty { display: none; }
   .slot .name {
     position: absolute; bottom: -22px; left: 50%;
     transform: translateX(-50%);
@@ -334,6 +349,7 @@
     .slot { width: 34px; height: 34px; }
     .slot canvas { width: 30px; height: 30px; }
     .slot .key { font-size: 7px; top: 0; left: 2px; }
+    .slot .shape { font-size: 9px; }
     .slot .name { display: none; }
     #hint { font-size: 9px; line-height: 1.3; max-width: 70vw; bottom: calc(6px + var(--safe-b)); }
     #toast { bottom: calc(58px + var(--safe-b)); font-size: 9px; padding: 5px 9px; }
@@ -873,6 +889,8 @@
         <dd>어둡거나 위가 6칸 넘게 트이지 않으면 자라지 않습니다 — 실내에서는 안 자랍니다</dd>
         <dt>세계</dt><dd><kbd>T</kbd> 시간 · <kbd>K</kbd> 날씨 · <kbd>M</kbd> 소리 · <kbd>R</kbd>×2 새 세계</dd>
         <dd><kbd>V</kbd> 시작 지점 · <kbd>B</kbd> 미니맵 표식(<kbd>Shift</kbd>+<kbd>B</kbd> 이름 붙여 찍기) · <kbd>[</kbd> <kbd>]</kbd> 미니맵 확대</dd>
+        <dd>지도 — <b style="color:#e89640">주황</b> 굴 어귀 · <b style="color:#e0c060">금색</b> 표식 ·
+            <b style="color:#5aa8e0">파랑</b> 시작 지점 · 땅속에서는 지금 층이 진하고 다른 층은 흐립니다</dd>
         <dd>표식으로 돌아가려면 <kbd>/</kbd><b>tp 3</b> 또는 <kbd>/</kbd><b>tp 채석장</b> · <kbd>/</kbd><b>marks</b> 로 목록</dd>
         <dd><kbd>ESC</kbd> 메뉴의 슬롯 옆 <b>✎</b> 로 세계에 이름을 붙입니다</dd>
         <dt>화면</dt><dd><kbd>F1</kbd> HUD 숨기기 · <kbd>F2</kbd> 화면 저장 · <kbd>F3</kbd> 성능 · <kbd>F5</kbd> 3인칭 · <kbd>F6</kbd> 사진 모드</dd>
@@ -911,10 +929,17 @@
         <dt>세계</dt>
         <dd><b>메뉴</b> 단추 — 설정 · 저장 슬롯 · 청사진 · 새 세계로 갑니다</dd>
         <dd>설정에서 <b>왼손잡이 배치</b>와 <b>단추 크기</b>를 바꿉니다</dd>
+        <dd><b>지도를 탭하면 표식</b>을 찍습니다 (같은 자리를 다시 탭하면 지웁니다) ·
+            <b>길게 누르면 확대</b>됩니다 (×1 → ×2 → ×4)</dd>
         <dd>지도는 화면 위 가운데에 있습니다 — 땅속으로 들어가면 단면도로 바뀝니다</dd>
+        <dt>지도 보는 법</dt>
+        <dd><b style="color:#e89640">주황</b> 굴 어귀(들어가고 나오는 구멍) ·
+            <b style="color:#e0c060">금색 점</b> 내 표식 · <b style="color:#5aa8e0">파란 점</b> 시작 지점</dd>
+        <dd>땅속에서는 <b>지금 층</b>이 진하고 <b>다른 층에서 밝힌 곳</b>은 흐립니다 ·
+            표식 옆 <b>▲5</b>/<b>▼5</b> 는 그 표식이 몇 칸 위/아래인지입니다</dd>
         <dt>아직 키보드에서만</dt>
-        <dd>영역 도구(채우기·복사·붙여넣기) · 명령창(<b>/</b>) · 시간·날씨 바꾸기 · 미니맵 표식은
-            지금 <b>키보드에서만</b> 됩니다. 폰에서는 안 나오는 게 맞습니다</dd>
+        <dd>영역 도구(채우기·복사·붙여넣기) · 명령창(<b>/</b>) · 시간·날씨 바꾸기 ·
+            <b>시작 지점 찍기</b>는 지금 <b>키보드에서만</b> 됩니다. 폰에서는 안 나오는 게 맞습니다</dd>
         <dt>도움말</dt>
         <dd><b>메뉴</b> 단추를 누르면 이 창이 닫힙니다</dd>
       </dl>

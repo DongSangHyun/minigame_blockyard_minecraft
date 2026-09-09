@@ -767,20 +767,49 @@ function isUnbreakableGen(b) { return b === BEDROCK; }
 // 통로는 **3칸 폭**이다 — 2칸이면 버팀목 기둥 둘이 폭을 통째로 막아 걸어갈 수가 없다.
 // 마크의 폐광도 기둥 사이 가운데로 걷는다.
 export var MINE_W = 3, MINE_H = 3;
+// 갱도는 **꺾이고 층이 어긋나야** 갱도다 (v85).
+// 곧은 복도 다섯 개였을 때는 만나서 신나게 걸어도 20초면 벽이었다 —
+// 굽이도 갈래도 오르내림도, 다른 줄기와 만나는 일도 없었다.
+// 안전 검사(`mineBoxOk`)는 **토막마다 그대로** 건다. 한 토막이라도 못 놓으면 거기서 끊는다.
 function buildMines(rng) {
   var tries = 26;                       // 자리 조건이 까다로워 넉넉히 굴려 본다
   var built = 0;
   for (var t = 0; t < tries && built < 5; t++) {
     var axis = rng() < 0.5 ? 0 : 1;                 // 0 = X 를 따라 · 1 = Z 를 따라
-    var len = 16 + ((rng() * 16) | 0);              // 16~31칸
     var y = 4 + ((rng() * Math.max(1, SEA - 10)) | 0);   // 지하 아래쪽~중간
-    var x0 = 4 + ((rng() * (WX - 8 - (axis ? MINE_W + 1 : len))) | 0);
-    var z0 = 4 + ((rng() * (WZ - 8 - (axis ? len : MINE_W + 1))) | 0);
-    if (!mineFits(x0, y, z0, axis, len)) continue;
-    carveMine(rng, x0, y, z0, axis, len);
-    built++;
+    var x0 = 6 + ((rng() * (WX - 24)) | 0);
+    var z0 = 6 + ((rng() * (WZ - 24)) | 0);
+    if (carveShaft(rng, x0, y, z0, axis) > 0) built++;
   }
   return built;
+}
+
+// 한 줄기 — 토막 2~4개를 꺾어 잇는다. 토막마다 축을 바꾸고, 가끔 한 칸 오르내린다.
+function carveShaft(rng, x, y, z, axis) {
+  var legs = 2 + ((rng() * 3) | 0);               // 2~4 토막
+  var laid = 0;
+  for (var g = 0; g < legs; g++) {
+    var len = 10 + ((rng() * 12) | 0);            // 토막 10~21칸
+    // 남쪽/동쪽으로만 뻗으면 한쪽으로 쏠린다 — 방향도 뽑는다
+    var back = rng() < 0.45;
+    var bx = x, bz = z;
+    if (axis === 0 && back) bx = x - len + MINE_W;
+    if (axis === 1 && back) bz = z - len + MINE_W;
+    if (bx < 3 || bz < 3) break;
+    if (!mineFits(bx, y, bz, axis, len)) break;   // 여기서 줄기를 끊는다
+    carveMine(rng, bx, y, bz, axis, len, g === legs - 1);
+    laid++;
+    // 다음 토막의 시작점 — 이 토막의 끝 언저리에서 축을 꺾는다
+    if (axis === 0) { x = back ? bx : bx + len - MINE_W; }
+    else { z = back ? bz : bz + len - MINE_W; }
+    axis = axis ? 0 : 1;
+    // 가끔 한 칸 오르내린다 — 층이 어긋나야 "저쪽은 뭐지" 가 생긴다
+    if (rng() < 0.45) {
+      var ny = y + (rng() < 0.5 ? -1 : 1);
+      if (ny >= 4 && ny <= SEA - 6) y = ny;
+    }
+  }
+  return laid;
 }
 
 // 놓을 수 있는 자리인가 — **물·용암을 뚫으면 세계가 잠기고 되돌릴 사람이 없다.**
@@ -807,7 +836,7 @@ function mineFits(x0, y, z0, axis, len) {
   return mineBoxOk(x0, y, z0, axis ? MINE_W : len, axis ? len : MINE_W);
 }
 
-function carveMine(rng, x0, y, z0, axis, len) {
+function carveMine(rng, x0, y, z0, axis, len, lastLeg) {
   var plankFloor = rng() < 0.4;
   for (var s = 0; s < len; s++) {
     var frame = (s % (4 + ((s * 7) % 3))) === 0;    // 4~6칸마다 버팀목
@@ -836,8 +865,8 @@ function carveMine(rng, x0, y, z0, axis, len) {
     var tz = axis ? z0 + s : z0 + mid;
     if (get(tx, y, tz) === AIR && isSolid(get(tx, y - 1, tz))) set(tx, y, tz, TORCH);
   }
-  // 끝방 — 줄기 하나에 한 번. 여기가 "끝까지 걸어가 볼 이유" 다.
-  if (rng() < 0.6) {
+  // 끝방 — 줄기의 **마지막 토막**에만. 여기가 "끝까지 걸어가 볼 이유" 다.
+  if (lastLeg && rng() < 0.6) {
     var rx = axis ? x0 - 2 : x0 + len - 3;
     var rz = axis ? z0 + len - 3 : z0 - 2;
     if (mineBoxOk(rx, y, rz, 5, 5)) {

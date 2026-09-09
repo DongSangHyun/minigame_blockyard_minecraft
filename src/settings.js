@@ -5,8 +5,8 @@ import { camera, voxUniforms } from "./scene.js";
 
 export var OPT_KEY = "blockyard.opts.v1";
 export var opts = IS_TOUCH
-  ? { sens: 100, fov: 78, far: 72, vol: 60, invertY: 0, day: 20, bright: 30, ui: 110, contrast: 0, lefty: 0, tbtn: 100, autosave: 20, undo: 240, steady: 0, sneaktog: 0, dig: 0, firespread: 1 }
-  : { sens: 100, fov: 72, far: 120, vol: 60, invertY: 0, day: 20, bright: 30, ui: 100, contrast: 0, lefty: 0, tbtn: 100, autosave: 20, undo: 240, steady: 0, sneaktog: 0, dig: 0, firespread: 1 };
+  ? { sens: 100, fov: 78, far: 72, vol: 60, invertY: 0, day: 20, bright: 30, ui: 110, contrast: 0, lefty: 0, tbtn: 100, autosave: 20, undo: 240, steady: 0, sneaktog: 0, dig: 0, firespread: 1, mmzoom: 1, mmcontour: 1 }
+  : { sens: 100, fov: 72, far: 120, vol: 60, invertY: 0, day: 20, bright: 30, ui: 100, contrast: 0, lefty: 0, tbtn: 100, autosave: 20, undo: 240, steady: 0, sneaktog: 0, dig: 0, firespread: 1, mmzoom: 1, mmcontour: 1 };
 (function loadOpts() {
   try {
     var raw = localStorage.getItem(OPT_KEY);
@@ -25,6 +25,10 @@ export function saveOpts() {
   try { localStorage.setItem(OPT_KEY, JSON.stringify(opts)); } catch (e) {}
 }
 export function applyOpts() {
+  // 지도 배율과 등고선은 **설정**이다 — 세계마다 다를 이유가 없다.
+  // 저장을 안 하면 폰에서 매 세션 450ms 길게 누르기부터 해야 한다 (자문 15차 #7).
+  S.mmZoom = [1, 2, 4].indexOf(opts.mmzoom) >= 0 ? opts.mmzoom : 1;
+  S.contour = !!opts.mmcontour;
   // 밝기 — 값이 클수록 어두운 곳이 밝아진다 (감마 지수는 반대로 간다)
   voxUniforms.uGamma.value = 1 / (0.7 + opts.bright / 100);
   // 화면 표시 크기 — 폰에서 HUD 가 작다는 불평을 설정으로 푼다

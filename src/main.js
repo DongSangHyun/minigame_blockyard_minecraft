@@ -18,9 +18,9 @@ import { startAmbient, updateAmbient, ac, at, tone, crunch, breakSound, caveSoun
 import { prevKey, pushPrev, renameSlot, curKey, OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName, baseRev, setBaseRev, ensureGist, req } from "./cloud.js";
 import { checkFoundAchievements, FOUND_IDS, undoEmptyWhy, HISTORY_CELLS_MAX, editLabel, blueprintList, deleteBlueprint, settleWorld, mirrorClip, rotateClip, BATCH_RELIGHT_ALL, checkBuildAchievements, ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
-import { refreshMinimapCap, openPicker, closePicker, pickBtns, airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp , setHelpTab} from "./hud.js";
+import { refreshMouthDots, mouthDots, naturalRoof, refreshMinimapCap, openPicker, closePicker, pickBtns, airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp , setHelpTab} from "./hud.js";
 import { updateGhost, ghostMesh, updateHandLight, handMat, makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
-import { refreshResume, advanceTut, setStick, advanceTutTouch, HINT_TOUCH, refreshBlueprints, afterWorldSwap, aimCell, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink , swapBarPage, setShapeMode} from "./input.js";
+import { refreshResume, advanceTut, setStick, advanceTutTouch, HINT_TOUCH, refreshBlueprints, afterWorldSwap, aimCell, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink , swapBarPage, setShapeMode, cycleMinimapZoom, toggleMark} from "./input.js";
 import { canPlaceAt, mineAt, place, tryInteract, upperFromHit } from "./mine.js";
 import { weatherPoints, applyWeather, HIDE_Y, MOON_PHASES, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
 import { newWorld, PLACE_DELAY, PLACE_REPEAT, SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, farNow, refreshPerf, step , chunkFloor, refreshChunkFloor} from "./loop.js";
@@ -170,7 +170,7 @@ window.__blockyard = {
   updateParticles: updateParticles, boxesAt: boxesAt, dynamicBoxes: dynamicBoxes, hasDynamicBoxes: hasDynamicBoxes,
   skyUniforms: skyUniforms, selectSlot: selectSlot,
   openPicker: openPicker, closePicker: closePicker, refreshBar: refreshBar,
-  swapBarPage: swapBarPage,
+  swapBarPage: swapBarPage, cycleMinimapZoom: cycleMinimapZoom, toggleMark: toggleMark,
   cloudGroup: cloudGroup, applyTime: applyTime,
   setBuildFocus: setBuildFocus, autoTuneFar: autoTuneFar, farNow: farNow, CH: CH,
   isTouched: isTouched, markTouched: markTouched, OPT_KEY: OPT_KEY,
@@ -200,6 +200,7 @@ window.__blockyard = {
   mobs: mobs, updateMobs: updateMobs, seedMobs: seedMobs, MOB_KINDS: MOB_KINDS,
   breedTick: breedTick, MOB_MAX: MOB_MAX,
   toggleHelp: toggleHelp, helpEl: helpEl, setHelpTab: setHelpTab,
+  refreshMouthDots: refreshMouthDots, mouthDots: mouthDots, naturalRoof: naturalRoof,
   isConnecting: isConnecting, isClimbable: isClimbable, isOpenable: isOpenable,
   doorOpen: doorOpen, doorFacing: doorFacing, doorShapeFor: doorShapeFor,
   connectsTo: connectsTo, tryInteract: tryInteract, perfEl: perfEl,

@@ -137,6 +137,8 @@ export const S = {
   freezeTimer: 0,
   floorTimer: 0,
   floorReady: false,   // 청크 기둥 바닥을 한 번이라도 쟀나 (v80)
+  mouthTimer: 0,
+  mouthReady: false,   // 굴 어귀 덩어리를 한 번이라도 묶었나 (v85)
   torchFxTimer: 0,
   wasInLavaFeet: false,   // 용암에 발을 담그는 순간 치익 소리를 내려고
   wasUnderwater: false,

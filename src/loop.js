@@ -17,7 +17,7 @@ import { EYE, HALF, moveAxis, moveHorizontal, player, pointSolid, raycast, spawn
 import { splash, waterLap, fireCrackle, at, caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { pushPrev, saveGame } from "./save.js";
 import { checkBuildAchievements, checkFoundAchievements, ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
-import { refreshMinimapCap, airBar, airEl, drawMinimap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
+import { refreshMouthDots, refreshMinimapCap, airBar, airEl, drawMinimap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
 import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
 import { localBiome, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather } from "./sky.js";
@@ -671,6 +671,11 @@ function snowSticksTo(b) {
   // 9,216칸을 훑어도 0.05ms 다. 그 사이 잠깐 낡아도 눈에 안 보인다.
   S.floorTimer = (S.floorTimer || 0) + dt;
   if (S.floorTimer > 1 || !S.floorReady) { S.floorTimer = 0; refreshChunkFloor(); }
+  // 굴 어귀 덩어리 — 2초에 한 번 다시 묶는다 (9,216 기둥 훑기 · 1ms 남짓)
+  S.mouthTimer = (S.mouthTimer || 0) + dt;
+  if (S.mouthTimer > 2 || !S.mouthReady) {
+    S.mouthTimer = 0; S.mouthReady = true; refreshMouthDots();
+  }
   var eyeCx = Math.floor(camera.position.x), eyeCz = Math.floor(camera.position.z);
   var eyeTop = (eyeCx >= 0 && eyeCx < WX && eyeCz >= 0 && eyeCz < WZ)
     ? topMap[eyeCz * WX + eyeCx] : -1;

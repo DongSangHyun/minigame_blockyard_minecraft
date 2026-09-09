@@ -9374,18 +9374,19 @@ test("v83 지도: 층이 바뀌어도 백지가 되지 않고, 지하에도 어�
      "층이 바뀌자 지도가 " + r.inkLo + "→" + r.inkHi + "칸으로 무너졌다 — 한 칸 오르내릴 때마다 백지가 된다");
 });
 
-test("v83 지도: 지하 단면에도 굴 어귀가 그려진다", async (page) => {
+test("v83 지도: 지하 단면에도 굴 어귀가 그려진다 (덩어리마다 하나)", async (page) => {
   const r = await page.evaluate(() => {
     const B = window.__blockyard;
     B.setPaused(true); B.beginPlay();
     B.S.terrain = 0;
     B.generate(777, 2); B.refreshAllTops(); B.relightAll(false);
     for (let i = 0; i < B.WX * B.WZ; i++) B.seenMap[i] = 15;
-    // 어귀 기둥을 하나 고른다
-    let mx = -1, mz = -1;
-    for (let z = 2; z < B.WZ - 2 && mx < 0; z++) for (let x = 2; x < B.WX - 2; x++) {
+    const dots = B.refreshMouthDots();
+    // 어귀 "칸" 은 훨씬 많다 — 덩어리로 묶었으니 점은 그보다 한참 적어야 한다
+    let cells = 0;
+    for (let z = 1; z < B.WZ - 1; z++) for (let x = 1; x < B.WX - 1; x++) {
       const h = B.heightMap[z * B.WX + x], t = B.topMap[z * B.WX + x];
-      if (h > B.SEA && h - t >= 4) { mx = x; mz = z; break; }
+      if (h > B.SEA && t >= 0 && h - t >= 4) cells++;
     }
     const cv = document.getElementById("mm");
     B.S.mmZoom = 1;
@@ -9393,7 +9394,22 @@ test("v83 지도: 지하 단면에도 굴 어귀가 그려진다", async (page) 
       const d = cv.getContext("2d").getImageData(x, z, 1, 1).data;
       return [d[0], d[1], d[2]];
     }
-    // 지하 단면에서 본다 — 통돌 속에 세워 mmUnder 로 만든다
+    // ── 지상 지도에서 점이 보이나
+    B.player.pos.set(48.5, 60, 48.5);
+    B.drawMinimap();
+    const surfUnder = B.S.mmUnder;
+    // 점이 찍힌 자리 둘레에서 주황을 찾는다 (원이라 중심 픽셀이 딱 안 맞을 수 있다)
+    function orangeNear(cx, cz) {
+      for (let dz = -2; dz <= 2; dz++) for (let dx = -2; dx <= 2; dx++) {
+        const p = px(cx + dx, cz + dz);
+        if (p[0] > 180 && p[1] > 100 && p[2] < 110 && p[0] > p[2] * 1.6) return true;
+      }
+      return false;
+    }
+    let surfSeen = 0;
+    for (const dsp of B.mouthDots) if (orangeNear(dsp[0], dsp[1])) surfSeen++;
+
+    // ── 지하 단면 — 그 기둥 둘레에 공기가 있는 어귀만 찍힌다
     const y = Math.max(3, Math.round(B.SEA * 0.4));
     for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
       for (let dy = 0; dy <= 14; dy++) B.set(48 + dx, y + dy, 48 + dz, B.B.STONE);
@@ -9403,15 +9419,30 @@ test("v83 지도: 지하 단면에도 굴 어귀가 그려진다", async (page) 
     B.player.pos.set(48.5, y, 48.5);
     B.drawMinimap();
     const under = B.S.mmUnder;
-    const p = px(mx, mz);
+    let underSeen = 0, withAir = 0;
+    for (const dsp of B.mouthDots) {
+      let air = false;
+      for (let ay = Math.max(1, y - 4); ay <= y + 4 && !air; ay++)
+        if (B.world[B.idx(dsp[0], ay, dsp[1])] === 0) air = true;
+      if (!air) continue;
+      withAir++;
+      if (orangeNear(dsp[0], dsp[1])) underSeen++;
+    }
     B.player.flying = false;
     B.endPlay(); B.setPaused(false);
-    return { mx, mz, under, p };
+    return { dots, cells, surfUnder, surfSeen, under, underSeen, withAir,
+             sizes: B.mouthDots.map(d => d[2]) };
   });
-  assert(r.mx >= 0, "시험대가 안 섰다 — 어귀 기둥을 못 찾았다");
+  assert(r.dots > 3, "굴 어귀 덩어리가 " + r.dots + "개뿐이다 — 시험대가 안 섰다");
+  assert(r.cells > r.dots * 3,
+     "어귀 칸 " + r.cells + "개가 점 " + r.dots + "개로 묶였다 — 덩어리로 안 묶고 있다");
+  assert(r.sizes.every(n => n >= 3), "작은 지형 주름까지 어귀로 셌다: " + r.sizes.join(","));
+  assert(!r.surfUnder, "지상에 떠 있는데 단면 지도로 그렸다");
+  assert(r.surfSeen > r.dots * 0.6,
+     "지상 지도에 어귀 점이 " + r.surfSeen + "/" + r.dots + "개만 보인다");
   assert(r.under, "통돌 속인데 단면 지도로 안 바뀌었다");
-  assert(r.p[0] > 90 && r.p[0] > r.p[2] * 1.5,
-     "지하 단면에 굴 어귀가 안 그려졌다: rgb(" + r.p.join(",") + ") — 길을 잃는 화면이 여긴데");
+  assert(r.withAir === 0 || r.underSeen > 0,
+     "지하 단면에 굴 어귀가 하나도 안 그려졌다 — 길을 잃는 화면이 여긴데");
 });
 
 test("v83 하늘: 새가 지형을 따라 올라간다", async (page) => {
@@ -9596,30 +9627,57 @@ phoneTest("지도를 눌러 표식을 찍고, 길게 눌러 확대한다", async
     B.setPaused(true); B.beginPlay();
     const mm = document.getElementById("minimap");
     const style = getComputedStyle(mm);
+    // 진짜 손가락처럼 좌표를 실어 보낸다 — 좌표가 없으면 "움직였나" 를 못 잰다
+    const box = mm.getBoundingClientRect();
+    const cx = box.left + box.width / 2, cy = box.top + box.height / 2;
+    function touchAt(type, x, y) {
+      const t = new Touch({ identifier: 1, target: mm, clientX: x, clientY: y });
+      mm.dispatchEvent(new TouchEvent(type, {
+        bubbles: true, cancelable: true,
+        touches: type === "touchend" ? [] : [t], changedTouches: [t], targetTouches: []
+      }));
+    }
     B.S.marks = [];
     B.player.pos.set(40.5, 30, 40.5);
 
     // 탭 = 표식
-    mm.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
-    mm.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true }));
+    touchAt("touchstart", cx, cy);
+    touchAt("touchend", cx, cy);
     const afterTap = B.S.marks.length;
 
     // 길게 = 확대
     const zoom0 = B.S.mmZoom;
-    mm.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
+    touchAt("touchstart", cx, cy);
     await new Promise(res => setTimeout(res, 620));
-    mm.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true }));
+    touchAt("touchend", cx, cy);
     const zoom1 = B.S.mmZoom;
     const marksAfterHold = B.S.marks.length;
 
     // 다시 탭하면 그 표식이 지워진다 (같은 자리)
-    mm.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
-    mm.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true }));
+    touchAt("touchstart", cx, cy);
+    touchAt("touchend", cx, cy);
     const afterSecond = B.S.marks.length;
+
+    // ── 쓸어 넘기면 표식이 아니다 (v85). 지도는 시점 영역 안에 통째로 들어앉아 있어서,
+    // 위를 올려다보려고 쓸다 손가락이 지도에 닿으면 표식만 찍히고 시점은 안 돌았다.
+    B.S.marks = [];
+    touchAt("touchstart", cx, cy);
+    touchAt("touchmove", cx + 60, cy);
+    touchAt("touchend", cx + 60, cy);
+    const afterDrag = B.S.marks.length;
 
     B.S.marks = []; B.S.mmZoom = zoom0;
     B.endPlay(); B.setPaused(false);
-    return { pe: style.pointerEvents, afterTap, zoom0, zoom1, marksAfterHold, afterSecond };
+    // 과제 팝업이 지도를 덮으면 그동안 탭이 안 먹는다
+    const pop = document.getElementById("achpop");
+    const pb = pop.getBoundingClientRect();
+    const ov = Math.max(0, Math.min(box.right, pb.right) - Math.max(box.left, pb.left)) *
+               Math.max(0, Math.min(box.bottom, pb.bottom) - Math.max(box.top, pb.top));
+    const popOverlap = ov / (box.width * box.height);
+    const popPE = getComputedStyle(pop).pointerEvents;
+
+    return { pe: style.pointerEvents, afterTap, zoom0, zoom1, marksAfterHold, afterSecond,
+             afterDrag, popOverlap, popPE };
   });
   eq(r.pe, "auto", "폰인데 지도가 터치를 안 받는다 (pointer-events: " + r.pe + ")");
   eq(r.afterTap, 1, "지도를 탭했는데 표식이 안 찍혔다 — 폰에는 B 키가 없다");
@@ -9627,6 +9685,11 @@ phoneTest("지도를 눌러 표식을 찍고, 길게 눌러 확대한다", async
      "지도를 길게 눌렀는데 확대가 " + r.zoom0 + "→" + r.zoom1 + " 다 — 폰에는 [ ] 키가 없다");
   eq(r.marksAfterHold, 1, "길게 눌렀는데 표식까지 같이 찍혔다");
   eq(r.afterSecond, 0, "같은 자리를 다시 탭했는데 표식이 안 지워졌다");
+  eq(r.afterDrag, 0,
+     "지도 위에서 쓸었는데 표식이 찍혔다 — 시점을 돌리려던 손가락을 지도가 먹는다");
+  assert(r.popOverlap < 0.05,
+     "과제 팝업이 지도의 " + Math.round(r.popOverlap * 100) + "% 를 덮는다");
+  eq(r.popPE, "none", "과제 팝업이 누를 것을 가로챈다 (pointer-events: " + r.popPE + ")");
 });
 
 test("v84 색 카펫: 열여섯 색이 양털과 짝을 이루고, 카펫답게 군다", async (page) => {
@@ -9837,6 +9900,255 @@ test("v84 소품: 액자는 벽이 없으면 안 놓이고, 벽이 사라지면 
   assert(/벽/.test(r.floorMsg), "액자를 바닥에 놓으려는데 안내가 없다: \"" + r.floorMsg + "\"");
   eq(r.before, r.FRAME, "시험대가 안 섰다 — 액자가 벽에 안 붙었다");
   eq(r.after, 0, "벽을 캤는데 액자가 허공에 남았다");
+});
+
+test("v85 지도: 나무 밑·집 안에서 지상 지도가 안 꺼지고, 지하 기억을 안 더럽힌다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.terrain = 0;
+    B.generate(333, 2); B.refreshAllTops(); B.relightAll(false);
+
+    // (a) 나뭇잎이 겉면인 기둥에서 지하로 뒤집히나
+    let leaf = 0, flipped = 0;
+    for (let z = 2; z < B.WZ - 2; z++) for (let x = 2; x < B.WX - 2; x++) {
+      const t = B.topMap[z * B.WX + x];
+      if (t < 0) continue;
+      const b = B.world[B.idx(x, t, z)];
+      if (b !== B.B.LEAVES && b !== B.B.BIRCH_LEAVES && b !== B.B.SPRUCE_LEAVES) continue;
+      leaf++;
+      let ground = t;
+      for (let y = t; y >= 1; y--) {
+        const bb = B.world[B.idx(x, y, z)];
+        if (bb !== 0 && !B.isCross(bb) && !B.isLeaf(bb)) { ground = y + 1; break; }
+      }
+      B.player.pos.set(x + 0.5, ground, z + 0.5);
+      B.drawMinimap();
+      if (B.S.mmUnder) flipped++;
+    }
+
+    // (b) 지상 한 줄을 걷는 동안 뒤집히나 · 깊은 층 지도가 칠해지나
+    B.seenMap.fill(0);
+    let flips = 0, prev = null;
+    for (let x = 6; x < 90; x++) {
+      const t = B.topMap[25 * B.WX + x];
+      if (t < 0) continue;
+      B.player.pos.set(x + 0.5, t + 1, 25.5);
+      B.drawMinimap();
+      if (prev !== null && B.S.mmUnder !== prev) flips++;
+      prev = B.S.mmUnder;
+    }
+    let deepPainted = 0;
+    for (let i = 0; i < B.WX * B.WZ; i++) if (B.seenMap[i] & 8) deepPainted++;
+
+    // (c) 내가 지은 집 안 — 지붕이 두꺼워도 지하가 아니다
+    const X = 12, Y = 34, Z = 12;
+    for (let dx = -2; dx <= 6; dx++) for (let dz = -2; dz <= 6; dz++)
+      for (let dy = -2; dy <= 12; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dx = 0; dx <= 4; dx++) for (let dz = 0; dz <= 4; dz++)
+      B.set(X + dx, Y - 1, Z + dz, B.B.PLANKS);
+    for (let dy = 0; dy <= 7; dy++)                       // 두꺼운 지붕을 사람이 얹는다
+      for (let dx = 0; dx <= 4; dx++) for (let dz = 0; dz <= 4; dz++)
+        B.applyEdit(X + dx, Y + 4 + dy, Z + dz, B.B.PLANKS, true);
+    B.refreshAllTops();
+    B.player.pos.set(X + 2.5, Y, Z + 2.5);
+    B.drawMinimap();
+    const inHouse = B.S.mmUnder;
+
+    // (d) 진짜 지하에서는 여전히 단면으로 바뀐다
+    const CX2 = 60, CY2 = 8, CZ2 = 60;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = 0; dy <= 16; dy++) B.set(CX2 + dx, CY2 + dy, CZ2 + dz, B.B.STONE);
+    B.set(CX2, CY2, CZ2, 0); B.set(CX2, CY2 + 1, CZ2, 0);
+    B.refreshAllTops();
+    B.player.pos.set(CX2 + 0.5, CY2, CZ2 + 0.5);
+    B.drawMinimap();
+    const inCave = B.S.mmUnder;
+
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { leaf, flipped, flips, deepPainted, inHouse, inCave };
+  });
+  assert(r.leaf > 100, "시험대가 안 섰다 — 나뭇잎 기둥이 " + r.leaf + "개뿐이다");
+  eq(r.flipped, 0,
+     "나무 밑에 섰을 뿐인데 " + r.flipped + "/" + r.leaf + " 기둥에서 지상 지도가 꺼졌다");
+  eq(r.flips, 0, "지상 한 줄을 걷는 동안 지도가 " + r.flips + "번 뒤집혔다");
+  eq(r.deepPainted, 0,
+     "지상만 걸었는데 가장 깊은 층의 지도 " + r.deepPainted + "칸이 칠해졌다 — 되돌릴 길이 없다");
+  assert(!r.inHouse, "내가 지은 집 안에 들어갔는데 지하로 읽혔다");
+  assert(r.inCave, "진짜 굴 속인데 단면 지도로 안 바뀌었다");
+});
+
+test("v85 지도: 배율과 등고선이 껐다 켜도 남는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keep = localStorage.getItem(B.OPT_KEY);
+    const z0 = B.S.mmZoom, c0 = B.S.contour;
+
+    B.cycleMinimapZoom(1);
+    const z1 = B.S.mmZoom;
+    const savedZoom = JSON.parse(localStorage.getItem(B.OPT_KEY)).mmzoom;
+    // 흐트러뜨린 뒤 설정을 다시 적용하면 돌아와야 한다
+    B.S.mmZoom = 1;
+    B.applyOpts();
+    const restored = B.S.mmZoom;
+
+    B.opts.mmcontour = 0; B.applyOpts();
+    const contourOff = B.S.contour;
+    B.opts.mmcontour = 1; B.applyOpts();
+    const contourOn = B.S.contour;
+
+    if (keep === null) localStorage.removeItem(B.OPT_KEY);
+    else localStorage.setItem(B.OPT_KEY, keep);
+    B.opts.mmzoom = z0; B.opts.mmcontour = c0 ? 1 : 0; B.applyOpts();
+    B.endPlay(); B.setPaused(false);
+    return { z0, z1, savedZoom, restored, contourOff, contourOn };
+  });
+  assert(r.z1 !== r.z0, "배율이 안 바뀌었다");
+  eq(r.savedZoom, r.z1, "배율이 설정에 안 실렸다");
+  eq(r.restored, r.z1, "설정을 다시 적용했는데 배율이 " + r.restored + " 다");
+  eq(r.contourOff, false, "등고선 설정이 안 먹는다");
+  eq(r.contourOn, true, "등고선 설정이 안 먹는다");
+});
+
+test("v85 핫바: 칸에 딸린 모양이 칸에서 읽힌다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const bar = document.getElementById("hotbar");
+    function glyphs() {
+      return Array.prototype.map.call(bar.children,
+        function (el) { const g = el.querySelector(".shape"); return g ? g.textContent : "?"; });
+    }
+    for (let i = 0; i < 10; i++) { B.selectSlot(i); B.setShapeMode(0); }
+    B.selectSlot(0); B.setShapeMode(2);      // 계단
+    B.selectSlot(2); B.setShapeMode(1);      // 반블록
+    B.selectSlot(5);
+    const g = glyphs();
+    const label0 = bar.children[0].getAttribute("aria-label");
+    // 칸을 옮겨 모양이 바뀌면 알려 준다
+    const toastEl = document.getElementById("toast");
+    toastEl.textContent = "";
+    B.selectSlot(0);
+    const movedMsg = toastEl.textContent;
+    toastEl.textContent = "";
+    B.selectSlot(1);                          // 0(계단) → 1(전체) — 바뀌었으니 알린다
+    const msg2 = toastEl.textContent;
+    toastEl.textContent = "";
+    B.selectSlot(3);                          // 1(전체) → 3(전체) — 안 바뀌었으니 조용
+    const quiet = toastEl.textContent;
+
+    for (let i = 0; i < 10; i++) { B.selectSlot(i); B.setShapeMode(0); }
+    B.selectSlot(0);
+    B.endPlay(); B.setPaused(false);
+    return { g, label0, movedMsg, msg2, quiet };
+  });
+  eq(r.g.length, 10, "핫바가 열 칸이 아니다");
+  assert(r.g[0].length > 0, "계단 칸에 모양 표시가 없다: " + JSON.stringify(r.g));
+  assert(r.g[2].length > 0, "반블록 칸에 모양 표시가 없다: " + JSON.stringify(r.g));
+  eq(r.g[1], "", "전체 블록 칸에 군더더기 표시가 붙었다");
+  assert(r.g[0] !== r.g[2], "계단과 반블록이 같은 표시다: " + r.g[0]);
+  assert(/계단/.test(r.label0), "칸의 읽어 주는 이름에 모양이 없다: " + r.label0);
+  assert(/계단/.test(r.movedMsg), "계단 칸으로 옮겼는데 안 알려 준다: \"" + r.movedMsg + "\"");
+  assert(/전체/.test(r.msg2), "모양이 바뀌었는데 안 알려 준다: \"" + r.msg2 + "\"");
+  eq(r.quiet, "", "모양이 그대로인데 알림이 떴다: \"" + r.quiet + "\"");
+});
+
+test("v85 갱도: 꺾이고 층이 어긋나며, 지도에 자국이 남는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.terrain = 0;
+    const rows = [];
+    for (const seed of [333, 1234, 42, 7]) {
+      B.generate(seed, 2); B.refreshAllTops(); B.relightAll(false);
+      const posts = [];
+      let wet = 0;
+      for (let y = 1; y < B.SEA; y++) for (let z = 1; z < B.WZ - 1; z++) for (let x = 1; x < B.WX - 1; x++) {
+        if (B.world[B.idx(x, y, z)] !== B.B.FENCE) continue;
+        posts.push([x, y, z]);
+        for (const d of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]) {
+          const nb = B.world[B.idx(x + d[0], y + d[1], z + d[2])];
+          if (nb === B.B.WATER || nb === B.B.LAVA) wet++;
+        }
+      }
+      const levels = new Set(posts.map(p => p[1])).size;
+      rows.push({ seed, posts: posts.length, levels, wet });
+    }
+    // 지도에 갱도 자국이 남나 — 자연 돌과 다른 색이어야 한다
+    B.generate(333, 2); B.refreshAllTops(); B.relightAll(false);
+    let post = null;
+    for (let y = 1; y < B.SEA && !post; y++)
+      for (let z = 1; z < B.WZ - 1 && !post; z++)
+        for (let x = 1; x < B.WX - 1; x++)
+          if (B.world[B.idx(x, y, z)] === B.B.FENCE) { post = [x, y, z]; break; }
+    for (let i = 0; i < B.WX * B.WZ; i++) B.seenMap[i] = 15;
+    B.player.flying = true;
+    B.player.pos.set(post[0] + 0.5, post[1], post[2] + 0.5);
+    B.S.mmZoom = 1;
+    B.drawMinimap();
+    const under = B.S.mmUnder;
+    const cv = document.getElementById("mm");
+    const g = cv.getContext("2d");
+    const px = g.getImageData(post[0], post[2], 1, 1).data;
+    // 자연 돌 바닥 한 칸과 견준다
+    let stone = null;
+    for (let dz = -8; dz <= 8 && !stone; dz++) for (let dx = -8; dx <= 8; dx++) {
+      const x = post[0] + dx, z = post[2] + dz;
+      if (x < 1 || z < 1 || x >= B.WX - 1 || z >= B.WZ - 1) continue;
+      if (B.world[B.idx(x, post[1] - 1, z)] === B.B.STONE &&
+          B.world[B.idx(x, post[1], z)] === 0) { stone = [x, z]; break; }
+    }
+    const sp = stone ? g.getImageData(stone[0], stone[1], 1, 1).data : null;
+    B.player.flying = false;
+    B.endPlay(); B.setPaused(false);
+    return { rows, under, px: [px[0], px[1], px[2]],
+             sp: sp ? [sp[0], sp[1], sp[2]] : null };
+  });
+  for (const row of r.rows) {
+    assert(row.posts >= 40, "시드 " + row.seed + ": 갱도 기둥이 " + row.posts + "개뿐이다");
+    // 곧은 복도 다섯 개였을 때는 줄기마다 높이가 하나뿐이라 5를 못 넘었다
+    assert(row.levels >= 6,
+       "시드 " + row.seed + ": 갱도가 " + row.levels + "개 높이에만 있다 — 층이 안 어긋난다");
+    eq(row.wet, 0, "시드 " + row.seed + ": 갱도가 물·용암과 " + row.wet + "칸 맞닿았다");
+  }
+  assert(r.under, "갱도 안인데 단면 지도로 안 바뀌었다");
+  assert(r.sp, "견줄 자연 돌 바닥을 못 찾았다");
+  const diff = Math.abs(r.px[0] - r.sp[0]) + Math.abs(r.px[1] - r.sp[1]) + Math.abs(r.px[2] - r.sp[2]);
+  assert(diff > 60,
+     "갱도가 자연 동굴과 같은 색이다 — 갱도 rgb(" + r.px.join(",") + ") vs 돌 rgb(" + r.sp.join(",") + ")");
+});
+
+phoneTest("도움말이 지도 조작을 알려 준다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    B.toggleHelp(true);
+    const help = document.getElementById("help");
+    function visibleText(root) {
+      let out = "";
+      const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let n;
+      while ((n = w.nextNode())) {
+        const el = n.parentElement;
+        if (el && el.getClientRects().length) out += n.nodeValue + " ";
+      }
+      return out;
+    }
+    let body = "";
+    help.querySelectorAll(".help-cols").forEach(c => { body += visibleText(c); });
+    B.toggleHelp(false);
+    B.endPlay();
+    return { body };
+  });
+  assert(/탭하면\s*표식|탭하면.{0,4}표식/.test(r.body),
+     "폰 도움말이 '지도를 탭하면 표식' 을 안 알려 준다");
+  assert(/길게 누르면 확대/.test(r.body), "폰 도움말이 지도 확대를 안 알려 준다");
+  assert(/주황/.test(r.body), "폰 도움말이 지도 기호(주황=굴 어귀)를 안 알려 준다");
+  // v83 이 넣은 것을 "안 된다" 고 말하면 안 된다
+  assert(!/미니맵 표식은 지금.{0,10}키보드에서만/.test(r.body),
+     "폰 도움말이 표식을 키보드 전용이라고 말한다 — v83 이 넣었는데");
 });
 
 // ── 실행 ───────────────────────────────────────────────

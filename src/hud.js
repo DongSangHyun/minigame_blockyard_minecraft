@@ -2,9 +2,9 @@
 import { S } from "./state.js";
 import { BUILD } from "./version.js";
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
-import { AIR, ALL_BLOCKS, GLASS, ITEMS, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross } from "./blocks.js";
+import { AIR, ALL_BLOCKS, FENCE, LOG, PLANKS, BOOKSHELF, LAMP, GLASS, ITEMS, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross, isLeaf } from "./blocks.js";
 import { AVG_TOP, TILE, atlas, tileOrigin } from "./atlas.js";
-import { SEEN_TOP, SEEN_UNDER_ALL, UNDER_BANDS, underBand, heightMap, markX, markY, markZ, markName, seenMap, markSeen, topMap, world } from "./world.js";
+import { SEEN_TOP, SEEN_UNDER_ALL, UNDER_BANDS, underBand, isTouched, heightMap, markX, markY, markZ, markName, seenMap, markSeen, topMap, world } from "./world.js";
 import { player } from "./player.js";
 import { updateHandBlock } from "./hand.js";
 import { advanceTut, canvas, isTouch } from "./input.js";
@@ -61,19 +61,29 @@ for (var si = 0; si < S.bar.length; si++) {
     cv.width = cv.height = 64;
     var name = document.createElement("span");
     name.className = "name";
-    slot.appendChild(key); slot.appendChild(cv); slot.appendChild(name);
+    var shp = document.createElement("span");
+    shp.className = "shape";
+    slot.appendChild(key); slot.appendChild(cv); slot.appendChild(name); slot.appendChild(shp);
     slot.addEventListener("click", function (e) { e.preventDefault(); selectSlot(i); });
     hotbarEl.appendChild(slot);
     slotCanvases.push(cv);
   })(si);
 }
 
+// 칸에 딸린 모양을 글리프로 — ▄ 반블록 · ◱ 계단. 전체 블록이면 아무것도 안 그린다.
+export var SHAPE_GLYPH = ["", "▄", "◱"];
+export var SHAPE_WORD = ["전체 블록", "반블록", "계단"];
 export function refreshSlot(i) {
   var b = S.bar[i];
   drawIcon(slotCanvases[i], b);
   var slot = hotbarEl.children[i];
-  slot.setAttribute("aria-label", NAMES[b]);
+  var m = (S.shapeBar && i !== S.selected) ? (S.shapeBar[i] | 0) : S.shapeMode;
+  if (i !== S.selected && !S.shapeBar) m = 0;
+  var g = SHAPE_GLYPH[m] || "";
+  slot.setAttribute("aria-label", NAMES[b] + (g ? " · " + SHAPE_WORD[m] : ""));
   slot.querySelector(".name").textContent = NAMES[b];
+  var sp = slot.querySelector(".shape");
+  if (sp) sp.textContent = g;
 }
 export function refreshBar() {
   for (var i = 0; i < S.bar.length; i++) refreshSlot(i);
@@ -83,11 +93,15 @@ export function selectSlot(i) {
   // 떠나는 칸의 모양을 그 칸에 남기고, 새 칸이 기억하던 모양을 꺼내 온다 (v82).
   // 이게 없으면 G 로 고른 모양이 전역 하나라 칸을 바꿔도 계단이 따라온다.
   if (S.shapeBar) S.shapeBar[S.selected] = S.shapeMode;
+  var wasShape = S.shapeMode;
   S.selected = ((i % S.bar.length) + S.bar.length) % S.bar.length;
   if (S.shapeBar) S.shapeMode = S.shapeBar[S.selected] | 0;
   for (var k = 0; k < hotbarEl.children.length; k++) {
     hotbarEl.children[k].setAttribute("aria-current", k === S.selected ? "true" : "false");
   }
+  refreshBar();                       // 칸마다 붙은 모양 글리프를 다시 그린다
+  // 칸을 옮겨 모양이 **실제로 바뀌었을 때만** 알린다 — 안 그러면 첫 한 번은 늘 틀리게 놓는다
+  if (S.shapeMode !== wasShape) toast(SHAPE_WORD[S.shapeMode]);
   updateHandBlock();
 }
 
@@ -214,6 +228,68 @@ export function refreshMinimapCap() {
   return mmCap.textContent;
 }
 
+// 머리 위로 이만큼 넘게 덮여 있어야 "지하" 다.
+export var UNDER_ROOF = 4;
+// 머리 위의 첫 **자연 고체** 높이 — 없으면 -1.
+// 나뭇잎과 **사람이 놓은 것**은 지붕으로 치지 않는다. 그러지 않으면
+// 나무 밑으로 걸어 들어가거나 제 집에 들어가는 것만으로 지상 지도가 통째로 꺼진다.
+export function naturalRoof(x, z, y) {
+  if (x < 0 || x >= WX || z < 0 || z >= WZ) return -1;
+  var top = topMap[z * WX + x];
+  for (var yy = top; yy > y; yy--) {
+    var b = world[idx(x, yy, z)];
+    if (b === AIR || isCross(b) || isLeaf(b)) continue;
+    if (isTouched(x, yy, z)) continue;          // 내가 얹은 지붕은 지하가 아니다
+    return yy;
+  }
+  return -1;
+}
+
+// ── 굴 어귀 점 (v85)
+// 예전에는 어귀 **칸마다** 주황을 칠했다. 실측: 어귀 칸의 절반 이상이 한 칸짜리 점(폰에서 0.875px)이고,
+// 협곡 하나가 89~233칸을 통째로 주황으로 칠해 "어귀 천지" 로 읽혔다.
+// 지도는 **셀 수 있는 개수**여야 읽힌다 — 덩어리로 묶어 **한 어귀당 점 하나**만 찍는다.
+// 그리기 계층만 손대므로 지형은 한 비트도 안 달라진다.
+// 갱도가 쓰는 재료 — 자연 동굴에는 안 나오는 것들
+function isMineMat(b) {
+  return b === FENCE || b === LOG || b === PLANKS || b === BOOKSHELF || b === LAMP;
+}
+export var MOUTH_MIN = 3;        // 이보다 작은 덩어리는 굴 입이 아니라 지형 주름이다
+export var mouthDots = [];
+function isMouthCol(x, z) {
+  var i = z * WX + x;
+  var h = heightMap[i], t = topMap[i];
+  return h > SEA && t >= 0 && h - t >= 4;
+}
+export function refreshMouthDots() {
+  mouthDots.length = 0;
+  var seen = new Uint8Array(WX * WZ);
+  var qx = [], qz = [];
+  var DX = [1, -1, 0, 0], DZ = [0, 0, 1, -1];
+  for (var z = 1; z < WZ - 1; z++) {
+    for (var x = 1; x < WX - 1; x++) {
+      var i0 = z * WX + x;
+      if (seen[i0] || !isMouthCol(x, z)) continue;
+      qx.length = 0; qz.length = 0;
+      qx.push(x); qz.push(z); seen[i0] = 1;
+      var n = 0, sx = 0, sz = 0;
+      for (var h2 = 0; h2 < qx.length; h2++) {
+        var cx = qx[h2], cz = qz[h2];
+        n++; sx += cx; sz += cz;
+        for (var d = 0; d < 4; d++) {
+          var nx = cx + DX[d], nz = cz + DZ[d];
+          if (nx < 1 || nx >= WX - 1 || nz < 1 || nz >= WZ - 1) continue;
+          var ni = nz * WX + nx;
+          if (seen[ni] || !isMouthCol(nx, nz)) continue;
+          seen[ni] = 1; qx.push(nx); qz.push(nz);
+        }
+      }
+      if (n >= MOUTH_MIN) mouthDots.push([Math.round(sx / n), Math.round(sz / n), n]);
+    }
+  }
+  return mouthDots.length;
+}
+
 export function drawMinimap() {
   var d = mmImage.data;
   // 걸어온 만큼 지도가 열린다. 지하에서는 시야가 좁고, 밝히는 층도 따로다.
@@ -221,7 +297,14 @@ export function drawMinimap() {
   var pzc = Math.max(0, Math.min(WZ - 1, Math.floor(player.pos.z)));
   var py = Math.max(0, Math.min(WY - 1, Math.floor(player.pos.y)));
   // 지상인지 지하인지를 먼저 정한다 — 뒤에 정하면 한 프레임 늦은 값으로 엉뚱한 층을 밝힌다
-  S.mmUnder = topMap[pzc * WX + pxc] > player.pos.y + 2.5;
+  // 지하인가 — **"머리 위에 뭐라도 있는가" 가 아니라 "돌 밑에 있는가"** 다 (v85).
+  // topMap 은 나뭇잎도 내가 얹은 지붕도 센다. 2.5칸으로 잡아 두니
+  // 나무 밑으로 걸어 들어가는 것만으로 지상 지도가 통째로 꺼졌고(잎 기둥의 51%),
+  // 그동안 **가 본 적 없는 가장 깊은 층의 지도가 "밝혀짐" 으로 칠해졌다.**
+  // 지도 기억이 오염되면 되돌릴 길이 없다.
+  // v80 이 동굴 울림에서 이미 같은 답을 냈다 — 머리 위 두께로 잰다.
+  var roofTop = naturalRoof(pxc, pzc, player.pos.y);
+  S.mmUnder = roofTop >= 0 && roofTop - player.pos.y > UNDER_ROOF;
   // 지하는 지금 서 있는 **층**만 밝힌다 (v81) — 한 장으로 쓰면 위층에서 밝힌 자리가
   // 아래층 지도에 통돌로 뜬다. 밝히는 반경도 6 → 8 로 — 지하가 두 배가 됐는데
   // 반경이 그대로면 같은 지도를 채우는 데 두 배로 걸어야 한다.
@@ -252,7 +335,7 @@ export function drawMinimap() {
         if (S.mmUnder && (seenHere & SEEN_UNDER_ALL)) faded = true;   // 다른 층에서 본 자리
         else { d[o] = 12; d[o + 1] = 16; d[o + 2] = 20; continue; }
       }
-      var b = AIR, shade = 1, mouth = false, hollow = false;
+      var b = AIR, shade = 1, hollow = false, made = false, lastY = py;
       if (S.mmUnder) {
         // 지하에서는 지금 높이의 단면을 본다.
         // 훑는 깊이는 층 두께를 따라간다 — 5칸 고정이면 지하가 26칸이 된 뒤
@@ -262,26 +345,19 @@ export function drawMinimap() {
           var yq = py - k;
           if (yq < 0) break;
           var bb = world[idx(x, yq, z)];
-          if (bb !== AIR) { b = bb; shade = 1 - Math.min(0.68, k * 0.17); break; }
+          if (bb !== AIR) { b = bb; lastY = yq; shade = 1 - Math.min(0.68, k * 0.17); break; }
         }
         if (b === AIR) hollow = true;      // 밝혔는데 아래가 통째로 비었다 (넓은 방·벼랑)
-        // 굴 어귀 — **지하에서도** 찍는다. 길을 잃는 화면이 여기인데
-        // 여태 지상 갈래에만 있었다 (자문 14차 #5). 층과 무관하게 "머리 위 어딘가에 구멍" 이다.
-        var gh2 = heightMap[z * WX + x], t2 = topMap[z * WX + x];
-        if (gh2 > SEA && gh2 - t2 >= 4) mouth = true;
+        // 사람 손이 닿은 자리(갱도) — 자연 동굴 바닥과 색이 12단계밖에 안 달라
+        // 걸어 본 갱도가 지도에 아무 자국도 안 남았다 (자문 15차 #5).
+        // **내가 지은 것과 가른다** — `touched` 가 그 잣대다 (v83 의 findMine 과 같다).
+        if (b !== AIR && !isTouched(x, py - (py - lastY), z) && isMineMat(b)) made = true;
       } else {
         var y = topMap[z * WX + x];
         if (y >= 0) {
           b = world[idx(x, y, z)];
           shade = 0.62 + (y / WY) * 0.72;
-          // 굴 어귀 — 지형이 있어야 할 높이(heightMap)보다 겉면이 4칸 넘게 꺼져 있으면
-          // 거기가 굴로 들어가는 구멍이다. 들어간 굴을 다시 못 찾는 것이 지하의
-          // 가장 큰 문제였다 (자문 13차 #10). 두 배열이 이미 있으니 뺄셈 하나면 된다.
-          // **뭍만** 본다 — 바다 밑 카브까지 찍으면 걸어서 못 가는 자리로 지도가 얼룩진다.
-          // **뭍인지는 겉면(y)이 아니라 지형 높이(heightMap)로 판단한다** —
-          // 어귀는 겉면이 파여 내려간 자리라, 겉면으로 재면 언덕의 어귀가 통째로 빠진다.
-          var gh = heightMap[z * WX + x];
-          if (gh > SEA && gh - y >= 4) mouth = true;
+          // 굴 어귀는 이제 **칸마다 칠하지 않는다** — 아래에서 덩어리 중심에 점 하나만 찍는다.
           // 등고선 — 일정 높이마다 한 줄씩 어둡게 해 높낮이를 읽게 한다
           if (S.contour && y > SEA) {
             var west = topMap[z * WX + Math.max(0, x - 1)];
@@ -299,8 +375,8 @@ export function drawMinimap() {
         continue;
       }
       var dim = faded ? 0.45 : 1;
-      if (mouth) {                                               // 굴 어귀 — 주황 점
-        d[o] = 232 * dim; d[o + 1] = 150 * dim; d[o + 2] = 64 * dim;
+      if (made) {                        // 사람 손이 닿은 자리(갱도) — 따뜻한 나무색
+        d[o] = 196 * dim; d[o + 1] = 138 * dim; d[o + 2] = 78 * dim;
         continue;
       }
       var c = AVG_TOP[b] || [120, 120, 120];
@@ -313,6 +389,31 @@ export function drawMinimap() {
 
   // 표식(B) — 찍어 놓고 화면에 안 보이면 있으나 마나다
   var sx = WX / spanX, sz = WZ / spanZ;
+
+  // 굴 어귀 — **한 어귀당 점 하나.** 덩어리가 클수록 점도 크다.
+  // 지하에서는 그 기둥 둘레(±4칸)에 실제로 공기가 있을 때만 찍는다 —
+  // 층과 무관한 기둥 성질이라, 안 그러면 25칸 위의 구멍이 발밑 통돌에 찍힌다.
+  for (var mo = 0; mo < mouthDots.length; mo++) {
+    var md = mouthDots[mo];
+    var mdi = md[1] * WX + md[0];
+    var mseen = seenMap[mdi] & (S.mmUnder ? SEEN_UNDER_ALL : SEEN_TOP);
+    if (!mseen) continue;
+    if (S.mmUnder) {
+      var hasAir = false;
+      for (var ay = Math.max(1, py - 4); ay <= Math.min(WY - 1, py + 4) && !hasAir; ay++)
+        if (world[idx(md[0], ay, md[1])] === AIR) hasAir = true;
+      if (!hasAir) continue;
+    }
+    var mdx = (md[0] - x0) * sx, mdz = (md[1] - z0) * sz;
+    if (mdx < -2 || mdz < -2 || mdx > WX + 2 || mdz > WZ + 2) continue;
+    mmCtx.beginPath();
+    mmCtx.arc(mdx, mdz, md[2] >= 24 ? 2.6 : (md[2] >= 8 ? 2.0 : 1.5), 0, Math.PI * 2);
+    mmCtx.fillStyle = "#e89640";
+    mmCtx.fill();
+    mmCtx.lineWidth = 0.8;
+    mmCtx.strokeStyle = "rgba(20,14,8,.8)";
+    mmCtx.stroke();
+  }
   for (var mi = 0; mi < S.marks.length; mi++) {
     var mk = S.marks[mi];
     // marks 는 예전 [x, z] 와 지금 [x, y, z, 이름] 두 모양이다 — markX/markZ 로만 읽는다.

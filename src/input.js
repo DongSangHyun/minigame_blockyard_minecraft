@@ -764,6 +764,7 @@ export function cycleTime() {
 export function setShapeMode(m) {
   S.shapeMode = ((m % 3) + 3) % 3;
   if (S.shapeBar) S.shapeBar[S.selected] = S.shapeMode;
+  refreshBar();                      // 칸에 붙은 모양 글리프를 바로 고쳐 그린다
 }
 
 // 표식을 찍거나 지운다 — `B` 키와 폰의 "지도 탭" 이 같은 길을 탄다 (v83).
@@ -797,6 +798,7 @@ export function cycleMinimapZoom(dir) {
   if (zi < 0) zi = 0;
   zi = (zi + (dir > 0 ? 1 : MM_ZOOMS.length - 1)) % MM_ZOOMS.length;
   S.mmZoom = MM_ZOOMS[zi];
+  opts.mmzoom = S.mmZoom; saveOpts();       // 배율은 설정이다 — 껐다 켜도 남는다
   toast("미니맵 ×" + S.mmZoom);
   tone(700 + S.mmZoom * 40, 0.05, "square", 0.04);
 }
@@ -1067,6 +1069,7 @@ window.addEventListener("keydown", function (e) {
   }
   if (e.code === "Backslash") {
     S.contour = !S.contour;
+    opts.mmcontour = S.contour ? 1 : 0; saveOpts();
     toast(S.contour ? "미니맵 등고선 켬" : "미니맵 등고선 끔");
   }
   if (e.code === "BracketLeft" || e.code === "BracketRight")
@@ -1327,21 +1330,41 @@ bindHold("tb-undo", function () {
 (function bindMinimapTouch() {
   var mm = document.getElementById("minimap");
   if (!mm || !IS_TOUCH) return;
-  var held = 0, longed = false;
+  var held = 0, longed = false, moved = false, sx = 0, sy = 0;
+  // **움직였으면 탭이 아니다.** 지도는 시점 영역(오른쪽 58%) 안에 통째로 들어앉아 있어서,
+  // 위를 올려다보려고 쓸다 손가락이 지도에 닿으면 시점이 1도도 안 돌고 표식만 찍혔다.
+  // 8px 넘게 움직이면 탭을 접고 **그 제스처를 시점에 넘긴다**(preventDefault 를 안 한다).
+  var SLOP = 8;
   mm.addEventListener("touchstart", function (e) {
-    e.preventDefault();
-    longed = false;
+    var t = e.changedTouches && e.changedTouches[0];
+    sx = t ? t.clientX : 0; sy = t ? t.clientY : 0;
+    moved = false; longed = false;
     clearTimeout(held);
-    held = setTimeout(function () { longed = true; cycleMinimapZoom(1); }, 450);
-  }, { passive: false });
+    held = setTimeout(function () {
+      if (moved) return;
+      longed = true; cycleMinimapZoom(1);
+    }, 450);
+  }, { passive: true });
+  mm.addEventListener("touchmove", function (e) {
+    if (moved) return;
+    var t = e.changedTouches && e.changedTouches[0];
+    if (!t) return;
+    if (Math.abs(t.clientX - sx) + Math.abs(t.clientY - sy) > SLOP) {
+      moved = true;
+      clearTimeout(held);
+    }
+  }, { passive: true });
   mm.addEventListener("touchend", function (e) {
-    e.preventDefault();
     clearTimeout(held);
-    if (longed) { longed = false; return; }
+    if (moved) { moved = false; longed = false; return; }   // 시점 쪽이 이미 처리했다
+    if (longed) { longed = false; e.preventDefault(); return; }
     if (!S.active || S.uiOpen) return;
+    e.preventDefault();
     toggleMark(false);
   }, { passive: false });
-  mm.addEventListener("touchcancel", function () { clearTimeout(held); longed = false; });
+  mm.addEventListener("touchcancel", function () {
+    clearTimeout(held); longed = false; moved = false;
+  });
 })();
 
 window.addEventListener("resize", function () {
