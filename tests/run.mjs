@@ -10379,12 +10379,13 @@ phoneTest("지도·핫바·단추 위에서 쓸어도 시점이 돈다", async (
       for (let k = 1; k <= 4; k++) {
         const tk = new Touch({ identifier: 7, target: target,
           clientX: x + (dx * k) / 4, clientY: y });
-        window.dispatchEvent(new TouchEvent("touchmove", {
+        // 진짜 손가락처럼 **그 요소에서** 쏜다 — window 에 직접 쏘면 요소의 제 핸들러가 안 돈다
+        target.dispatchEvent(new TouchEvent("touchmove", {
           bubbles: true, cancelable: true, touches: [tk], changedTouches: [tk], targetTouches: [tk] }));
         last = tk.clientX;
       }
       const te = new Touch({ identifier: 7, target: target, clientX: last, clientY: y });
-      window.dispatchEvent(new TouchEvent("touchend", {
+      target.dispatchEvent(new TouchEvent("touchend", {
         bubbles: true, cancelable: true, touches: [], changedTouches: [te], targetTouches: [] }));
       return B.player.yaw;
     }
@@ -10393,10 +10394,19 @@ phoneTest("지도·핫바·단추 위에서 쓸어도 시점이 돈다", async (
     const onMap = swipe(mm, mb.left + mb.width / 2, mb.top + mb.height / 2, 90);
     const marksAfterMap = B.S.marks.length;
 
+    // 핫바와 터치 단추는 **제 몫의 끌기 제스처**가 있다 —
+    // 핫바는 좌우로 쓸면 칸이 바뀌고, 단추는 누른 채 반복이다.
+    // 그 위에서 손가락이 흔들렸다고 시점까지 돌면 둘 다 어그러진다.
     const hb = box("hotbar");
     const hotEl = document.getElementById("hotbar");
+    const selBefore = B.S.selected;
     const onHotbar = swipe(hotEl, Math.max(hb.left + 8, window.innerWidth * 0.6),
                            hb.top + hb.height / 2, 90);
+    const selAfter = B.S.selected;
+    const btn = document.getElementById("tb-jump");
+    const bb = btn.getBoundingClientRect();
+    const onButton = swipe(btn, bb.left + bb.width / 2, bb.top + bb.height / 2, 40);
+    B.S.keys.Space = false;
 
     const cv = document.getElementById("stage").querySelector("canvas") ||
                document.querySelector("canvas");
@@ -10407,14 +10417,19 @@ phoneTest("지도·핫바·단추 위에서 쓸어도 시점이 돈다", async (
 
     B.S.marks = []; B.S.lookId = null;
     B.endPlay(); B.setPaused(false);
-    return { onMap, onHotbar, onCanvas, onLeft, marksAfterMap };
+    return { onMap, onHotbar, onCanvas, onLeft, marksAfterMap,
+             onButton, selBefore, selAfter };
   });
   assert(Math.abs(r.onCanvas) > 0.05, "시험대가 안 섰다 — 캔버스에서도 시점이 안 돈다: " + r.onCanvas);
   assert(Math.abs(r.onMap) > 0.05,
      "지도 위에서 쓸었는데 시점이 " + r.onMap.toFixed(4) + " 다 — 위를 볼 때 손이 먼저 닿는 자리다");
   eq(r.marksAfterMap, 0, "지도 위에서 쓸었는데 표식이 찍혔다");
-  assert(Math.abs(r.onHotbar) > 0.05,
-     "핫바 위에서 쓸었는데 시점이 " + r.onHotbar.toFixed(4) + " 다");
+  eq(r.onHotbar, 0,
+     "핫바를 쓸었는데 시점까지 돌았다 (" + r.onHotbar.toFixed(4) + ") — 칸 바꾸기와 겹친다");
+  assert(r.selAfter !== r.selBefore,
+     "핫바를 쓸었는데 칸이 안 바뀌었다: " + r.selBefore + " → " + r.selAfter);
+  eq(r.onButton, 0,
+     "터치 단추를 누른 채 손이 흔들렸는데 시점이 돌았다 (" + r.onButton.toFixed(4) + ")");
   eq(r.onLeft, 0, "왼쪽(스틱 자리)에서 쓸었는데 시점이 돌았다: " + r.onLeft);
 });
 

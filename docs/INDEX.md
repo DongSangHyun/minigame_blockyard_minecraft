@@ -63,5 +63,5 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v87 — 인계 문서에 v84~v87 반영 · 회귀 테스트 318항목 전부 통과.**
+**v87 — 인계 문서 — 자문 12~16차 50건 완료 반영 · 회귀 테스트 318항목 전부 통과.**
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/

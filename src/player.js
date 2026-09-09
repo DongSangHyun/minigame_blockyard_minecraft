@@ -272,9 +272,12 @@ export function raycast(maxDist, wantLiquid) {
   var my = (_rd.y > 0 ? (y + 1 - _ro.y) : (_ro.y - y)) * dy;
   var mz = (_rd.z > 0 ? (z + 1 - _ro.z) : (_ro.z - z)) * dz;
   var nx = 0, ny = 0, nz = 0, t = 0;
+  // 액체를 맞히는 조준(양동이)은 **눈이 잠긴 칸을 건너뛴다** —
+  // 안 그러면 물속에 들어간 순간 늘 제자리 한 칸만 푸고, 웅덩이를 안에서 빼낼 수가 없다.
+  var skipX = wantLiquid ? x : -1, skipY = y, skipZ = z;
 
   while (t <= maxDist) {
-    if (inside(x, y, z)) {
+    if (inside(x, y, z) && !(x === skipX && y === skipY && z === skipZ)) {
       var ci = idx(x, y, z);
       var b = world[ci];
       if (b !== AIR && (wantLiquid || !isLiquid(b))) {

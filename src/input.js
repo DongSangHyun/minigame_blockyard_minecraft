@@ -771,11 +771,14 @@ export function setShapeMode(m) {
 // 폰에는 표식을 찍을 길이 하나도 없었는데, v80 의 굴 어귀 점과 v81 의 ▲n/▼n 이
 // 전부 "표식을 찍을 수 있다" 는 전제 위에 서 있었다.
 // 지금 선 자리에 이미 있는 표식의 번호 — 없으면 -1
+// **`toggleMark` 과 같은 것을 골라야 한다** — 3칸 안에 표식이 둘이면
+// 길게 눌러 이름 붙인 것과 탭해서 지운 것이 서로 달라진다. 둘 다 **마지막** 것을 쓴다.
 export function markHere() {
   var mx = Math.round(player.pos.x), mz = Math.round(player.pos.z);
+  var near = -1;
   for (var mi = 0; mi < S.marks.length; mi++)
-    if (Math.abs(S.marks[mi][0] - mx) < 3 && Math.abs(markZ(S.marks[mi]) - mz) < 3) return mi;
-  return -1;
+    if (Math.abs(S.marks[mi][0] - mx) < 3 && Math.abs(markZ(S.marks[mi]) - mz) < 3) near = mi;
+  return near;
 }
 // 그 표식에 이름을 단다 (또는 지운다)
 export function renameMarkHere() {
@@ -793,9 +796,7 @@ export function renameMarkHere() {
 
 export function toggleMark(named) {
   var mx = Math.round(player.pos.x), my = Math.round(player.pos.y), mz = Math.round(player.pos.z);
-  var near = -1;
-  for (var mi = 0; mi < S.marks.length; mi++)
-    if (Math.abs(S.marks[mi][0] - mx) < 3 && Math.abs(markZ(S.marks[mi]) - mz) < 3) near = mi;
+  var near = markHere();
   if (near >= 0) { S.marks.splice(near, 1); toast("표식 지움"); }
   else if (S.marks.length >= 12) toast("표식은 12개까지입니다");
   else {
@@ -845,6 +846,7 @@ export function swapBarPage() {
   refreshBar();
   S.worldDirty = true;
   if (S.shapeBar) S.shapeMode = S.shapeBar[S.selected] | 0;
+  refreshBar();            // **모양을 되돌린 뒤에** 그린다 — 순서가 바뀌면 글리프가 지난 쪽 값으로 굳는다
   updateHandBlock();
   toast("핫바 " + S.barPage + "쪽");
   tone(520 + S.barPage * 90, 0.06, "square", 0.04);
@@ -1221,9 +1223,19 @@ stickZone.addEventListener("touchstart", function (e) {
 // 임자 없는 터치가 8px 넘게 움직이면 그때 시점으로 **승격**시킨다 (자문 16차 #2).
 var pendingTouch = {};
 var LOOK_SLOP = 8;
+// 제 몫의 끌기 제스처가 있는 UI 는 승격에서 뺀다 —
+// 터치 단추는 **누른 채 반복**(캐기·놓기)이고 핫바는 **좌우로 쓸면 칸이 바뀐다.**
+// 그 위에서 손가락이 조금 흔들렸다고 시점까지 같이 돌면 둘 다 어그러진다.
+function ownsDrag(el) {
+  for (var n = el; n; n = n.parentNode) {
+    if (n.id === "tbtns" || n.id === "hotbar" || n.id === "stickzone") return true;
+  }
+  return false;
+}
 window.addEventListener("touchstart", function (e) {
   for (var pi = 0; pi < e.changedTouches.length; pi++) {
     var pt = e.changedTouches[pi];
+    if (pt.target && pt.target.nodeType === 1 && ownsDrag(pt.target)) continue;
     pendingTouch[pt.identifier] = { x: pt.clientX, y: pt.clientY };
   }
 }, { passive: true });

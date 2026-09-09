@@ -798,7 +798,7 @@ function buildMines(rng) {
 function carveShaft(rng, x, y, z, axis, branch) {
   var legs = 2 + ((rng() * 3) | 0);               // 2~4 토막
   var laid = 0;
-  var lastBx = -1, lastBz = -1, lastAxis = axis, lastY = y;
+  var lastBx = -1, lastBz = -1, lastAxis = axis, lastY = y, lastLen = 0;
   for (var g = 0; g < legs; g++) {
     var len = 10 + ((rng() * 12) | 0);            // 토막 10~21칸
     // 남쪽/동쪽으로만 뻗으면 한쪽으로 쏠린다 — 방향도 뽑는다
@@ -810,7 +810,7 @@ function carveShaft(rng, x, y, z, axis, branch) {
     if (!mineFits(bx, y, bz, axis, len)) break;   // 여기서 줄기를 끊는다
     carveMine(rng, bx, y, bz, axis, len);
     laid++;
-    lastBx = bx; lastBz = bz; lastAxis = axis; lastY = y;
+    lastBx = bx; lastBz = bz; lastAxis = axis; lastY = y; lastLen = len;
     // 갈래 — 토막 중간에서 옆으로 한 줄기 더 뻗는다. 폐광은 갈라져야 폐광이다.
     // 실측: 줄기 다섯이 따로따로였고 통로 총연장 79~146칸(17~32초면 다 걷는다).
     if (!branch && rng() < 0.45) {
@@ -832,7 +832,8 @@ function carveShaft(rng, x, y, z, axis, branch) {
   // 끝방은 **실제로 놓인 마지막 토막**에 단다.
   // `lastLeg` 를 계획한 토막 수로 정하던 때는 `mineFits` 실패로 줄기가 끊기면
   // 마지막 토막이 영영 안 와서, 세계당 방이 기대 3개 대비 0~2개(평균 1.25)였다.
-  if (laid > 0 && !branch && lastBx >= 0) endRoom(rng, lastBx, lastY, lastBz, lastAxis);
+  if (laid > 0 && !branch && lastBx >= 0)
+    endRoom(rng, lastBx, lastY, lastBz, lastAxis, lastLen);
   return laid;
 }
 
@@ -894,13 +895,23 @@ function carveMine(rng, x0, y, z0, axis, len) {
 // 끝방 — 줄기 끝에 붙는 방. 여기가 "끝까지 걸어가 볼 이유" 다.
 // 5×5 가 안 되면 3×3 으로 물러선다 — 5×5 상자가 통로보다 훨씬 커서 자주 떨어졌다.
 // 놓는 것도 하나가 아니라 두세 개 — 끝까지 걸어간 사람에게 주는 것이다.
-function endRoom(rng, x0, y, z0, axis) {
+// len — 토막의 길이. **끝에 붙여야 한다.**
+// 길이를 안 받던 때는 방이 토막 **시작 언저리**(x0 + MINE_W)에 생겨,
+// 통로 바닥을 조약돌로 다시 깔고 그 자리의 버팀목·횃불을 지웠다 —
+// "끝까지 걸어가 볼 이유" 가 없어지고 모든 줄기가 맨 막다른 길로 끝났다.
+function endRoom(rng, x0, y, z0, axis, len) {
   if (rng() >= 0.75) return false;
+  // 끝 너머 · 끝 언저리 옆구리 두 쪽 — 세 자리를 5×5 · 3×3 으로 대 본다.
+  // 끝 너머 하나만 보던 때는 자리가 안 나오는 시드에서 방이 0개였다.
   var sizes = [5, 3];
   for (var si = 0; si < sizes.length; si++) {
     var n = sizes[si];
-    var rx = axis ? x0 - ((n - MINE_W) >> 1) : x0 + MINE_W;
-    var rz = axis ? z0 + MINE_W : z0 - ((n - MINE_W) >> 1);
+    var off = (n - MINE_W) >> 1;
+    var spots = axis
+      ? [[x0 - off, z0 + len], [x0 + MINE_W, z0 + len - n], [x0 - n, z0 + len - n]]
+      : [[x0 + len, z0 - off], [x0 + len - n, z0 + MINE_W], [x0 + len - n, z0 - n]];
+    for (var sp = 0; sp < spots.length; sp++) {
+    var rx = spots[sp][0], rz = spots[sp][1];
     if (!mineBoxOk(rx, y, rz, n, n)) continue;
     for (var ax = 0; ax < n; ax++)
       for (var az = 0; az < n; az++)
@@ -917,6 +928,7 @@ function endRoom(rng, x0, y, z0, axis) {
     set(cx3, y + MINE_H - 1, cz3, LOG);
     if (get(cx3, y + MINE_H - 2, cz3) === AIR) set(cx3, y + MINE_H - 2, cz3, TORCH);
     return true;
+    }
   }
   return false;
 }
