@@ -9228,7 +9228,9 @@ test("v82 과제: 꼭대기는 날아서가 아니라 딛고 서야 열린다", 
     const out = [];
     for (const gen of [1, 2]) {
       B.generate(4242, gen); B.refreshAllTops(); B.relightAll(false);
-      const X = 30, Z = 30, top = B.SEA + 12;
+      // 문턱을 SEA+15 로 올렸다 (v88) — 스폰 높이가 26~36 이라 SEA+9 는
+      // 시작하자마자 저절로 열렸다. 시험도 그 위에서 재야 한다.
+      const X = 30, Z = 30, top = B.SEA + 18;
       for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
         for (let dy = -2; dy <= 6; dy++) B.set(X + dx, top + dy, Z + dz, dy === -1 ? B.B.STONE : 0);
       B.refreshAllTops(); B.relightAll(false);
@@ -9249,6 +9251,10 @@ test("v82 과제: 꼭대기는 날아서가 아니라 딛고 서야 열린다", 
 
       // (c) 해수면 근처 땅에서는 안 열린다
       B.S.earned = {}; B.S.walked = 99;
+      for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+        for (let dy = -2; dy <= 6; dy++)
+          B.set(X + dx, B.SEA + 2 + dy, Z + dz, dy === -1 ? B.B.STONE : 0);
+      B.refreshAllTops();
       B.player.pos.set(X + 0.5, B.SEA + 2, Z + 0.5); B.player.vel.set(0, 0, 0);
       for (let k = 0; k < 130; k++) B.step(1 / 60);
       const low = !!B.S.earned.high;
@@ -9261,7 +9267,7 @@ test("v82 과제: 꼭대기는 날아서가 아니라 딛고 서야 열린다", 
   });
   for (const o of r) {
     assert(o.standing,
-       "판 " + o.gen + ": 해수면(" + o.sea + ")보다 12칸 높은 땅을 딛고 섰는데 꼭대기가 안 열렸다");
+       "판 " + o.gen + ": 해수면(" + o.sea + ")보다 18칸 높은 땅을 딛고 섰는데 꼭대기가 안 열렸다");
     assert(!o.flying, "판 " + o.gen + ": 날고 있는데 꼭대기가 열렸다");
     assert(!o.low, "판 " + o.gen + ": 해수면 바로 위에서 꼭대기가 열렸다");
   }
@@ -10431,6 +10437,180 @@ phoneTest("지도·핫바·단추 위에서 쓸어도 시점이 돈다", async (
   eq(r.onButton, 0,
      "터치 단추를 누른 채 손이 흔들렸는데 시점이 돌았다 (" + r.onButton.toFixed(4) + ")");
   eq(r.onLeft, 0, "왼쪽(스틱 자리)에서 쓸었는데 시점이 돌았다: " + r.onLeft);
+});
+
+test("v89 양동이: 문은 열리고, 누른 채 푼 것은 한 번에 되돌아간다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 26, Y = 30, Z = 26;
+    B.resetQueues(); B.S.fluidOwner = null;
+    for (let dx = -4; dx <= 8; dx++) for (let dz = -4; dz <= 8; dz++)
+      for (let dy = -2; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dx = -4; dx <= 8; dx++) for (let dz = -4; dz <= 8; dz++)
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false);
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.S.sneaking = false;
+
+    // ── 여닫는 것을 열 수 있나 (양동이를 든 채) — 울타리문이 문보다 시험대가 단순하다
+    // 눈높이에 놓는다 — 울타리문 상자는 칸의 0.25~1 이라 눈(발밑+1.62)보다 낮으면 못 맞힌다
+    B.set(X, Y, Z, B.B.STONE);
+    B.applyEdit(X, Y + 1, Z, B.B.GATE, false);
+    const doorThere = B.get(X, Y + 1, Z) === B.B.GATE;
+    B.player.flying = true; B.player.vel.set(0, 0, 0);
+    B.player.pos.set(X + 0.5, Y, Z + 3.5);
+    B.player.yaw = 0; B.player.pitch = 0;
+    B.camera.rotation.order = "YXZ";
+    B.camera.rotation.y = 0; B.camera.rotation.x = 0;
+    B.camera.position.set(B.player.pos.x, B.player.pos.y + B.EYE, B.player.pos.z);
+    B.camera.updateMatrixWorld(true);
+    const aimed = B.raycast(6);
+    const openBefore = B.shapeAt(X, Y + 1, Z);
+    B.S.bar[B.S.selected] = B.BUCKET;
+    B.place(false);
+    const openAfterBucket = B.shapeAt(X, Y + 1, Z);
+    B.applyEdit(X, Y + 1, Z, B.B.AIR, false);
+    B.set(X, Y, Z, 0);
+
+    // ── 누른 채 푼 물이 한 묶음인가
+    B.resetQueues(); B.S.fluidOwner = null;
+    B.S.history.length = 0; B.S.future.length = 0;
+    for (let i = 0; i < 3; i++) B.set(X + i, Y, Z, B.B.WATER);
+    B.refreshAllTops();
+    function water() {
+      let n = 0;
+      for (let dx = -4; dx <= 8; dx++) for (let dz = -4; dz <= 8; dz++)
+        for (let dy = 0; dy <= 3; dy++)
+          if (B.get(X + dx, Y + dy, Z + dz) === B.B.WATER) n++;
+      return n;
+    }
+    const w0 = water();
+    B.player.pos.set(X + 0.5, Y + 3, Z + 0.5);
+    B.player.pitch = -Math.PI / 2 + 0.01;
+    B.camera.rotation.x = B.player.pitch;
+    B.camera.position.set(B.player.pos.x, B.player.pos.y + B.EYE, B.player.pos.z);
+    B.camera.updateMatrixWorld(true);
+    B.place(false);                       // 첫 번
+    B.place(true);                        // 누른 채 반복
+    B.place(true);
+    const w1 = water();
+    const hist = B.S.history.length;
+    B.undo();
+    const w2 = water();
+
+    // ── 물속에서도 앞을 푼다 (눈이 잠긴 칸만 파지 않는다)
+    B.resetQueues(); B.S.fluidOwner = null;
+    for (let dx = 0; dx <= 4; dx++) for (let dy = 0; dy <= 2; dy++)
+      B.set(X + dx, Y + dy, Z + 4, B.B.WATER);
+    B.refreshAllTops();
+    B.player.pos.set(X + 0.5, Y, Z + 4.5);   // 물속
+    B.player.yaw = -Math.PI / 2; B.player.pitch = 0;
+    B.camera.rotation.y = B.player.yaw; B.camera.rotation.x = 0;
+    B.camera.position.set(B.player.pos.x, B.player.pos.y + B.EYE, B.player.pos.z);
+    B.camera.updateMatrixWorld(true);
+    const eyeCell = [Math.floor(B.player.pos.x), Math.floor(B.player.pos.y + B.EYE),
+                     Math.floor(B.player.pos.z)];
+    const liquidHit = B.raycast(6, true);
+    const hitIsEye = liquidHit && liquidHit.x === eyeCell[0] &&
+                     liquidHit.y === eyeCell[1] && liquidHit.z === eyeCell[2];
+
+    B.player.flying = false;
+    B.resetQueues(); B.S.fluidOwner = null;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { doorThere, aimed: !!aimed, openBefore, openAfterBucket,
+             w0, w1, w2, hist, hitIsEye, liquid: liquidHit ? liquidHit.block : -1,
+             WATER: B.B.WATER };
+  });
+  assert(r.doorThere, "시험대가 안 섰다 — 울타리문이 안 놓였다");
+  assert(r.aimed, "시험대가 안 섰다 — 울타리문을 조준하지 못했다");
+  assert(r.openAfterBucket !== r.openBefore,
+     "양동이를 들었더니 울타리문이 안 열린다 — 물을 퍼서 돌아오면 제 집에 못 들어간다");
+  assert(r.w1 < r.w0, "양동이로 물을 못 펐다: " + r.w0 + " → " + r.w1);
+  eq(r.hist, 1,
+     "누른 채 " + (r.w0 - r.w1) + "칸을 펐는데 되돌리기가 " + r.hist + "개다 — 한 묶음이어야 한다");
+  eq(r.w2, r.w0, "한 번 되돌렸는데 물이 " + r.w2 + "칸 — 원래 " + r.w0 + "칸이어야 한다");
+  eq(r.hitIsEye, false, "물속에서 양동이가 제 눈이 잠긴 칸만 푼다 — 웅덩이를 안에서 못 뺀다");
+  eq(r.liquid, r.WATER, "물속에서 앞의 물을 못 맞혔다");
+});
+
+test("v89 과제: 꼭대기는 스폰에서 안 열리고, 지도장이는 뭍만 센다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.terrain = 0;
+    const rows = [];
+    for (const seed of [333, 777, 99, 4242]) {
+      B.generate(seed, 2); B.refreshAllTops(); B.relightAll(false);
+      B.spawn();
+      B.S.earned = {}; B.S.walked = 0;
+      for (let k = 0; k < 200; k++) B.step(1 / 60);
+      rows.push({ seed, y: +B.player.pos.y.toFixed(1), high: !!B.S.earned.high });
+    }
+    // 지도장이 — 뭍을 다 밟으면 100% 여야 한다
+    B.generate(333, 2); B.refreshAllTops();
+    B.seenMap.fill(0);
+    let land = 0;
+    for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++)
+      if (B.topMap[z * B.WX + x] > B.SEA) { land++; B.seenMap[z * B.WX + x] |= B.SEEN_TOP; }
+    const allLand = B.seenRatio();
+    // 절반만 밟으면 절반쯤이어야 한다
+    B.seenMap.fill(0);
+    let half = 0;
+    for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++)
+      if (B.topMap[z * B.WX + x] > B.SEA && (half++ % 2 === 0))
+        B.seenMap[z * B.WX + x] |= B.SEEN_TOP;
+    const halfLand = B.seenRatio();
+
+    B.S.earned = {};
+    B.endPlay(); B.setPaused(false);
+    return { rows, land, allLand, halfLand };
+  });
+  for (const row of r.rows)
+    assert(!row.high,
+       "시드 " + row.seed + ": 스폰(y=" + row.y + ")에 서 있기만 했는데 '꼭대기' 가 열렸다");
+  assert(r.land > 1500, "시험대가 안 섰다 — 뭍 기둥이 " + r.land + "개뿐이다");
+  assert(r.allLand > 0.99,
+     "뭍을 다 밟았는데 지도장이 진척이 " + (r.allLand * 100).toFixed(0) + "% 다 — 걸어서는 못 딴다");
+  assert(r.halfLand > 0.4 && r.halfLand < 0.6,
+     "뭍의 절반을 밟았는데 " + (r.halfLand * 100).toFixed(0) + "% 다");
+});
+
+phoneTest("스틱을 끝까지 밀면 달린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.flySpeed = 1;
+    B.S.keys.KeyW = false; B.S.keys.ControlLeft = false; B.S.sprintTap = false;
+    // 폰 시험에는 arena 헬퍼가 안 실린다 — 평평한 시험장을 손으로 깐다
+    for (let dx = -12; dx <= 12; dx++) for (let dz = -12; dz <= 12; dz++) {
+      for (let dy = 0; dy <= 6; dy++) B.set(48 + dx, 34 + dy, 48 + dz, 0);
+      B.set(48 + dx, 33, 48 + dz, B.B.STONE);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    function run(mag) {
+      B.player.pos.set(48, 34, 48); B.player.vel.set(0, 0, 0);
+      B.player.flying = false; B.player.yaw = 0; B.player.pitch = 0;
+      // 스틱 값을 직접 넣는다 — 픽셀 반지름(STICK_R)에 기대지 않는다
+      B.S.stick.x = 0; B.S.stick.z = mag;
+      for (let k = 0; k < 60; k++) { B.S.stick.x = 0; B.S.stick.z = mag; B.step(1 / 60); }
+      const v = Math.hypot(B.player.vel.x, B.player.vel.z);
+      const sp = B.S.sprintingNow;
+      B.S.stick.x = 0; B.S.stick.z = 0;
+      for (let k = 0; k < 30; k++) B.step(1 / 60);
+      return { v, sp };
+    }
+    const half = run(0.5);
+    const full = run(1);
+    B.endPlay(); B.setPaused(false);
+    return { half, full, WALK: B.WALK, SPRINT: B.SPRINT };
+  });
+  assert(r.half.v > 0.5, "시험대가 안 섰다 — 스틱을 반만 밀었을 때 안 움직인다: " + r.half.v);
+  eq(r.half.sp, false, "스틱을 반만 밀었는데 달린다");
+  eq(r.full.sp, true, "스틱을 끝까지 밀었는데 안 달린다 — 폰에는 Ctrl 도 W 더블탭도 없다");
+  assert(r.full.v > r.half.v * 1.15,
+     "달린다는데 속도가 " + r.half.v.toFixed(2) + " → " + r.full.v.toFixed(2) + " 다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

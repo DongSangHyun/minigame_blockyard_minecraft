@@ -4,7 +4,7 @@ import { padState, pollGamepad, pollGamepadMenu } from "./input.js";
 import { breedTick, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, CX, CZ, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { FIRE, isStairShape, SH_FULL, SH_SLAB, AIR, DEFAULT_BAR, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isSolid, isUnbreakable } from "./blocks.js";
+import { FIRE, isStairShape, SH_FULL, SH_SLAB, AIR, DEFAULT_BAR, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isItem, isSolid, isUnbreakable } from "./blocks.js";
 import { animateLiquids, crackTex } from "./atlas.js";
 import { boxesAt, seenRatio, BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, set, shape, topMap, world } from "./world.js";
 import { lightAtPlayer, lightBlk, lightSky, relightAll } from "./light.js";
@@ -143,13 +143,19 @@ export function step(dt) {
     }
     S.crouchWas = crouchKey;
     if (iz <= 0.1) S.sprintTap = false;                    // 전진을 멈추면 더블탭 달리기 해제
+    // 스틱을 **끝까지** 밀고 있으면 달린다 — 폰에는 Ctrl 도 W 더블탭도 없어서
+    // 96칸 섬을 늘 4.6b/s 로 걸었고, 비행 2배(flySprint)에도 갈 길이 없었다 (자문 17차 #3).
+    // 베드락도 조이스틱을 바깥 테두리까지 밀면 달린다.
+    var stickFull = Math.sqrt(S.stick.x * S.stick.x + S.stick.z * S.stick.z) > 0.9;
     var sprinting = !S.sneaking && iz > 0.1 &&
-                    (S.sprintTap || !!(S.keys.ControlLeft || S.keys.ControlRight));
+                    (S.sprintTap || stickFull ||
+                     !!(S.keys.ControlLeft || S.keys.ControlRight));
     S.sprintingNow = sprinting;
 
     // 날면서도 달린다 (마크와 같이 약 2배) — 96칸 섬을 가로지르려고
     // Alt+휠로 배율을 올렸다 내렸다 할 일이 없어진다. 재료는 이미 다 계산돼 있었다.
-    var flySprint = (sprinting || !!(S.keys.ControlLeft || S.keys.ControlRight)) ? 2 : 1;
+    var flySprint = (sprinting || stickFull ||
+                     !!(S.keys.ControlLeft || S.keys.ControlRight)) ? 2 : 1;
     var speed = player.flying ? FLY * S.flySpeed * flySprint
               : (S.sneaking ? WALK * SNEAK_MUL : (sprinting ? SPRINT : WALK));
     if (feetInWater && !player.flying) speed *= thick ? 0.30 : 0.55;
@@ -389,7 +395,10 @@ export function step(dt) {
       highlight.position.set(hit.x, hit.y, hit.z);
     }
     var gx = hit.x + hit.nx, gy = hit.y + hit.ny, gz = hit.z + hit.nz;
-    if (canPlaceAt(gx, gy, gz)) updateGhost(gx, gy, gz, upperFromHit(hit));
+    // 놓을 수 없는 물건(도구)에는 배치 미리보기를 안 띄운다 —
+    // 양동이를 들고 땅을 겨누면 "양동이 블록" 의 반투명 상자가 떴다 (자문 17차 #5)
+    if (!isItem(S.bar[S.selected]) && canPlaceAt(gx, gy, gz))
+      updateGhost(gx, gy, gz, upperFromHit(hit));
     else ghostMesh.visible = false;
   } else {
     highlight.visible = false;
@@ -707,7 +716,11 @@ function snowSticksTo(b) {
       // 꼭대기 — **딛고 서야** 한다. 예전에는 "높이 50 위" 라 크리에이티브에서는
       // 그냥 위로 날면 열렸고, 반대로 산은 아무리 올라도 안 열렸다
       // (최고봉이 판 1 은 20~32 · 판 2 는 32~44 다). 해수면 기준으로 옮긴다.
-      if (!player.flying && player.onGround && player.pos.y > SEA + 9) unlock("high");
+      // 스폰 높이가 26~36 이라 `SEA + 9`(32)는 **시작하자마자 저절로 열렸다** —
+      // 8시드 중 2개가 선 자리에서 이미 달성이었다. 게임이 처음 건네는 말이
+      // 가만히 서 있는 것에 대한 상장이면 안 된다 (자문 17차 #9).
+      // 걸어야 하고(`moved`) 최고봉(32~44) 언저리여야 한다.
+      if (moved && !player.flying && player.onGround && player.pos.y > SEA + 15) unlock("high");
       if (!S.earned.cartographer && seenRatio() > 0.8) unlock("cartographer");
       var lb = localBiome();
       if (moved && lb === 1) unlock("snow");

@@ -139,16 +139,31 @@ export function scoopLiquid(repeating) {
     return;
   }
   var name = hit.block === WATER ? "물" : "용암";
-  if (!applyEdit(hit.x, hit.y, hit.z, AIR, true)) return;
+  // 누르고 있는 동안 푼 것은 **한 묶음**이다 — 초당 5칸이 따로따로 쌓이면
+  // 3×3 웅덩이를 지우고 되돌리는 데 Ctrl+Z 를 아홉 번 쳐야 한다.
+  // 이 게임의 자랑이 "밀려든 물 192칸도 Ctrl+Z 한 번"(v78)인데 양동이만 그 밖이었다.
+  var own = !S.batch;
+  if (own) beginBatch(64);
+  if (!applyEdit(hit.x, hit.y, hit.z, AIR, true)) { if (own) endBatch("물 퍼내기"); return; }
   triggerSwing();
   crunch(0.18, 0.09, hit.block === WATER ? 900 : 420);
+  if (own) endBatch(name + " 퍼내기");
   if (!repeating) toast(name + "을 펐습니다");
   S.worldDirty = true;
 }
 
 export function place(repeating) {
-  // 양동이가 먼저다 — 조준선이 액체를 건너뛰므로 평소 hit 로는 물을 영영 못 집는다
-  if (S.bar[S.selected] === BUCKET) { scoopLiquid(repeating); return; }
+  // 양동이는 조준선이 액체를 건너뛰므로 평소 hit 로는 물을 영영 못 집는다 — 따로 쏜다.
+  // 다만 **문·울타리문이 먼저다.** 물을 퍼서 돌아왔는데 제 집 문이 안 열리면 안 된다 —
+  // 같은 도구인 부싯돌은 `tryInteract` 안에 있어 문이 열렸다. 도구 둘의 규칙을 맞춘다.
+  if (S.bar[S.selected] === BUCKET) {
+    var bh = raycast(6);
+    if (!repeating && bh && isOpenable(bh.block) && !S.sneaking) {
+      if (tryInteract(bh)) return;
+    }
+    scoopLiquid(repeating);
+    return;
+  }
   var hit = raycast(6);
   if (!hit) return;
   if (!repeating && tryInteract(hit)) return;

@@ -262,11 +262,18 @@ export function markSeen(px, pz, r, bit) {
     }
   return n;
 }
-// 지도장이 과제는 "걸어서 밝힌 지상" 만 센다 — 굴만 파고 다녀서 받는 상이 아니다
+// 지도장이 과제는 "걸어서 밝힌 **뭍**" 만 센다 — 굴만 파고 다녀서 받는 상도,
+// 바다 위를 날아다녀 받는 상도 아니다.
+// 분모를 지도 전체(9,216칸)로 두던 때는 **뭍이 지도의 23~31%뿐**이라
+// 섬을 한 칸도 안 남기고 다 걸어도 30%대에서 멈췄다 — 설명("섬의 8할")과 어긋났다.
 export function seenRatio() {
-  var n = 0;
-  for (var i = 0; i < seenMap.length; i++) if (seenMap[i] & SEEN_TOP) n++;
-  return n / seenMap.length;
+  var n = 0, land = 0;
+  for (var i = 0; i < seenMap.length; i++) {
+    if (topMap[i] <= SEA) continue;          // 바다 기둥은 안 센다
+    land++;
+    if (seenMap[i] & SEEN_TOP) n++;
+  }
+  return land ? n / land : 0;
 }
 
 export function markTouched(x, y, z) {

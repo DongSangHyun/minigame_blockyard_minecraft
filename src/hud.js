@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { BUILD } from "./version.js";
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
-import { AIR, ALL_BLOCKS, FENCE, LOG, PLANKS, BOOKSHELF, LAMP, COBBLE, TORCH, GLASS, ITEMS, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross, isLeaf } from "./blocks.js";
+import { AIR, ALL_BLOCKS, FENCE, LOG, PLANKS, BOOKSHELF, LAMP, COBBLE, TORCH, GLASS, ITEMS, isItem, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross, isLeaf } from "./blocks.js";
 import { AVG_TOP, TILE, atlas, tileOrigin } from "./atlas.js";
 import { SEEN_TOP, SEEN_UNDER_ALL, UNDER_BANDS, underBand, isTouched, heightMap, markX, markY, markZ, markName, seenMap, markSeen, topMap, world } from "./world.js";
 import { player } from "./player.js";
@@ -19,7 +19,9 @@ export function drawIcon(cv, blockId) {
   var cx = 32, top = 9, hw = 22, hh = 11, sh = 22;
   var t = TILES[blockId];
 
-  if (isCross(blockId)) {
+  // 도구(부싯돌·양동이)도 납작하게 그린다 — 6면 큐브로 그리면 **회색 상자**로 보여
+  // 핫바에서 무엇인지 알 수가 없었다 (자문 17차 #5). 마크의 아이템도 납작한 그림이다.
+  if (isCross(blockId) || isItem(blockId)) {
     var co = tileOrigin(t[0]);
     c.drawImage(atlas, co[0], co[1], TILE, TILE, 8, 8, 48, 48);
     return;

@@ -257,7 +257,10 @@
   /* 터치에서는 지도가 화면 위 가운데에 있다 — 과제 팝업이 그 자리를 48% 덮었다.
      v78 이 "터치 단추가 지도를 덮는다" 를 고치며 옮긴 자리가 이미 팝업 자리였다.
      세는 것을 한 종류만 세면 이렇게 된다 (자문 15차 #4). 팝업을 지도 아래로 내린다. */
-  html.touch #achpop { top: calc(150px + var(--safe-t)); }
+  /* 폰 가로 화면은 높이가 390px 뿐이라 150px 는 곧 **조준선 자리**다 —
+     블록을 놓다 과제가 열리면 겨누던 자리가 3초 동안 가려졌다 (자문 17차 #10).
+     지도 바로 밑에 붙여 지도도 조준선도 안 가린다. */
+  html.touch #achpop { top: calc(136px + var(--safe-t)); padding: 8px 14px; }
   /* 조작 안내는 입력 장치를 따라간다 — 폰에서 키보드 설명서를 읽히지 않는다 (자문 12차 #6) */
   html.touch #help-keys, html.touch .onlykeys { display: none; }
   html:not(.touch) #help-touch, html:not(.touch) .onlytouch { display: none; }
@@ -908,6 +911,8 @@
         <dt>이동</dt>
         <dd>화면 <b>왼쪽</b>을 눌러 끌면 걷습니다 (가상 스틱) · <b>오른쪽</b>을 끌면 시점입니다</dd>
         <dd><b>점프</b> 단추 · <b>비행</b> 단추로 걷기와 비행을 오갑니다 (비행 중엔 점프가 상승, 웅크림이 하강)</dd>
+        <dd><b>스틱을 끝까지 밀면 달립니다</b> (비행 중엔 두 배 빠르게) ·
+            시점이 느리면 <b>메뉴 › 설정 › 시점 감도</b>를 올리세요</dd>
         <dd>물에서는 <b>점프</b>로 떠오르고, 사다리에 붙어 <b>점프</b>로 오릅니다</dd>
         <dd><b>웅크림</b>을 누른 채면 발판 밖으로 발을 안 내밉니다</dd>
         <dt>짓기</dt>
@@ -1038,7 +1043,7 @@
       <summary>설정</summary>
       <p class="opt-head">조작</p>
       <div class="opt-grid">
-        <label class="opt"><span>마우스 감도</span><input type="range" id="s-sens" min="20" max="300" step="5"><output id="o-sens"></output></label>
+        <label class="opt"><span>시점 감도</span><input type="range" id="s-sens" min="20" max="300" step="5"><output id="o-sens"></output></label>
         <label class="opt check"><span>Y축 반전</span><input type="checkbox" id="s-inv"><output id="o-inv"></output></label>
         <label class="opt check"><span>왼손잡이 배치</span><input type="checkbox" id="s-lefty"><output id="o-lefty"></output></label>
         <label class="opt check"><span>웅크리기 전환식</span><input type="checkbox" id="s-sneaktog"><output id="o-sneaktog"></output></label>
