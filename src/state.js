@@ -132,6 +132,7 @@ export const S = {
   moodTimer: 40,
   oxygen: 1,
   mmZoom: 1,
+  mmZoomUnder: 3,      // 지하 단면은 따로 — 밝히는 반경이 8칸이라 축척이 달라야 한다 (v87)
   contour: true,
   liquidTimer: 0,
   freezeTimer: 0,

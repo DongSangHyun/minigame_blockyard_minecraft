@@ -1,6 +1,6 @@
 // input.js — 입력 (키보드 · 마우스 · 터치)
 import { S } from "./state.js";
-import { markName, markZ } from "./world.js";
+import { markX, markY, markName, markZ } from "./world.js";
 import { resetQueues } from "./queues.js";
 import { seedMobs } from "./mobs.js";
 import { WX, WY, WZ } from "./dims.js";
@@ -770,6 +770,27 @@ export function setShapeMode(m) {
 // 표식을 찍거나 지운다 — `B` 키와 폰의 "지도 탭" 이 같은 길을 탄다 (v83).
 // 폰에는 표식을 찍을 길이 하나도 없었는데, v80 의 굴 어귀 점과 v81 의 ▲n/▼n 이
 // 전부 "표식을 찍을 수 있다" 는 전제 위에 서 있었다.
+// 지금 선 자리에 이미 있는 표식의 번호 — 없으면 -1
+export function markHere() {
+  var mx = Math.round(player.pos.x), mz = Math.round(player.pos.z);
+  for (var mi = 0; mi < S.marks.length; mi++)
+    if (Math.abs(S.marks[mi][0] - mx) < 3 && Math.abs(markZ(S.marks[mi]) - mz) < 3) return mi;
+  return -1;
+}
+// 그 표식에 이름을 단다 (또는 지운다)
+export function renameMarkHere() {
+  var i = markHere();
+  if (i < 0) return false;
+  var m = S.marks[i];
+  var nm = (window.prompt("표식 이름 (비우면 번호만)", markName(m) || "") || "").slice(0, 16);
+  if (m.length >= 4) m[3] = nm;
+  else S.marks[i] = [markX(m), markY(m), markZ(m), nm];
+  S.worldDirty = true;
+  toast(nm ? ("표식 이름 · " + nm) : "표식 이름 지움");
+  tone(680, 0.07, "triangle", 0.05);
+  return true;
+}
+
 export function toggleMark(named) {
   var mx = Math.round(player.pos.x), my = Math.round(player.pos.y), mz = Math.round(player.pos.z);
   var near = -1;
@@ -792,15 +813,21 @@ export function toggleMark(named) {
 }
 
 // 미니맵 확대 — `[` `]` 와 폰의 "지도 길게 누르기" 가 같은 길을 탄다
-export var MM_ZOOMS = [1, 2, 4];
+export var MM_ZOOMS = [1, 2, 3, 4];
+// 지상과 지하가 **각자** 배율을 기억한다 — 굴에서 ×4 로 올려놓고 올라오면
+// 지상 지도가 24칸만 보였고, 다시 내려가면 또 맞춰야 했다 (자문 16차 #4).
 export function cycleMinimapZoom(dir) {
-  var zi = MM_ZOOMS.indexOf(S.mmZoom);
+  var under = S.mmUnder;
+  var cur = under ? S.mmZoomUnder : S.mmZoom;
+  var zi = MM_ZOOMS.indexOf(cur);
   if (zi < 0) zi = 0;
   zi = (zi + (dir > 0 ? 1 : MM_ZOOMS.length - 1)) % MM_ZOOMS.length;
-  S.mmZoom = MM_ZOOMS[zi];
-  opts.mmzoom = S.mmZoom; saveOpts();       // 배율은 설정이다 — 껐다 켜도 남는다
-  toast("미니맵 ×" + S.mmZoom);
-  tone(700 + S.mmZoom * 40, 0.05, "square", 0.04);
+  var next = MM_ZOOMS[zi];
+  if (under) { S.mmZoomUnder = next; opts.mmzoomunder = next; }
+  else { S.mmZoom = next; opts.mmzoom = next; }
+  saveOpts();                               // 배율은 설정이다 — 껐다 켜도 남는다
+  toast((under ? "단면 지도 ×" : "미니맵 ×") + next);
+  tone(700 + next * 40, 0.05, "square", 0.04);
 }
 
 // 핫바 두 쪽을 맞바꾼다 — Tab 과 터치의 "목록 길게 누르기" 가 같은 길을 탄다
@@ -1187,8 +1214,37 @@ stickZone.addEventListener("touchstart", function (e) {
   e.preventDefault();
 }, { passive: false });
 
+// 시점 제스처는 **캔버스에서 시작한 것만** 잡혔다. 그런데 시점 영역(오른쪽 58%)의
+// 38% 가 캔버스가 아니다 — 터치 단추 147×276 · 지도 105×123(화면 위 한가운데) · 핫바 402×46.
+// 그 위에서 시작한 쓸기는 시점에 **영영 안 갔다** (v85 의 "움직이면 탭을 접는다" 는
+// 탭만 접었지 넘겨주지는 못했다 — preventDefault 와 이벤트 라우팅은 무관하다).
+// 임자 없는 터치가 8px 넘게 움직이면 그때 시점으로 **승격**시킨다 (자문 16차 #2).
+var pendingTouch = {};
+var LOOK_SLOP = 8;
+window.addEventListener("touchstart", function (e) {
+  for (var pi = 0; pi < e.changedTouches.length; pi++) {
+    var pt = e.changedTouches[pi];
+    pendingTouch[pt.identifier] = { x: pt.clientX, y: pt.clientY };
+  }
+}, { passive: true });
+function promoteLook(e) {
+  if (!S.active || S.uiOpen || S.lookId !== null) return;
+  for (var i = 0; i < e.changedTouches.length; i++) {
+    var t = e.changedTouches[i];
+    if (t.identifier === S.stickId) continue;
+    var st = pendingTouch[t.identifier];
+    if (!st) continue;
+    if (st.x <= window.innerWidth * 0.42) continue;        // 왼쪽은 스틱 자리다
+    if (Math.abs(t.clientX - st.x) + Math.abs(t.clientY - st.y) <= LOOK_SLOP) continue;
+    S.lookId = t.identifier;
+    lookLast.x = t.clientX; lookLast.y = t.clientY;
+    return;
+  }
+}
+
 window.addEventListener("touchmove", function (e) {
   if (!S.active) return;
+  promoteLook(e);
   for (var i = 0; i < e.changedTouches.length; i++) {
     var t = e.changedTouches[i];
     if (t.identifier === S.stickId) {
@@ -1245,6 +1301,7 @@ window.addEventListener("touchmove", function (e) {
 function endTouch(e) {
   for (var i = 0; i < e.changedTouches.length; i++) {
     var t = e.changedTouches[i];
+    delete pendingTouch[t.identifier];
     if (t.identifier === S.stickId) {
       S.stickId = null; S.stick.x = 0; S.stick.z = 0;
       stickBase.classList.remove("on");
@@ -1342,7 +1399,14 @@ bindHold("tb-undo", function () {
     clearTimeout(held);
     held = setTimeout(function () {
       if (moved) return;
-      longed = true; cycleMinimapZoom(1);
+      longed = true;
+      // 이미 표식이 선 자리에서 길게 누르면 **이름을 단다** (v87).
+      // 폰에는 Shift+B 가 없어 표식 열두 개가 전부 똑같은 금색 점이었다 —
+      // 코드가 스스로 그 문제를 적어 놓고도(hud.js) 폰에서만 안 지켜지고 있었다.
+      // **`>= 0` 으로 본다.** 첫 표식의 번호는 0 이고, 0 은 거짓이다 —
+      // 그냥 `if (markHere())` 로 두면 1번 표식부터만 이름이 붙는다.
+      if (markHere() >= 0) renameMarkHere();
+      else cycleMinimapZoom(1);
     }, 450);
   }, { passive: true });
   mm.addEventListener("touchmove", function (e) {

@@ -220,11 +220,13 @@ export var mmImage = mmCtx.createImageData(WX, WZ);
 
 // 미니맵 캡션 — 이름을 붙였으면 그것으로, 아니면 시드로 부른다.
 // animate() 안에 박혀 있으면 시험이 닿을 수가 없어 따로 뺐다.
+// 지금 쓰는 배율 — 지상·지하가 따로다
+export function mmZoomNow() { return S.mmUnder ? S.mmZoomUnder : S.mmZoom; }
 export function refreshMinimapCap() {
   if (!mmCap) return "";
   mmCap.textContent = (S.mmUnder ? ("단면 Y" + Math.floor(player.pos.y))
                                  : (S.worldName || ("SEED " + S.worldSeed)))
-                      + (S.mmZoom > 1 ? "  ×" + S.mmZoom : "");
+                      + (mmZoomNow() > 1 ? "  ×" + mmZoomNow() : "");
   return mmCap.textContent;
 }
 
@@ -345,7 +347,8 @@ export function drawMinimap() {
   markSeen(player.pos.x, player.pos.z, S.mmUnder ? 8 : 14, seenBit);
 
   // 확대 — 보이는 칸 수를 줄이고 한 칸을 여러 픽셀로 그린다
-  var zoom = S.mmZoom;
+  // 지상과 지하가 각자 축척을 기억한다 (v87)
+  var zoom = S.mmUnder ? S.mmZoomUnder : S.mmZoom;
   var spanX = Math.max(8, Math.round(WX / zoom));
   var spanZ = Math.max(8, Math.round(WZ / zoom));
   var x0 = Math.max(0, Math.min(WX - spanX, pxc - (spanX >> 1)));

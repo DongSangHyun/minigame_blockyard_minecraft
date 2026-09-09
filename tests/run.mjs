@@ -9389,7 +9389,7 @@ test("v83 지도: 지하 단면에도 굴 어귀가 그려진다 (덩어리마�
       if (h > B.SEA && t >= 0 && h - t >= 4) cells++;
     }
     const cv = document.getElementById("mm");
-    B.S.mmZoom = 1;
+    B.S.mmZoom = 1; B.S.mmZoomUnder = 1;    // 픽셀을 세계 좌표로 읽으려면 배율 1 이어야 한다
     function px(x, z) {
       const d = cv.getContext("2d").getImageData(x, z, 1, 1).data;
       return [d[0], d[1], d[2]];
@@ -9641,23 +9641,36 @@ phoneTest("지도를 눌러 표식을 찍고, 길게 눌러 확대한다", async
     B.S.marks = [];
     B.player.pos.set(40.5, 30, 40.5);
 
-    // 탭 = 표식
+    // 탭 = 표식 · 다시 탭하면 지움
     touchAt("touchstart", cx, cy);
     touchAt("touchend", cx, cy);
     const afterTap = B.S.marks.length;
-
-    // 길게 = 확대
-    const zoom0 = B.S.mmZoom;
-    touchAt("touchstart", cx, cy);
-    await new Promise(res => setTimeout(res, 620));
-    touchAt("touchend", cx, cy);
-    const zoom1 = B.S.mmZoom;
-    const marksAfterHold = B.S.marks.length;
-
-    // 다시 탭하면 그 표식이 지워진다 (같은 자리)
     touchAt("touchstart", cx, cy);
     touchAt("touchend", cx, cy);
     const afterSecond = B.S.marks.length;
+
+    // 표식이 **없는** 자리에서 길게 = 확대
+    const zoom0 = B.S.mmUnder ? B.S.mmZoomUnder : B.S.mmZoom;
+    touchAt("touchstart", cx, cy);
+    await new Promise(res => setTimeout(res, 620));
+    touchAt("touchend", cx, cy);
+    const zoom1 = B.S.mmUnder ? B.S.mmZoomUnder : B.S.mmZoom;
+    const marksAfterHold = B.S.marks.length;
+
+    // 표식이 **있는** 자리에서 길게 = 이름 붙이기 (v87).
+    // 폰에는 Shift+B 가 없어 표식 열두 개가 전부 똑같은 금색 점이었다.
+    touchAt("touchstart", cx, cy);
+    touchAt("touchend", cx, cy);            // 표식 하나
+    const promptWas = window.prompt;
+    window.prompt = function () { return "채석장"; };
+    const zoomBefore = B.S.mmUnder ? B.S.mmZoomUnder : B.S.mmZoom;
+    touchAt("touchstart", cx, cy);
+    await new Promise(res => setTimeout(res, 620));
+    touchAt("touchend", cx, cy);
+    window.prompt = promptWas;
+    const named = B.S.marks.length === 1 ? B.markName(B.S.marks[0]) : "";
+    const zoomAfter = B.S.mmUnder ? B.S.mmZoomUnder : B.S.mmZoom;
+    B.S.marks = [];
 
     // ── 쓸어 넘기면 표식이 아니다 (v85). 지도는 시점 영역 안에 통째로 들어앉아 있어서,
     // 위를 올려다보려고 쓸다 손가락이 지도에 닿으면 표식만 찍히고 시점은 안 돌았다.
@@ -9678,16 +9691,21 @@ phoneTest("지도를 눌러 표식을 찍고, 길게 눌러 확대한다", async
     const popPE = getComputedStyle(pop).pointerEvents;
 
     return { pe: style.pointerEvents, afterTap, zoom0, zoom1, marksAfterHold, afterSecond,
-             afterDrag, popOverlap, popPE };
+             afterDrag, popOverlap, popPE, named, zoomBefore, zoomAfter };
   });
   eq(r.pe, "auto", "폰인데 지도가 터치를 안 받는다 (pointer-events: " + r.pe + ")");
   eq(r.afterTap, 1, "지도를 탭했는데 표식이 안 찍혔다 — 폰에는 B 키가 없다");
   assert(r.zoom1 !== r.zoom0,
      "지도를 길게 눌렀는데 확대가 " + r.zoom0 + "→" + r.zoom1 + " 다 — 폰에는 [ ] 키가 없다");
-  eq(r.marksAfterHold, 1, "길게 눌렀는데 표식까지 같이 찍혔다");
+
   eq(r.afterSecond, 0, "같은 자리를 다시 탭했는데 표식이 안 지워졌다");
+  eq(r.marksAfterHold, 0, "표식 없는 자리를 길게 눌렀는데 표식이 찍혔다");
   eq(r.afterDrag, 0,
      "지도 위에서 쓸었는데 표식이 찍혔다 — 시점을 돌리려던 손가락을 지도가 먹는다");
+  eq(r.named, "채석장",
+     "표식 위에서 길게 눌렀는데 이름이 안 붙었다 (\"" + r.named + "\") — 폰에는 Shift+B 가 없다");
+  eq(r.zoomAfter, r.zoomBefore,
+     "표식 위에서 길게 눌렀는데 배율까지 바뀌었다: " + r.zoomBefore + " → " + r.zoomAfter);
   assert(r.popOverlap < 0.05,
      "과제 팝업이 지도의 " + Math.round(r.popOverlap * 100) + "% 를 덮는다");
   eq(r.popPE, "none", "과제 팝업이 누를 것을 가로챈다 (pointer-events: " + r.popPE + ")");
@@ -9987,6 +10005,7 @@ test("v85 지도: 배율과 등고선이 껐다 켜도 남는다", async (page) 
     const B = window.__blockyard;
     B.setPaused(true); B.beginPlay();
     const keep = localStorage.getItem(B.OPT_KEY);
+    B.S.mmUnder = false;      // 배율은 지상·지하가 따로다 (v87) — 어느 쪽을 재는지 못 박는다
     const z0 = B.S.mmZoom, c0 = B.S.contour;
 
     B.cycleMinimapZoom(1);
@@ -10089,7 +10108,7 @@ test("v85 갱도: 꺾이고 층이 어긋나며, 지도에 자국이 남는다",
     for (let i = 0; i < B.WX * B.WZ; i++) B.seenMap[i] = 15;
     B.player.flying = true;
     B.player.pos.set(post[0] + 0.5, post[1], post[2] + 0.5);
-    B.S.mmZoom = 1;
+    B.S.mmZoom = 1; B.S.mmZoomUnder = 1;    // 픽셀을 세계 좌표로 읽으려면 배율 1 이어야 한다
     B.drawMinimap();
     const under = B.S.mmUnder;
     const cv = document.getElementById("mm");
@@ -10314,6 +10333,61 @@ test("v86 어귀: 굴 입구를 걸어서 드나들 수 있다", async (page) =>
     assert(row.pct >= 70,
        "시드 " + row.seed + ": 어귀의 " + row.pct + "% 만 걸어서 나올 수 있다 — 들어가면 갇힌다");
   }
+});
+
+phoneTest("지도·핫바·단추 위에서 쓸어도 시점이 돈다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.marks = [];
+    function box(id) { const e = document.getElementById(id); return e.getBoundingClientRect(); }
+    function swipe(target, x, y, dx) {
+      B.player.yaw = 0; B.player.pitch = 0;
+      B.S.lookId = null; B.S.stickId = null;
+      const t0 = new Touch({ identifier: 7, target: target, clientX: x, clientY: y });
+      target.dispatchEvent(new TouchEvent("touchstart", {
+        bubbles: true, cancelable: true, touches: [t0], changedTouches: [t0], targetTouches: [t0] }));
+      let last = 0;
+      for (let k = 1; k <= 4; k++) {
+        const tk = new Touch({ identifier: 7, target: target,
+          clientX: x + (dx * k) / 4, clientY: y });
+        window.dispatchEvent(new TouchEvent("touchmove", {
+          bubbles: true, cancelable: true, touches: [tk], changedTouches: [tk], targetTouches: [tk] }));
+        last = tk.clientX;
+      }
+      const te = new Touch({ identifier: 7, target: target, clientX: last, clientY: y });
+      window.dispatchEvent(new TouchEvent("touchend", {
+        bubbles: true, cancelable: true, touches: [], changedTouches: [te], targetTouches: [] }));
+      return B.player.yaw;
+    }
+    const mm = document.getElementById("minimap");
+    const mb = box("minimap");
+    const onMap = swipe(mm, mb.left + mb.width / 2, mb.top + mb.height / 2, 90);
+    const marksAfterMap = B.S.marks.length;
+
+    const hb = box("hotbar");
+    const hotEl = document.getElementById("hotbar");
+    const onHotbar = swipe(hotEl, Math.max(hb.left + 8, window.innerWidth * 0.6),
+                           hb.top + hb.height / 2, 90);
+
+    const cv = document.getElementById("stage").querySelector("canvas") ||
+               document.querySelector("canvas");
+    const onCanvas = swipe(cv, window.innerWidth * 0.75, window.innerHeight * 0.5, 90);
+
+    // 왼쪽(스틱 자리)에서는 시점이 안 돌아야 한다
+    const onLeft = swipe(cv, window.innerWidth * 0.2, window.innerHeight * 0.5, 90);
+
+    B.S.marks = []; B.S.lookId = null;
+    B.endPlay(); B.setPaused(false);
+    return { onMap, onHotbar, onCanvas, onLeft, marksAfterMap };
+  });
+  assert(Math.abs(r.onCanvas) > 0.05, "시험대가 안 섰다 — 캔버스에서도 시점이 안 돈다: " + r.onCanvas);
+  assert(Math.abs(r.onMap) > 0.05,
+     "지도 위에서 쓸었는데 시점이 " + r.onMap.toFixed(4) + " 다 — 위를 볼 때 손이 먼저 닿는 자리다");
+  eq(r.marksAfterMap, 0, "지도 위에서 쓸었는데 표식이 찍혔다");
+  assert(Math.abs(r.onHotbar) > 0.05,
+     "핫바 위에서 쓸었는데 시점이 " + r.onHotbar.toFixed(4) + " 다");
+  eq(r.onLeft, 0, "왼쪽(스틱 자리)에서 쓸었는데 시점이 돌았다: " + r.onLeft);
 });
 
 // ── 실행 ───────────────────────────────────────────────
