@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-09 · 모듈 28개 · 합계 11,166줄
+생성일 2026-09-09 · 모듈 28개 · 합계 11,173줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -28,7 +28,7 @@
 | [`audio.js`](../src/audio.js) | 소리 | 258 | state · blocks · daynight · settings |
 | [`save.js`](../src/save.js) | 저장 · 불러오기 | 317 | state · dims · blocks · world · player · mobs · hud · sky |
 | [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 1035 | state · queues · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
-| [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 680 | state · version · dims · blocks · atlas · world · player · hand · input |
+| [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 687 | state · version · dims · blocks · atlas · world · player · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 165 | state · settings · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
 | [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1578 | state · world · queues · mobs · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
 | [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 243 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
@@ -405,35 +405,35 @@
 | 함수 | 줄 |
 |---|---:|
 | `drawIcon(cv, blockId)` | 15 |
-| `refreshSlot(i)` | 76 |
-| `refreshBar()` | 88 |
-| `selectSlot(i)` | 92 |
-| `openPicker()` | 142 |
-| `closePicker(resume)` | 153 |
-| `facingText()` | 166 |
-| `showAchPop(name, desc)` | 177 |
-| `showHud(on)` | 207 |
-| `toast(msg)` | 213 |
-| `mmZoomNow()` | 224 |
-| `refreshMinimapCap()` | 225 |
-| `roofDepth(x, z, y)` | 248 |
-| `naturalRoof(x, z, y)` | 264 |
-| `refreshMouthDots()` | 300 |
-| `drawMinimap()` | 329 |
-| `helpOpen()` | 534 |
-| `toggleHelp(on)` | 535 |
-| `setHelpTab(showAch)` | 556 |
-| `bootProgress(msg, frac)` | 571 |
-| `bootDone()` | 576 |
-| `noteBlockUse(b)` | 587 |
-| `sortPickByRecent()` | 593 |
-| `refreshPickFilter()` | 603 |
-| `openCmd()` | 630 |
-| `closeCmd()` | 637 |
-| `cmdSay(msg)` | 642 |
-| `drawPreview(target)` | 648 |
+| `refreshSlot(i)` | 80 |
+| `refreshBar()` | 95 |
+| `selectSlot(i)` | 99 |
+| `openPicker()` | 149 |
+| `closePicker(resume)` | 160 |
+| `facingText()` | 173 |
+| `showAchPop(name, desc)` | 184 |
+| `showHud(on)` | 214 |
+| `toast(msg)` | 220 |
+| `mmZoomNow()` | 231 |
+| `refreshMinimapCap()` | 232 |
+| `roofDepth(x, z, y)` | 255 |
+| `naturalRoof(x, z, y)` | 271 |
+| `refreshMouthDots()` | 307 |
+| `drawMinimap()` | 336 |
+| `helpOpen()` | 541 |
+| `toggleHelp(on)` | 542 |
+| `setHelpTab(showAch)` | 563 |
+| `bootProgress(msg, frac)` | 578 |
+| `bootDone()` | 583 |
+| `noteBlockUse(b)` | 594 |
+| `sortPickByRecent()` | 600 |
+| `refreshPickFilter()` | 610 |
+| `openCmd()` | 637 |
+| `closeCmd()` | 644 |
+| `cmdSay(msg)` | 649 |
+| `drawPreview(target)` | 655 |
 
-내보내는 값 — `hotbarEl` · `slotCanvases` · `SHAPE_GLYPH` · `SHAPE_WORD` · `pickerEl` · `pickGrid` · `pickBtns` · `FACING` · `tFace` · `tAch` · `tBiome` · `achPop` · `tPos` · `underwaterEl` · `inblockEl` · `airEl` · `perfEl` · `airBar` · `minimapEl` · `mmCap` · `touchEl` · `hudEls` · `toastEl` · `mmCanvas` · `mmCtx` · `mmImage` · `UNDER_ROOF` · `ROOF_R` · `SURROUND_ROOF` · `MOUTH_MIN` · `mouthDots` · `stampEl` · `helpEl` · `helpAchBtn` · `helpAchList` · `helpCols` · `bootEl` · `bootMsg` · `bootBar` · `pickFind` · `pickTabs` · `pickCat` · `cmdEl` · `cmdIn` · `cmdMsg` · `previewEl` · `previewCap`
+내보내는 값 — `hotbarEl` · `slotCanvases` · `SHAPE_GLYPH` · `SHAPE_COLOR` · `SHAPE_WORD` · `pickerEl` · `pickGrid` · `pickBtns` · `FACING` · `tFace` · `tAch` · `tBiome` · `achPop` · `tPos` · `underwaterEl` · `inblockEl` · `airEl` · `perfEl` · `airBar` · `minimapEl` · `mmCap` · `touchEl` · `hudEls` · `toastEl` · `mmCanvas` · `mmCtx` · `mmImage` · `UNDER_ROOF` · `ROOF_R` · `SURROUND_ROOF` · `MOUTH_MIN` · `mouthDots` · `stampEl` · `helpEl` · `helpAchBtn` · `helpAchList` · `helpCols` · `bootEl` · `bootMsg` · `bootBar` · `pickFind` · `pickTabs` · `pickCat` · `cmdEl` · `cmdIn` · `cmdMsg` · `previewEl` · `previewCap`
 
 ### `hand.js` — 1인칭 손과 들고 있는 블록
 

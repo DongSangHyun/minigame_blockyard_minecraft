@@ -70,20 +70,27 @@ for (var si = 0; si < S.bar.length; si++) {
   })(si);
 }
 
-// 칸에 딸린 모양을 글리프로 — ▄ 반블록 · ◱ 계단. 전체 블록이면 아무것도 안 그린다.
-export var SHAPE_GLYPH = ["", "▄", "◱"];
+// 칸에 딸린 모양을 글리프로. 폰 9px 에서는 **형태보다 색이 먼저 읽힌다** —
+// ▄ 와 ◱ 는 둘 다 "작은 네모" 로 보여 구별이 안 됐다 (자문 16차 #9).
+// 글자도 가르고 색도 가른다. 그리고 **고른 칸에도 그린다** —
+// 지금 손에 든 것이 반블록인지 계단인지가 핫바에 안 나오고 계기판에만 있었다.
+export var SHAPE_GLYPH = ["", "▬", "◤"];
+export var SHAPE_COLOR = ["", "#f0a03c", "#6fc8f0"];
 export var SHAPE_WORD = ["전체 블록", "반블록", "계단"];
 export function refreshSlot(i) {
   var b = S.bar[i];
   drawIcon(slotCanvases[i], b);
   var slot = hotbarEl.children[i];
-  var m = (S.shapeBar && i !== S.selected) ? (S.shapeBar[i] | 0) : S.shapeMode;
+  var m = (S.shapeBar && i !== S.selected) ? (S.shapeBar[i] | 0) : (S.shapeMode | 0);
   if (i !== S.selected && !S.shapeBar) m = 0;
   var g = SHAPE_GLYPH[m] || "";
   slot.setAttribute("aria-label", NAMES[b] + (g ? " · " + SHAPE_WORD[m] : ""));
   slot.querySelector(".name").textContent = NAMES[b];
   var sp = slot.querySelector(".shape");
-  if (sp) sp.textContent = g;
+  if (sp) {
+    sp.textContent = g;
+    sp.style.color = SHAPE_COLOR[m] || "";
+  }
 }
 export function refreshBar() {
   for (var i = 0; i < S.bar.length; i++) refreshSlot(i);

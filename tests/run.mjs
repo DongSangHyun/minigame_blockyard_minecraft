@@ -10043,12 +10043,21 @@ test("v85 핫바: 칸에 딸린 모양이 칸에서 읽힌다", async (page) => 
       return Array.prototype.map.call(bar.children,
         function (el) { const g = el.querySelector(".shape"); return g ? g.textContent : "?"; });
     }
+    function colors() {
+      return Array.prototype.map.call(bar.children,
+        function (el) { const g = el.querySelector(".shape");
+          return g ? getComputedStyle(g).color : "?"; });
+    }
     for (let i = 0; i < 10; i++) { B.selectSlot(i); B.setShapeMode(0); }
     B.selectSlot(0); B.setShapeMode(2);      // 계단
     B.selectSlot(2); B.setShapeMode(1);      // 반블록
     B.selectSlot(5);
     const g = glyphs();
+    const col = colors();
     const label0 = bar.children[0].getAttribute("aria-label");
+    // 고른 칸에도 모양이 나와야 한다 — 손에 든 것이 뭔지가 핫바에 안 나왔다
+    B.selectSlot(2);
+    const gSel = glyphs()[2];
     // 칸을 옮겨 모양이 바뀌면 알려 준다
     const toastEl = document.getElementById("toast");
     toastEl.textContent = "";
@@ -10064,13 +10073,17 @@ test("v85 핫바: 칸에 딸린 모양이 칸에서 읽힌다", async (page) => 
     for (let i = 0; i < 10; i++) { B.selectSlot(i); B.setShapeMode(0); }
     B.selectSlot(0);
     B.endPlay(); B.setPaused(false);
-    return { g, label0, movedMsg, msg2, quiet };
+    return { g, col, gSel, label0, movedMsg, msg2, quiet };
   });
   eq(r.g.length, 10, "핫바가 열 칸이 아니다");
   assert(r.g[0].length > 0, "계단 칸에 모양 표시가 없다: " + JSON.stringify(r.g));
   assert(r.g[2].length > 0, "반블록 칸에 모양 표시가 없다: " + JSON.stringify(r.g));
   eq(r.g[1], "", "전체 블록 칸에 군더더기 표시가 붙었다");
-  assert(r.g[0] !== r.g[2], "계단과 반블록이 같은 표시다: " + r.g[0]);
+  assert(r.g[0] !== r.g[2], "계단과 반블록이 같은 글자다: " + r.g[0]);
+  // 폰 9~11px 에서는 형태보다 색이 먼저 읽힌다 — 색도 갈라야 한다
+  assert(r.col[0] !== r.col[2],
+     "계단과 반블록이 같은 색이다: " + r.col[0] + " — 폰에서는 둘 다 작은 네모로 보인다");
+  assert(r.gSel.length > 0, "고른 칸에는 모양 표시가 없다 — 손에 든 것이 뭔지 안 보인다");
   assert(/계단/.test(r.label0), "칸의 읽어 주는 이름에 모양이 없다: " + r.label0);
   assert(/계단/.test(r.movedMsg), "계단 칸으로 옮겼는데 안 알려 준다: \"" + r.movedMsg + "\"");
   assert(/전체/.test(r.msg2), "모양이 바뀌었는데 안 알려 준다: \"" + r.msg2 + "\"");
