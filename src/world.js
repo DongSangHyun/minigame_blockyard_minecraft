@@ -723,11 +723,12 @@ export function generate(seed, gen) {
 // 지표 아래에 있는 굴을 하늘로 이어 준다 — 언덕 옆구리에 입이 벌어진다.
 // 위에서 아래로 파는 게 아니라 **이미 있는 굴을 찾아 그 위를 뚫는다** —
 // 아무 데나 구멍을 내면 자연스럽지 않고, 굴과 안 이어지면 어귀가 아니다.
-export var MOUTH_DEPTH = 14;        // 지표에서 이만큼 아래까지 굴을 찾아본다
+export var MOUTH_DEPTH = 14;
+export var MOUTH_W = 2;                    // 입은 2칸 폭 — 1칸 우물은 걸어 못 나온다
 function openCaveMouths(rng) {
   var made = 0, tries = 1500;
   for (var t = 0; t < tries && made < 220; t++) {
-    var x = 3 + ((rng() * (WX - 6)) | 0), z = 3 + ((rng() * (WZ - 6)) | 0);
+    var x = 4 + ((rng() * (WX - 9)) | 0), z = 4 + ((rng() * (WZ - 9)) | 0);
     var h = heightMap[z * WX + x];
     if (h <= SEA + 2 || h + 2 >= WY) continue;          // 뭍만
     if (get(x, h, z) === AIR) continue;                 // 이미 뚫린 자리
@@ -739,25 +740,33 @@ function openCaveMouths(rng) {
       if (get(x, y, z) === AIR) { cave = y; break; }
     }
     if (cave < 0) continue;
-    // 뚫을 기둥에 물·용암이 섞여 있으면 그만둔다 — 어귀가 폭포나 용암 굴뚝이 되면 안 된다
-    var bad = false;
-    for (var cy = cave; cy <= h + 1 && !bad; cy++)
-      for (var dd = 0; dd < 6 && !bad; dd++) {
-        var b = get(x + DIRS[dd][0], cy + DIRS[dd][1], z + DIRS[dd][2]);
-        if (b === WATER || b === LAVA || b === ICE) bad = true;
-      }
-    if (bad) continue;
-    // 뚫는다 — 위로 갈수록 조금 넓혀 자연스러운 입이 되게
-    for (var uy = cave; uy <= h; uy++) {
-      var wide = (uy >= h - 1) ? 1 : 0;                 // 맨 위 두 칸만 2×2 로
-      for (var ox = 0; ox <= wide; ox++)
-        for (var oz = 0; oz <= wide; oz++) {
-          var b2 = get(x + ox, uy, z + oz);
-          if (b2 === WATER || b2 === LAVA || b2 === ICE) continue;
+    // 비스듬히 올라간다 — **수직 우물이면 들어가면 걸어 못 나온다**
+    // (실측 낙차 중앙값 7~9칸 · 최대 15칸 · 5칸 이상이 62~81%).
+    // 두 칸에 한 칸씩 옆으로 밀어 계단처럼 만든다. 마크의 동굴 입구는
+    // 비탈면에 비스듬히 열려서 걸어 들어가고 걸어 나온다.
+    var dir = (rng() * 4) | 0;
+    var ddx = [1, -1, 0, 0][dir], ddz = [0, 0, 1, -1][dir];
+    var cells = [], cx = x, cz = z, ok = true;
+    for (var uy = cave; uy <= h + 1 && ok; uy++) {
+      if ((uy - cave) % 2 === 1 && uy > cave) { cx += ddx; cz += ddz; }
+      for (var ox = 0; ox < MOUTH_W && ok; ox++)
+        for (var oz = 0; oz < MOUTH_W; oz++) {
+          var wx2 = cx + ox, wz2 = cz + oz;
+          if (wx2 < 2 || wx2 >= WX - 2 || wz2 < 2 || wz2 >= WZ - 2) { ok = false; break; }
+          var b2 = get(wx2, uy, wz2);
+          // 기둥에 물·용암이 섞이면 그만둔다 — 어귀가 폭포나 용암 굴뚝이 되면 안 된다
+          if (b2 === WATER || b2 === LAVA || b2 === ICE) { ok = false; break; }
           if (isUnbreakableGen(b2)) continue;
-          set(x + ox, uy, z + oz, AIR);
+          cells.push(wx2, uy, wz2);
         }
+      // 옆도 젖어 있으면 그만둔다
+      for (var dd = 0; dd < 6 && ok; dd++) {
+        var nb = get(cx + DIRS[dd][0], uy + DIRS[dd][1], cz + DIRS[dd][2]);
+        if (nb === WATER || nb === LAVA) ok = false;
+      }
     }
+    if (!ok || !cells.length) continue;
+    for (var ci = 0; ci < cells.length; ci += 3) set(cells[ci], cells[ci + 1], cells[ci + 2], AIR);
     made++;
   }
   return made;

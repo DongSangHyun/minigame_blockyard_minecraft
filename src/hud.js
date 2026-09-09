@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { BUILD } from "./version.js";
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
-import { AIR, ALL_BLOCKS, FENCE, LOG, PLANKS, BOOKSHELF, LAMP, GLASS, ITEMS, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross, isLeaf } from "./blocks.js";
+import { AIR, ALL_BLOCKS, FENCE, LOG, PLANKS, BOOKSHELF, LAMP, COBBLE, TORCH, GLASS, ITEMS, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross, isLeaf } from "./blocks.js";
 import { AVG_TOP, TILE, atlas, tileOrigin } from "./atlas.js";
 import { SEEN_TOP, SEEN_UNDER_ALL, UNDER_BANDS, underBand, isTouched, heightMap, markX, markY, markZ, markName, seenMap, markSeen, topMap, world } from "./world.js";
 import { player } from "./player.js";
@@ -233,6 +233,32 @@ export var UNDER_ROOF = 4;
 // 머리 위의 첫 **자연 고체** 높이 — 없으면 -1.
 // 나뭇잎과 **사람이 놓은 것**은 지붕으로 치지 않는다. 그러지 않으면
 // 나무 밑으로 걸어 들어가거나 제 집에 들어가는 것만으로 지상 지도가 통째로 꺼진다.
+// 머리 위 흙 두께 — 없으면 -1.
+// 제 기둥만 보면 **내가 판 수직굴**에서 죽는다 (topMap 이 발밑까지 내려앉아 지붕이 0이 된다).
+// 그렇다고 이웃의 최댓값을 쓰면 **벼랑 밑**에서도 지하가 된다.
+// 갈라 주는 것은 **둘러싸였는가** 다 — 굴은 네 방향이 다 흙이고,
+// 벼랑은 한두 방향, 노천 채석장은 한 방향도 안 덮인다.
+export var ROOF_R = 2;
+// 둘러싸여서 지하로 치려면 **더 깊어야** 한다 — 얕은 웅덩이에 선 나무 한 그루까지
+// 지하로 읽으면 v85 가 고친 것이 되돌아온다. 파고 내려간 굴은 금세 이 깊이를 넘는다.
+export var SURROUND_ROOF = 8;
+var _rdx = [1, -1, 0, 0], _rdz = [0, 0, 1, -1];
+export function roofDepth(x, z, y) {
+  var own = naturalRoof(x, z, y);
+  if (own >= 0 && own - y > UNDER_ROOF) return own - y;   // 천장이 바로 위에 있다
+  var deepest = -1;
+  for (var d = 0; d < 4; d++) {
+    var cover = -1;
+    for (var k = 1; k <= ROOF_R; k++) {
+      var r = naturalRoof(x + _rdx[d] * k, z + _rdz[d] * k, y);
+      if (r > cover) cover = r;
+    }
+    if (cover < 0 || cover - y <= SURROUND_ROOF) return -1;  // 이 방향은 트여 있거나 얕다
+    if (cover > deepest) deepest = cover;
+  }
+  return deepest - y;
+}
+
 export function naturalRoof(x, z, y) {
   if (x < 0 || x >= WX || z < 0 || z >= WZ) return -1;
   var top = topMap[z * WX + x];
@@ -251,15 +277,23 @@ export function naturalRoof(x, z, y) {
 // 지도는 **셀 수 있는 개수**여야 읽힌다 — 덩어리로 묶어 **한 어귀당 점 하나**만 찍는다.
 // 그리기 계층만 손대므로 지형은 한 비트도 안 달라진다.
 // 갱도가 쓰는 재료 — 자연 동굴에는 안 나오는 것들
+// 갱도가 쓰는 재료 — 자연 동굴에는 안 나오는 것들.
+// **조약돌 바닥을 빠뜨려** 판자 바닥(40%) 줄기만 지도에 길로 남았다 —
+// 같은 기능이 세계마다 13~45% 로 딴판이었다 (자문 16차 #6).
+// 지하 자연 조약돌은 실측 0칸이라 헷갈릴 것이 없다.
 function isMineMat(b) {
-  return b === FENCE || b === LOG || b === PLANKS || b === BOOKSHELF || b === LAMP;
+  return b === FENCE || b === LOG || b === PLANKS || b === BOOKSHELF ||
+         b === LAMP || b === COBBLE || b === TORCH;
 }
-export var MOUTH_MIN = 3;        // 이보다 작은 덩어리는 굴 입이 아니라 지형 주름이다
+// 이보다 작은 덩어리는 굴 입이 아니라 지형 주름이다.
+// v86 에서 어귀가 2칸 폭이 되어 덩어리가 커졌고, 얕은 입(3칸)까지 잡으려고 문턱을 내렸다 —
+// 예전에는 v82 가 판 어귀의 82~84% 가 "3칸 미만" 으로 버려져 지도에 안 나왔다.
+export var MOUTH_MIN = 2;
 export var mouthDots = [];
 function isMouthCol(x, z) {
   var i = z * WX + x;
   var h = heightMap[i], t = topMap[i];
-  return h > SEA && t >= 0 && h - t >= 4;
+  return h > SEA && t >= 0 && h - t >= 3;
 }
 export function refreshMouthDots() {
   mouthDots.length = 0;
@@ -303,8 +337,7 @@ export function drawMinimap() {
   // 그동안 **가 본 적 없는 가장 깊은 층의 지도가 "밝혀짐" 으로 칠해졌다.**
   // 지도 기억이 오염되면 되돌릴 길이 없다.
   // v80 이 동굴 울림에서 이미 같은 답을 냈다 — 머리 위 두께로 잰다.
-  var roofTop = naturalRoof(pxc, pzc, player.pos.y);
-  S.mmUnder = roofTop >= 0 && roofTop - player.pos.y > UNDER_ROOF;
+  S.mmUnder = roofDepth(pxc, pzc, player.pos.y) > UNDER_ROOF;
   // 지하는 지금 서 있는 **층**만 밝힌다 (v81) — 한 장으로 쓰면 위층에서 밝힌 자리가
   // 아래층 지도에 통돌로 뜬다. 밝히는 반경도 6 → 8 로 — 지하가 두 배가 됐는데
   // 반경이 그대로면 같은 지도를 채우는 데 두 배로 걸어야 한다.

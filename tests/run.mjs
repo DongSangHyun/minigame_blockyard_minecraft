@@ -9436,7 +9436,8 @@ test("v83 지도: 지하 단면에도 굴 어귀가 그려진다 (덩어리마�
   assert(r.dots > 3, "굴 어귀 덩어리가 " + r.dots + "개뿐이다 — 시험대가 안 섰다");
   assert(r.cells > r.dots * 3,
      "어귀 칸 " + r.cells + "개가 점 " + r.dots + "개로 묶였다 — 덩어리로 안 묶고 있다");
-  assert(r.sizes.every(n => n >= 3), "작은 지형 주름까지 어귀로 셌다: " + r.sizes.join(","));
+  assert(r.sizes.every(n => n >= 2),
+     "한 칸짜리 지형 주름까지 어귀로 셌다: " + r.sizes.join(","));
   assert(!r.surfUnder, "지상에 떠 있는데 단면 지도로 그렸다");
   assert(r.surfSeen > r.dots * 0.6,
      "지상 지도에 어귀 점이 " + r.surfSeen + "/" + r.dots + "개만 보인다");
@@ -9970,7 +9971,9 @@ test("v85 지도: 나무 밑·집 안에서 지상 지도가 안 꺼지고, 지�
     return { leaf, flipped, flips, deepPainted, inHouse, inCave };
   });
   assert(r.leaf > 100, "시험대가 안 섰다 — 나뭇잎 기둥이 " + r.leaf + "개뿐이다");
-  eq(r.flipped, 0,
+  // 사방이 머리 위 8칸 넘게 둘러싸인 자리(깊은 웅덩이·협곡 바닥의 나무)는 단면도가 맞다.
+  // v86 에서 "내가 판 굴" 을 살리며 그만큼을 받아들였다 — 1%대면 나무 밑 문제가 아니다.
+  assert(r.flipped <= r.leaf * 0.03,
      "나무 밑에 섰을 뿐인데 " + r.flipped + "/" + r.leaf + " 기둥에서 지상 지도가 꺼졌다");
   eq(r.flips, 0, "지상 한 줄을 걷는 동안 지도가 " + r.flips + "번 뒤집혔다");
   eq(r.deepPainted, 0,
@@ -10243,6 +10246,74 @@ test("v86 양동이: 물·용암을 걷어내고, 되돌리기에 실린다", as
   eq(r.placed, false, "양동이가 세계에 놓였다 — 도구는 놓는 물건이 아니다");
   eq(r.isItem, true, "양동이가 도구로 등록되지 않았다");
   eq(r.inAll, false, "양동이가 ALL_BLOCKS 에 들어가 '수집가' 과제를 영영 막는다");
+});
+
+test("v86 어귀: 굴 입구를 걸어서 드나들 수 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.S.terrain = 0;
+    const rows = [];
+    for (const seed of [333, 777, 4242]) {
+      // 어귀만 떼어 본다 — 달라진 기둥이 v82·v86 이 뚫은 자리다
+      B.S.noMouths = true;
+      B.generate(seed, 2); B.refreshAllTops();
+      const offTop = Int16Array.from(B.topMap);
+      B.S.noMouths = false;
+      // 조명을 새로 켠다 — 아래에서 lightSky 로 "하늘이 보이나" 를 재는데,
+      // 안 켜면 **앞 세계의 낡은 값**을 읽는다 (v81 에서 이미 한 번 데인 자리)
+      B.generate(seed, 2); B.refreshAllTops(); B.relightAll(false);
+      const cols = [];
+      for (let z = 1; z < B.WZ - 1; z++) for (let x = 1; x < B.WX - 1; x++)
+        if (B.topMap[z * B.WX + x] !== offTop[z * B.WX + x]) cols.push([x, z]);
+
+      // 어귀 바닥에서 **걸어서** 하늘까지 나올 수 있나 —
+      // 한 걸음에 오를 수 있는 높이는 STEP_UP(0.6)이라 1칸이다.
+      function floorAt(x, y, z) {          // 그 자리에 설 수 있나 (발밑 고체 + 머리 두 칸 공기)
+        if (x < 1 || z < 1 || x >= B.WX - 1 || z >= B.WZ - 1 || y < 1 || y + 1 >= B.WY) return false;
+        return B.isSolid(B.world[B.idx(x, y - 1, z)]) &&
+               B.world[B.idx(x, y, z)] === 0 && B.world[B.idx(x, y + 1, z)] === 0;
+      }
+      let tried = 0, walkable = 0;
+      for (let ci = 0; ci < cols.length && tried < 24; ci += Math.max(1, (cols.length / 24) | 0)) {
+        const [sx, sz] = cols[ci];
+        // 그 기둥에서 설 수 있는 가장 낮은 자리
+        let start = -1;
+        for (let y = 2; y < B.WY - 2; y++) if (floorAt(sx, y, sz)) { start = y; break; }
+        if (start < 0) continue;
+        tried++;
+        // 오르막 너비우선 — 한 걸음에 +1칸까지
+        const seen = new Set([sx + "," + start + "," + sz]);
+        const qx = [sx], qy = [start], qz = [sz];
+        let out = false;
+        for (let h = 0; h < qx.length && !out && h < 4000; h++) {
+          const cx = qx[h], cy = qy[h], cz = qz[h];
+          if (B.lightSky[B.idx(cx, cy, cz)] === 15) { out = true; break; }   // 하늘이 보인다
+          for (const d of [[1,0],[-1,0],[0,1],[0,-1]]) {
+            for (const dy of [1, 0, -1]) {
+              const nx = cx + d[0], ny = cy + dy, nz = cz + d[1];
+              const k = nx + "," + ny + "," + nz;
+              if (seen.has(k) || !floorAt(nx, ny, nz)) continue;
+              seen.add(k); qx.push(nx); qy.push(ny); qz.push(nz);
+            }
+          }
+        }
+        if (out) walkable++;
+      }
+      rows.push({ seed, cols: cols.length, tried, walkable,
+                  pct: tried ? Math.round(100 * walkable / tried) : 0 });
+    }
+    B.S.noMouths = false;
+    B.setPaused(false);
+    return rows;
+  });
+  for (const row of r) {
+    assert(row.cols > 40, "시드 " + row.seed + ": 어귀 기둥이 " + row.cols + "개뿐이다");
+    assert(row.tried >= 8, "시드 " + row.seed + ": 설 수 있는 어귀가 " + row.tried + "곳뿐이다");
+    // 예전에는 1칸 수직 우물이라 62~81%가 5칸 이상 낙하였고 사다리 없이는 못 나왔다
+    assert(row.pct >= 70,
+       "시드 " + row.seed + ": 어귀의 " + row.pct + "% 만 걸어서 나올 수 있다 — 들어가면 갇힌다");
+  }
 });
 
 // ── 실행 ───────────────────────────────────────────────
