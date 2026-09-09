@@ -2749,10 +2749,16 @@ test("v15 동물: 물과 얼음 위로는 걸어가지 않는다", async (page) 
       const gy = B.topMap[z * B.WX + x];
       const top = B.world[B.idx(x, gy, z)];
       // 기둥 겉면이 물·용암·얼음이고 그 아래에 몸이 있다 = 물속 (mobs.js strandedAt 과 같은 잣대)
-      if ((top === B.B.WATER || top === B.B.LAVA || top === B.B.ICE) && m.y < gy + 1) wet++;
+      // **"바다 위를 걷는가"** 만 본다 — 물가에 발목이 잠긴 것은 좌초가 아니다(v42).
+      // 예전 잣대는 얕은 물에 선 것도 세어 10회 중 1회 흔들렸다.
+      // ① 겉면이 액체인데 그 위에 떠 있다 = 물 위를 걷는다
+      if ((top === B.B.WATER || top === B.B.LAVA || top === B.B.ICE) && m.y >= gy + 1) wet++;
+      // ② 몸도 발밑도 액체다 = 통째로 잠겼다 (발목만 잠긴 것은 뺀다)
       const by = Math.min(B.WY - 1, Math.floor(m.y));
       const body = B.world[B.idx(x, by, z)];
-      if (body === B.B.WATER || body === B.B.LAVA) wet++;
+      const under = B.world[B.idx(x, Math.max(0, by - 1), z)];
+      if ((body === B.B.WATER || body === B.B.LAVA) &&
+          (under === B.B.WATER || under === B.B.LAVA)) wet++;
     });
     return { wet, total: B.mobs.length };
   });
@@ -10703,6 +10709,122 @@ test("v90 양동이: 담고 붓는다 — 아이콘·이름·핫바 쪽까지 �
   assert(/용암/.test(r.lavaName), "용암 양동이 이름이 '" + r.lavaName + "' 다");
   eq(r.onPage2, 0, "2쪽으로 넘어갔는데 1쪽의 담긴 것이 따라왔다");
   eq(r.backPage1, r.LAVA, "1쪽으로 돌아왔는데 담긴 용암을 잃었다");
+});
+
+test("v91 시작: 스폰이 트인 쪽을 보고, 물속에서 영원히 안 떠오른다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.terrain = 0;
+    // ── 스폰이 벽을 보고 시작하나
+    let blocked = 0, total = 0;
+    const dists = [];
+    for (const seed of [333, 777, 1137, 1959, 2233, 3877, 4242, 88]) {
+      B.generate(seed, 2); B.refreshAllTops(); B.relightAll(false);
+      B.S.spawnPoint = null;
+      B.spawn();
+      const sx = Math.floor(B.player.pos.x), sz = Math.floor(B.player.pos.z);
+      const sy = Math.floor(B.player.pos.y);
+      const fx = -Math.sin(B.player.yaw), fz = -Math.cos(B.player.yaw);
+      let d = 0;
+      for (let k = 1; k <= 30; k++) {
+        const qx = Math.floor(sx + 0.5 + fx * k), qz = Math.floor(sz + 0.5 + fz * k);
+        if (!B.inside(qx, sy, qz)) break;
+        const b = B.world[B.idx(qx, sy, qz)], b2 = B.world[B.idx(qx, sy + 1, qz)];
+        if (b !== 0 && !B.isCross(b) && !B.isLiquid(b)) break;
+        if (b2 !== 0 && !B.isCross(b2) && !B.isLiquid(b2)) break;
+        d = k;
+      }
+      dists.push(d);
+      total++;
+      if (d < 4) blocked++;
+    }
+
+    // ── 물속에서 숨이 차도 영원히 오르내리지 않는다
+    B.generate(4242, 2); B.refreshAllTops(); B.relightAll(false);
+    const X = 40, Z = 40, floorY = 24;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+      for (let dy = -2; dy <= 10; dy++) B.set(X + dx, floorY + dy, Z + dz, 0);
+      B.set(X + dx, floorY - 1, Z + dz, B.B.STONE);
+      for (let dy = 0; dy <= 6; dy++) B.set(X + dx, floorY + dy, Z + dz, B.B.WATER);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.flying = false;
+    B.player.pos.set(X + 0.5, floorY, Z + 0.5); B.player.vel.set(0, 0, 0);
+    B.S.oxygen = 1; B.S.gasped = false;
+    let minY = 999, maxY = -999, rises = 0, prevY = B.player.pos.y;
+    for (let k = 0; k < 60 * 60; k++) {
+      B.step(1 / 60);
+      const y = B.player.pos.y;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+      if (y - prevY > 0.05 && B.S.oxygen <= 0.01) rises++;
+      prevY = y;
+    }
+    const gasped = B.S.gasped;
+
+    B.S.oxygen = 1; B.S.gasped = false;
+    B.endPlay(); B.setPaused(false);
+    return { blocked, total, dists, minY, maxY, rises, gasped, floorY };
+  });
+  // 24시드 중 5개(21%)가 시야 4칸 안이 막힌 채 시작했다
+  assert(r.blocked <= 1,
+     r.total + "시드 중 " + r.blocked + "개가 벽을 보고 시작한다 — 거리: " + r.dists.join(","));
+  const med = r.dists.slice().sort((a, b) => a - b)[r.dists.length >> 1];
+  assert(med >= 10, "스폰에서 보이는 거리 중앙값이 " + med + "칸이다");
+  // 숨이 차도 수면과 바닥을 영원히 오르내리면 안 된다
+  assert(r.gasped, "시험대가 안 섰다 — 60초를 물속에 있었는데 숨이 안 찼다");
+  assert(r.rises < 120,
+     "물속에서 " + r.rises + "프레임 동안 밀려 올라갔다 — 수면과 바닥을 영원히 오르내린다");
+});
+
+test("v91 동물: 먹이를 받으면 사람을 쫓아오고, 덧먹이면 시간이 채워진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 20, Y = 40, Z = 20;
+    for (let dx = -4; dx <= 40; dx++) for (let dz = -6; dz <= 6; dz++) {
+      for (let dy = 0; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.GRASS);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    B.mobs.length = 0; B.seedMobs();
+    B.mobs.forEach(mm => { mm.x = 5; mm.z = 5; mm.y = 30; mm.follow = 0; mm.love = 0; });
+    const m = B.mobs[0];
+    m.x = X + 1.5; m.y = Y; m.z = Z + 0.5; m.follow = 0;
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    B.player.vel.set(0, 0, 0); B.player.flying = false;
+    B.feedNearbyMob(B.player.pos);
+    const fed = m.follow > 0;
+
+    // 사람이 20초 동안 걸어간다 — 동물이 얼마나 따라오나
+    const x0 = m.x;
+    for (let k = 0; k < 20 * 60; k++) {
+      B.player.pos.x = Math.min(X + 36, B.player.pos.x + B.WALK / 60);
+      B.updateMobs(1 / 60);
+    }
+    const moved = m.x - x0;
+    const gap = Math.hypot(m.x - B.player.pos.x, m.z - B.player.pos.z);
+
+    // 덧먹이면 시간이 채워진다
+    m.x = B.player.pos.x + 1.2; m.z = B.player.pos.z; m.y = B.player.pos.y;
+    m.follow = 2;
+    const again = B.feedNearbyMob(B.player.pos);
+    const extended = m.follow > 10;
+
+    B.mobs.forEach(mm => { mm.follow = 0; mm.love = 0; });
+    B.endPlay(); B.setPaused(false);
+    return { fed, moved, gap, again, extended, WALK: B.WALK };
+  });
+  assert(r.fed, "먹이를 줬는데 안 따라온다");
+  // 예전에는 1.15 b/s 라 20초에 22칸을 가고 **34.7칸까지 벌어졌다.**
+  // 지금은 판 끝(36칸)까지 따라와 바짝 붙는다 — 재는 것은 "벌어진 거리" 다.
+  assert(r.moved > 25,
+     "20초 동안 " + r.moved.toFixed(1) + "칸만 따라왔다 — 걸음(" + r.WALK + " b/s)을 못 쫓는다");
+  assert(r.gap < 4,
+     "따라오는데 " + r.gap.toFixed(1) + "칸이나 벌어졌다 — 사람이 제자리걸음을 해야 한다");
+  assert(r.again, "따라오는 동물에게 다시 먹이를 줬는데 아무 일도 없다");
+  assert(r.extended, "덧먹였는데 따라오기가 " + " 안 늘었다 — 섬을 가로지르는 동안 끊긴다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

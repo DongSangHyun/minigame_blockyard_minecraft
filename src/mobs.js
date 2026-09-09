@@ -260,14 +260,20 @@ export function updateMobs(dt) {
     }
 
     m.turn -= dt;
-    if (m.turn <= 0) {
+    // 따라오는 동안에는 **제멋대로 멈추지 않는다** — 아래 무작위가 0.4초마다
+    // walk 를 다시 뽑아 실제 속도가 절반으로 깎였다 (v91).
+    if (m.turn <= 0 && !(m.follow > 0)) {
       m.turn = 1.5 + Math.random() * 4;
       m.walk = Math.random() < 0.62 ? 1 : 0;
       m.yaw += (Math.random() - 0.5) * 2.4;
     }
 
     if (m.walk) {
-      var sp = 1.15 * dt;
+      // 먹이를 받아 따라오는 동안에는 **사람 걸음을 쫓아온다** (v91).
+      // 1.15 b/s 는 걸음(4.6)의 4분의 1이라, 26초를 따라와도 22칸을 가고
+      // 그동안 사람은 제자리걸음을 해야 했다 — 잡아 오는 마지막 한 걸음이 빠져 있었다.
+      // 마크의 소도 밀을 든 사람을 거의 같은 속도로 쫓아온다.
+      var sp = (m.follow > 0 ? 3.2 : 1.15) * dt;
       var nx = m.x - Math.sin(m.yaw) * sp, nz = m.z - Math.cos(m.yaw) * sp;
       // 딛을 자리를 지금 높이 언저리에서 찾는다 — topMap(기둥 최고점) 을 쓰면 지붕·나뭇잎이
       // "땅" 이 되어 헛간 안에서 얼어붙는다. 단, 딛는 돌 위의 몸 칸이 물·용암·얼음이거나
@@ -396,16 +402,31 @@ export function feedNearbyMob(pos) {
   // 상한에 걸리면 하트도 소리도 내지 않는다 — 안 그러면 "짝이 안 맞았나" 하며 꽃만 계속 준다.
   // -1 을 돌려 부른 쪽(mine.js)이 안내하게 한다 (v46 에서 unlock 을 부른 쪽에 맡긴 것과 같다)
   if (mobs.length >= MOB_MAX) return -1;
-  var best = -1, bestD = 25;
+  var best = -1, bestD = 25, refeed = null, refeedD = 1e9;
   for (var i = 0; i < mobs.length; i++) {
     var m = mobs[i];
-    if (m.follow > 0) continue;                       // 이미 따라오는 동물은 건너뛴다
     var dx = m.x - pos.x, dy = m.y - pos.y, dz = m.z - pos.z;
     if (Math.abs(dy) > 3) continue;                    // 위아래 층은 세지 않는다
     var d = dx * dx + dz * dz;
+    if (d >= 25) continue;                             // 손이 닿는 거리 밖은 아예 안 본다
+    // 이미 따라오는 동물에게 다시 먹이를 주면 **시간이 채워진다** —
+    // 건너뛰기만 하면 96칸 섬을 가로지르는 동안 따라오기가 끊겼다 (v91).
+    if (m.follow > 0) { if (!refeed || d < refeedD) { refeed = m; refeedD = d; } continue; }
     if (d < bestD) { bestD = d; best = i; }
   }
-  if (best < 0) return false;
+  if (best < 0) {
+    // 둘레에 따라오는 동물뿐이면 그 동물의 시간을 채운다
+    if (refeed) {
+      refeed.follow = 22 + Math.random() * 14;
+      refeed.love = refeed.follow;
+      refeed.loveHint = 0;
+      burst(refeed.x, refeed.y + 0.8, refeed.z, LOVE_HINT, 4);
+      tone(MOB_KINDS[refeed.kind].cry * 1.35, 0.14, "triangle", 0.05,
+           at(refeed.x, refeed.y + 0.6, refeed.z));
+      return true;
+    }
+    return false;
+  }
   var mm = mobs[best], k = MOB_KINDS[mm.kind];
   mm.follow = 22 + Math.random() * 14;
   // 사랑은 따라오기와 **같이** 끝난다 (자문 12차 #4).

@@ -538,6 +538,15 @@
   details.opts summary::-webkit-details-marker { display: none; }
   details.opts summary::before { content: "▸ "; color: var(--moss); }
   details.opts[open] summary::before { content: "▾ "; }
+  .pillrow { display: flex; gap: 6px; grid-column: 2 / -1; }
+  .pillrow button {
+    flex: 1; padding: 8px 4px;
+    font-family: var(--pixel); font-size: 9px; letter-spacing: .04em;
+    color: var(--bone); background: var(--panel-2);
+    border: 2px solid var(--line); cursor: pointer;
+  }
+  .pillrow button:hover { border-color: var(--line-hi); }
+  .pillrow button[aria-current="true"] { border-color: var(--ember); color: var(--ember); }
   .opt-head {
     margin: 14px 0 6px; font-family: var(--pixel); font-size: 9px;
     color: var(--ember); letter-spacing: .12em;
@@ -609,6 +618,15 @@
   #seedin:focus-visible { outline: 2px solid var(--moss); outline-offset: 1px; }
 
   .actions { display: flex; gap: 8px; margin-top: 20px; }
+  /* 폰(844×390 가로)에서는 카드가 화면보다 훨씬 길어 **「플레이」 가 화면 밖 160px** 에 있었다.
+     시작하려면 스크롤 여유의 2/3 를 굴려 내려야 했다 — 게임을 켠 사람이 처음 겪는 30초다.
+     화면 아래에 붙여 둔다 (자문 18차 #1). */
+  html.touch .actions {
+    position: sticky; bottom: 0; z-index: 3;
+    margin-top: 16px; padding: 10px 0 10px;
+    background: linear-gradient(to top,
+      color-mix(in srgb, var(--panel) 98%, transparent) 76%, transparent);
+  }
   .go, .alt {
     flex: 1; padding: 15px 12px;
     font-family: var(--pixel); font-size: 13px; letter-spacing: .09em;
@@ -1006,7 +1024,7 @@
 
     <div class="rule"></div>
 
-    <details class="keys-wrap"><summary>조작 (<b>H</b> 로 언제든 다시 볼 수 있습니다)</summary>
+    <details class="keys-wrap"><summary>조작 <span class="onlykeys">(<b>H</b> 로 언제든 다시 볼 수 있습니다)</span><span class="onlytouch">(<b>메뉴</b> 단추로 언제든 다시 봅니다)</span></summary>
     <div class="keys">
       <div><kbd>W A S D</kbd><span>걷기 (방향키도 됩니다)</span></div>
       <div><kbd>SPACE</kbd><span>점프 / 상승 / 헤엄</span></div>
@@ -1059,6 +1077,24 @@
         <label class="opt"><span>화면 표시 크기</span><input type="range" id="s-ui" min="80" max="180" step="10"><output id="o-ui"></output></label>
         <label class="opt check"><span>고대비 화면</span><input type="checkbox" id="s-hc"><output id="o-hc"></output></label>
         <label class="opt check"><span>화면 흔들림 줄이기</span><input type="checkbox" id="s-steady"><output id="o-steady"></output></label>
+      </div>
+      <!-- 시간·날씨는 T·K 키에만 있었다 — 폰에서는 하루 20분 중 9.8분이 어둠인데
+           밤을 넘길 길이 하나도 없었다 (자문 18차 #5). 설정에서 바로 고른다. -->
+      <p class="opt-head">지금 이 세계</p>
+      <div class="opt-grid">
+        <div class="opt"><span>시간</span>
+          <div class="pillrow" id="row-time">
+            <button type="button" data-time="0.26">아침</button>
+            <button type="button" data-time="0.50">정오</button>
+            <button type="button" data-time="0.74">노을</button>
+            <button type="button" data-time="0.98">한밤</button>
+          </div></div>
+        <div class="opt"><span>날씨</span>
+          <div class="pillrow" id="row-weather">
+            <button type="button" data-weather="0">맑음</button>
+            <button type="button" data-weather="1">비</button>
+            <button type="button" data-weather="2">눈</button>
+          </div></div>
       </div>
       <p class="opt-head">세계와 저장</p>
       <div class="opt-grid">

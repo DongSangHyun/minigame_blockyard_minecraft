@@ -594,6 +594,7 @@ export function refreshResume() {
 }
 
 export function refreshMenu() {
+  refreshWorldPills();          // 지금 시각·날씨를 단추에 표시한다
   refreshResume();
   refreshSlots();
   refreshBlueprints();
@@ -758,6 +759,48 @@ export function cycleTime() {
   applyTime();
   toast(label);
 }
+
+// **선언이 IIFE 보다 먼저여야 한다** — `var` 는 끌어올려지지만 **대입은 그 자리에서** 돈다.
+// 뒤에 두면 IIFE 가 넣은 함수를 빈 함수가 덮어쓴다.
+export var refreshWorldPills = function () {};
+// 설정의 시간·날씨 단추 — 폰에는 `T`·`K` 가 없어 밤을 넘길 길이 없었다 (v91).
+// 키보드와 **같은 길**(applyTime·setWeather)을 탄다.
+(function bindWorldPills() {
+  var tRow = document.getElementById("row-time");
+  var wRow = document.getElementById("row-weather");
+  function markTime() {
+    if (!tRow) return;
+    for (var i = 0; i < tRow.children.length; i++) {
+      var b = tRow.children[i];
+      var v = parseFloat(b.getAttribute("data-time"));
+      b.setAttribute("aria-current", Math.abs(S.timeOfDay - v) < 0.02 ? "true" : "false");
+    }
+  }
+  function markWeather() {
+    if (!wRow) return;
+    for (var j = 0; j < wRow.children.length; j++) {
+      var wb = wRow.children[j];
+      wb.setAttribute("aria-current",
+        (parseInt(wb.getAttribute("data-weather"), 10) === S.weather) ? "true" : "false");
+    }
+  }
+  if (tRow) tRow.addEventListener("click", function (e) {
+    var b = e.target.closest ? e.target.closest("button") : null;
+    if (!b) return;
+    S.timeOfDay = parseFloat(b.getAttribute("data-time"));
+    applyTime(); markTime();
+    S.worldDirty = true;
+  });
+  if (wRow) wRow.addEventListener("click", function (e) {
+    var b2 = e.target.closest ? e.target.closest("button") : null;
+    if (!b2) return;
+    setWeather(parseInt(b2.getAttribute("data-weather"), 10));
+    S.weatherLock = true;           // 손으로 고른 날씨는 저절로 안 바뀐다 (K 와 같다)
+    markWeather();
+    S.worldDirty = true;
+  });
+  refreshWorldPills = function () { markTime(); markWeather(); };
+})();
 
 // 모양을 바꾼다 — **지금 칸에 기억시킨다** (v82).
 // 이 한 함수를 거치지 않는 대입이 하나라도 남으면 그 경로에서만 모양이 안 남는다.
@@ -1377,7 +1420,22 @@ bindHold("tb-fly", function () {
 });
 // 폰에는 ESC 도 Ctrl+Z 도 없었다 — 설정·저장 슬롯·청사진·새 세계가 전부 메뉴 안인데
 // 거기로 가는 길이 한 줄도 없어서, [플레이]를 누르면 그 세션은 끝까지 갇혔다.
+// 메뉴는 짧게, **화면 표시 끄기는 길게** (v91).
+// 폰에는 `F1` 이 없어 끌 수 없는 HUD 가 화면의 28.1% 를 먹었고,
+// 과제 40개 중 "사진사" 하나만 기기 때문에 영영 안 열렸다.
+var menuHold = 0, menuLong = false;
 bindHold("tb-menu", function () {
+  menuLong = false;
+  clearTimeout(menuHold);
+  menuHold = setTimeout(function () {
+    menuLong = true;
+    S.hudHidden = !S.hudHidden;
+    showHud(!S.hudHidden);
+    toast(S.hudHidden ? "화면 표시 끔 — 메뉴를 길게 눌러 되돌립니다" : "화면 표시 켬");
+  }, 450);
+}, function () {
+  clearTimeout(menuHold);
+  if (menuLong) { menuLong = false; return; }
   if (helpOpen()) { toggleHelp(false); return; }
   if (S.uiOpen) { closePicker(true); return; }
   endPlay();
@@ -1390,7 +1448,22 @@ bindHold("tb-shape", function () {
   updateHandBlock();
   advanceTutTouch(3);
 });
+// 되돌리기는 짧게, **다시하기는 길게** (v91).
+// 폰에는 `Ctrl+Y` 가 없어 되돌리기의 짝이 아예 없었다 — 메뉴를 누르려다 손이
+// 한 칸 위로 가면 TNT 한 방(158칸)이 통째로 사라지고 되돌릴 길이 없었다.
+var undoHold = 0, undoLong = false;
 bindHold("tb-undo", function () {
+  undoLong = false;
+  clearTimeout(undoHold);
+  undoHold = setTimeout(function () {
+    undoLong = true;
+    var re = redo();
+    toast(re ? ("다시하기" + (lastEditLabel ? " — " + lastEditLabel : "")) : "다시할 것이 없습니다");
+    tone(re ? 720 : 300, 0.07, "square", 0.04);
+  }, 450);
+}, function () {
+  clearTimeout(undoHold);
+  if (undoLong) { undoLong = false; return; }
   var ok = undo();
   toast(ok ? ("되돌리기" + (lastEditLabel ? " — " + lastEditLabel : ""))
            : (undoEmptyWhy || "더 없음"));

@@ -136,6 +136,7 @@ export const S = {
   caveHeard: 0,        // 동굴 울림이 몇 번 났나 (시험용 계수기)
   moodTimer: 40,
   oxygen: 1,
+  gasped: false,       // 숨이 차서 한 번 떠올랐나 (v91) — 매 프레임 밀면 영원히 오르내린다
   mmZoom: 1,
   mmZoomUnder: 3,      // 지하 단면은 따로 — 밝히는 반경이 8칸이라 축척이 달라야 한다 (v87)
   contour: true,

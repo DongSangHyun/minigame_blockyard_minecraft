@@ -475,7 +475,13 @@ export function step(dt) {
       if (S.oxygen === 0) { crunch(0.35, 0.14, 1200); tone(320, 0.25, "sine", 0.05); }
       S.oxygen = Math.min(1, S.oxygen + dt / 2.5);
     }
-    if (eyeInWater && S.oxygen <= 0) player.vel.y = Math.max(player.vel.y, 2.4);
+    // 숨이 차면 **한 번** 떠오른다 — 매 프레임 밀어 올리면 수면과 바닥을 7초 주기로
+    // 영원히 오르내리게 되어 **바다 밑 건축이 통째로 막힌다**(실측 60초 내내 반복).
+    // 완전한 크리에이티브를 표방하는 게임에서 그러면 안 된다 (자문 18차 #3).
+    // 한 번 밀어 올린 뒤에는 웅크리기(가라앉기)로 다시 내려갈 수 있다.
+    if (eyeInWater && S.oxygen <= 0) {
+      if (!S.gasped) { S.gasped = true; player.vel.y = Math.max(player.vel.y, 3.4); }
+    } else if (!eyeInWater) S.gasped = false;
     var showAir = eyeInWater || S.oxygen < 0.999;
     if (airEl.hidden === showAir) airEl.hidden = !showAir;
     if (showAir) {

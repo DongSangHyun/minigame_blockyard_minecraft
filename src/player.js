@@ -59,8 +59,35 @@ export function spawn() {
   }
   player.pos.set(sx + 0.5, top + 1.2, sz + 0.5);
   player.vel.set(0, 0, 0);
-  player.yaw = Math.PI * 0.25; player.pitch = -0.15;
+  // 설 자리는 나선으로 잘 골라 놓고 **바라볼 쪽은 안 골랐다** —
+  // 24시드 중 5개(21%)가 시야 4칸 안이 막힌 채 시작했고, 코앞 0.75칸이 벽인 시드도 있었다.
+  // 그 다섯 모두 16방향 중 30칸까지 트인 쪽이 있었다 (자문 18차 #2).
+  // 오두막(v76)·어귀(v82)·지형(v79)을 그렇게 다듬어 놓고 그 풍경을 못 보고 시작하면 아깝다.
+  player.yaw = bestView(sx, top + 1, sz);
+  player.pitch = -0.15;
   player.flying = false;
+}
+
+// 눈높이에서 16방향을 훑어 **가장 멀리 트인 쪽**의 yaw 를 돌려준다.
+// 앞(fx, fz) = (-sin yaw, -cos yaw) 이므로 방향에서 yaw 를 거꾸로 뽑는다.
+export var VIEW_RAYS = 16, VIEW_MAX = 30;
+export function bestView(sx, sy, sz) {
+  var bestYaw = Math.PI * 0.25, bestD = -1;
+  for (var i = 0; i < VIEW_RAYS; i++) {
+    var yaw = (i / VIEW_RAYS) * Math.PI * 2;
+    var fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+    var d = 0;
+    for (var k = 1; k <= VIEW_MAX; k++) {
+      var qx = Math.floor(sx + 0.5 + fx * k), qz = Math.floor(sz + 0.5 + fz * k);
+      if (!inside(qx, sy, qz)) break;
+      var b = get(qx, sy, qz), b2 = get(qx, sy + 1, qz);
+      if (b !== AIR && !isCross(b) && !isLiquid(b)) break;
+      if (b2 !== AIR && !isCross(b2) && !isLiquid(b2)) break;
+      d = k;
+    }
+    if (d > bestD) { bestD = d; bestYaw = yaw; }
+  }
+  return bestYaw;
 }
 
 // ignoreTall — 울타리의 "보이지 않는 0.5칸" 을 무시한다.
