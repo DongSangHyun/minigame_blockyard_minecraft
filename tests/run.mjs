@@ -10613,6 +10613,98 @@ phoneTest("스틱을 끝까지 밀면 달린다", async (page) => {
      "달린다는데 속도가 " + r.half.v.toFixed(2) + " → " + r.full.v.toFixed(2) + " 다");
 });
 
+test("v90 양동이: 담고 붓는다 — 아이콘·이름·핫바 쪽까지 따라간다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 70, Y = 30, Z = 70;
+    B.resetQueues(); B.S.fluidOwner = null;
+    for (let dx = -4; dx <= 8; dx++) for (let dz = -4; dz <= 8; dz++)
+      for (let dy = -2; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dx = -4; dx <= 8; dx++) for (let dz = -4; dz <= 8; dz++)
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    B.set(X, Y, Z, B.B.WATER);
+    B.refreshAllTops(); B.relightAll(false);
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.S.sneaking = false;
+    for (let i = 0; i < 10; i++) B.S.fillBar[i] = 0;
+    B.S.bar[B.S.selected] = B.BUCKET;
+    B.refreshBar();          // S.bar 를 직접 바꾸면 칸은 안 다시 그려진다
+
+    function aimDown(x, y, z) {
+      B.player.flying = true; B.player.vel.set(0, 0, 0);
+      B.player.pos.set(x + 0.5, y + 3, z + 0.5);
+      B.player.yaw = 0; B.player.pitch = -Math.PI / 2 + 0.01;
+      B.camera.rotation.order = "YXZ";
+      B.camera.rotation.y = 0; B.camera.rotation.x = B.player.pitch;
+      B.camera.position.set(B.player.pos.x, B.player.pos.y + B.EYE, B.player.pos.z);
+      B.camera.updateMatrixWorld(true);
+    }
+    const bar = document.getElementById("hotbar");
+    const slot = bar.children[B.S.selected];
+    const nameEmpty = slot.querySelector(".name").textContent;
+
+    // ── 담는다
+    aimDown(X, Y, Z);
+    B.place(false);
+    const water0 = B.get(X, Y, Z);
+    const filled = B.S.fillBar[B.S.selected];
+    const nameFull = slot.querySelector(".name").textContent;
+    const ariaFull = slot.getAttribute("aria-label");
+
+    // ── 붓는다 — 다른 자리에
+    aimDown(X + 3, Y, Z + 3);
+    B.place(false);
+    const poured = B.get(X + 3, Y, Z + 3);
+    const emptied = B.S.fillBar[B.S.selected];
+    const nameAfter = slot.querySelector(".name").textContent;
+
+    // ── 빈 양동이로 다시 누르면 담기로 돌아간다 (물이 없으면 안내)
+    const toastEl = document.getElementById("toast");
+    toastEl.textContent = "";
+    aimDown(X + 6, Y, Z + 6);
+    B.place(false);
+    const emptyMsg = toastEl.textContent;
+
+    // ── 핫바 2쪽으로 넘어가면 담긴 것도 따라간다
+    B.S.fillBar[B.S.selected] = B.B.LAVA;
+    B.refreshBar();
+    const lavaName = slot.querySelector(".name").textContent;
+    const page0 = B.S.barPage;
+    B.swapBarPage();
+    const onPage2 = B.S.fillBar[B.S.selected];
+    B.swapBarPage();
+    const backPage1 = B.S.fillBar[B.S.selected];
+
+    // ── 새 세계면 비운다
+    B.S.fillBar[B.S.selected] = B.B.WATER;
+    const beforeNew = B.S.fillBar[B.S.selected];
+
+    for (let i = 0; i < 10; i++) { B.S.fillBar[i] = 0; B.S.fillBarAlt[i] = 0; }
+    B.refreshBar();
+    B.player.flying = false;
+    B.resetQueues(); B.S.fluidOwner = null;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { nameEmpty, water0, filled, nameFull, ariaFull, poured, emptied, nameAfter,
+             emptyMsg, lavaName, onPage2, backPage1, beforeNew,
+             WATER: B.B.WATER, LAVA: B.B.LAVA };
+  });
+  eq(r.water0, 0, "양동이를 썼는데 물이 그대로다");
+  eq(r.filled, r.WATER, "물을 펐는데 양동이가 안 찼다");
+  assert(/물/.test(r.nameFull) && r.nameFull !== r.nameEmpty,
+     "담은 뒤 칸 이름이 '" + r.nameFull + "' — 빈 것(" + r.nameEmpty + ")과 같다");
+  assert(/물/.test(r.ariaFull), "읽어 주는 이름에 담긴 것이 안 나온다: " + r.ariaFull);
+  eq(r.poured, r.WATER, "담긴 양동이로 눌렀는데 물이 안 부어졌다");
+  eq(r.emptied, 0, "부었는데 양동이가 안 비었다");
+  eq(r.nameAfter, r.nameEmpty, "부은 뒤 칸 이름이 안 돌아왔다: " + r.nameAfter);
+  assert(/조준|없/.test(r.emptyMsg) || r.emptyMsg.length > 0,
+     "빈 양동이로 허공을 눌렀는데 아무 말이 없다");
+  assert(/용암/.test(r.lavaName), "용암 양동이 이름이 '" + r.lavaName + "' 다");
+  eq(r.onPage2, 0, "2쪽으로 넘어갔는데 1쪽의 담긴 것이 따라왔다");
+  eq(r.backPage1, r.LAVA, "1쪽으로 돌아왔는데 담긴 용암을 잃었다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

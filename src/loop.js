@@ -71,6 +71,8 @@ export function newWorld(seed) {
   S.shapeMode = 0;
   if (S.shapeBar) { for (var sq = 0; sq < S.shapeBar.length; sq++) S.shapeBar[sq] = 0; }
   if (S.shapeBarAlt) { for (var sq2 = 0; sq2 < S.shapeBarAlt.length; sq2++) S.shapeBarAlt[sq2] = 0; }
+  if (S.fillBar) { for (var fq = 0; fq < S.fillBar.length; fq++) S.fillBar[fq] = 0; }
+  if (S.fillBarAlt) { for (var fq2 = 0; fq2 < S.fillBarAlt.length; fq2++) S.fillBarAlt[fq2] = 0; }
   S.stepLift = 0;
   S.spawnPoint = null;
   S.marks = [];

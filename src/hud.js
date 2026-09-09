@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { BUILD } from "./version.js";
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
-import { AIR, ALL_BLOCKS, FENCE, LOG, PLANKS, BOOKSHELF, LAMP, COBBLE, TORCH, GLASS, ITEMS, isItem, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross, isLeaf } from "./blocks.js";
+import { AIR, ALL_BLOCKS, BUCKET, BUCKET_TILE, FENCE, LOG, PLANKS, BOOKSHELF, LAMP, COBBLE, TORCH, GLASS, ITEMS, isItem, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross, isLeaf } from "./blocks.js";
 import { AVG_TOP, TILE, atlas, tileOrigin } from "./atlas.js";
 import { SEEN_TOP, SEEN_UNDER_ALL, UNDER_BANDS, underBand, isTouched, heightMap, markX, markY, markZ, markName, seenMap, markSeen, topMap, world } from "./world.js";
 import { player } from "./player.js";
@@ -12,12 +12,13 @@ import { advanceTut, canvas, isTouch } from "./input.js";
 export var hotbarEl = document.getElementById("hotbar");
 export var slotCanvases = [];
 
-export function drawIcon(cv, blockId) {
+// tileOverride — 담긴 양동이처럼 **아이콘만** 다른 것 (블록 아이디를 더 만들지 않는다)
+export function drawIcon(cv, blockId, tileOverride) {
   var c = cv.getContext("2d");
   c.clearRect(0, 0, 64, 64);
   c.imageSmoothingEnabled = false;
   var cx = 32, top = 9, hw = 22, hh = 11, sh = 22;
-  var t = TILES[blockId];
+  var t = tileOverride !== undefined ? [tileOverride, tileOverride, tileOverride] : TILES[blockId];
 
   // 도구(부싯돌·양동이)도 납작하게 그린다 — 6면 큐브로 그리면 **회색 상자**로 보여
   // 핫바에서 무엇인지 알 수가 없었다 (자문 17차 #5). 마크의 아이템도 납작한 그림이다.
@@ -79,15 +80,24 @@ for (var si = 0; si < S.bar.length; si++) {
 export var SHAPE_GLYPH = ["", "▬", "◤"];
 export var SHAPE_COLOR = ["", "#f0a03c", "#6fc8f0"];
 export var SHAPE_WORD = ["전체 블록", "반블록", "계단"];
+// 그 칸의 이름 — 담긴 양동이는 "물 양동이" 로 부른다
+export function slotName(i) {
+  var b = S.bar[i];
+  var f = (b === BUCKET && S.fillBar) ? (S.fillBar[i] | 0) : 0;
+  if (!f) return NAMES[b];
+  return (f === WATER ? "물" : "용암") + " " + NAMES[b];
+}
 export function refreshSlot(i) {
   var b = S.bar[i];
-  drawIcon(slotCanvases[i], b);
+  var fill = (b === BUCKET && S.fillBar) ? (S.fillBar[i] | 0) : 0;
+  drawIcon(slotCanvases[i], b, fill ? BUCKET_TILE[fill] : undefined);
   var slot = hotbarEl.children[i];
   var m = (S.shapeBar && i !== S.selected) ? (S.shapeBar[i] | 0) : (S.shapeMode | 0);
   if (i !== S.selected && !S.shapeBar) m = 0;
   var g = SHAPE_GLYPH[m] || "";
-  slot.setAttribute("aria-label", NAMES[b] + (g ? " · " + SHAPE_WORD[m] : ""));
-  slot.querySelector(".name").textContent = NAMES[b];
+  var nm2 = slotName(i);
+  slot.setAttribute("aria-label", nm2 + (g ? " · " + SHAPE_WORD[m] : ""));
+  slot.querySelector(".name").textContent = nm2;
   var sp = slot.querySelector(".shape");
   if (sp) {
     sp.textContent = g;

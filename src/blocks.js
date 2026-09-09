@@ -70,6 +70,9 @@ TILES[CARPET]    = [60, 60, 60];
 TILES[POT]       = [78, 77, 77];      // 위는 흙, 옆·아래는 토분
 TILES[FRAME]     = [79, 79, 79];
 TILES[BUCKET]    = [80, 80, 80];
+// 담긴 양동이는 **아이콘만** 다르다 — 블록 아이디를 더 만들지 않는다.
+// 새 아이디를 만들면 ALL_BLOCKS·저장·과제까지 줄줄이 따라온다.
+export var BUCKET_TILE = { 0: 80, 10: 81, 18: 82 };   // 빈 · 물 · 용암
 TILES[DRYGRASS]  = [29, 29, 29];
 TILES[BIRCH_LOG]    = [31, 30, 31];
 TILES[BIRCH_LEAVES] = [32, 32, 32];
@@ -305,6 +308,8 @@ S.barAlt = DEFAULT_BAR2.slice();   // state.js 는 import 를 하지 않으므�
 function zeros(n) { var a = []; for (var i = 0; i < n; i++) a.push(0); return a; }
 S.shapeBar = zeros(DEFAULT_BAR.length);
 S.shapeBarAlt = zeros(DEFAULT_BAR2.length);
+S.fillBar = zeros(DEFAULT_BAR.length);
+S.fillBarAlt = zeros(DEFAULT_BAR2.length);
 
 // ── 블록 갈래 — 목록이 35종을 넘어가면 분류가 필요하다
 export function categoryOf(b) {

@@ -839,6 +839,10 @@ export function swapBarPage() {
   var swapShape = S.shapeBar;
   S.shapeBar = S.shapeBarAlt;
   S.shapeBarAlt = swapShape;
+  // 양동이에 담긴 것도 쪽마다 따라간다 (v90)
+  var swapFill = S.fillBar;
+  S.fillBar = S.fillBarAlt;
+  S.fillBarAlt = swapFill;
   var swapBar = S.bar;
   S.bar = S.barAlt;
   S.barAlt = swapBar;

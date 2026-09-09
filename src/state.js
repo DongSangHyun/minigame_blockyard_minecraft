@@ -33,6 +33,11 @@ export const S = {
   // 두 쪽(Tab)도 각자 기억한다. blocks.js 가 채운다 (state.js 는 import 를 하지 않는다).
   shapeBar: null,
   shapeBarAlt: null,
+  // 양동이에 담긴 것 — 칸마다 기억한다 (v90). 0 비었음 · WATER · LAVA.
+  // 칸별 모양(v82)과 **같은 틀**이다. 저장에는 안 싣는다 — 세션 안에서만 기억하므로
+  // 저장 포맷은 v5 그대로다.
+  fillBar: null,
+  fillBarAlt: null,
   bobPhase: 0,
   bobAmount: 0,
   stepPhase: 0,

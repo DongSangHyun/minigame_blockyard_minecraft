@@ -405,6 +405,28 @@ paint(80, function (p, r) {  // 양동이 — 쇠통에 손잡이
   p(11, 3, "#767e85"); p(12, 4, "#767e85");
 });
 
+// 담긴 양동이 — 같은 통에 내용물만 채운다 (아이콘만 다르고 블록은 하나다)
+[[81, ["#2f6ba8", "#3a7cbe", "#2a5f96"]], [82, ["#d4661e", "#e8802c", "#b8500f"]]]
+  .forEach(function (spec) {
+    paint(spec[0], function (p, r) {
+      for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) p(x, y, "rgba(0,0,0,0)");
+      var body = ["#9aa3ab", "#868f97", "#aab3ba"];
+      for (var y2 = 5; y2 < 15; y2++) {
+        var inset = Math.floor((y2 - 5) * 0.22);
+        for (var x2 = 3 + inset; x2 < 13 - inset; x2++) p(x2, y2, pick(r, body));
+      }
+      // 담긴 것 — 통 안쪽을 채운다
+      for (var fy = 7; fy < 14; fy++) {
+        var fi = Math.floor((fy - 5) * 0.22);
+        for (var fx = 4 + fi; fx < 12 - fi; fx++) p(fx, fy, pick(r, spec[1]));
+      }
+      for (var k = 3; k < 13; k++) p(k, 5, "#c6ced4");
+      for (var k2 = 6; k2 < 14; k2++) { p(3, k2, "#6f777e"); p(12, k2, "#6f777e"); }
+      p(3, 4, "#767e85"); p(4, 3, "#767e85"); p(6, 2, "#767e85"); p(9, 2, "#767e85");
+      p(11, 3, "#767e85"); p(12, 4, "#767e85");
+    });
+  });
+
 paint(28, function (p, r) {  // 죽은 덤불 — 마른 가지
   var b = ["#7a5a2e", "#8d6a37", "#694d27"];
   for (var k = 0; k < 5; k++) {

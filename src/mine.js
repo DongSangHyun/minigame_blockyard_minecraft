@@ -9,8 +9,8 @@ import { burst } from "./scene.js";
 import { BODY, HALF, currentShape, player, raycast, stats } from "./player.js";
 import { breakSound, crunch, placeSound, tone } from "./audio.js";
 import { applyEdit, beginBatch, endBatch, unlock } from "./edit.js";
-import { noteBlockUse, toast } from "./hud.js";
-import { triggerSwing } from "./hand.js";
+import { noteBlockUse, refreshSlot, toast } from "./hud.js";
+import { triggerSwing, updateHandBlock } from "./hand.js";
 import { advanceTut, advanceTutTouch } from "./input.js";
 
 export function mineAt(hit) {
@@ -148,7 +148,30 @@ export function scoopLiquid(repeating) {
   triggerSwing();
   crunch(0.18, 0.09, hit.block === WATER ? 900 : 420);
   if (own) endBatch(name + " 퍼내기");
-  if (!repeating) toast(name + "을 펐습니다");
+  // 담는다 — 다음 우클릭이면 붓는다
+  if (S.fillBar) { S.fillBar[S.selected] = hit.block; refreshSlot(S.selected); updateHandBlock(); }
+  if (!repeating) toast(name + "을 펐습니다 — 우클릭으로 붓습니다");
+  S.worldDirty = true;
+}
+
+// 담긴 것을 붓는다 — 한 번 부으면 양동이가 빈다 (홀드로 연달아 붓지 않는다)
+export function pourLiquid(hit, repeating) {
+  if (repeating) return;                       // 붓기는 한 번이다
+  var liq = S.fillBar[S.selected];
+  var name = liq === WATER ? "물" : "용암";
+  if (!hit) { toast("부을 자리를 조준하세요"); return; }
+  var onCross = isCross(hit.block);
+  var px = onCross ? hit.x : hit.x + hit.nx;
+  var py = onCross ? hit.y : hit.y + hit.ny;
+  var pz = onCross ? hit.z : hit.z + hit.nz;
+  if (!canPlaceAt(px, py, pz)) { toast("여기에는 부을 수 없습니다"); return; }
+  if (!applyEdit(px, py, pz, liq, true)) return;
+  S.fillBar[S.selected] = 0;
+  refreshSlot(S.selected);
+  updateHandBlock();
+  triggerSwing();
+  placeSound(liq);
+  toast(name + "을 부었습니다");
   S.worldDirty = true;
 }
 
@@ -161,6 +184,9 @@ export function place(repeating) {
     if (!repeating && bh && isOpenable(bh.block) && !S.sneaking) {
       if (tryInteract(bh)) return;
     }
+    // 담긴 것이 있으면 **붓는다** — 마크의 양동이는 하나가 담고 붓는다 (v90).
+    // 담기만 하던 때는 연못을 만들려고 목록(E)에서 "물" 을 찾아 핫바에 넣어야 했다.
+    if (S.fillBar && S.fillBar[S.selected]) { pourLiquid(bh, repeating); return; }
     scoopLiquid(repeating);
     return;
   }
