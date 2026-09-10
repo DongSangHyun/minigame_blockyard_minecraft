@@ -60,6 +60,7 @@ export const S = {
   // 이번 프레임에 조준한 칸의 "앞면" 좌표 — F3 이 밝기를 읽는다.
   // step() 이 이미 쏜 레이캐스트 결과를 animate() 로 넘기는 통로다 (두 번 쏘지 않으려고).
   aimFace: null,
+  aimHit: null,     // 겨눈 칸의 좌표 (계기판 「조준」· v93)
   noSeaDecor: false,      // 시험용 — 바다 장식을 빼고 생성한다
   noHuts: false,          // 시험용 — 오두막을 빼고 생성한다
   noMines: false,         // 시험용 — 갱도를 빼고 생성한다

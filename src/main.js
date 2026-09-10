@@ -1,7 +1,7 @@
 // main.js — 조립과 시작
 import { S } from "./state.js";
 import { growTree } from "./tree.js";
-import { breedTick, MOB_MAX, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, mobs, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
+import { breedTick, MOB_MAX, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, loadMobs, disposeMob, mobs, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { atlasSample, SWATCH_SIDE, animateLiquids, atlas, painted } from "./atlas.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, GEN, setGen, seaLift, WX, WY, WZ, idx, inside } from "./dims.js";
@@ -12,7 +12,7 @@ import { growTick, enqueueGrow, lavaFlowTick, lavaDryTick, LAVA_FLOW, grassTick,
 import { markDirty, FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll, setBuildFocus } from "./mesh.js";
 import { selBox, selMat, SEL_DONE, SEL_ANCHOR, pasteBox, updatePasteBox, outerSea, updateOuterSea, outerSeaY, pCol, pCount, FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, chunkBuried, BURIED_KEEP, UNDER_SPAN, DEEP_UNDER, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
-import { OPT_KEY, applyOpts, calmMotion, opts } from "./settings.js";
+import { OPT_KEY, applyOpts, applyFov, applyTbtn, fovForAspect, FOV_BASE_ASPECT, calmMotion, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, playerOccupies, pointSolid, rayBox, raycast, spawn, stats, unstick } from "./player.js";
 import { startAmbient, updateAmbient, ac, at, tone, crunch, breakSound, caveSound, lavaHiss, lavaPop, listenAt, miningSound, moodChord, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
 import { prevKey, pushPrev, renameSlot, curKey, OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
@@ -156,6 +156,7 @@ window.__blockyard = {
   applyTime: applyTime,
   seed: function () { return S.worldSeed; },
   opts: opts, applyOpts: applyOpts, calmMotion: calmMotion, voxUniforms: voxUniforms,
+  applyFov: applyFov, applyTbtn: applyTbtn, fovForAspect: fovForAspect, FOV_BASE_ASPECT: FOV_BASE_ASPECT,
 
   // ── 개선 v5 에서 추가된 것들
   isUnbreakable: isUnbreakable, columnTop: columnTop, facingText: facingText,
@@ -205,6 +206,7 @@ window.__blockyard = {
   selectionBounds: selectionBounds, selectionSize: selectionSize, REGION_MAX: REGION_MAX,
   beginBatch: beginBatch, endBatch: endBatch, updateSelectionBox: updateSelectionBox,
   mobs: mobs, updateMobs: updateMobs, seedMobs: seedMobs, MOB_KINDS: MOB_KINDS,
+  loadMobs: loadMobs, disposeMob: disposeMob,
   breedTick: breedTick, MOB_MAX: MOB_MAX,
   toggleHelp: toggleHelp, helpEl: helpEl, setHelpTab: setHelpTab,
   refreshMouthDots: refreshMouthDots, mouthDots: mouthDots, naturalRoof: naturalRoof,

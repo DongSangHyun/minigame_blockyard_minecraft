@@ -205,6 +205,7 @@ export function showAchPop(name, desc) {
     setTimeout(function () { achPop.hidden = true; }, 350);
   }, 2600);
 }
+export var tAim = document.getElementById("t-aim");
 export var tPos = document.getElementById("t-pos"),
     tTime = document.getElementById("t-time"),
     tLight = document.getElementById("t-light"),

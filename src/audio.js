@@ -36,20 +36,34 @@ export function tone(freq, dur, type, gain, node) {
     o.start(); o.stop(c.currentTime + dur);
   } catch (e) {}
 }
+// 잡음 한 벌을 부팅 때 한 번만 굽는다 (v93).
+// 예전에는 crunch 를 부를 때마다 createBuffer + Math.random() 루프를 돌았다 —
+// 물가에 서서 비를 맞으며 60초를 재니 **19.3MB 를 굽고 버렸다**(분당 500만 번의 난수).
+// 캐고 놓을 때마다 도는 소리다. 이제 2초짜리 한 벌에서 **아무 데나 잘라 쓴다.**
+export var NOISE_SEC = 2;
+var noiseBuf = null;
+export function noiseBuffer(c) {
+  if (noiseBuf && noiseBuf.sampleRate === c.sampleRate) return noiseBuf;
+  var n = Math.floor(c.sampleRate * NOISE_SEC);
+  noiseBuf = c.createBuffer(1, n, c.sampleRate);
+  var d = noiseBuf.getChannelData(0);
+  for (var i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  return noiseBuf;
+}
 export function crunch(dur, gain, cutoff, node) {
   if (S.muted || opts.vol <= 0) return;
   var c = ac(); if (!c) return;
   try {
-    var n = Math.floor(c.sampleRate * dur);
-    var buf = c.createBuffer(1, n, c.sampleRate);
-    var d = buf.getChannelData(0);
-    for (var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    var buf = noiseBuffer(c);
     var src = c.createBufferSource(); src.buffer = buf;
+    // 시작점을 매번 옮겨 같은 잡음이 반복으로 들리지 않게 한다
+    var off = Math.random() * Math.max(0.01, NOISE_SEC - dur);
     var flt = c.createBiquadFilter(); flt.type = "lowpass"; flt.frequency.value = cutoff;
     var g = c.createGain(); g.gain.value = gain;
     g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur);
     src.connect(flt); flt.connect(g); g.connect(node || S.masterGain);
-    src.start();
+    src.start(0, off, dur);
+    src.stop(c.currentTime + dur);      // 노드를 제때 놓아 준다
   } catch (e) {}
 }
 
@@ -136,8 +150,36 @@ export function setMuffle(on) {
 }
 
 // 빗소리 — 날씨가 켜져 있는 동안 낮게 깔린다
+// 빗소리 — **끊김 없는 루프**다 (v93).
+// 예전에는 0.9초짜리 잡음 버스트를 0.8초마다 겹쳐 틀어, 페이드아웃이 서로 물리며
+// "쉬—… 쉬—…" 하고 1.25Hz 로 맥동했다. 마크의 비는 이어진 소리다.
+// 이제 루프를 하나 깔아 두고 **게인만** 오르내린다.
+var rainNode = null;
 export function rainHiss(vol) {
-  crunch(0.9, 0.05 * vol, 2600);
+  var c = ac(); if (!c) return;
+  try {
+    if (!rainNode) {
+      var src = c.createBufferSource();
+      src.buffer = noiseBuffer(c); src.loop = true;
+      var flt = c.createBiquadFilter(); flt.type = "bandpass";
+      flt.frequency.value = 2600; flt.Q.value = 0.35;
+      var g = c.createGain(); g.gain.value = 0;
+      src.connect(flt); flt.connect(g); g.connect(S.masterGain);
+      src.start();
+      rainNode = { gain: g };
+    }
+    var target = (S.muted || opts.vol <= 0) ? 0 : 0.05 * vol;
+    rainNode.gain.gain.setTargetAtTime(target, c.currentTime, 0.35);
+  } catch (e) {}
+}
+// 탭을 나가면 rAF 가 멎어 rainHiss 도 안 불린다 — 마지막 게인 그대로 영원히 운다.
+// 소리를 통째로 재우고 깨우는 길 (v93)
+export function setAudioAwake(on) {
+  var c = S.audioCtx; if (!c) return;
+  try {
+    if (on) { if (c.state === "suspended") c.resume(); }
+    else if (c.state === "running") c.suspend();
+  } catch (e) {}
 }
 // 천둥 — 번쩍인 뒤 거리만큼 늦게 울린다
 export function thunder(delayMs, near) {

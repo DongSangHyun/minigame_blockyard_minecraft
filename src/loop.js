@@ -12,12 +12,12 @@ import { growTick, lavaFlowTick, lavaDryTick, grassTick, lavaTick, primeTick, TN
 import { buildBudget, dirty, markAllDirty, opaqueMeshes, setBuildFocus } from "./mesh.js";
 import { DEEP_UNDER, dynamicHighlight, updatePasteBox, updateOuterSea, primedBoxes, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
-import { calmMotion, opts } from "./settings.js";
+import { calmMotion, fovForAspect, opts } from "./settings.js";
 import { EYE, HALF, moveAxis, moveHorizontal, player, pointSolid, raycast, spawn, stats, unstick } from "./player.js";
 import { splash, waterLap, fireCrackle, at, caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { pushPrev, saveGame } from "./save.js";
 import { checkBuildAchievements, checkFoundAchievements, ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
-import { refreshMouthDots, refreshMinimapCap, airBar, airEl, drawMinimap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
+import { refreshMouthDots, refreshMinimapCap, tAim, airBar, airEl, drawMinimap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
 import { updateBody } from "./body.js";
 import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
@@ -65,6 +65,11 @@ export function newWorld(seed) {
   S.history.length = 0; S.future.length = 0;
   resetQueues();
   S.earned = {}; S.placedKinds = {}; S.lampsPlaced = 0; S.playSeconds = 0; S.tut = 0;
+  // 횃불 카운터도 함께 지운다 (v93) — 램프만 지우고 있어서, 지난 세계에서 횃불을 꽂아 봤다면
+  // **새 세계에 횃불 하나만 꽂아도 「횃불 10개」 과제가 그 자리에서 열렸다.**
+  // 저장은 lamps·torches 를 한 쌍으로 싣고 내린다 — 어긋난 곳은 여기 한 군데였다.
+  S.torchesPlaced = 0;
+  S.everEdited = false;    // 되돌리기 안내(undoEmptyWhy)가 새 세계에서 옛말을 하지 않게
   // 걸은 거리도 새 세계에서 다시 센다 — 안 지우면 지난 세계에서 걸은 거리 때문에
   // 새 사막에 스폰하자마자 "사막" 이 뜬다 (v60 에서 막은 그 장면이 두 번째 세계에서 되살아난다)
   S.walked = 0; S.achPrevX = null; S.achPrevZ = null;
@@ -292,7 +297,8 @@ export function step(dt) {
   else S.stepLift = 0;
 
   // 달리는 중이라는 유일한 시각 신호 — 시야각이 살짝 넓어진다
-  var fovTarget = opts.fov + ((S.sprintingNow && !calm) ? 5.5 : 0);
+  // 좁은 창에서는 세로 화각이 커진다 — 달리기 +5.5° 도 그 보정을 타야 한다 (v93)
+  var fovTarget = fovForAspect(opts.fov + ((S.sprintingNow && !calm) ? 5.5 : 0), camera.aspect);
   if (S.fovNow === 0) S.fovNow = camera.fov;
   if (Math.abs(S.fovNow - fovTarget) > 0.02) {
     S.fovNow += (fovTarget - S.fovNow) * Math.min(1, dt * 8);
@@ -385,6 +391,7 @@ export function step(dt) {
   var hit = playing ? raycast(6) : null;
   // 조준 면을 남겨 둔다 — HUD 는 animate() 에 있어 이 지역 변수를 못 본다
   S.aimFace = hit ? [hit.x + hit.nx, hit.y + hit.ny, hit.z + hit.nz] : null;
+  S.aimHit = hit ? [hit.x, hit.y, hit.z] : null;   // 겨눈 칸 자체 (계기판 「조준」· v93)
   if (hit) {
     highlight.visible = true;
     if (isCross(hit.block)) {
@@ -829,6 +836,17 @@ export function animate() {
       tLight.textContent = lightAtPlayer() + " / 15 · 조준 " +
         Math.max(lightSky[ai] || 0, lightBlk[ai] || 0);
     } else tLight.textContent = lightAtPlayer() + " / 15";
+    // 조준한 칸의 **좌표** (v93) — 내 좌표는 있는데 겨누는 칸의 좌표가 없어서,
+    // 기둥 두 개를 x=30·50 에 맞추려면 거기까지 날아가 읽고 돌아와야 했다.
+    // 영역·청사진·미러가 다 칸 좌표로 도는데 화면이 그 단위를 안 알려 줬다.
+    // 앞의 것이 놓일 자리(af), 괄호 안이 겨눈 블록이다
+    if (tAim) {
+      var hitNow = S.aimHit;
+      tAim.textContent = af
+        ? (af[0] + " · " + af[1] + " · " + af[2] +
+           (hitNow ? "  (" + hitNow[0] + " · " + hitNow[1] + " · " + hitNow[2] + ")" : ""))
+        : "—";
+    }
     tMode.textContent = player.flying ? "비행" : (S.wasUnderwater ? "헤엄" : "걷기");
     tShape.textContent = ["전체", "반블록", "계단"][S.shapeMode];
     tBlocks.innerHTML = "놓음 <b>" + stats.placed + "</b> · 캔 <b>" + stats.mined + "</b>";

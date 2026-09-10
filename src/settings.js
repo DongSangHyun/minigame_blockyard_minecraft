@@ -41,10 +41,50 @@ export function applyOpts() {
   // 고대비 — UI 테두리와 글자를 또렷하게 (밝은 곳·색약 배려)
   document.documentElement.classList.toggle("hc", !!opts.contrast);
   document.documentElement.classList.toggle("lefty", !!opts.lefty);
-  document.documentElement.style.setProperty("--tbtn", ((opts.tbtn || 100) / 100).toFixed(2));
-  camera.fov = opts.fov;
-  camera.updateProjectionMatrix();
+  applyTbtn();
+  applyFov();
   voxUniforms.uFogFar.value = opts.far;
   voxUniforms.uFogNear.value = Math.max(8, opts.far * 0.35);
   if (S.masterGain) S.masterGain.gain.value = opts.vol / 100;
+}
+
+// 터치 단추 크기 — 슬라이더(80~160%)를 화면 높이로 **잘라서** 먹인다 (v93).
+// #tbtns 는 bottom 기준으로 붙어 있고 zoom 은 위로 자란다. 폰 844×390 에서
+// 기본 100% 일 때 위 여유가 18px 뿐이라, 110% 만 되어도 「캐기·놓기」가 화면 밖으로
+// 나갔고 160% 에서는 캐기·놓기·점프·비행 넷이 통째로 사라졌다 — 슬라이더의 위쪽 절반이
+// 게임을 못 하게 만들고 있었다. 커지면 잘리는 대신 **더 안 커진다.**
+export function applyTbtn() {
+  var want = (opts.tbtn || 100) / 100;
+  var el = document.getElementById("tbtns");
+  var root = document.documentElement;
+  if (!el) { root.style.setProperty("--tbtn", want.toFixed(2)); return; }
+  // 배율 1 일 때의 제 높이를 잰다 (zoom 이 걸린 채로 재면 이미 커진 값이 나온다)
+  var prev = el.style.zoom;
+  el.style.zoom = "1";
+  var natural = el.offsetHeight;
+  el.style.zoom = prev;
+  if (!natural) { root.style.setProperty("--tbtn", want.toFixed(2)); return; }
+  // 아래 여백(54~84px + 안전영역)과 위쪽 핫바·계기판 자리를 남긴다
+  var bottom = parseFloat(getComputedStyle(el).bottom) || 84;
+  var avail = window.innerHeight - bottom - TBTN_TOP_KEEP;
+  var maxZoom = avail / natural;
+  root.style.setProperty("--tbtn", Math.max(0.8, Math.min(want, maxZoom)).toFixed(2));
+}
+export var TBTN_TOP_KEEP = 12;   // 화면 위쪽에 남겨 두는 여백(px)
+
+// 시야각 — 슬라이더는 **가로** 화각으로 읽히는데 three 의 fov 는 세로다 (v93).
+// 그대로 박으면 창 모양에 따라 보이는 세상이 2.7배로 흔들렸다:
+// 1600×900 에서 수평 104.5° 인 설정이 700×1100 반쪽 창에서는 49.6° 였다.
+// 16:9 를 기준으로 삼고, 그보다 좁은 창에서는 세로 화각을 키워 가로를 지킨다(hor+).
+export var FOV_BASE_ASPECT = 16 / 9;
+export function fovForAspect(fovDeg, aspect) {
+  if (!aspect || aspect >= FOV_BASE_ASPECT) return fovDeg;
+  var half = fovDeg * Math.PI / 360;
+  var hHalf = Math.atan(Math.tan(half) * FOV_BASE_ASPECT);      // 기준 창의 가로 반각
+  var vHalf = Math.atan(Math.tan(hHalf) / aspect);              // 지금 창에서 그 가로를 내려면
+  return Math.min(118, vHalf * 360 / Math.PI);
+}
+export function applyFov() {
+  camera.fov = fovForAspect(opts.fov, camera.aspect);
+  camera.updateProjectionMatrix();
 }

@@ -6004,9 +6004,12 @@ test("v60 배려 설정: 흔들림 줄이기와 웅크리기 전환", async (pag
     B.opts.steady = 1;
     const calmOn = B.calmMotion();
     B.S.bobAmount = 1; B.S.sprintingNow = true;
-    B.S.fovNow = B.opts.fov;
+    // v93 부터 세로 화각은 창 모양을 탄다 (좁은 창에서 가로 시야를 지킨다) —
+    // 기준은 opts.fov 가 아니라 그 보정을 거친 값이다
+    const restFov = B.fovForAspect(B.opts.fov, B.camera.aspect);
+    B.S.fovNow = restFov;
     for (let k = 0; k < 40; k++) B.step(1 / 60);
-    const fovDrift = Math.abs(B.camera.fov - B.opts.fov);
+    const fovDrift = Math.abs(B.camera.fov - restFov);
     const bobDrift = Math.abs(B.camera.position.y - (B.player.pos.y + B.EYE - B.S.sneakEye));
     B.opts.steady = 0;
 
@@ -11126,6 +11129,170 @@ test("v92 새 블록: 타일이 남의 그림을 안 덮고, 이름이 원목을
   eq(r.found[5], 56, "'참나무 묘목' 이 " + r.found[5] + " 을 준다");
   assert(r.thundery >= 8 && r.thundery <= 32,
      "불러온 비 60판 중 뇌우가 " + r.thundery + "판이다 — 32% 언저리라야 한다");
+});
+
+phoneTest("터치 단추를 키워도 화면 밖으로 나가지 않는다 (v93)", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keep = B.opts.tbtn;
+    const rows = [];
+    for (const want of [80, 100, 120, 140, 160]) {
+      B.opts.tbtn = want;
+      B.applyTbtn();
+      const box = document.getElementById("tbtns");
+      let worstTop = 1e9, missing = [];
+      for (const b of box.querySelectorAll("button")) {
+        const rc = b.getBoundingClientRect();
+        if (rc.top < worstTop) worstTop = rc.top;
+        if (rc.top < 0 || rc.bottom > window.innerHeight ||
+            rc.left < 0 || rc.right > window.innerWidth) missing.push(b.id);
+      }
+      rows.push({ want, worstTop: Math.round(worstTop), missing });
+    }
+    B.opts.tbtn = keep; B.applyTbtn();
+    B.endPlay(); B.setPaused(false);
+    return { rows, h: window.innerHeight };
+  });
+  for (const row of r.rows) {
+    eq(row.missing.length, 0,
+       "터치 단추 " + row.want + "% — 화면 밖으로 나간 단추: " + row.missing.join(",") +
+       " (맨 위 단추 y=" + row.worstTop + " · 화면 높이 " + r.h + ")");
+  }
+});
+
+test("v93 새는 것: 청크와 동물이 GPU 버퍼를 놓아 준다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    // (1) 청크를 다시 구울 때 예전 지오메트리를 dispose 하나
+    let disposed = 0;
+    const proto = THREE.BufferGeometry.prototype;
+    const realDispose = proto.dispose;
+    proto.dispose = function () { disposed++; return realDispose.apply(this, arguments); };
+    const before = disposed;
+    for (let k = 0; k < 6; k++) B.buildChunk(2, 2, 2);
+    const chunkDisposed = disposed - before;
+
+    // (2) 세계를 갈아탈 때 동물 메시를 놓아 주나
+    B.seedMobs && B.seedMobs();
+    const mobsBefore = B.mobs.length;
+    const d0 = disposed;
+    B.loadMobs([[100, 100, 100, 0, 0, 0]]);
+    const mobDisposed = disposed - d0;
+    proto.dispose = realDispose;
+    return { chunkDisposed, mobDisposed, mobsBefore, mobsAfter: B.mobs.length };
+  });
+  assert(r.chunkDisposed >= 6,
+     "청크를 6번 다시 구웠는데 dispose 가 " + r.chunkDisposed + "번뿐이다 — GPU 버퍼가 고아로 남는다");
+  assert(r.mobsBefore > 0, "시험대가 안 섰다 — 동물이 하나도 없다");
+  assert(r.mobDisposed >= r.mobsBefore,
+     "동물 " + r.mobsBefore + "마리를 치웠는데 dispose 가 " + r.mobDisposed + "번뿐이다");
+});
+
+test("v93 화각: 좁은 창에서도 가로 시야를 지킨다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    function horiz(fovDeg, aspect) {
+      const v = B.fovForAspect(fovDeg, aspect) * Math.PI / 360;
+      return Math.atan(Math.tan(v) * aspect) * 360 / Math.PI;
+    }
+    const wide = horiz(72, 16 / 9);
+    const rows = [[1.778, horiz(72, 1.778)], [1.6, horiz(72, 1.6)],
+                  [0.636, horiz(72, 0.636)], [0.553, horiz(72, 0.553)],
+                  [2.164, horiz(72, 2.164)]];
+    return { wide, rows, tallVert: B.fovForAspect(72, 0.636) };
+  });
+  // 예전에는 700×1100 창에서 수평 49.6° 였다 (1600×900 의 104.5° 대비 절반 아래)
+  // 아주 좁은 창(0.55)에서는 세로 화각 상한(118°)에 걸려 다 못 지킨다 —
+  // 그래도 예전의 47%(49.6° / 104.5°)에서 80% 위로 올라와야 한다
+  for (const [aspect, h] of r.rows) {
+    if (aspect >= 16 / 9) continue;
+    assert(h > r.wide * 0.80,
+       "aspect " + aspect + " 에서 수평 화각이 " + h.toFixed(1) + "° 다 — 기준은 " + r.wide.toFixed(1) + "°");
+  }
+  assert(r.tallVert > 72, "좁은 창인데 세로 화각이 안 늘었다: " + r.tallVert.toFixed(1));
+});
+
+test("v93 새 세계: 지난 세계의 횃불·편집 기록을 안 물려받는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.torchesPlaced = 12; B.S.lampsPlaced = 30; B.S.everEdited = true;
+    B.S.earned = {}; B.S.earned.torch10 = 1;
+    B.newWorld();
+    const after = { torches: B.S.torchesPlaced, lamps: B.S.lampsPlaced,
+                    everEdited: B.S.everEdited, earned: Object.keys(B.S.earned).length };
+    B.endPlay(); B.setPaused(false);
+    return after;
+  });
+  eq(r.torches, 0, "새 세계인데 횃불 카운터가 " + r.torches + " 다 — 횃불 하나에 과제가 열린다");
+  eq(r.lamps, 0, "새 세계인데 램프 카운터가 " + r.lamps + " 다");
+  eq(r.everEdited, false, "새 세계인데 '편집한 적 있음' 이 남아 있다");
+  eq(r.earned, 0, "새 세계인데 과제 기록이 남아 있다");
+});
+
+test("v93 계기판: 조준한 칸의 좌표를 보여 준다", async (page) => {
+  await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.thirdPerson = 0;
+    const X = 70, Y = 40, Z = 70;
+    for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++)
+      for (let dy = -1; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.set(X, Y + 1, Z - 4, B.B.STONE);              // 눈높이(pos.y + EYE)에 놓는다
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.flying = true;
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    B.player.yaw = 0; B.player.pitch = 0;           // -Z 를 본다
+    B.S.showPerf = true;
+    // 계기판은 step 이 아니라 animate 안에서 갱신된다 — 실제 프레임을 돌려야 한다
+    B.setPaused(false);
+  });
+  await page.waitForTimeout(400);
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const el = document.getElementById("t-aim");
+    const text = el ? el.textContent : "(없음)";
+    const hit = B.S.aimHit ? B.S.aimHit.slice() : null;
+    const face = B.S.aimFace ? B.S.aimFace.slice() : null;
+    B.S.showPerf = false;
+    B.player.flying = false;
+    B.endPlay(); B.setPaused(true); B.setPaused(false);
+    return { text, hit, face };
+  });
+  assert(r.hit, "조준한 칸을 못 잡았다 — 시험대가 안 섰다");
+  assert(r.text.indexOf(String(r.hit[0])) >= 0 && r.text.indexOf(String(r.hit[2])) >= 0,
+     "계기판 「조준」 이 '" + r.text + "' 인데 겨눈 칸은 " + r.hit.join(",") + " 다");
+  assert(r.text.indexOf(String(r.face[2])) >= 0,
+     "놓일 자리(" + r.face.join(",") + ")가 「조준」 에 안 보인다: " + r.text);
+});
+
+test("v93 소리: 잡음을 매번 굽지 않고, 비는 이어진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const c = B.ac();
+    if (!c) return { skipped: true };
+    const real = c.createBuffer.bind(c);
+    let made = 0;
+    c.createBuffer = function () { made++; return real.apply(c, arguments); };
+    B.crunch(0.2, 0.05, 900);            // 첫 호출이 한 벌을 굽는다
+    const first = made;
+    for (let k = 0; k < 120; k++) B.crunch(0.2, 0.05, 900);
+    const after = made;
+    // 빗소리는 루프 하나다 — 60번 불러도 노드가 늘지 않는다
+    const d0 = made;
+    for (let k = 0; k < 60; k++) B.rainHiss(0.6);
+    const rainMade = made - d0;
+    c.createBuffer = real;
+    B.endPlay(); B.setPaused(false);
+    return { first, after, rainMade };
+  });
+  if (r.skipped) return;
+  assert(r.after - r.first === 0,
+     "crunch 120번에 버퍼를 " + (r.after - r.first) + "개 더 구웠다 — 한 벌을 나눠 써야 한다");
+  eq(r.rainMade, 0, "빗소리 60번에 버퍼를 " + r.rainMade + "개 구웠다 — 루프 하나라야 한다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

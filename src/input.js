@@ -10,9 +10,9 @@ import { IS_TOUCH } from "./boot.js";
 import { SH_SLAB, SH_SLAB_UP, isStairShape, NAMES } from "./blocks.js";
 import { camera, crackMesh, renderer } from "./scene.js";
 import { applyTime } from "./daynight.js";
-import { applyOpts, opts, saveOpts } from "./settings.js";
+import { applyOpts, applyFov, applyTbtn, opts, saveOpts } from "./settings.js";
 import { EYE, player, raycast, spawn, stats } from "./player.js";
-import { ac, startAmbient, tone } from "./audio.js";
+import { ac, setAudioAwake, startAmbient, tone } from "./audio.js";
 import { renameSlot, clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
 import { undoEmptyWhy, lastEditLabel, blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
@@ -1523,16 +1523,23 @@ bindHold("tb-undo", function () {
 
 window.addEventListener("resize", function () {
   camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
+  applyFov();                       // 좁은 창에서 가로 시야를 지킨다 (v93)
+  S.fovNow = camera.fov;            // 달리기 보간이 옛 각도로 되돌리지 않게
   handCam.aspect = camera.aspect;
   handCam.fov = camera.aspect < 1 ? 74 : 52;
   handCam.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  applyTbtn();                      // 단추가 화면 밖으로 자라지 않게 다시 잰다 (v93)
+  // 화면 배율이 다른 모니터로 옮겨 갔을 수 있다 — 부팅 때 한 번 잡고 마는 값이었다
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 });
 
 window.addEventListener("beforeunload", function () { if (S.worldDirty) saveGame(); });
 document.addEventListener("visibilitychange", function () {
   if (document.hidden && S.worldDirty) saveGame();
+  // 탭을 뒤로 보내면 소리도 재운다 (v93) — rAF 가 멎어도 앰비언트 루프는
+  // 마지막 게인 그대로 계속 울어서, 다른 탭에 가 있어도 스피커 아이콘이 켜져 있었다
+  setAudioAwake(!document.hidden);
 });
 
 // ── 설정 UI

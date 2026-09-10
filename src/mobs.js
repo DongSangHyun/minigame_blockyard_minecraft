@@ -71,6 +71,18 @@ function makeMob(kind) {
            follow: 0, love: 0, loveHint: 0, baby: 0 };
 }
 
+// 씬에서 떼는 것만으로는 GPU 버퍼가 안 돌아온다 (v93).
+// 세계를 갈아탈 때마다 BoxGeometry 84개 · Material 56개가 쌓이고 있었다 —
+// 슬롯을 오가며 짓거나 R 로 새 세계를 여는 것이 전부 이 경로다.
+export function disposeMob(m) {
+  if (!m || !m.g) return;
+  mobGroup.remove(m.g);
+  m.g.traverse(function (o) {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material && o.material.dispose) o.material.dispose();
+  });
+}
+
 // ── 저장 · 복원 — 동물이 저장에 없어서, 목장을 만들어도 탭을 닫으면 빈 우리가 됐다.
 // 좌표는 0.25칸 단위로 반올림해 담는다 (24마리 × 6수 ≈ 200바이트)
 export function dumpMobs() {
@@ -84,7 +96,7 @@ export function dumpMobs() {
 }
 export function loadMobs(arr) {
   if (!Array.isArray(arr) || !arr.length) return false;
-  while (mobs.length) { mobGroup.remove(mobs.pop().g); }
+  while (mobs.length) { disposeMob(mobs.pop()); }
   for (var i = 0; i < arr.length && mobs.length < MOB_MAX; i++) {
     var a = arr[i];
     if (!a || a.length < 4) continue;

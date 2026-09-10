@@ -209,6 +209,13 @@ export function emitCross(P, U, C, L, I, x, y, z, b, ci) {
 
 export function applyGeo(mesh, pos, uv, col, lit, ind) {
   var g = mesh.geometry;
+  // 갈아 끼우기 전에 예전 버퍼를 놓아 준다 (v93).
+  // three r128 은 attribute 객체를 키로 하는 WeakMap 으로 WebGLBuffer 를 잡는다 —
+  // 새 BufferAttribute 로 덮으면 예전 것은 GC 되고 그 버퍼는 **영영 지울 수 없는 고아**가 된다.
+  // 초당 두 블록씩 10분을 지으면 재업로드 1,200회 × 40KB ≈ 48MB 가 돌아오지 않았다.
+  // (scene.js updateChunkVisibility 와 hand.js updateGhost 는 이미 이렇게 한다 —
+  //  수천 번 도는 바로 이 함수만 빠져 있었다.)
+  g.dispose();
   g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
   g.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(uv), 2));
   g.setAttribute("acol", new THREE.BufferAttribute(new Float32Array(col), 3));
