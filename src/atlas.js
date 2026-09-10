@@ -18,7 +18,15 @@ export function makeRng(seed) {
   };
 }
 
+// 이미 그린 타일 번호 — 같은 칸을 두 번 그리면 **먼저 그린 그림이 소리 없이 지워진다.**
+// v92 에서 새 묘목을 담긴 양동이(81·82) 위에 그렸는데, 시험이 "그림이 서로 다른가" 만
+// 보고 있어 통과했다. 이제 여기서 알린다 — 시험의 "페이지 오류 없음" 이 잡는다.
+export var painted = {};
 export function paint(index, fn) {
+  if (painted[index]) {
+    throw new Error("아틀라스 타일 " + index + " 을(를) 두 번 그립니다 — 앞의 그림이 지워집니다");
+  }
+  painted[index] = 1;
   var o = tileOrigin(index);
   var rng = makeRng(index * 7919 + 13);
   fn(function (x, y, color) {
@@ -302,6 +310,39 @@ paint(58, function (p, r) {  // 묘목 — 가는 줄기에 어린 잎 두어 �
   }
   // 새싹 두 장 — 줄기 옆으로 삐죽
   p(5, 10, pick(r, leaf)); p(10, 11, pick(r, leaf));
+});
+
+// 묘목 두 종 더 (v92) — 심는 사람이 나무를 고를 수 있게 되었다.
+// 세 개가 핫바에 나란히 놓이므로 **한눈에 갈라져야** 한다:
+// 참나무는 짙은 초록 + 갈색 줄기, 자작은 흰 줄기 + 연둣빛, 가문비는 뾰족한 청록이다
+paint(83, function (p, r) {  // 자작나무 묘목 — 흰 줄기에 연둣빛 어린 잎
+  var stem = ["#e4e0d4", "#d2cec0", "#c8c2b2"];
+  var leaf = ["#7fae43", "#8fbe52", "#6f9c38"];
+  for (var y = 15; y >= 8; y--) { p(7, y, pick(r, stem)); p(8, y, pick(r, stem)); }
+  p(7, 12, "#4a4438"); p(8, 10, "#4a4438");        // 자작 특유의 검은 무늬
+  for (var ly = 2; ly <= 9; ly++) {
+    var rad = ly < 4 ? 2 : (ly < 8 ? 4 : 3);
+    for (var lx = -rad; lx <= rad; lx++) {
+      if (Math.abs(lx) === rad && r() < 0.5) continue;
+      p(7 + lx, ly, pick(r, leaf));
+    }
+  }
+  p(4, 9, pick(r, leaf)); p(11, 10, pick(r, leaf));
+});
+
+paint(84, function (p, r) {  // 가문비 묘목 — 뾰족한 청록 원뿔
+  var stem = ["#4a3a26", "#56442d"];
+  var leaf = ["#2f5f45", "#376b4e", "#27523a"];
+  for (var y = 15; y >= 10; y--) { p(7, y, pick(r, stem)); p(8, y, pick(r, stem)); }
+  // 위로 갈수록 좁아지는 원뿔 — 참나무의 둥근 덩이와 실루엣부터 다르다
+  for (var ly = 1; ly <= 11; ly++) {
+    var rad = Math.floor((ly - 1) / 3);
+    for (var lx = -rad; lx <= rad; lx++) {
+      if (Math.abs(lx) === rad && ly < 4 && r() < 0.4) continue;
+      p(7 + lx, ly, pick(r, leaf));
+    }
+  }
+  p(4, 11, pick(r, leaf)); p(11, 11, pick(r, leaf));   // 아래 가지 두 장
 });
 
 paint(59, function (p, r) {  // 책장 옆면 — 꽂힌 책들

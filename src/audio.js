@@ -1,6 +1,6 @@
 // audio.js — 소리
 import { S } from "./state.js";
-import { CARPET, CARPET0, CARPET_COUNT, DEADBUSH, DIRT, DRYGRASS, FLOWER_R, FLOWER_Y, GLASS, GRASS, ICE, LAMP, LEAVES, LOG, PLANKS, SAND, SNOW, TALLGRASS, TORCH } from "./blocks.js";
+import { CARPET, CARPET0, CARPET_COUNT, SAPLING, SAPLING_BIRCH, SAPLING_SPRUCE, DEADBUSH, DIRT, DRYGRASS, FLOWER_R, FLOWER_Y, GLASS, GRASS, ICE, LAMP, LEAVES, LOG, PLANKS, SAND, SNOW, TALLGRASS, TORCH } from "./blocks.js";
 import { dayLight } from "./daynight.js";
 import { opts } from "./settings.js";
 
@@ -108,6 +108,7 @@ export var SOFT = {};
 SOFT[GRASS] = 1; SOFT[DIRT] = 1; SOFT[SAND] = 1; SOFT[LEAVES] = 1; SOFT[SNOW] = 1;
 SOFT[TALLGRASS] = 1; SOFT[FLOWER_R] = 1; SOFT[FLOWER_Y] = 1; SOFT[TORCH] = 1;
 SOFT[DEADBUSH] = 1; SOFT[DRYGRASS] = 1; SOFT[CARPET] = 1;   // 카펫은 발소리가 푹신하다
+SOFT[SAPLING] = 1; SOFT[SAPLING_BIRCH] = 1; SOFT[SAPLING_SPRUCE] = 1;   // 묘목 세 종 (v92)
 for (var ci = 0; ci < CARPET_COUNT; ci++) SOFT[CARPET0 + ci] = 1;   // 색 카펫도 (v84)
 export function breakSound(b) {
   if (SOFT[b]) crunch(0.16, 0.16, 900);

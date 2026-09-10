@@ -28,6 +28,14 @@ export var POT = 75, FRAME = 76;
 // (조준선이 액체를 건너뛴다 — 물속에서 바닥을 캐야 하므로 그 자체는 맞다).
 // 지우려면 /fill 공기 나 영역 비우기까지 가야 해서 결국 물을 안 쓰게 됐다.
 export var BUCKET = 77;
+// 묘목 세 종 (v92) — 그동안 묘목은 하나였고, 자랄 나무는 saplingKind 가 주사위로 정했다.
+// 초원·사막에서는 가문비를 심을 방법이 아예 없었다. 카펫 색은 열여섯으로 고르는데
+// 나무는 못 고르는 것이 어긋나 보였다. 마크도 묘목은 종마다 다른 물건이다.
+// 56(SAPLING)은 참나무로 굳는다 — 옛 저장에 심어 둔 묘목이 그대로 자란다.
+export var SAPLING_BIRCH = 78, SAPLING_SPRUCE = 79;
+export function isSapling(b) {
+  return b === SAPLING || b === SAPLING_BIRCH || b === SAPLING_SPRUCE;
+}
 export function isCarpet(b) { return b === CARPET || (b >= CARPET0 && b < CARPET0 + CARPET_COUNT); }
 export var WOOL0 = 36, WOOL_COUNT = 16;
 export var WOOL_COLORS = [
@@ -65,6 +73,9 @@ TILES[TORCH]     = [25, 25, 25];
 TILES[CACTUS]    = [27, 26, 27];
 TILES[DEADBUSH]  = [28, 28, 28];
 TILES[SAPLING]   = [58, 58, 58];
+// 81·82 는 담긴 양동이가 이미 쓴다 (BUCKET_TILE) — 83·84 로 간다
+TILES[SAPLING_BIRCH]  = [83, 83, 83];
+TILES[SAPLING_SPRUCE] = [84, 84, 84];
 TILES[BOOKSHELF] = [7, 59, 7];      // 위아래는 판자 나이테, 옆은 꽂힌 책들
 TILES[CARPET]    = [60, 60, 60];
 TILES[POT]       = [78, 77, 77];      // 위는 흙, 옆·아래는 토분
@@ -103,7 +114,9 @@ nm(LAVA, "용암", "LAVA"); nm(ICE, "얼음", "ICE");
 nm(TALLGRASS, "풀", "GRASS TUFT"); nm(FLOWER_R, "양귀비", "POPPY");
 nm(FLOWER_Y, "민들레", "DANDELION"); nm(TORCH, "횃불", "TORCH");
 nm(CACTUS, "선인장", "CACTUS"); nm(DEADBUSH, "죽은 덤불", "DEAD BUSH");
-nm(SAPLING, "묘목", "SAPLING");
+nm(SAPLING, "참나무 묘목", "OAK SAPLING");
+nm(SAPLING_BIRCH, "자작나무 묘목", "BIRCH SAPLING");
+nm(SAPLING_SPRUCE, "가문비 묘목", "SPRUCE SAPLING");
 nm(BOOKSHELF, "책장", "BOOKSHELF"); nm(CARPET, "카펫", "CARPET");
 nm(POT, "화분", "FLOWER POT"); nm(FRAME, "액자", "PAINTING");
 nm(BUCKET, "양동이", "BUCKET");
@@ -127,6 +140,8 @@ HARDNESS[TALLGRASS] = 0.05; HARDNESS[FLOWER_R] = 0.05;
 HARDNESS[FLOWER_Y] = 0.05; HARDNESS[TORCH] = 0.06;
 HARDNESS[CACTUS] = 0.34; HARDNESS[DEADBUSH] = 0.05; HARDNESS[DRYGRASS] = 0.05;
 HARDNESS[SAPLING] = 0.05;
+HARDNESS[SAPLING_BIRCH] = 0.05;
+HARDNESS[SAPLING_SPRUCE] = 0.05;
 HARDNESS[BOOKSHELF] = 0.62; HARDNESS[CARPET] = 0.06;
 HARDNESS[POT] = 0.10; HARDNESS[FRAME] = 0.10; HARDNESS[BUCKET] = 0.20;
 HARDNESS[GOLD] = 2.35; HARDNESS[DIAMOND] = 2.9;
@@ -162,6 +177,8 @@ CROSS[FLOWER_Y]  = { w: 0.42, h: 0.82, sway: 0.40 };
 CROSS[TORCH]     = { w: 0.26, h: 0.62, sway: 0 };
 CROSS[DEADBUSH]  = { w: 0.44, h: 0.86, sway: 0.30 };
 CROSS[SAPLING]   = { w: 0.40, h: 0.66, sway: 0.28 };   // 어린 싹이라 풀보다 작고 덜 흔들린다
+CROSS[SAPLING_BIRCH]  = { w: 0.40, h: 0.66, sway: 0.28 };
+CROSS[SAPLING_SPRUCE] = { w: 0.40, h: 0.66, sway: 0.28 };
 CROSS[DRYGRASS]  = { w: 0.46, h: 0.80, sway: 0.50 };
 CROSS[FIRE]      = { w: 0.50, h: 0.96, sway: 0.85 };
 export function isCross(b) { return CROSS[b] !== undefined; }
@@ -172,7 +189,9 @@ export function needsWall(b) { return b === FRAME; }
 export var ALL_BLOCKS = [GRASS, DIRT, STONE, COBBLE, SAND, GRAVEL, SNOW, LOG,
                   LEAVES, PLANKS, GLASS, BRICK, LAMP, TORCH, COAL, IRON, ICE,
                   WATER, LAVA, CACTUS, TALLGRASS, FLOWER_R, FLOWER_Y,
-                  DEADBUSH, DRYGRASS, SAPLING, BOOKSHELF, CARPET, POT, FRAME, BIRCH_LOG, BIRCH_LEAVES, SPRUCE_LEAVES,
+                  DEADBUSH, DRYGRASS, SAPLING,
+                  BOOKSHELF, CARPET, POT, FRAME, BIRCH_LOG, BIRCH_LEAVES, SPRUCE_LEAVES,
+                  SAPLING_BIRCH, SAPLING_SPRUCE,
                   GOLD, DIAMOND, FENCE, GATE, DOOR, PANE, LADDER, TNT];
 
 // 도구 — 목록에는 나오지만 "놓는 블록" 이 아니다.
@@ -199,7 +218,7 @@ export function isOpenable(b) { return b === GATE || b === DOOR; }
 export function isFlammable(b) {
   return b === LOG || b === BIRCH_LOG || b === PLANKS || b === LEAVES ||
          b === BIRCH_LEAVES || b === SPRUCE_LEAVES || b === TALLGRASS ||
-         b === DRYGRASS || b === DEADBUSH || b === SAPLING || b === BOOKSHELF || isCarpet(b) ||
+         b === DRYGRASS || b === DEADBUSH || isSapling(b) || b === BOOKSHELF || isCarpet(b) ||
          b === POT || b === FRAME ||
          b === FENCE || b === GATE || isWool(b);
 }

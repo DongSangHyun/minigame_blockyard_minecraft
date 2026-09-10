@@ -11,7 +11,7 @@ const OUT = path.join(ROOT, "docs", "CODEMAP.md");
 // 읽는 순서 = 의존 순서. 위에 있을수록 아래를 모른다.
 const ORDER = ["state", "dims", "queues", "boot", "blocks", "tree", "atlas", "world", "light",
   "fluids", "mesh", "scene", "daynight", "settings", "player", "audio", "save",
-  "edit", "hud", "hand", "input", "mine", "mobs", "sky", "cloud", "loop", "version", "main"];
+  "edit", "hud", "hand", "body", "input", "mine", "mobs", "sky", "cloud", "loop", "version", "main"];
 
 // ORDER 는 손으로 적은 목록이라 모듈을 새로 넣으면 조용히 빠진다 —
 // 실제로 mobs·cloud·version 셋이 지도에서 사라진 채 오래 있었다. 남은 것은 뒤에 붙인다.

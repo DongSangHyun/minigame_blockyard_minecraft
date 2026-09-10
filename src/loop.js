@@ -19,6 +19,7 @@ import { pushPrev, saveGame } from "./save.js";
 import { checkBuildAchievements, checkFoundAchievements, ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
 import { refreshMouthDots, refreshMinimapCap, airBar, airEl, drawMinimap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
+import { updateBody } from "./body.js";
 import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
 import { localBiome, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather } from "./sky.js";
 
@@ -328,6 +329,7 @@ export function step(dt) {
   camera.rotation.z = bobX * 0.12;
   sky.position.copy(camera.position);
   updateHand(dt);
+  updateBody(dt);
   updateSkyBodies();
   updateWeather(dt);
   updateStorm(dt);

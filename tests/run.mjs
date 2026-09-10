@@ -1648,6 +1648,7 @@ test("v10 3인칭: F5 로 시점이 물러나고 손이 사라진다", async (pa
       window.dispatchEvent(new KeyboardEvent("keydown", { code: "F5", bubbles: true }));
       window.dispatchEvent(new KeyboardEvent("keyup", { code: "F5", bubbles: true }));
     }
+    B.S.thirdPerson = 0;      // 3인칭인 채로 두고 가면 뒤 시험이 몸을 본다 (v92)
     B.endPlay(); B.setPaused(false);
     return { first, third };
   });
@@ -1841,7 +1842,7 @@ test("v11 동굴: 좁은 굴 말고 넓은 방도 생긴다", async (page) => {
   assert(r.ratio > 0.10, "동굴이 전부 좁은 굴이다 — 트인 칸 비율 " + r.ratio.toFixed(3));
 });
 
-test("v11 날씨: 서서히 짙어지고, 비가 오면 천둥이 친다", async (page) => {
+test("v11 날씨: 서서히 짙어지고, 뇌우면 번개가 친다", async (page) => {
   const r = await page.evaluate(() => {
     const B = window.__blockyard;
     B.setPaused(true);
@@ -1851,10 +1852,12 @@ test("v11 날씨: 서서히 짙어지고, 비가 오면 천둥이 친다", async
     const first = B.S.weatherMix;
     for (let k = 0; k < 200; k++) B.updateWeather(1 / 60);
     const settled = B.S.weatherMix;
-    // 천둥
+    // 천둥 — v92 부터 비 셋 중 하나만 뇌우다. 여기서는 뇌우로 못 박고 잰다
+    B.S.thundery = 1;
     B.S.stormTimer = 0; B.S.flash = 0;
     B.updateStorm(1 / 60);
     const flashed = B.S.flash;
+    B.S.bolt = 0; B.boltMesh.visible = false;
     B.setWeather(0);
     for (let k = 0; k < 400; k++) B.updateWeather(1 / 60);
     const cleared = B.S.weatherMix;
@@ -1863,7 +1866,7 @@ test("v11 날씨: 서서히 짙어지고, 비가 오면 천둥이 친다", async
   });
   assert(r.first < 0.2, "날씨가 한 프레임에 최대로 켜졌다: " + r.first.toFixed(3));
   assert(r.settled > 0.8, "날씨가 짙어지지 않았다: " + r.settled.toFixed(3));
-  assert(r.flashed > 0, "비가 오는데 번개가 안 친다");
+  assert(r.flashed > 0, "뇌우인데 번개가 안 친다");
   assert(r.cleared < 0.2, "날씨가 걷히지 않았다: " + r.cleared.toFixed(3));
 });
 
@@ -6374,21 +6377,28 @@ test("v63 블록 목록: 새 블록이 화면까지 닿는다", async (page) => 
     const find = document.getElementById("pick-find");
     const keep = find.value;
     find.value = "묘목";
-    const bySearch = B.refreshPickFilter();
+    const bySearch = B.refreshPickFilter();       // v92 부터 묘목은 세 종이다
     find.value = "sapling";
     const byEnglish = B.refreshPickFilter();
+    find.value = "가문비 묘목";
+    const byOne = B.refreshPickFilter();          // 종을 짚어 찾으면 하나만
     find.value = keep;
     B.refreshPickFilter();
     const sap = B.pickBtns.filter((p) => p.block === B.B.SAPLING)[0];
     // 목록에는 도구(부싯돌)도 함께 뜬다 — 놓는 블록은 아니지만 손에 쥘 수는 있다
-    return { missing, total: btns.length, all: B.ALL_BLOCKS.length + B.ITEMS.length, bySearch, byEnglish, noCat, sapCat: sap && sap.cat };
+    const sapCats = [B.B.SAPLING, B.B.SAPLING_BIRCH, B.B.SAPLING_SPRUCE]
+      .map((k) => (B.pickBtns.filter((p) => p.block === k)[0] || {}).cat);
+    return { missing, total: btns.length, all: B.ALL_BLOCKS.length + B.ITEMS.length, bySearch, byEnglish, byOne, noCat, sapCat: sap && sap.cat, sapCats };
   });
   eq(r.missing.length, 0, "블록 목록에 안 뜨는 블록: " + r.missing.join(", "));
   eq(r.total, r.all, "목록 단추가 " + r.total + "개인데 블록+도구는 " + r.all + "종이다");
-  eq(r.bySearch, 1, "이름 '묘목' 으로 찾으니 " + r.bySearch + "개가 나온다");
-  eq(r.byEnglish, 1, "영문 'sapling' 으로 찾으니 " + r.byEnglish + "개가 나온다");
+  eq(r.bySearch, 3, "이름 '묘목' 으로 찾으니 " + r.bySearch + "개가 나온다 — 세 종이라야 한다");
+  eq(r.byEnglish, 3, "영문 'sapling' 으로 찾으니 " + r.byEnglish + "개가 나온다");
+  eq(r.byOne, 1, "'가문비 묘목' 으로 찾으니 " + r.byOne + "개가 나온다 — 종을 짚으면 하나라야 한다");
   eq(r.noCat.length, 0, "갈래가 없는 블록: " + r.noCat.join(", "));
   eq(r.sapCat, "nature", "묘목이 '자연' 갈래에 없다 — 탭으로는 못 찾는다");
+  assert(r.sapCats.every((c) => c === "nature"),
+     "묘목 세 종의 갈래가 갈렸다: " + r.sapCats.join(","));
 });
 
 test("v64 묘목 성능: 큐가 프레임을 잡아먹지 않는다", async (page) => {
@@ -10825,6 +10835,297 @@ test("v91 동물: 먹이를 받으면 사람을 쫓아오고, 덧먹이면 시�
      "따라오는데 " + r.gap.toFixed(1) + "칸이나 벌어졌다 — 사람이 제자리걸음을 해야 한다");
   assert(r.again, "따라오는 동물에게 다시 먹이를 줬는데 아무 일도 없다");
   assert(r.extended, "덧먹였는데 따라오기가 " + " 안 늘었다 — 섬을 가로지르는 동안 끊긴다");
+});
+
+test("v92 3인칭: 몸이 있고, 걸으면 팔다리가 흔들리고, 사진 모드에서도 남는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const x = 48, y = 46, z = 48;
+    for (let dx = -12; dx <= 12; dx++) for (let dz = -12; dz <= 12; dz++) {
+      for (let dy = 0; dy <= 8; dy++) B.set(x + dx, y + dy, z + dz, 0);
+      B.set(x + dx, y - 1, z + dz, B.B.STONE);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    B.beginPlay();
+    // beginPlay 가 저장된 시점(S.savedYaw)을 되살린다 — 그 뒤에 못 박아야 한다.
+    // 시점 모드는 앞 시험이 3인칭인 채로 두고 갈 수 있다 (v10 3인칭)
+    B.S.thirdPerson = 0; B.S.photoMode = false;
+    B.player.pos.set(x + 0.5, y, z + 0.5); B.player.vel.set(0, 0, 0);
+    B.player.yaw = 0; B.player.pitch = 0; B.player.flying = false;
+    B.step(1 / 60);
+    const firstVisible = B.bodyRoot.visible;
+
+    const f5 = () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { code: "F5", bubbles: true }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { code: "F5", bubbles: true }));
+    };
+    f5();
+    B.step(1 / 60);
+    const thirdVisible = B.bodyRoot.visible;
+
+    // 몸이 발밑에 서 있나 — 키는 1.78 이어야 한다
+    const bb = new THREE.Box3().setFromObject(B.bodyRoot);
+    const height = bb.max.y - bb.min.y;
+    const footGap = bb.min.y - B.player.pos.y;
+    const dx0 = Math.abs(bb.getCenter(new THREE.Vector3()).x - B.player.pos.x);
+
+    // 걸으면 다리가 흔들린다 — 앞으로 걸으며 다리 각의 진폭을 잰다
+    let legMin = 9, legMax = -9, armMin = 9, armMax = -9;
+    for (let k = 0; k < 90; k++) {
+      B.player.yaw = 0;
+      B.moveHorizontal(0, -0.06);
+      B.step(1 / 60);
+      const a = B.bodyParts.legL.rotation.x, b2 = B.bodyParts.armR.rotation.x;
+      if (a < legMin) legMin = a; if (a > legMax) legMax = a;
+      if (b2 < armMin) armMin = b2; if (b2 > armMax) armMax = b2;
+    }
+    const legSwing = legMax - legMin, armSwing = armMax - armMin;
+
+    // 서 있으면 멎는다
+    for (let k = 0; k < 60; k++) B.step(1 / 60);
+    const restLeg = Math.abs(B.bodyParts.legL.rotation.x);
+
+    // 고개를 들면 머리가 따라간다. 몸통은 늦게 따라온다
+    B.player.pitch = 0.8;
+    B.player.yaw = 1.0;
+    B.step(1 / 60);
+    const neckPitch = B.bodyParts.neck.rotation.x;
+    const neckYaw = B.bodyParts.neck.rotation.y;
+    const torsoYaw = B.bodyRoot.rotation.y;
+
+    // 사진 모드가 3인칭을 안 끈다 (v92 이전에는 첫 줄에서 0 으로 박았다)
+    const beforePhoto = B.S.thirdPerson;
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "F6", bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "F6", bubbles: true }));
+    B.step(1 / 60);
+    const photoThird = B.S.thirdPerson, photoVisible = B.bodyRoot.visible;
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "F6", bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent("keyup", { code: "F6", bubbles: true }));
+
+    // 1인칭으로 돌아오면 다시 숨는다
+    f5(); f5();
+    B.step(1 / 60);
+    const backVisible = B.bodyRoot.visible, backThird = B.S.thirdPerson;
+
+    B.player.pitch = 0; B.player.yaw = 0; B.player.flying = false;
+    B.endPlay(); B.setPaused(false);
+    return { firstVisible, thirdVisible, height, footGap, dx0, legSwing, armSwing,
+             restLeg, neckPitch, neckYaw, torsoYaw, beforePhoto, photoThird,
+             photoVisible, backVisible, backThird };
+  });
+  assert(!r.firstVisible, "1인칭인데 몸이 보인다 — 머리 안에서 시야를 가린다");
+  assert(r.thirdVisible, "F5 를 눌렀는데 몸이 없다 — 조준선만 허공에 뜬다");
+  assert(Math.abs(r.height - 1.78) < 0.12,
+     "몸 키가 " + r.height.toFixed(2) + " 다 — 플레이어(1.78)와 어긋난다");
+  assert(Math.abs(r.footGap) < 0.12,
+     "발이 땅에서 " + r.footGap.toFixed(2) + " 칸 떠 있거나 묻혔다");
+  assert(r.dx0 < 0.15, "몸이 플레이어 자리에서 " + r.dx0.toFixed(2) + " 칸 벗어나 있다");
+  assert(r.legSwing > 0.3, "걷는데 다리 진폭이 " + r.legSwing.toFixed(2) + " 라디안뿐이다");
+  assert(r.armSwing > 0.2, "걷는데 팔 진폭이 " + r.armSwing.toFixed(2) + " 라디안뿐이다");
+  assert(r.restLeg < 0.05, "멈춰 섰는데 다리가 " + r.restLeg.toFixed(2) + " 만큼 벌어져 있다");
+  assert(r.neckPitch > 0.5, "고개를 들었는데 머리가 " + r.neckPitch.toFixed(2) + " 만 움직였다");
+  assert(Math.abs(r.neckYaw) > 0.2, "옆을 봤는데 머리가 안 돌았다");
+  assert(Math.abs(r.torsoYaw) < 0.9,
+     "서서 둘러보는데 몸통이 " + r.torsoYaw.toFixed(2) + " 만큼 즉시 따라 돌았다");
+  eq(r.photoThird, r.beforePhoto, "사진 모드가 3인칭을 껐다 — 찍을 주인공이 사라진다");
+  assert(r.photoVisible, "사진 모드에서 몸이 사라졌다");
+  eq(r.backThird, 0, "F5 세 번에 1인칭으로 안 돌아왔다");
+  assert(!r.backVisible, "1인칭으로 돌아왔는데 몸이 남아 있다");
+});
+
+test("v92 번개: 뇌우일 때만 치고, 볼트가 실제 자리에 떨어진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.player.pos.set(48.5, 46, 48.5);
+
+    // ── 그냥 비 — 천둥도 번쩍임도 없어야 한다 (v92 이전엔 예외 없이 7~23초마다 쳤다)
+    B.S.weatherLock = true;
+    B.S.weather = 1; B.S.thundery = 0; B.S.flash = 0; B.S.bolt = 0;
+    B.S.stormTimer = 0.1;
+    let plainFlash = 0, plainBolt = 0;
+    for (let k = 0; k < 60 * 180; k++) {
+      B.updateStorm(1 / 60);
+      if (B.S.flash > 0.01) plainFlash++;
+      if (B.S.bolt > 0) plainBolt++;
+    }
+
+    // ── 뇌우 — 볼트가 보이고 하늘이 번쩍인다
+    B.S.thundery = 1; B.S.stormTimer = 0.1; B.S.flash = 0; B.S.bolt = 0;
+    let strikes = 0, maxFlash = 0, boltSeen = 0, farthest = 0, offGround = 0;
+    let prevBolt = 0;
+    for (let k = 0; k < 60 * 120; k++) {
+      B.updateStorm(1 / 60);
+      if (B.S.bolt > prevBolt) {          // 새로 친 순간
+        strikes++;
+        const bx = B.boltAt[0], by = B.boltAt[1], bz = B.boltAt[2];
+        const d = Math.hypot(bx - B.player.pos.x, bz - B.player.pos.z);
+        if (d > farthest) farthest = d;
+        const top = B.topMap[Math.floor(bz) * B.WX + Math.floor(bx)];
+        if (Math.abs(by - (top + 1)) > 0.51) offGround++;
+      }
+      prevBolt = B.S.bolt;
+      if (B.S.flash > maxFlash) maxFlash = B.S.flash;
+      if (B.S.bolt > 0 && B.boltMesh.visible) boltSeen++;
+    }
+    // 볼트가 다 지나가면 치운다
+    for (let k = 0; k < 60; k++) B.updateStorm(1 / 60);
+    B.S.bolt = 0;
+    B.updateStorm(1 / 60);
+
+    // ── 볼트 선분이 하늘까지 뻗어 있나
+    B.strikeBolt(50.5, 50.5);
+    const pos = B.boltMesh.geometry.attributes.position.array;
+    let lo = 1e9, hi = -1e9;
+    for (let i = 1; i < pos.length; i += 3) { if (pos[i] < lo) lo = pos[i]; if (pos[i] > hi) hi = pos[i]; }
+    const span = hi - lo;
+
+    // ── 뇌우는 그냥 비보다 하늘이 어둡다
+    B.S.timeOfDay = 0.5; B.S.bolt = 0; B.S.flash = 0;
+    B.S.thundery = 0; B.applyTime(0.016); B.applyTime(0.016);
+    const litPlain = B.voxUniforms.uDay.value;
+    B.S.thundery = 1; B.applyTime(0.016); B.applyTime(0.016);
+    const litStorm = B.voxUniforms.uDay.value;
+
+    B.S.weather = 0; B.S.thundery = 0; B.S.flash = 0; B.S.bolt = 0;
+    B.S.weatherLock = false;
+    B.boltMesh.visible = false;
+    B.endPlay(); B.setPaused(false);
+    return { plainFlash, plainBolt, strikes, maxFlash, boltSeen, farthest,
+             offGround, span, litPlain, litStorm };
+  });
+  eq(r.plainFlash, 0, "그냥 비인데 3분 동안 하늘이 " + r.plainFlash + "프레임 번쩍였다");
+  eq(r.plainBolt, 0, "그냥 비인데 번개가 떨어졌다");
+  assert(r.strikes >= 3 && r.strikes <= 12,
+     "뇌우 2분 동안 번개가 " + r.strikes + "번 쳤다 — 3~12번이라야 한다");
+  assert(r.maxFlash > 0.2, "뇌우인데 하늘이 안 번쩍였다");
+  assert(r.boltSeen > 0, "번개가 쳤는데 볼트가 화면에 안 나왔다 — 하늘 번쩍임뿐이다");
+  assert(r.farthest <= 72, "번개가 " + r.farthest.toFixed(0) + "칸 밖에 떨어졌다 — 안 보인다");
+  eq(r.offGround, 0, "볼트가 " + r.offGround + "번 땅이 아닌 곳에서 시작했다");
+  assert(r.span > 30, "볼트가 " + r.span.toFixed(0) + "칸밖에 안 뻗는다");
+  assert(r.litStorm < r.litPlain - 0.02,
+     "뇌우가 그냥 비와 같은 밝기다 — " + r.litStorm.toFixed(3) + " vs " + r.litPlain.toFixed(3));
+});
+
+test("v92 묘목: 세 종을 골라 심고, 심은 대로 자란다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const Y = 46, Z = 60;
+    // 설원 한복판에서도 재 본다 — 예전에는 바이옴이 종을 정해서
+    // 초원에 가문비를, 설원에 참나무를 심을 방법이 아예 없었다
+    const bases = [];
+    for (let s = 0; s < 3; s++) {
+      const X = 20 + s * 10;
+      for (let dx = -5; dx <= 5; dx++) for (let dz = -5; dz <= 5; dz++) {
+        for (let dy = -1; dy <= 16; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+        B.set(X + dx, Y - 1, Z + dz, B.B.GRASS);
+        B.biomeMap[(Z + dz) * B.WX + (X + dx)] = 1;      // 전부 설원으로 못 박는다
+      }
+      bases.push(X);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+
+    const kinds = [B.B.SAPLING, B.B.SAPLING_BIRCH, B.B.SAPLING_SPRUCE];
+    const out = [];
+    for (let s = 0; s < 3; s++) {
+      const X = bases[s];
+      B.applyEdit(X, Y, Z, kinds[s], false, 0);
+      let ticks = 0;
+      while (B.get(X, Y, Z) === kinds[s] && ticks < 500) { B.growTick(1.0); ticks++; }
+      const log = B.get(X, Y, Z);
+      let leaf = 0, oak = 0, birch = 0, spruce = 0;
+      for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++)
+        for (let dy = 0; dy <= 14; dy++) {
+          const b = B.get(X + dx, Y + dy, Z + dz);
+          if (b === B.B.LEAVES) { leaf++; oak++; }
+          else if (b === B.B.BIRCH_LEAVES) { leaf++; birch++; }
+          else if (b === B.B.SPRUCE_LEAVES) { leaf++; spruce++; }
+        }
+      out.push({ log, leaf, oak, birch, spruce, ticks });
+    }
+
+    // 목록·이름·아이콘이 세 종을 가르나
+    const inList = kinds.map((k) => B.ALL_BLOCKS.indexOf(k) >= 0);
+    const names = kinds.map((k) => B.NAMES[k]);
+    const tiles = kinds.map((k) => B.TILES[k][0]);
+    const sapCheck = kinds.map((k) => B.isSapling(k));
+    // 아이콘이 실제로 서로 다른 그림인가 — 타일 번호만 다르고 그림이 같으면 못 가른다
+    const inks = tiles.map((t) => {
+      const cv = document.createElement("canvas");
+      cv.width = cv.height = 16;
+      const c = cv.getContext("2d");
+      c.drawImage(B.atlas, (t % 16) * 16, Math.floor(t / 16) * 16, 16, 16, 0, 0, 16, 16);
+      const d = c.getImageData(0, 0, 16, 16).data;
+      let sum = 0;
+      for (let i = 0; i < d.length; i += 4) sum += (d[i] * 7 + d[i + 1] * 11 + d[i + 2] * 13) * (d[i + 3] ? 1 : 0);
+      return sum;
+    });
+
+    B.endPlay(); B.setPaused(false);
+    return { out, inList, names, tiles, sapCheck, inks, allCount: B.ALL_BLOCKS.length };
+  });
+  const [oakT, birchT, spruceT] = r.out;
+  assert(oakT.log === 5, "참나무 묘목이 참나무로 안 자랐다 — 줄기가 " + oakT.log + " 다");
+  assert(oakT.oak > 0 && oakT.birch === 0 && oakT.spruce === 0,
+     "참나무 묘목이 낸 잎: 참" + oakT.oak + " 자작" + oakT.birch + " 가문비" + oakT.spruce);
+  assert(birchT.log === 27, "자작나무 묘목이 자작으로 안 자랐다 — 줄기가 " + birchT.log + " 다");
+  assert(spruceT.log === 5, "가문비 묘목의 줄기가 " + spruceT.log + " 다 — 가문비도 참나무 원목을 쓴다");
+  assert(birchT.birch > 0 && birchT.oak === 0 && birchT.spruce === 0,
+     "자작 묘목이 낸 잎: 참" + birchT.oak + " 자작" + birchT.birch + " 가문비" + birchT.spruce);
+  assert(spruceT.spruce > 0 && spruceT.oak === 0 && spruceT.birch === 0,
+     "설원에 심은 가문비 묘목이 낸 잎: 참" + spruceT.oak + " 자작" + spruceT.birch + " 가문비" + spruceT.spruce);
+  assert(r.inList.every(Boolean), "묘목 세 종이 블록 목록에 다 있지 않다: " + r.inList.join(","));
+  assert(new Set(r.names).size === 3, "묘목 이름이 겹친다: " + r.names.join(" · "));
+  assert(new Set(r.tiles).size === 3, "묘목 아틀라스 타일이 겹친다: " + r.tiles.join(","));
+  assert(new Set(r.inks).size === 3, "묘목 그림이 서로 같다 — 핫바에서 못 가른다: " + r.inks.join(","));
+  assert(r.sapCheck.every(Boolean), "isSapling 이 세 종을 다 못 잡는다");
+});
+
+test("v92 새 블록: 타일이 남의 그림을 안 덮고, 이름이 원목을 안 가로챈다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    // (1) 목록에 오른 것들이 **실제로 그려진** 타일을 가리키나.
+    // v92 가 묘목을 담긴 양동이(81·82) 위에 그렸는데 시험이 못 잡았다 —
+    // 두 그림이 서로 다르기만 하면 통과하는 시험이었다
+    const unpainted = [];
+    for (const b of B.ALL_BLOCKS.concat(B.ITEMS)) {
+      const t = B.TILES[b];
+      if (!t) { unpainted.push(B.NAMES[b] + "(타일 없음)"); continue; }
+      for (const ti of t) if (!B.painted[ti]) unpainted.push(B.NAMES[b] + "→" + ti);
+    }
+
+    // (2) 이름으로 찾을 때 묘목이 원목·잎을 가로채면 안 된다 (findBlock 은 목록 순서를 탄다)
+    B.setPaused(true); B.beginPlay();
+    const names = ["자작나무", "가문비", "참나무", "자작나무 묘목", "가문비 묘목", "참나무 묘목"];
+    const found = names.map((n) => {
+      B.runCommand("give " + n);
+      return B.S.bar[B.S.selected];
+    });
+
+    // (3) 저장에서 되살린 비도 뇌우가 될 수 있어야 한다.
+    // 추첨이 setWeather 안에만 있으면, S.weather 를 직접 넣고 applyWeather 만 부르는
+    // 불러오기 경로에서 그 세계는 영영 천둥이 없다
+    let thundery = 0;
+    for (let k = 0; k < 60; k++) {
+      B.S.weather = 1; B.S.thundery = null;
+      B.applyWeather();
+      if (B.S.thundery) thundery++;
+    }
+    B.S.weather = 0; B.S.thundery = 0; B.applyWeather();
+    B.endPlay(); B.setPaused(false);
+    return { unpainted, found, thundery };
+  });
+  eq(r.unpainted.length, 0, "그려지지 않은 타일을 쓰는 블록: " + r.unpainted.join(", "));
+  eq(r.found[0], 27, "'자작나무' 가 자작 원목(27)이 아니라 " + r.found[0] + " 을 준다");
+  eq(r.found[1], 29, "'가문비' 가 가문비 잎(29)이 아니라 " + r.found[1] + " 을 준다");
+  eq(r.found[2], 5, "'참나무' 가 참나무 원목(5)이 아니라 " + r.found[2] + " 을 준다");
+  eq(r.found[3], 78, "'자작나무 묘목' 이 " + r.found[3] + " 을 준다");
+  eq(r.found[4], 79, "'가문비 묘목' 이 " + r.found[4] + " 을 준다");
+  eq(r.found[5], 56, "'참나무 묘목' 이 " + r.found[5] + " 을 준다");
+  assert(r.thundery >= 8 && r.thundery <= 32,
+     "불러온 비 60판 중 뇌우가 " + r.thundery + "판이다 — 32% 언저리라야 한다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

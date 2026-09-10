@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { opts } from "./settings.js";
 import { Q } from "./queues.js";
 import { DIRS, N, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { BIRCH_LEAVES, BIRCH_LOG, LEAVES, LOG, SAPLING, SNOW, SPRUCE_LEAVES, DIRT, GRASS, blocksLight, AIR, COBBLE, FIRE, GRAVEL, ICE, LAVA, SAND, SH_FULL, STONE, TNT, WATER, isCross, isFlammable, isLeaf, isLiquid, isLog, isSolid, isUnbreakable } from "./blocks.js";
+import { BIRCH_LEAVES, BIRCH_LOG, LEAVES, LOG, SAPLING, SAPLING_BIRCH, SAPLING_SPRUCE, isSapling, SNOW, SPRUCE_LEAVES, DIRT, GRASS, blocksLight, AIR, COBBLE, FIRE, GRAVEL, ICE, LAVA, SAND, SH_FULL, STONE, TNT, WATER, isCross, isFlammable, isLeaf, isLiquid, isLog, isSolid, isUnbreakable } from "./blocks.js";
 import { topMap, isTouched, biomeMap, get, refreshTop, shape, waterLvl, world } from "./world.js";
 import { growTree } from "./tree.js";
 import { lightSky, lightBlk, relightLocal } from "./light.js";
@@ -703,7 +703,7 @@ export var GROW_LIGHT = 9;        // 마크와 같이 빛 9 이상이어야 자�
 
 export function enqueueGrow(x, y, z) {
   if (!inside(x, y, z)) return;
-  if (world[idx(x, y, z)] !== SAPLING) return;
+  if (!isSapling(world[idx(x, y, z)])) return;
   Q.growQ.push(idx(x, y, z));
 }
 
@@ -711,16 +711,17 @@ export function enqueueGrow(x, y, z) {
 // 큐를 저장 포맷에 넣지 않는 대신 여기서 한 번 훑는다 (589,824칸에 1ms 남짓).
 function reseedGrow() {
   Q.growQ.length = 0;
-  for (var i = 0; i < N; i++) if (world[i] === SAPLING) Q.growQ.push(i);
+  for (var i = 0; i < N; i++) if (isSapling(world[i])) Q.growQ.push(i);
   S.growDirty = false;
 }
 
-// 이 자리에서 자랄 나무의 종류 — 그 땅에 원래 서 있던 나무를 따른다.
-// 심는 사람이 종류를 고르게 하려면 묘목이 세 종류여야 하는데,
-// 크리에이티브에서 목록만 세 칸 늘고 얻는 게 없다 (자문 7차).
-function saplingKind(x, z) {
-  if (biomeMap[z * WX + x] === 1) return 2;          // 설원 → 가문비
-  return (Math.random() < 0.34) ? 1 : 0;             // 초원 → 자작 34% · 참나무
+// 자랄 나무의 종류는 **심은 묘목**이 정한다 (v92).
+// v91 까지는 여기서 주사위를 굴려(설원=가문비, 그 밖은 자작 34%/참나무),
+// 초원에 가문비 숲을 만들 방법이 아예 없었다. 이제 묘목이 세 종이다.
+function saplingKind(b) {
+  if (b === SAPLING_BIRCH) return 1;
+  if (b === SAPLING_SPRUCE) return 2;
+  return 0;                                           // SAPLING(56) — 참나무
 }
 
 export function growTick(dt) {
@@ -732,7 +733,8 @@ export function growTick(dt) {
   var grown = 0, keep = [];
   for (var k = 0; k < Q.growQ.length; k++) {
     var i = Q.growQ[k];
-    if (world[i] !== SAPLING) continue;              // 캐 갔거나 덮였다 — 큐에서 빠진다
+    var sap = world[i];
+    if (!isSapling(sap)) continue;                   // 캐 갔거나 덮였다 — 큐에서 빠진다
     var y = (i / PLANE) | 0, rem = i - y * PLANE;
     var z = (rem / WX) | 0, x = rem - z * WX;
     var floorB = get(x, y - 1, z);
@@ -752,7 +754,7 @@ export function growTick(dt) {
     for (var py2 = 0; py2 <= 7 && !busy; py2++) if (playerOccupies(x, y + py2, z)) busy = true;
     if (busy) { keep.push(i); continue; }
     if (Math.random() > GROW_CHANCE) { keep.push(i); continue; }
-    var kind = saplingKind(x, z);
+    var kind = saplingKind(sap);
     var logB = (kind === 1) ? BIRCH_LOG : LOG;
     var leafB = (kind === 2) ? SPRUCE_LEAVES : (kind === 1 ? BIRCH_LEAVES : LEAVES);
     // 묘목 자리를 먼저 비운다 — 줄기 첫 칸이 여기 서야 한다
@@ -763,7 +765,7 @@ export function growTick(dt) {
                       get, function (bx, by, bz, b) { applyEdit(bx, by, bz, b, true, SH_FULL); },
                       AIR, WY);
     endBatch("나무 자람");
-    if (!ok) { applyEdit(x, y, z, SAPLING, false, SH_FULL); keep.push(i); continue; }
+    if (!ok) { applyEdit(x, y, z, sap, false, SH_FULL); keep.push(i); continue; }
     // 옆에 서 있다가 나무가 소리 없이 솟으면 무슨 일이 난 건지 모른다.
     // 잎이 터지는 소리와 잎조각 — 무엇이 어디서 자랐는지 눈과 귀로 알린다.
     var voice = at(x + 0.5, y + 2, z + 0.5);

@@ -184,11 +184,17 @@ export function seedWeather() {
 export function setWeather(w) {
   if (w === S.weather) return;
   S.weather = w;
+  S.thundery = null;      // 새 판이다 — applyWeather 가 다시 뽑는다
   applyWeather();
 }
 // S.weather 가 이미 그 값일 때도 화면을 맞춘다 —
 // 저장에서 날씨를 되살릴 때(v67) S.weather 를 직접 넣으므로 setWeather 는 조기 반환한다.
 export function applyWeather() {
+  // 이번 비가 뇌우인지는 여기서 한 번만 정한다 — 마크도 비의 일부만 뇌우다 (v92).
+  // setWeather 안에 두었더니, 저장에서 되살린 비(S.weather 를 직접 넣고 이 함수만 부른다)가
+  // 영영 천둥을 못 쳤다. 날씨가 잠겨 있으면 그 세계에서는 영원히 그랬다.
+  if (S.weather !== 1) S.thundery = 0;
+  else if (S.thundery === null || S.thundery === undefined) S.thundery = Math.random() < 0.32 ? 1 : 0;
   if (S.weather === 0) {
     weatherPoints.visible = false;
     rainLines.visible = false;
@@ -208,16 +214,78 @@ export function localBiome() {
   return biomeMap[bz * WX + bx];
 }
 
-// 번개 — 하늘이 번쩍이고 잠시 뒤 천둥이 온다
+// ── 번개 볼트 — 실제로 어딘가에 떨어진다.
+// v92 이전에는 하늘 전체가 번쩍이기만 해서 "어디 떨어졌는지" 를 알 수 없었다.
+// 굵은 선을 못 그리는 대신(WebGL 의 linewidth 는 대개 1px) 가닥을 셋 겹쳐 굵어 보이게 한다.
+export var BOLT_SEG = 12, BOLT_STRANDS = 3;
+var boltGeo = new THREE.BufferGeometry();
+var boltArr = new Float32Array(BOLT_SEG * BOLT_STRANDS * 2 * 3);
+boltGeo.setAttribute("position", new THREE.BufferAttribute(boltArr, 3));
+var boltMat = new THREE.LineBasicMaterial({
+  color: 0xeaf2ff, transparent: true, opacity: 1, fog: false, depthWrite: false });
+export var boltMesh = new THREE.LineSegments(boltGeo, boltMat);
+boltMesh.visible = false;
+boltMesh.frustumCulled = false;
+scene.add(boltMesh);
+export var boltAt = [0, 0, 0];
+
+// 볼트 하나를 (x,z) 에 세운다 — 지표에서 위로 뻗는 지그재그
+export function strikeBolt(fx, fz) {
+  var top = columnTop(fx, fz);
+  if (top < 0) top = 0;
+  var y0 = top + 1, y1 = y0 + 46;
+  boltAt[0] = fx; boltAt[1] = y0; boltAt[2] = fz;
+  // 뼈대를 한 번 뽑고 가닥마다 조금씩 어긋나게 흔든다
+  var px = [], py = [], pz = [];
+  var cx = fx, cz = fz;
+  for (var i = 0; i <= BOLT_SEG; i++) {
+    var t = i / BOLT_SEG;
+    px.push(cx); py.push(y0 + (y1 - y0) * t); pz.push(cz);
+    cx += (Math.random() - 0.5) * 2.6;
+    cz += (Math.random() - 0.5) * 2.6;
+  }
+  var w = 0;
+  for (var sd = 0; sd < BOLT_STRANDS; sd++) {
+    var ox = (sd - 1) * 0.22, oz = (sd - 1) * 0.16;
+    for (var k = 0; k < BOLT_SEG; k++) {
+      boltArr[w++] = px[k] + ox;     boltArr[w++] = py[k];     boltArr[w++] = pz[k] + oz;
+      boltArr[w++] = px[k + 1] + ox; boltArr[w++] = py[k + 1]; boltArr[w++] = pz[k + 1] + oz;
+    }
+  }
+  boltGeo.attributes.position.needsUpdate = true;
+  S.bolt = 0.42;
+  boltMesh.visible = true;
+}
+
+// 번개 — 뇌우일 때만 친다. 볼트가 보이고, 거리만큼 늦게 천둥이 온다
 export function updateStorm(dt) {
   if (S.flash > 0) S.flash = Math.max(0, S.flash - dt * 3.2);
-  if (S.weather !== 1) { S.stormTimer = 6 + Math.random() * 8; return; }
+  if (S.bolt > 0) {
+    S.bolt = Math.max(0, S.bolt - dt);
+    // 한 번 치고 두 번 깜빡인다 — 마크의 번개도 한 줄기로 끝나지 않는다
+    var b = S.bolt / 0.42;
+    boltMat.opacity = b > 0.72 ? 1 : (b > 0.55 ? 0.15 : (b > 0.34 ? 0.9 : b * 2.2));
+    if (S.bolt <= 0) boltMesh.visible = false;
+  }
+  // 비가 아니거나 그냥 비(뇌우 아님)면 천둥은 없다.
+  // v92 이전에는 비면 예외 없이 7~23초마다 쳐서, 한 판(60~150초)에 평균 7번이었다
+  if (S.weather !== 1 || !S.thundery) { S.stormTimer = 8 + Math.random() * 10; return; }
   S.stormTimer -= dt;
   if (S.stormTimer > 0) return;
-  S.stormTimer = 7 + Math.random() * 16;
-  var near = Math.random() < 0.35;
-  S.flash = near ? 1 : 0.6;
-  thunder(near ? 260 : 900 + Math.random() * 1800, near);
+  S.stormTimer = 12 + Math.random() * 22;
+
+  // 떨어질 자리 — 보이는 거리 안에 두어야 "저기 떨어졌다" 가 된다
+  var ang = Math.random() * Math.PI * 2;
+  var dist = 16 + Math.random() * 54;
+  var bx = Math.max(1, Math.min(WX - 2, player.pos.x + Math.cos(ang) * dist));
+  var bz = Math.max(1, Math.min(WZ - 2, player.pos.z + Math.sin(ang) * dist));
+  strikeBolt(bx, bz);
+
+  var dx = bx - player.pos.x, dz = bz - player.pos.z;
+  var d = Math.sqrt(dx * dx + dz * dz);
+  var near = d < 34;
+  S.flash = near ? 1 : Math.max(0.25, 0.85 - d / 120);
+  thunder(Math.min(2600, 120 + d * 26), near);
 }
 
 export function updateWeather(dt) {

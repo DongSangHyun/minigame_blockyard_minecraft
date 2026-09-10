@@ -2,10 +2,10 @@
 import { S } from "./state.js";
 import { growTree } from "./tree.js";
 import { breedTick, MOB_MAX, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, mobs, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
-import { atlasSample, SWATCH_SIDE, animateLiquids, atlas } from "./atlas.js";
+import { atlasSample, SWATCH_SIDE, animateLiquids, atlas, painted } from "./atlas.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, GEN, setGen, seaLift, WX, WY, WZ, idx, inside } from "./dims.js";
-import { isThin, needsFloor, needsWall, POT, FRAME, BUCKET, BOOKSHELF, CARPET, CARPET0, CARPET_COUNT, isCarpet, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SAPLING, doorOpen, doorFacing, doorShapeFor, DOOR, AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DEFAULT_BAR2, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLINT, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, ITEMS, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, categoryOf, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isItem, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
+import { isThin, needsFloor, needsWall, POT, FRAME, BUCKET, BOOKSHELF, CARPET, CARPET0, CARPET_COUNT, isCarpet, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SAPLING, SAPLING_BIRCH, SAPLING_SPRUCE, isSapling, doorOpen, doorFacing, doorShapeFor, DOOR, AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DEFAULT_BAR2, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLINT, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, ITEMS, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, categoryOf, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isItem, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
 import { markX, markY, markZ, markName, SEEN_TOP, SEEN_UNDER, SEEN_UNDER_ALL, UNDER_BANDS, underBand, expandLegacySeen, seenMap, seenRatio, markSeen, biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBoxes, heightMap, isTouched, markTouched, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, touched, waterLvl, world , oreCeil, lavaTop} from "./world.js";
 import { WATER_DIM, lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
 import { growTick, enqueueGrow, lavaFlowTick, lavaDryTick, LAVA_FLOW, grassTick, primeTNT, primeTick, TNT_FUSE, lavaTick, BLAST_R, FIRE_REACH, MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueFreeze, enqueueWaterAround, explode, fallTick, fireTick, freezeTick, ignite, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
@@ -20,9 +20,10 @@ import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, 
 import { checkFoundAchievements, FOUND_IDS, undoEmptyWhy, HISTORY_CELLS_MAX, editLabel, blueprintList, deleteBlueprint, settleWorld, mirrorClip, rotateClip, BATCH_RELIGHT_ALL, checkBuildAchievements, ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
 import { refreshMouthDots, mouthDots, naturalRoof, roofDepth, ROOF_R, UNDER_ROOF, refreshMinimapCap, openPicker, closePicker, pickBtns, airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp , setHelpTab} from "./hud.js";
 import { updateGhost, ghostMesh, updateHandLight, handMat, makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
+import { bodyRoot, updateBody, armL, armR, legL, legR, neck, upper } from "./body.js";
 import { refreshResume, advanceTut, setStick, advanceTutTouch, HINT_TOUCH, refreshBlueprints, afterWorldSwap, aimCell, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink , swapBarPage, setShapeMode, cycleMinimapZoom, toggleMark, markHere, renameMarkHere} from "./input.js";
 import { canPlaceAt, mineAt, place, tryInteract, upperFromHit } from "./mine.js";
-import { weatherPoints, applyWeather, HIDE_Y, MOON_PHASES, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
+import { weatherPoints, applyWeather, HIDE_Y, MOON_PHASES, boltAt, boltMesh, strikeBolt, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
 import { newWorld, PLACE_DELAY, PLACE_REPEAT, SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, farNow, refreshPerf, step , chunkFloor, refreshChunkFloor} from "./loop.js";
 
 // 주소에 ?seed=1234&t=2 가 있으면 그 세계로 연다 — 링크 하나로 같은 세계를 나눈다
@@ -89,9 +90,10 @@ window.__blockyard = {
        BIRCH_LOG: BIRCH_LOG, BIRCH_LEAVES: BIRCH_LEAVES, SPRUCE_LEAVES: SPRUCE_LEAVES,
        GOLD: GOLD, DIAMOND: DIAMOND, FENCE: FENCE, GATE: GATE, DOOR: DOOR,
        PANE: PANE, LADDER: LADDER, TNT: TNT, FIRE: FIRE, FLINT: FLINT,
-       SAPLING: SAPLING, BOOKSHELF: BOOKSHELF, CARPET: CARPET },
+       SAPLING: SAPLING, SAPLING_BIRCH: SAPLING_BIRCH, SAPLING_SPRUCE: SAPLING_SPRUCE,
+       BOOKSHELF: BOOKSHELF, CARPET: CARPET },
   CARPET0: CARPET0, CARPET_COUNT: CARPET_COUNT, isCarpet: isCarpet,
-  POT: POT, FRAME: FRAME, BUCKET: BUCKET, needsWall: needsWall,
+  POT: POT, FRAME: FRAME, BUCKET: BUCKET, needsWall: needsWall, isSapling: isSapling,
   world: world, lightSky: lightSky, lightBlk: lightBlk,
   topMap: topMap, heightMap: heightMap, biomeMap: biomeMap,
   idx: idx, get: get, set: set, inside: inside, lightPass: lightPass, oreCeil: oreCeil, lavaTop: lavaTop,
@@ -104,6 +106,8 @@ window.__blockyard = {
   unstick: unstick, pointSolid: pointSolid, playerOccupies: playerOccupies,
   PLACE_DELAY: PLACE_DELAY, PLACE_REPEAT: PLACE_REPEAT,
   player: player, camera: camera, EYE: EYE, spawn: spawn, refreshTop: refreshTop, refreshAllTops: refreshAllTops,
+  bodyRoot: bodyRoot, updateBody: updateBody,
+  bodyParts: { armL: armL, armR: armR, legL: legL, legR: legR, neck: neck, upper: upper },
   applyEdit: applyEdit, undo: undo, redo: redo, history: S.history, future: S.future,
   encodeWorld: encodeWorld, decodeWorld: decodeWorld,
   encodeWorldB64: encodeWorldB64, decodeWorldB64: decodeWorldB64,
@@ -149,13 +153,14 @@ window.__blockyard = {
   dayLight: dayLight, clockText: clockText, TILES: TILES, NAMES: NAMES, ALL_BLOCKS: ALL_BLOCKS,
   getBar: function () { return S.bar; },
   setTime: function (t) { S.timeOfDay = t; applyTime(); },
+  applyTime: applyTime,
   seed: function () { return S.worldSeed; },
   opts: opts, applyOpts: applyOpts, calmMotion: calmMotion, voxUniforms: voxUniforms,
 
   // ── 개선 v5 에서 추가된 것들
   isUnbreakable: isUnbreakable, columnTop: columnTop, facingText: facingText,
   isCross: isCross, isLiquid: isLiquid, isTransparent: isTransparent,
-  atlas: atlas, crossBase: crossBase, surfaceTop: surfaceTop, needsFloor: needsFloor,
+  atlas: atlas, painted: painted, crossBase: crossBase, surfaceTop: surfaceTop, needsFloor: needsFloor,
   cloud: { checkToken: checkToken, isLinked: isLinked, listWorlds: listWorlds,
            normalizeName: normalizeName, pullWorld: pullWorld, pushWorld: pushWorld,
            setToken: setToken, setWorldName: setWorldName, unlink: unlink,
@@ -166,7 +171,8 @@ window.__blockyard = {
   lavaFlowTick: lavaFlowTick, lavaDryTick: lavaDryTick, LAVA_FLOW: LAVA_FLOW,
   primeTNT: primeTNT, primeTick: primeTick, TNT_FUSE: TNT_FUSE, lavaTick: lavaTick, grassTick: grassTick, animateLiquids: animateLiquids, setMuffle: setMuffle,
   isLog: isLog, isLeaf: isLeaf, isWallShape: isWallShape, wallShapeFor: wallShapeFor,
-  updateStorm: updateStorm, updateEdge: updateEdge, edgeMat: edgeMat,
+  updateStorm: updateStorm, boltMesh: boltMesh, strikeBolt: strikeBolt, boltAt: boltAt,
+  updateEdge: updateEdge, edgeMat: edgeMat,
   updateParticles: updateParticles, boxesAt: boxesAt, dynamicBoxes: dynamicBoxes, hasDynamicBoxes: hasDynamicBoxes,
   skyUniforms: skyUniforms, selectSlot: selectSlot,
   openPicker: openPicker, closePicker: closePicker, refreshBar: refreshBar,

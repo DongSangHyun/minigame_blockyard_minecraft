@@ -47,8 +47,9 @@ export function applyTime(dt) {
   sampleSky(S.timeOfDay);
   var L = dayLight(S.timeOfDay);
   if (S.weather) {
-    // 흐린 날은 어둡고 하늘이 잿빛으로 가라앉는다
-    L *= S.weather === 1 ? 0.68 : 0.78;
+    // 흐린 날은 어둡고 하늘이 잿빛으로 가라앉는다.
+    // 뇌우는 그냥 비보다 한 겹 더 어둡다 — 천둥이 오기 전에 하늘로 먼저 안다 (v92)
+    L *= S.weather === 1 ? (S.thundery ? 0.54 : 0.68) : 0.78;
     skyUniforms.top.value.lerp(_grey, 0.45);
     skyUniforms.low.value.lerp(_grey, 0.55);
   }

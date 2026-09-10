@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-09 · 모듈 28개 · 합계 11,439줄
+생성일 2026-09-10 · 모듈 29개 · 합계 11,743줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -10,34 +10,35 @@
 
 | 모듈 | 하는 일 | 줄 | 기대는 곳 |
 |---|---|---:|---|
-| [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 190 | — |
+| [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 192 | — |
 | [`dims.js`](../src/dims.js) | 세계 치수와 좌표 계산 (의존성 없음) | 28 | — |
 | [`queues.js`](../src/queues.js) | 시뮬레이션 대기열 (의존성 없음) | 36 | — |
 | [`boot.js`](../src/boot.js) | 부팅 가드 · 환경 판별 | 29 | state |
-| [`blocks.js`](../src/blocks.js) | 블록 정의 · 모양 · 성질 | 327 | state |
+| [`blocks.js`](../src/blocks.js) | 블록 정의 · 모양 · 성질 | 344 | state |
 | [`tree.js`](../src/tree.js) | 나무 한 그루의 모양 | 47 | — |
-| [`atlas.js`](../src/atlas.js) | 텍스처 아틀라스 (코드로 그리는 16×16 도트) | 648 | blocks |
+| [`atlas.js`](../src/atlas.js) | 텍스처 아틀라스 (코드로 그리는 16×16 도트) | 681 | blocks |
 | [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 1077 | state · tree · queues · dims · blocks · atlas |
 | [`light.js`](../src/light.js) | 광원 — 햇빛과 블록광 BFS | 182 | state · dims · blocks · world · mesh · player |
-| [`fluids.js`](../src/fluids.js) | 물 흐름 · 낙하 블록 · 잎 부패 | 779 | state · settings · queues · dims · blocks · world · tree · light · mesh · scene · audio · player · edit |
+| [`fluids.js`](../src/fluids.js) | 물 흐름 · 낙하 블록 · 잎 부패 | 781 | state · settings · queues · dims · blocks · world · tree · light · mesh · scene · audio · player · edit |
 | [`mesh.js`](../src/mesh.js) | 면 데이터 + 청크 메싱 | 272 | dims · blocks · atlas · world · light |
 | [`scene.js`](../src/scene.js) | three.js 씬 · 셰이더 · 파티클 | 594 | dims · boot · blocks · atlas · world · mesh |
-| [`daynight.js`](../src/daynight.js) | 낮과 밤 | 83 | state · world · scene |
+| [`daynight.js`](../src/daynight.js) | 낮과 밤 | 84 | state · world · scene |
 | [`settings.js`](../src/settings.js) | 설정 | 51 | state · boot · scene |
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 356 | state · dims · blocks · world · scene |
-| [`audio.js`](../src/audio.js) | 소리 | 258 | state · blocks · daynight · settings |
+| [`audio.js`](../src/audio.js) | 소리 | 259 | state · blocks · daynight · settings |
 | [`save.js`](../src/save.js) | 저장 · 불러오기 | 317 | state · dims · blocks · world · player · mobs · hud · sky |
 | [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 1035 | state · queues · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
 | [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 699 | state · version · dims · blocks · atlas · world · player · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 165 | state · settings · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
-| [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1667 | state · world · queues · mobs · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
+| [`body.js`](../src/body.js) | 3인칭에서 보이는 플레이어 몸 | 174 | state · settings · scene · player · atlas · hand · blocks |
+| [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1668 | state · world · queues · mobs · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
 | [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 284 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
 | [`mobs.js`](../src/mobs.js) | 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다. | 561 | dims · world · blocks · scene · player · audio |
-| [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 365 | state · audio · dims · atlas · world · scene · daynight · player |
+| [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 430 | state · audio · dims · atlas · world · scene · daynight · player |
 | [`cloud.js`](../src/cloud.js) | 기기 사이 이어하기 (GitHub Gist 에 세계를 올리고 내려받는다) | 226 | state · save |
-| [`loop.js`](../src/loop.js) | 게임 루프 | 894 | state · input · mobs · queues · dims · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · mine · sky |
+| [`loop.js`](../src/loop.js) | 게임 루프 | 896 | state · input · mobs · queues · dims · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · body · mine · sky |
 | [`version.js`](../src/version.js) | 빌드 도장 (자동 생성) | 8 | — |
-| [`main.js`](../src/main.js) | 조립과 시작 | 261 | state · tree · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · input · mine · sky · loop |
+| [`main.js`](../src/main.js) | 조립과 시작 | 267 | state · tree · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · body · input · mine · sky · loop |
 
 ## 모듈별 공개 함수
 
@@ -76,40 +77,41 @@
 
 | 함수 | 줄 |
 |---|---:|
-| `isCarpet(b)` | 31 |
-| `isWool(b)` | 39 |
-| `hardnessOf(b)` | 145 |
-| `isUnbreakable(b)` | 148 |
-| `isCross(b)` | 167 |
-| `needsFloor(b)` | 168 |
-| `needsWall(b)` | 170 |
-| `isItem(b)` | 181 |
-| `isConnecting(b)` | 193 |
-| `isClimbable(b)` | 195 |
-| `isOpenable(b)` | 197 |
-| `isFlammable(b)` | 199 |
-| `connectsTo(self, other)` | 207 |
-| `isLog(b)` | 214 |
-| `isLeaf(b)` | 215 |
-| `isDoorShape(sh)` | 235 |
-| `doorOpen(sh)` | 236 |
-| `doorFacing(sh)` | 237 |
-| `doorShapeFor(facing, open)` | 238 |
-| `isWallShape(sh)` | 241 |
-| `isStairShape(sh)` | 243 |
-| `wallShapeFor(nx, nz)` | 246 |
-| `crossOffset(sh)` | 253 |
-| `faceKindFor(sh, f, base)` | 283 |
-| `isAxisShape(sh)` | 288 |
-| `isLiquid(b)` | 290 |
-| `isTransparent(b)` | 291 |
-| `isSolid(b)` | 292 |
-| `isThin(b)` | 294 |
-| `blocksLight(b)` | 295 |
-| `lightPass(b)` | 298 |
-| `categoryOf(b)` | 315 |
+| `isSapling(b)` | 36 |
+| `isCarpet(b)` | 39 |
+| `isWool(b)` | 47 |
+| `hardnessOf(b)` | 159 |
+| `isUnbreakable(b)` | 162 |
+| `isCross(b)` | 183 |
+| `needsFloor(b)` | 184 |
+| `needsWall(b)` | 186 |
+| `isItem(b)` | 198 |
+| `isConnecting(b)` | 210 |
+| `isClimbable(b)` | 212 |
+| `isOpenable(b)` | 214 |
+| `isFlammable(b)` | 216 |
+| `connectsTo(self, other)` | 224 |
+| `isLog(b)` | 231 |
+| `isLeaf(b)` | 232 |
+| `isDoorShape(sh)` | 252 |
+| `doorOpen(sh)` | 253 |
+| `doorFacing(sh)` | 254 |
+| `doorShapeFor(facing, open)` | 255 |
+| `isWallShape(sh)` | 258 |
+| `isStairShape(sh)` | 260 |
+| `wallShapeFor(nx, nz)` | 263 |
+| `crossOffset(sh)` | 270 |
+| `faceKindFor(sh, f, base)` | 300 |
+| `isAxisShape(sh)` | 305 |
+| `isLiquid(b)` | 307 |
+| `isTransparent(b)` | 308 |
+| `isSolid(b)` | 309 |
+| `isThin(b)` | 311 |
+| `blocksLight(b)` | 312 |
+| `lightPass(b)` | 315 |
+| `categoryOf(b)` | 332 |
 
-내보내는 값 — `AIR` · `TNT` · `DOOR` · `SAPLING` · `BOOKSHELF` · `CARPET0` · `POT` · `BUCKET` · `WOOL0` · `WOOL_COLORS` · `TILES` · `BUCKET_TILE` · `NAMES` · `NAMES_EN` · `HARDNESS` · `EMIT` · `CROSS` · `ALL_BLOCKS` · `ITEMS` · `DEFAULT_BAR` · `DEFAULT_BAR2` · `SH_FULL` · `SH_UP_OFF` · `SH_SLAB_UP` · `SH_AXIS_X` · `SH_WALL_N` · `WALL_DIR` · `SH_DOOR_N` · `SH_DOOR_OPEN_OFF` · `SHAPE_BOXES` · `SHAPE_NAMES`
+내보내는 값 — `AIR` · `TNT` · `DOOR` · `SAPLING` · `BOOKSHELF` · `CARPET0` · `POT` · `BUCKET` · `SAPLING_BIRCH` · `WOOL0` · `WOOL_COLORS` · `TILES` · `BUCKET_TILE` · `NAMES` · `NAMES_EN` · `HARDNESS` · `EMIT` · `CROSS` · `ALL_BLOCKS` · `ITEMS` · `DEFAULT_BAR` · `DEFAULT_BAR2` · `SH_FULL` · `SH_UP_OFF` · `SH_SLAB_UP` · `SH_AXIS_X` · `SH_WALL_N` · `WALL_DIR` · `SH_DOOR_N` · `SH_DOOR_OPEN_OFF` · `SHAPE_BOXES` · `SHAPE_NAMES`
 
 ### `tree.js` — 나무 한 그루의 모양
 
@@ -126,10 +128,10 @@
 | `paint(index, fn)` | 21 |
 | `pick(rng, list)` | 29 |
 | `orePaint(tint1, tint2)` | 124 |
-| `tileAvg(i)` | 545 |
-| `tileSwatch(i)` | 560 |
-| `atlasSample(i)` | 634 |
-| `animateLiquids(t)` | 641 |
+| `tileAvg(i)` | 578 |
+| `tileSwatch(i)` | 593 |
+| `atlasSample(i)` | 667 |
+| `animateLiquids(t)` | 674 |
 
 내보내는 값 — `TILE` · `atlas` · `actx` · `atlasTex` · `SWATCH_N` · `AVG_TOP` · `crackTex`
 
@@ -218,7 +220,7 @@
 | `primeTick(dt)` | 651 |
 | `explode(cx, cy, cz, radius)` | 666 |
 | `enqueueGrow(x, y, z)` | 704 |
-| `growTick(dt)` | 726 |
+| `growTick(dt)` | 727 |
 
 내보내는 값 — `MAXFLOW` · `DECAY_R` · `FIRE_LIFE` · `FIRE_REACH` · `GRASS_REACH` · `LAVA_FLOW` · `LAVA_REACH` · `BLAST_R` · `TNT_FUSE` · `GROW_EVERY` · `GROW_CHANCE` · `GROW_LIGHT`
 
@@ -269,7 +271,7 @@
 | `moonFullness()` | 33 |
 | `dayLight(t)` | 37 |
 | `applyTime(dt)` | 46 |
-| `clockText()` | 78 |
+| `clockText()` | 79 |
 
 내보내는 값 — `DAY_LEN` · `SKY_STOPS` · `_cA` · `_grey`
 
@@ -312,23 +314,23 @@
 | `crunch(dur, gain, cutoff, node)` | 39 |
 | `startAmbient()` | 56 |
 | `updateAmbient(dt)` | 75 |
-| `breakSound(b)` | 112 |
-| `stepSound(b, through)` | 118 |
-| `setMuffle(on)` | 128 |
-| `rainHiss(vol)` | 138 |
-| `thunder(delayMs, near)` | 142 |
-| `moodChord(night, vol)` | 153 |
-| `caveSound(depthMix)` | 166 |
-| `at(x, y, z)` | 179 |
-| `listenAt(x, y, z, fx, fz)` | 195 |
-| `lavaPop(vol, node)` | 211 |
-| `splash(vol, node)` | 216 |
-| `waterLap(vol, node)` | 223 |
-| `birdCall(node)` | 229 |
-| `fireCrackle(vol, node)` | 235 |
-| `lavaHiss()` | 241 |
-| `placeSound(b)` | 246 |
-| `miningSound(b)` | 253 |
+| `breakSound(b)` | 113 |
+| `stepSound(b, through)` | 119 |
+| `setMuffle(on)` | 129 |
+| `rainHiss(vol)` | 139 |
+| `thunder(delayMs, near)` | 143 |
+| `moodChord(night, vol)` | 154 |
+| `caveSound(depthMix)` | 167 |
+| `at(x, y, z)` | 180 |
+| `listenAt(x, y, z, fx, fz)` | 196 |
+| `lavaPop(vol, node)` | 212 |
+| `splash(vol, node)` | 217 |
+| `waterLap(vol, node)` | 224 |
+| `birdCall(node)` | 230 |
+| `fireCrackle(vol, node)` | 236 |
+| `lavaHiss()` | 242 |
+| `placeSound(b)` | 247 |
+| `miningSound(b)` | 254 |
 
 내보내는 값 — `SOFT`
 
@@ -450,6 +452,14 @@
 
 내보내는 값 — `handScene` · `handCam` · `handGroup` · `handMat` · `heldMesh` · `armMat` · `arm` · `ghostMat` · `ghostMesh`
 
+### `body.js` — 3인칭에서 보이는 플레이어 몸
+
+| 함수 | 줄 |
+|---|---:|
+| `updateBody(dt)` | 108 |
+
+내보내는 값 — `LEG_H` · `bodyRoot` · `legL` · `upper` · `armL` · `neck` · `heldBlock`
+
 ### `input.js` — 입력 (키보드 · 마우스 · 터치)
 
 | 함수 | 줄 |
@@ -489,11 +499,11 @@
 | `cycleMinimapZoom(dir)` | 863 |
 | `swapBarPage()` | 878 |
 | `pickBlock()` | 902 |
-| `setStick(dx, dy)` | 1245 |
-| `bindHold(id, onDown, onUp)` | 1387 |
-| `bindOpt(inputId, outId, key, fmt)` | 1538 |
-| `pollGamepadMenu()` | 1596 |
-| `pollGamepad(dt)` | 1606 |
+| `setStick(dx, dy)` | 1246 |
+| `bindHold(id, onDown, onUp)` | 1388 |
+| `bindOpt(inputId, outId, key, fmt)` | 1539 |
+| `pollGamepadMenu()` | 1597 |
+| `pollGamepad(dt)` | 1607 |
 
 내보내는 값 — `overlay` · `goBtn` · `altBtn` · `seedIn` · `canvas` · `isTouch` · `HINT_LOCK` · `HINT_DRAG` · `HINT_TOUCH` · `hintEl` · `TUT` · `TUT_TOUCH` · `slotsEl` · `copySeedBtn` · `expBtn` · `impBtn` · `resBtn` · `fileIn` · `terrainEl` · `KEY_LABEL` · `keysEl` · `RESERVED` · `copyLinkBtn` · `refreshWorldPills` · `MM_ZOOMS` · `lookLast` · `stickZone` · `stickBase` · `stickKnob` · `STICK_R` · `padState`
 
@@ -538,15 +548,16 @@
 | `columnTop(fx, fz)` | 169 |
 | `seedWeather()` | 175 |
 | `setWeather(w)` | 184 |
-| `applyWeather()` | 191 |
-| `localBiome()` | 205 |
-| `updateStorm(dt)` | 212 |
-| `updateWeather(dt)` | 223 |
-| `seedCreatures()` | 317 |
-| `placeCreature(i)` | 325 |
-| `updateCreatures(dt)` | 335 |
+| `applyWeather()` | 194 |
+| `localBiome()` | 208 |
+| `strikeBolt(fx, fz)` | 230 |
+| `updateStorm(dt)` | 258 |
+| `updateWeather(dt)` | 288 |
+| `seedCreatures()` | 382 |
+| `placeCreature(i)` | 390 |
+| `updateCreatures(dt)` | 400 |
 
-내보내는 값 — `sunMat` · `sunSprite` · `MOON_PHASES` · `moonTex` · `moonMat` · `moonSprite` · `brightMat` · `brightStars` · `starMat` · `stars` · `WCOUNT` · `wPos` · `wDraw` · `HIDE_Y` · `wGeo` · `wMat` · `weatherPoints` · `rPos` · `rGeo` · `rainLines` · `CCOUNT` · `cPos` · `cSeed` · `cGeo` · `cMat` · `creatures`
+내보내는 값 — `sunMat` · `sunSprite` · `MOON_PHASES` · `moonTex` · `moonMat` · `moonSprite` · `brightMat` · `brightStars` · `starMat` · `stars` · `WCOUNT` · `wPos` · `wDraw` · `HIDE_Y` · `wGeo` · `wMat` · `weatherPoints` · `rPos` · `rGeo` · `rainLines` · `BOLT_SEG` · `boltMesh` · `boltAt` · `CCOUNT` · `cPos` · `cSeed` · `cGeo` · `cMat` · `creatures`
 
 ### `cloud.js` — 기기 사이 이어하기 (GitHub Gist 에 세계를 올리고 내려받는다)
 
@@ -579,13 +590,13 @@
 
 | 함수 | 줄 |
 |---|---:|
-| `refreshChunkFloor()` | 30 |
-| `newWorld(seed)` | 55 |
-| `step(dt)` | 100 |
-| `animate()` | 763 |
-| `autoTuneFar(fps)` | 851 |
-| `farNow()` | 869 |
-| `refreshPerf()` | 871 |
+| `refreshChunkFloor()` | 31 |
+| `newWorld(seed)` | 56 |
+| `step(dt)` | 101 |
+| `animate()` | 765 |
+| `autoTuneFar(fps)` | 853 |
+| `farNow()` | 871 |
+| `refreshPerf()` | 873 |
 
 내보내는 값 — `GRAVITY` · `chunkFloor` · `PLACE_DELAY` · `SNEAK_MUL` · `AIR_CONTROL` · `fwd` · `clock`
 

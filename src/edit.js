@@ -4,7 +4,7 @@ import { Q } from "./queues.js";
 import { opts } from "./settings.js";
 import { encodeArrB64, decodeArrB64, SLOTS } from "./save.js";
 import { SEA, DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
-import { isCarpet, POT, FRAME, FENCE, GLASS, PLANKS, BRICK, SAPLING, SH_STAIR_N, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
+import { isCarpet, POT, FRAME, FENCE, GLASS, PLANKS, BRICK, isSapling, SH_STAIR_N, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
 import { markX, markY, markZ, markName, topMap, refreshAllTops, touched, get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightAll, relightLocal } from "./light.js";
 import { enqueueGrow, enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
@@ -93,7 +93,7 @@ export function applyEdit(x, y, z, to, record, sh, depth) {
   if (to === LAVA) { waterLvl[i] = 0; enqueueLavaAround(x, y, z); }
   if (from === LAVA && to !== LAVA) enqueueLavaDryAround(x, y, z);
   if (to === AIR) enqueueLavaAround(x, y, z);
-  if (to === SAPLING) enqueueGrow(x, y, z);   // 심은 묘목은 자라기를 기다린다
+  if (isSapling(to)) enqueueGrow(x, y, z);   // 심은 묘목은 자라기를 기다린다
   enqueueFall(x, y, z);        // 놓은 블록 자신도 떨어질 수 있다
   enqueueFall(x, y + 1, z);    // 위에 얹혀 있던 것도
   // 묶음 편집(채우기·비우기·붙여넣기·폭발) 중에는 칸마다 조명 BFS·기둥 스캔·메시 표시를 하지 않는다.

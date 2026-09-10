@@ -158,6 +158,8 @@ export const S = {
   rainTimer: 0,
   snowTimer: 0,
   stormTimer: 8,
+  bolt: 0,          // 번개 볼트가 남아 있는 시간 (초)
+  thundery: 0,      // 이번 비가 뇌우인가 — 비 셋 중 하나만 천둥이 친다 (v92)
   flash: 0,
   cricketTimer: 0,
   saveWarned: false,

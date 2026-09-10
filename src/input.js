@@ -1129,8 +1129,9 @@ window.addEventListener("keydown", function (e) {
     e.preventDefault();
     S.photoMode = !S.photoMode;
     showHud(!S.photoMode && !S.hudHidden);
-    if (S.photoMode) { player.flying = true; S.thirdPerson = 0; }
-    toast(S.photoMode ? "사진 모드 — F2 로 저장, F6 로 나가기" : "사진 모드 끔");
+    // 3인칭을 끄지 않는다 — 사진 모드는 주인공을 찍는 자리이기도 하다 (v92)
+    if (S.photoMode) player.flying = true;
+    toast(S.photoMode ? "사진 모드 — F2 저장 · F5 3인칭 · F6 나가기" : "사진 모드 끔");
   }
   if (e.code === "F5") {
     e.preventDefault();
