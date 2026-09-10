@@ -4,14 +4,14 @@ import { Q } from "./queues.js";
 import { opts } from "./settings.js";
 import { encodeArrB64, decodeArrB64, SLOTS } from "./save.js";
 import { SEA, DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
-import { isCarpet, POT, FRAME, FENCE, GLASS, PLANKS, BRICK, isSapling, SH_STAIR_N, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
+import { isCarpet, ITEMS, POT, FRAME, FENCE, GLASS, PLANKS, BRICK, isSapling, SH_STAIR_N, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
 import { markX, markY, markZ, markName, topMap, refreshAllTops, touched, get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightAll, relightLocal } from "./light.js";
 import { enqueueGrow, enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
 import { markAllDirty, touch } from "./mesh.js";
 import { player, stats } from "./player.js";
 import { tone } from "./audio.js";
-import { helpAchList, showAchPop } from "./hud.js";
+import { helpAchList, refreshBar, showAchPop } from "./hud.js";
 import { setWeather, localBiome } from "./sky.js";
 
 export var HISTORY_MAX = 240;
@@ -738,16 +738,20 @@ function findBlock(name) {
   function label(b) {
     return ((NAMES[b] || "") + " " + (NAMES_EN[b] || "")).toLowerCase();
   }
-  for (var i = 0; i < ALL_BLOCKS.length; i++) {
-    var b = ALL_BLOCKS[i];
+  // 도구(양동이·부싯돌)도 찾는다 (v95) — ALL_BLOCKS 만 훑어서 `/give 양동이` 가
+  // "그런 블록이 없습니다" 였다. 핫바 2쪽에 있는 물건을 명령으로는 못 꺼냈다.
+  // place() 가 도구를 이미 가로채므로 핫바에 들어가도 안전하다
+  var pool = ALL_BLOCKS.concat(ITEMS);
+  for (var i = 0; i < pool.length; i++) {
+    var b = pool[i];
     var parts = label(b).split(" ");
     for (var p = 0; p < parts.length; p++) {
       if (parts[p] && parts[p] === q) return b;
     }
     if (label(b).replace(/\s+/g, "") === q.replace(/\s+/g, "")) return b;
   }
-  for (var j = 0; j < ALL_BLOCKS.length; j++) {
-    var b2 = ALL_BLOCKS[j];
+  for (var j = 0; j < pool.length; j++) {
+    var b2 = pool[j];
     if (label(b2).indexOf(q) >= 0) return b2;
   }
   return -1;
@@ -802,11 +806,23 @@ export function runCommand(line) {
       y = markY(m) >= 0 ? markY(m) : (topMap[markZ(m) * WX + markX(m)] + 1);
     }
     if (!isFinite(x) || !isFinite(y) || !isFinite(z)) return "tp <x> <y> <z> · tp <표식 번호|이름>";
-    player.pos.set(Math.max(0.4, Math.min(WX - 0.4, x)),
-                   Math.max(1, Math.min(WY - 2, y)),
-                   Math.max(0.4, Math.min(WZ - 0.4, z)));
+    var tx = Math.max(0.4, Math.min(WX - 0.4, x));
+    var ty = Math.max(1, Math.min(WY - 2, y));
+    var tz = Math.max(0.4, Math.min(WZ - 0.4, z));
+    // 돌 한가운데로 보내지 않는다 (v95) — 거기 떨어지면 걸을 수도, 날 수도, 떨어질 수도 없고
+    // 조준은 늘 제 머리가 든 칸 하나뿐이라 **한 칸씩 캐서 파 올라가는 것 말고는 길이 없었다.**
+    // 좌표를 대충 친 사람이나, 표식 자리를 나중에 벽으로 메운 사람이 그대로 갇혔다.
+    // 몸이 들어갈 두 칸이 빌 때까지 위로 훑는다 (spawn 이 쓰는 방법과 같다)
+    var gx = Math.floor(tx), gz = Math.floor(tz);
+    var lifted = 0;
+    for (var ty2 = Math.floor(ty); ty2 < WY - 2; ty2++) {
+      if (!isSolid(get(gx, ty2, gz)) && !isSolid(get(gx, ty2 + 1, gz))) { ty = ty2; break; }
+      lifted++;
+    }
+    player.pos.set(tx, ty, tz);
     player.vel.set(0, 0, 0);
-    return "이동: " + Math.floor(player.pos.x) + " " + Math.floor(player.pos.y) + " " + Math.floor(player.pos.z);
+    return "이동: " + Math.floor(player.pos.x) + " " + Math.floor(player.pos.y) + " " +
+           Math.floor(player.pos.z) + (lifted ? " (막힌 자리라 " + lifted + "칸 올렸습니다)" : "");
   }
 
   if (cmd === "time") {
@@ -832,6 +848,9 @@ export function runCommand(line) {
     var gb = findBlock(parts.slice(1).join(" "));
     if (gb < 0) return "그런 블록이 없습니다";
     S.bar[S.selected] = gb;
+    // 핫바를 다시 그린다 (v95) — 예전에는 손에 든 건 다이아, 핫바가 보여 주는 건 잔디였다.
+    // v85 가 글리프까지 넣어 고친 "핫바를 봐서는 뭘 든지 모른다" 가 명령 경로에만 남아 있었다
+    refreshBar();
     return "핫바에 " + NAMES[gb];
   }
 

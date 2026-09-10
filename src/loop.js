@@ -1,7 +1,7 @@
 // loop.js — 게임 루프
 import { S } from "./state.js";
 import { padState, pollGamepad, pollGamepadMenu } from "./input.js";
-import { breedTick, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
+import { breedTick, MOB_KINDS, aimedMob, removeMob, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, CX, CZ, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
 import { FIRE, isStairShape, SH_FULL, SH_SLAB, AIR, DEFAULT_BAR, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isItem, isSolid, isUnbreakable } from "./blocks.js";
@@ -432,7 +432,33 @@ export function step(dt) {
 
   var wantBreak = playing && (S.touchBreak || (S.lockMode ? S.mouseDown[0]
                               : (S.dragging && S.dragBtn === 0 && S.dragDist < 7)));
-  if (wantBreak && hit && hit.y > 0 && !isUnbreakable(hit.block)) {
+  // 좌클릭이 동물을 향하면 동물이 먼저다 (v95) — 마크 크리에이티브와 같다.
+  // 누른 채로 있으면 근처 동물이 줄줄이 사라지므로 **한 번 누르면 한 마리**다
+  if (!wantBreak) S.mobSwatted = false;
+  else if (!S.mobSwatted) {
+    var am = aimedMob();
+    if (am) {
+      // 동물보다 가까운 블록이 있으면 블록을 캔다 — 울타리 너머의 양이 벽을 뚫고 잡히면 안 된다
+      var eyeY = player.pos.y + EYE;
+      var hd = hit ? Math.sqrt((hit.x + 0.5 - player.pos.x) * (hit.x + 0.5 - player.pos.x) +
+                               (hit.y + 0.5 - eyeY) * (hit.y + 0.5 - eyeY) +
+                               (hit.z + 0.5 - player.pos.z) * (hit.z + 0.5 - player.pos.z)) : 99;
+      if (am.dist <= hd) {
+        var kindName = MOB_KINDS[am.mob.kind].name;
+        if (removeMob(am.mob)) {
+          S.mobSwatted = true;
+          triggerSwing();
+          // 되돌릴 수 없는 일이다 — 처음 한 번은 그렇게 말해 준다
+          toast(S.mobSwatHinted ? (kindName + "을(를) 보냈습니다")
+                                : (kindName + "을(를) 보냈습니다 — 동물은 되돌리기로 안 돌아옵니다"));
+          S.mobSwatHinted = true;
+          S.breaking.on = false;
+          crackMesh.visible = false;
+        }
+      }
+    }
+  }
+  if (wantBreak && hit && hit.y > 0 && !isUnbreakable(hit.block) && !S.mobSwatted) {
     if (!S.breaking.on || S.breaking.x !== hit.x || S.breaking.y !== hit.y || S.breaking.z !== hit.z) {
       S.breaking.on = true; S.breaking.x = hit.x; S.breaking.y = hit.y; S.breaking.z = hit.z;
       S.breaking.t = 0; S.breaking.need = digNeed(hit.block); S.breaking.stage = -1;

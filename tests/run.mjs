@@ -3078,8 +3078,16 @@ test("v17 명령: tp · time · give · seed 가 먹는다", async (page) => {
     const B = window.__blockyard;
     const out = {};
     out.help = B.runCommand("help");
+    // v95 부터 tp 는 막힌 자리면 위로 올린다 — 빈 자리로 보내야 좌표가 그대로다
+    for (let dy = 0; dy <= 3; dy++) B.set(40, 33 + dy, 44, 0);
+    B.refreshTop(40, 44);
     B.runCommand("tp 40 33 44");
     out.pos = [Math.round(B.player.pos.x), Math.round(B.player.pos.y), Math.round(B.player.pos.z)];
+    // 막힌 자리로 보내면 위로 올라온다 (갇히지 않는다)
+    for (let dy = -1; dy <= 3; dy++) B.set(41, 33 + dy, 44, B.B.STONE);
+    B.refreshTop(41, 44);
+    B.runCommand("tp 41 33 44");
+    out.lifted = B.player.pos.y > 33;
     B.runCommand("time 정오");
     out.time = B.S.timeOfDay;
     out.give = B.runCommand("give brick");
@@ -3090,6 +3098,7 @@ test("v17 명령: tp · time · give · seed 가 먹는다", async (page) => {
   });
   assert(r.help.indexOf("tp") >= 0, "help 가 비었다");
   eq(r.pos.join(), "40,33,44", "tp 가 안 먹는다: " + r.pos.join());
+  eq(r.lifted, true, "돌 속으로 tp 했는데 안 올라왔다 — 갇힌다");
   eq(r.time, 0.5, "time 정오가 안 먹는다");
   eq(r.bar, 9, "give brick 이 안 먹는다");
   assert(r.seed.indexOf("SEED") === 0, "seed 응답: " + r.seed);
@@ -11328,6 +11337,13 @@ test("v94 동물: 산 채로 묻히지 않는다", async (page) => {
       const gx = Math.floor(B.mobs[0].x), gy = Math.floor(B.mobs[0].y), gz = Math.floor(B.mobs[0].z);
       if (B.get(gx, gy, gz) === B.B.AIR && B.get(gx, gy + 1, gz) === B.B.AIR) { freed = true; break; }
     }
+    // 뒷정리 — 시험장 돌을 걷고 동물 무리를 원래대로 돌려 놓는다.
+    // 한 마리만 남긴 채 끝나면 뒤에 오는 동물 시험이 "9/14 가 떠 있다" 로 깨진다
+    B.applyEdit(X, Y, Z, B.B.AIR, false, 0);
+    B.applyEdit(X, Y + 1, Z, B.B.AIR, false, 0);
+    B.refreshAllTops();
+    while (B.mobs.length) B.disposeMob(B.mobs.pop());
+    B.seedMobs();
     B.endPlay(); B.setPaused(false);
     return { occupied, canPlaceOnMob, canPlaceBeside, freed };
   });
@@ -11335,6 +11351,116 @@ test("v94 동물: 산 채로 묻히지 않는다", async (page) => {
   eq(r.canPlaceOnMob, false, "동물이 선 칸에 블록을 놓을 수 있다 — 산 채로 묻힌다");
   eq(r.canPlaceBeside, true, "동물 옆 칸까지 막혔다 — 목장을 못 짓는다");
   assert(r.freed, "돌에 파묻힌 동물이 8초 안에 못 빠져나왔다");
+});
+
+test("v95 동물: 좌클릭으로 보내고, 벽 너머는 못 잡는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 62, Y = 40, Z = 62;
+    for (let dx = -10; dx <= 10; dx++) for (let dz = -10; dz <= 10; dz++) {
+      for (let dy = 0; dy <= 8; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.GRASS);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    while (B.mobs.length) B.disposeMob(B.mobs.pop());
+    B.loadMobs([[Math.round((X + 0.5) * 4), Y * 4, Math.round((Z - 2.5) * 4), 0, 0, 0]]);
+    const m = B.mobs[0];
+    m.x = X + 0.5; m.y = Y; m.z = Z - 2.5;
+    B.player.flying = false;
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    // -Z 쪽 동물을 내려다본다 — 눈높이(발+1.62)는 양(키 0.56)의 머리 위로 지나간다
+    B.player.yaw = 0; B.player.pitch = 0.36;
+    const aimed = !!B.aimedMob();
+
+    // 사이에 벽을 세우면 못 잡는다 — 울타리 너머의 양이 벽을 뚫고 잡히면 안 된다
+    B.applyEdit(X, Y, Z - 1, B.B.STONE, false, 0);
+    B.applyEdit(X, Y + 1, Z - 1, B.B.STONE, false, 0);
+    B.refreshAllTops();
+    const beforeWall = B.mobs.length;
+    B.S.mouseDown[0] = true; B.S.lockMode = true; B.S.mobSwatted = false;
+    for (let k = 0; k < 30; k++) B.step(1 / 60);
+    const afterWall = B.mobs.length;
+    B.S.mouseDown[0] = false;
+    for (let k = 0; k < 3; k++) B.step(1 / 60);
+
+    // 벽을 걷으면 잡힌다
+    B.applyEdit(X, Y, Z - 1, B.B.AIR, false, 0);
+    B.applyEdit(X, Y + 1, Z - 1, B.B.AIR, false, 0);
+    B.refreshAllTops();
+    B.S.mouseDown[0] = true; B.S.mobSwatted = false;
+    for (let k = 0; k < 30; k++) B.step(1 / 60);
+    const afterOpen = B.mobs.length;
+
+    // 누른 채로 있어도 한 번에 한 마리다
+    B.loadMobs([[Math.round((X + 0.5) * 4), Y * 4, Math.round((Z - 2.5) * 4), 0, 0, 0],
+                [Math.round((X + 0.5) * 4), Y * 4, Math.round((Z - 3.2) * 4), 1, 0, 0]]);
+    B.mobs[0].x = X + 0.5; B.mobs[0].y = Y; B.mobs[0].z = Z - 2.5;
+    B.mobs[1].x = X + 0.5; B.mobs[1].y = Y; B.mobs[1].z = Z - 3.2;
+    B.S.mobSwatted = false;
+    for (let k = 0; k < 120; k++) B.step(1 / 60);
+    const heldDown = B.mobs.length;
+    B.S.mouseDown[0] = false; B.S.lockMode = false; B.S.mobSwatted = false;
+
+    while (B.mobs.length) B.disposeMob(B.mobs.pop());
+    B.seedMobs();
+    B.endPlay(); B.setPaused(false);
+    return { aimed, beforeWall, afterWall, afterOpen, heldDown };
+  });
+  eq(r.aimed, true, "코앞의 동물을 조준선이 못 잡는다 — 시험대가 안 섰다");
+  eq(r.afterWall, r.beforeWall, "벽 너머의 동물이 잡혔다 — 울타리가 소용없어진다");
+  eq(r.afterOpen, 0, "벽을 걷었는데 좌클릭으로 동물이 안 사라졌다");
+  eq(r.heldDown, 1, "누른 채로 두었더니 " + (2 - r.heldDown) + "마리가 줄줄이 사라졌다 — 한 번에 한 마리라야 한다");
+});
+
+test("v95 명령·화면: /tp 가 돌에 안 묻고, /give 가 핫바까지 닿는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    // (1) 통돌 한가운데로 tp — 예전에는 걷지도 날지도 못하고 갇혔다
+    const X = 26, Y = 8, Z = 26;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -3; dy <= 3; dy++) B.set(X + dx, Y + dy, Z + dz, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false);
+    const msg = B.runCommand("tp " + X + " " + Y + " " + Z);
+    const py = B.player.pos.y;
+    const gx = Math.floor(B.player.pos.x), gz = Math.floor(B.player.pos.z);
+    const stuck = B.isSolid(B.get(gx, Math.floor(py), gz)) ||
+                  B.isSolid(B.get(gx, Math.floor(py) + 1, gz));
+
+    // (2) /give 가 핫바 화면까지 닿나 · 도구도 주나
+    B.selectSlot(0);
+    B.S.bar[0] = B.B.GRASS; B.refreshBar();
+    B.runCommand("give 다이아");
+    const slot0 = document.querySelectorAll("#hotbar .slot")[0];
+    const label = slot0 ? (slot0.getAttribute("aria-label") || "") : "";
+    const gave = B.S.bar[0];
+    const bucketMsg = B.runCommand("give 양동이");
+    const gotBucket = B.S.bar[B.S.selected];
+
+    // (3) 사진 모드에서는 토스트가 안 뜬다
+    B.S.photoMode = true;
+    document.getElementById("toast").classList.remove("on");
+    B.toast("여기 있으면 안 된다");
+    const toastOnInPhoto = document.getElementById("toast").classList.contains("on");
+    B.S.photoMode = false;
+    B.toast("여기서는 떠야 한다");
+    const toastOnNormal = document.getElementById("toast").classList.contains("on");
+    document.getElementById("toast").classList.remove("on");
+
+    B.S.bar[0] = B.B.GRASS; B.refreshBar();
+    B.player.pos.set(48.5, 40, 48.5);
+    B.endPlay(); B.setPaused(false);
+    return { msg, py, stuck, label, gave, bucketMsg, gotBucket, toastOnInPhoto, toastOnNormal };
+  });
+  eq(r.stuck, false, "/tp 뒤에도 돌 속이다 — " + r.msg);
+  assert(r.py > 8, "/tp 가 " + r.py + " 에 세웠다 — 막힌 자리에서 위로 올려야 한다");
+  eq(r.gave, 31, "/give 다이아 가 " + r.gave + " 를 줬다");
+  assert(r.label.indexOf("다이아") >= 0,
+     "핫바 칸이 아직 '" + r.label + "' 다 — 손에 든 것과 다르다");
+  eq(r.gotBucket, 77, "/give 양동이 가 안 먹는다 — " + r.bucketMsg);
+  eq(r.toastOnInPhoto, false, "사진 모드인데 토스트가 떴다 — 구도를 가린다");
+  eq(r.toastOnNormal, true, "평소에 토스트가 안 뜬다 — 너무 많이 삼켰다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

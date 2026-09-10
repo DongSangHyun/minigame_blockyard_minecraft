@@ -410,23 +410,42 @@ export function mobOccupies(x, y, z) {
   return false;
 }
 
-// 조준선이 동물을 향하고 있는가 — 아니면 우클릭은 그냥 블록 놓기다
-export function aimingAtMob() {
+// 조준선이 향한 동물과 그 거리 — 없으면 null.
+// aimingAtMob 이 참·거짓만 돌려주던 것을 v95 에서 갈랐다.
+// 좌클릭은 "동물이 블록보다 가까운가" 를 알아야 한다
+export function aimedMob(maxDist) {
   var eye = player.pos.y + 1.62;
   var fx = -Math.sin(player.yaw) * Math.cos(player.pitch);
   var fy = -Math.sin(player.pitch);
   var fz = -Math.cos(player.yaw) * Math.cos(player.pitch);
-  for (var t = 0.6; t <= 4.2; t += 0.3) {
+  var far = maxDist || 4.2;
+  for (var t = 0.6; t <= far; t += 0.3) {
     var px = player.pos.x + fx * t, py = eye + fy * t, pz = player.pos.z + fz * t;
     for (var i = 0; i < mobs.length; i++) {
       var m = mobs[i], k = MOB_KINDS[m.kind];
-      if (Math.abs(px - m.x) > k.w && Math.abs(pz - m.z) > k.w) continue;
       if (Math.abs(px - m.x) > k.w || Math.abs(pz - m.z) > k.w) continue;
       if (py < m.y - 0.1 || py > m.y + k.h + 0.5) continue;
-      return true;
+      return { mob: m, dist: t };
     }
   }
-  return false;
+  return null;
+}
+// 조준선이 동물을 향하고 있는가 — 아니면 우클릭은 그냥 블록 놓기다
+export function aimingAtMob() { return !!aimedMob(); }
+
+// 동물을 없앤다 (v95) — 마크 크리에이티브의 좌클릭과 같다.
+// 그동안 이 게임에는 동물을 없앨 길이 **아예 없어서**, 거실 한가운데 양이 한 마리 서면
+// 그 집은 평생 그랬다. 「되돌릴 수 없는 것은 없습니다」(v72)의 예외라 조각과 소리로 알린다
+export function removeMob(m) {
+  var i = mobs.indexOf(m);
+  if (i < 0) return false;
+  burst(m.x, m.y + 0.4, m.z, WOOL0, 14);
+  var voice = at(m.x, m.y + 0.4, m.z);
+  crunch(0.16, 0.10, 900, voice);
+  tone(MOB_KINDS[m.kind].cry * 0.6, 0.12, "triangle", 0.05, voice);
+  mobs.splice(i, 1);
+  disposeMob(m);
+  return true;
 }
 
 // 먹이를 주면 잠깐 따라온다

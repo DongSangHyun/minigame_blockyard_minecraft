@@ -195,6 +195,9 @@ export var achPop = document.getElementById("achpop");
 var achPopTimer = null;
 export function showAchPop(name, desc) {
   if (!achPop) return;
+  // 사진 모드에서는 안 띄운다 (v95) — 뇌우 사진을 찍는 순간 「도전 과제 달성」이
+  // 화면 상단을 가로막았다. 과제는 목록에서 다시 볼 수 있으니 삼켜도 잃는 게 없다
+  if (S.photoMode || S.hudHidden) return;
   achPop.hidden = false;
   achPop.querySelector("b").textContent = "도전 과제 달성";
   achPop.querySelector("span").textContent = name + " — " + desc;
@@ -230,7 +233,13 @@ export function showHud(on) {
 }
 
 export var toastEl = document.getElementById("toast");
-export function toast(msg) { toastEl.textContent = msg; toastEl.classList.add("on"); S.toastTimer = 1.6; }
+export function toast(msg) {
+  // 사진 모드·화면 표시 끄기에서는 삼킨다 (v95) — hudEls 다섯에 토스트가 안 들어 있어서,
+  // 구도를 잡는 동안 화면에서 가장 큰 글자가 토스트였다.
+  // (첫 세계에서는 beginPlay 가 0.6초 뒤 띄우는 안내가 HUD 를 껐는데도 한가운데 남았다)
+  if (S.photoMode || S.hudHidden) return;
+  toastEl.textContent = msg; toastEl.classList.add("on"); S.toastTimer = 1.6;
+}
 
 // ── 미니맵
 export var mmCanvas = document.getElementById("mm");

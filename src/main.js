@@ -1,7 +1,7 @@
 // main.js — 조립과 시작
 import { S } from "./state.js";
 import { growTree } from "./tree.js";
-import { breedTick, MOB_MAX, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, loadMobs, disposeMob, mobOccupies, mobs, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
+import { breedTick, MOB_MAX, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, loadMobs, disposeMob, mobOccupies, aimedMob, removeMob, mobs, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { atlasSample, SWATCH_SIDE, animateLiquids, atlas, painted } from "./atlas.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, GEN, setGen, seaLift, WX, WY, WZ, idx, inside } from "./dims.js";
@@ -18,7 +18,7 @@ import { startAmbient, updateAmbient, ac, at, tone, crunch, breakSound, caveSoun
 import { prevKey, pushPrev, renameSlot, curKey, OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName, baseRev, setBaseRev, ensureGist, req } from "./cloud.js";
 import { checkFoundAchievements, FOUND_IDS, undoEmptyWhy, HISTORY_CELLS_MAX, editLabel, blueprintList, deleteBlueprint, settleWorld, mirrorClip, rotateClip, BATCH_RELIGHT_ALL, checkBuildAchievements, ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
-import { refreshMouthDots, mouthDots, naturalRoof, roofDepth, ROOF_R, UNDER_ROOF, refreshMinimapCap, openPicker, closePicker, pickBtns, airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp , setHelpTab} from "./hud.js";
+import { refreshMouthDots, mouthDots, naturalRoof, roofDepth, ROOF_R, UNDER_ROOF, refreshMinimapCap, openPicker, closePicker, pickBtns, airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp , setHelpTab, toast} from "./hud.js";
 import { updateGhost, ghostMesh, updateHandLight, handMat, makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
 import { bodyRoot, updateBody, armL, armR, legL, legR, neck, upper } from "./body.js";
 import { refreshResume, advanceTut, setStick, advanceTutTouch, HINT_TOUCH, refreshBlueprints, afterWorldSwap, aimCell, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink , swapBarPage, setShapeMode, cycleMinimapZoom, toggleMark, markHere, renameMarkHere} from "./input.js";
@@ -207,6 +207,7 @@ window.__blockyard = {
   beginBatch: beginBatch, endBatch: endBatch, updateSelectionBox: updateSelectionBox,
   mobs: mobs, updateMobs: updateMobs, seedMobs: seedMobs, MOB_KINDS: MOB_KINDS,
   loadMobs: loadMobs, disposeMob: disposeMob, mobOccupies: mobOccupies,
+  aimedMob: aimedMob, removeMob: removeMob,
   breedTick: breedTick, MOB_MAX: MOB_MAX,
   toggleHelp: toggleHelp, helpEl: helpEl, setHelpTab: setHelpTab,
   refreshMouthDots: refreshMouthDots, mouthDots: mouthDots, naturalRoof: naturalRoof,
@@ -214,7 +215,7 @@ window.__blockyard = {
   isConnecting: isConnecting, isClimbable: isClimbable, isOpenable: isOpenable,
   doorOpen: doorOpen, doorFacing: doorFacing, doorShapeFor: doorShapeFor,
   connectsTo: connectsTo, tryInteract: tryInteract, perfEl: perfEl,
-  refreshPerf: refreshPerf, refreshMinimapCap: refreshMinimapCap, prevKey: prevKey, pushPrev: pushPrev, newWorld: newWorld,
+  refreshPerf: refreshPerf, refreshMinimapCap: refreshMinimapCap, toast: toast, prevKey: prevKey, pushPrev: pushPrev, newWorld: newWorld,
   refreshMenu: refreshMenu, refreshResume: refreshResume,
   get undoEmptyWhy() { return undoEmptyWhy; },
   slotKey: slotKey, slotInfo: slotInfo, SLOTS: SLOTS, refreshSlots: refreshSlots, agoText: agoText,

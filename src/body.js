@@ -12,11 +12,16 @@ import { AIR, SH_FULL } from "./blocks.js";
 export var LEG_H = 0.68, TORSO_H = 0.66, HEAD_S = 0.44, ARM_H = 0.44, HAND_H = 0.18;
 var SKIN = 0xbf8f6a, SHIRT = 0x00a3a3, PANTS = 0x3d4ba8, SHOE = 0x30303c, HAIR = 0x33241a;
 
+// 밝기를 받는 파트들 — 발밑 그림자만 빼고 전부 (v95)
+export var litParts = [];
 // hangTop 이면 피벗을 위쪽 끝(어깨·엉덩이)으로 옮긴다 — 거기서 흔들려야 팔다리로 보인다
 function part(w, h, d, color, hangTop) {
   var g = new THREE.BoxGeometry(w, h, d);
   if (hangTop) g.translate(0, -h / 2, 0);
-  return new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: color }));
+  var m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: color }));
+  m.userData.base = new THREE.Color(color);
+  litParts.push(m);
+  return m;
 }
 
 export var bodyRoot = new THREE.Group();
@@ -99,7 +104,7 @@ heldBlock.rotation.set(0.2, 0.5, 0);
 armR.add(heldBlock);
 var heldKey = -1;
 
-var bodyYaw = 0, phase = 0, prevX = 0, prevZ = 0, prevOk = false;
+var bodyYaw = 0, phase = 0, prevX = 0, prevZ = 0, prevOk = false, lastLit = -1;
 
 function wrapAngle(a) {
   a = (a + Math.PI) % (Math.PI * 2);
@@ -144,21 +149,37 @@ export function updateBody(dt) {
   phase += sp * dt * 2.4;
   var sw = Math.sin(phase) * swing;
 
-  if (player.onGround) {
+  // 비행은 영원히 onGround === false 다 — 예전에는 크리에이티브에서 가장 오래 하는 일이
+  // **30분 내내 만세 자세**였다 (v95). 나는 중에는 걷기와 같은 스윙을 태운다
+  var airborne = !player.onGround && !player.flying;
+  if (!airborne) {
     legL.rotation.x = sw;
     legR.rotation.x = -sw;
     armL.rotation.x = -sw * 0.8;
     armR.rotation.x = sw * 0.8;
   } else {
-    // 공중 — 다리를 벌리고 팔을 조금 든다. 마크에서 점프한 사람은 이 모양이다
+    // 낙하·점프 — 다리를 벌리고 팔을 조금 든다. 마크에서 뛴 사람은 이 모양이다
     legL.rotation.x = 0.32; legR.rotation.x = -0.32;
     armL.rotation.x = -0.18; armR.rotation.x = -0.18;
   }
-  armL.rotation.z = 0.06 + (player.onGround ? 0 : 0.28);
-  armR.rotation.z = -0.06 - (player.onGround ? 0 : 0.28);
+  armL.rotation.z = 0.06 + (airborne ? 0.28 : 0);
+  armR.rotation.z = -0.06 - (airborne ? 0.28 : 0);
 
   // 캐고 놓을 때 오른팔이 같이 내려친다 — 1인칭 손(S.swing)과 같은 박자
   if (S.swing > 0) armR.rotation.x -= Math.sin(S.swing * Math.PI) * 1.5;
+
+  // 몸도 서 있는 칸의 밝기를 받는다 (v95).
+  // 예전에는 파트 열여섯이 전부 고정 hex 라 **한밤에도 굴 속에서도 정오 색**이었다 —
+  // 정작 손에 든 블록만 어두워서, 형광색 팔이 캄캄한 흙덩이를 들고 있었다.
+  // 밝기는 1인칭 손이 이미 계산해 둔 값(S.handLight)을 그대로 쓴다.
+  var L = Math.max(0.16, S.handLight);
+  if (Math.abs(L - lastLit) > 0.004) {
+    lastLit = L;
+    for (var pi = 0; pi < litParts.length; pi++) {
+      var pm = litParts[pi], bc = pm.userData.base;
+      pm.material.color.setRGB(bc.r * L, bc.g * L, bc.b * L);
+    }
+  }
 
   // 든 블록 — 손이 받는 밝기(S.handLight)를 그대로 쓴다
   var b = S.bar[S.selected];
