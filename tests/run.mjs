@@ -11295,6 +11295,48 @@ test("v93 소리: 잡음을 매번 굽지 않고, 비는 이어진다", async (p
   eq(r.rainMade, 0, "빗소리 60번에 버퍼를 " + r.rainMade + "개 구웠다 — 루프 하나라야 한다");
 });
 
+test("v94 동물: 산 채로 묻히지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 30, Y = 40, Z = 30;
+    for (let dx = -8; dx <= 8; dx++) for (let dz = -8; dz <= 8; dz++) {
+      for (let dy = 0; dy <= 8; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.GRASS);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    // 동물 하나를 시험장 한복판에 세운다 (다른 놈들은 멀리 치운다)
+    while (B.mobs.length) B.disposeMob(B.mobs.pop());
+    B.loadMobs([[Math.round((X + 0.5) * 4), Y * 4, Math.round((Z + 0.5) * 4), 0, 0, 0]]);
+    const m = B.mobs[0];
+    m.x = X + 0.5; m.y = Y; m.z = Z + 0.5;
+    // 플레이어는 멀리 — 자기 몸 때문에 막히는 것과 헷갈리면 안 된다
+    B.player.pos.set(X + 6.5, Y, Z + 6.5);
+
+    const occupied = B.mobOccupies(X, Y, Z);
+    const canPlaceOnMob = B.canPlaceAt(X, Y, Z);
+    const canPlaceBeside = B.canPlaceAt(X + 3, Y, Z);
+
+    // 그래도 묻혔다면(옛 저장·명령·폭발) 빠져나온다
+    B.applyEdit(X, Y, Z, B.B.STONE, false, 0);
+    B.applyEdit(X, Y + 1, Z, B.B.STONE, false, 0);
+    m.x = X + 0.5; m.y = Y; m.z = Z + 0.5;
+    B.refreshAllTops();
+    let freed = false;
+    for (let k = 0; k < 60 * 8; k++) {
+      B.updateMobs(1 / 60);
+      const gx = Math.floor(B.mobs[0].x), gy = Math.floor(B.mobs[0].y), gz = Math.floor(B.mobs[0].z);
+      if (B.get(gx, gy, gz) === B.B.AIR && B.get(gx, gy + 1, gz) === B.B.AIR) { freed = true; break; }
+    }
+    B.endPlay(); B.setPaused(false);
+    return { occupied, canPlaceOnMob, canPlaceBeside, freed };
+  });
+  eq(r.occupied, true, "동물이 선 칸을 mobOccupies 가 못 잡는다 — 시험대가 안 섰다");
+  eq(r.canPlaceOnMob, false, "동물이 선 칸에 블록을 놓을 수 있다 — 산 채로 묻힌다");
+  eq(r.canPlaceBeside, true, "동물 옆 칸까지 막혔다 — 목장을 못 짓는다");
+  assert(r.freed, "돌에 파묻힌 동물이 8초 안에 못 빠져나왔다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

@@ -1,6 +1,6 @@
 // mine.js — 캐기 · 놓기
 import { S } from "./state.js";
-import { MOB_MAX, aimingAtMob, feedNearbyMob } from "./mobs.js";
+import { MOB_MAX, aimingAtMob, feedNearbyMob, mobOccupies } from "./mobs.js";
 import { primeTNT, ignite } from "./fluids.js";
 import { WY, idx, inside } from "./dims.js";
 import { BUCKET, FRAME, FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, ALL_BLOCKS, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
@@ -59,6 +59,9 @@ export function canPlaceAt(px, py, pz) {
   if (p.x + HALF > px && p.x - HALF < px + 1 &&
       p.y + BODY > py && p.y < py + 1 &&
       p.z + HALF > pz && p.z - HALF < pz + 1) return false;
+  // 동물이 선 칸에도 놓지 않는다 (v94) — 예전에는 플레이어 몸만 봐서
+  // 양을 돌 두 칸으로 산 채로 묻을 수 있었다. 마크와 같은 규칙이다
+  if (mobOccupies(px, py, pz)) return false;
   return true;
 }
 

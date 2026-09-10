@@ -235,7 +235,11 @@ function strandedAt(m) {
   var fb = world[idx(gx, fy, gz)], bb = world[idx(gx, by, gz)];
   if (fb === LAVA || fb === ICE) return true;
   if (bb === WATER || bb === LAVA) return true;
-  // 단단한 지붕 아래는 갇힌 게 아니다 — 여기서 true 를 돌리면 헛간의 양이 0.5초마다 밖으로 튄다
+  // 돌에 파묻혔나 (v94) — 몸이 있는 **두 칸이 다 막히면** 빠져나온다.
+  // 한 칸만 보면 반블록·계단 위에 선 동물이 0.5초마다 튄다.
+  // 단단한 지붕 아래는 갇힌 게 아니다 — 그래서 여기까지 와서야 본다
+  var upy = Math.min(WY - 1, Math.floor(m.y) + 1);
+  if (isSolid(bb) && isSolid(world[idx(gx, upy, gz)])) return true;
   return false;
 }
 
@@ -388,6 +392,22 @@ export function pushOutOfMobs(px, pz, half) {
     m.x -= ax * push * 0.45; m.z -= az * push * 0.45;
   }
   return [dx, dz];
+}
+
+// 이 칸에 동물이 서 있나 (v94) — canPlaceAt 이 플레이어 몸만 보고 있어서
+// **동물이 선 자리에 돌을 놓을 수 있었다.** 두 칸을 덮으면 산 채로 묻혔고,
+// 좌초 판정이 물·용암만 보므로 30초 뒤에도 그대로였다. 마크는 엔티티가 있는 칸에 못 놓는다.
+export function mobOccupies(x, y, z) {
+  for (var i = 0; i < mobs.length; i++) {
+    var m = mobs[i], k = MOB_KINDS[m.kind];
+    var r = k.w * 0.6;
+    var h = k.h + 0.34;
+    if (m.x + r <= x || m.x - r >= x + 1) continue;
+    if (m.z + r <= z || m.z - r >= z + 1) continue;
+    if (m.y + h <= y || m.y >= y + 1) continue;
+    return true;
+  }
+  return false;
 }
 
 // 조준선이 동물을 향하고 있는가 — 아니면 우클릭은 그냥 블록 놓기다

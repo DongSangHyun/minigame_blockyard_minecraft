@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-10 · 모듈 29개 · 합계 11,888줄
+생성일 2026-09-10 · 모듈 29개 · 합계 11,911줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -32,8 +32,8 @@
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 165 | state · settings · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
 | [`body.js`](../src/body.js) | 3인칭에서 보이는 플레이어 몸 | 176 | state · settings · scene · player · atlas · hand · blocks |
 | [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1675 | state · world · queues · mobs · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
-| [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 284 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
-| [`mobs.js`](../src/mobs.js) | 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다. | 573 | dims · world · blocks · scene · player · audio |
+| [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 287 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
+| [`mobs.js`](../src/mobs.js) | 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다. | 593 | dims · world · blocks · scene · player · audio |
 | [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 433 | state · audio · dims · atlas · world · scene · daynight · player |
 | [`cloud.js`](../src/cloud.js) | 기기 사이 이어하기 (GitHub Gist 에 세계를 올리고 내려받는다) | 226 | state · save |
 | [`loop.js`](../src/loop.js) | 게임 루프 | 914 | state · input · mobs · queues · dims · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · body · mine · sky |
@@ -519,11 +519,11 @@
 | `mineAt(hit)` | 16 |
 | `upperFromHit(hit)` | 47 |
 | `canPlaceAt(px, py, pz)` | 54 |
-| `tryInteract(hit)` | 66 |
-| `doorOther(x, y, z)` | 103 |
-| `scoopLiquid(repeating)` | 135 |
-| `pourLiquid(hit, repeating)` | 158 |
-| `place(repeating)` | 178 |
+| `tryInteract(hit)` | 69 |
+| `doorOther(x, y, z)` | 106 |
+| `scoopLiquid(repeating)` | 138 |
+| `pourLiquid(hit, repeating)` | 161 |
+| `place(repeating)` | 181 |
 
 ### `mobs.js` — 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다.
 
@@ -534,14 +534,15 @@
 | `loadMobs(arr)` | 97 |
 | `seedMobs()` | 116 |
 | `anyMobNear(px, pz, r)` | 213 |
-| `updateMobs(dt)` | 242 |
-| `pushOutOfMobs(px, pz, half)` | 376 |
-| `aimingAtMob()` | 394 |
-| `feedNearbyMob(pos)` | 413 |
-| `breedTick(dt)` | 456 |
-| `setMobsVisible(on)` | 491 |
-| `seedFlocks()` | 512 |
-| `updateFlocks(dt)` | 529 |
+| `updateMobs(dt)` | 246 |
+| `pushOutOfMobs(px, pz, half)` | 380 |
+| `mobOccupies(x, y, z)` | 400 |
+| `aimingAtMob()` | 414 |
+| `feedNearbyMob(pos)` | 433 |
+| `breedTick(dt)` | 476 |
+| `setMobsVisible(on)` | 511 |
+| `seedFlocks()` | 532 |
+| `updateFlocks(dt)` | 549 |
 
 내보내는 값 — `LOVE_HINT` · `MOB_COUNT` · `MOB_MAX` · `FISH_COUNT` · `BIRD_COUNT` · `MOB_KINDS` · `mobs` · `mobGroup` · `HERD` · `fish` · `birds`
 
