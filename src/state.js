@@ -61,6 +61,7 @@ export const S = {
   // step() 이 이미 쏜 레이캐스트 결과를 animate() 로 넘기는 통로다 (두 번 쏘지 않으려고).
   aimFace: null,
   aimHit: null,     // 겨눈 칸의 좌표 (계기판 「조준」· v93)
+  regionBarOpen: false,  // 폰의 영역 도구 바가 열려 있나 (v98)
   mobSwatted: false,     // 이번에 누른 좌클릭이 이미 동물을 보냈나 (v95)
   mobSwatHinted: false,  // 「되돌리기로 안 돌아온다」 를 한 번 알렸나
   noSeaDecor: false,      // 시험용 — 바다 장식을 빼고 생성한다

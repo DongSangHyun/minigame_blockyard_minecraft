@@ -793,18 +793,20 @@
 
   /* 사진 모드 미니 바 (v96) — HUD 를 끄면 터치 단추가 통째로 사라지므로,
      폰에서 사진 모드에 들어가면 저장할 길도 나올 길도 없었다 */
-  #photobar {
+  #photobar, #regionbar {
     position: absolute; left: 50%; transform: translateX(-50%);
     bottom: calc(16px + var(--safe-b));
     display: flex; gap: 8px; pointer-events: auto; z-index: 6;
   }
-  #photobar button {
+  /* 영역 바는 핫바 위에 뜬다 — 핫바를 가리면 채울 블록을 못 고른다 (v98) */
+  #regionbar { bottom: calc(66px * var(--ui, 1) + var(--safe-b)); flex-wrap: wrap; justify-content: center; }
+  #photobar button, #regionbar button {
     font-family: var(--pixel); font-size: 10px; letter-spacing: .06em;
     padding: 10px 14px; min-height: 40px;
     color: var(--bone); background: rgba(23,29,32,.82);
     border: 2px solid var(--line-hi); border-radius: 6px;
   }
-  #photobar button:active { border-color: var(--ember); color: var(--ember); }
+  #photobar button:active, #regionbar button:active { border-color: var(--ember); color: var(--ember); }
 
   @media (max-width: 560px) {
     .keys-wrap > summary {
@@ -877,6 +879,14 @@
 <div id="hotbar" hidden></div>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="hint" hidden></div>
+
+<div id="regionbar" hidden>
+  <button id="rb-fill" type="button">채우기</button>
+  <button id="rb-wipe" type="button">비우기</button>
+  <button id="rb-copy" type="button">복사</button>
+  <button id="rb-paste" type="button">붙여넣기</button>
+  <button id="rb-clear" type="button">해제</button>
+</div>
 
 <div id="photobar" hidden>
   <button id="pb-shot" type="button">사진 저장</button>

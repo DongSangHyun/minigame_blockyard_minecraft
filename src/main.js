@@ -21,7 +21,7 @@ import { checkFoundAchievements, FOUND_IDS, undoEmptyWhy, HISTORY_CELLS_MAX, edi
 import { refreshMouthDots, mouthDots, naturalRoof, roofDepth, ROOF_R, UNDER_ROOF, refreshMinimapCap, openPicker, closePicker, pickBtns, airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp , setHelpTab, toast} from "./hud.js";
 import { updateGhost, ghostMesh, updateHandLight, handMat, makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
 import { bodyRoot, updateBody, armL, armR, legL, legR, neck, upper } from "./body.js";
-import { refreshResume, advanceTut, setStick, advanceTutTouch, HINT_TOUCH, refreshBlueprints, afterWorldSwap, aimCell, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink , swapBarPage, setShapeMode, cycleMinimapZoom, toggleMark, markHere, renameMarkHere} from "./input.js";
+import { toggleRegionBar, refreshResume, advanceTut, setStick, advanceTutTouch, HINT_TOUCH, refreshBlueprints, afterWorldSwap, aimCell, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink , swapBarPage, setShapeMode, cycleMinimapZoom, toggleMark, markHere, renameMarkHere} from "./input.js";
 import { canPlaceAt, mineAt, place, tryInteract, upperFromHit } from "./mine.js";
 import { weatherPoints, applyWeather, HIDE_Y, MOON_PHASES, boltAt, boltMesh, strikeBolt, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
 import { newWorld, PLACE_DELAY, PLACE_REPEAT, SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, farNow, refreshPerf, step , chunkFloor, refreshChunkFloor} from "./loop.js";
@@ -228,7 +228,7 @@ window.__blockyard = {
   S: S, setZoom: function (z) { S.mmZoom = z; }, burst: burst,
   SWATCH_SIDE: SWATCH_SIDE,
   pColArray: function () { return pCol; }, pCount: function () { return pCount; },
-  WATER_DIM: WATER_DIM, showHud: showHud,
+  WATER_DIM: WATER_DIM, showHud: showHud, toggleRegionBar: toggleRegionBar,
   HL_CROSS: HL_CROSS, SHAPE_BOUNDS: SHAPE_BOUNDS,
   lavaPop: lavaPop, lavaHiss: lavaHiss,
   waterLvl: waterLvl, MAXFLOW: MAXFLOW, dryTick: dryTick, enqueueDryAround: enqueueDryAround,

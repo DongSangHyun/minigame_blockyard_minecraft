@@ -7,11 +7,11 @@ import { WX, WY, WZ } from "./dims.js";
 import { markAllDirty, buildBudget } from "./mesh.js";
 import { relightAll } from "./light.js";
 import { IS_TOUCH } from "./boot.js";
-import { SH_SLAB, SH_SLAB_UP, isStairShape, NAMES } from "./blocks.js";
+import { SH_SLAB, SH_SLAB_UP, isStairShape, NAMES , isItem} from "./blocks.js";
 import { camera, crackMesh, renderer } from "./scene.js";
 import { applyTime } from "./daynight.js";
 import { applyOpts, applyFov, applyTbtn, applyUi, opts, saveOpts } from "./settings.js";
-import { EYE, player, raycast, spawn, stats } from "./player.js";
+import { EYE, currentShape, player, raycast, spawn, stats } from "./player.js";
 import { ac, setAudioAwake, startAmbient, tone } from "./audio.js";
 import { renameSlot, clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
@@ -1083,6 +1083,9 @@ window.addEventListener("keydown", function (e) {
       // 큰 영역은 한 프레임을 통째로 먹는다 — 왜 멈췄는지는 보여 준다
       var size = selectionSize();
       var blockPick = S.bar[S.selected], shapePick = currentShape(false);
+      // 도구(양동이·부싯돌)를 든 채면 applyEdit 이 0칸을 돌려주는데, 화면에는
+      // 엉뚱하게 "먼저 영역을 고르세요" 가 떴다 (영역은 골라 놨는데) — v98
+      if (!wipe && isItem(blockPick)) { toast("도구는 채울 수 없습니다 — 블록을 고르세요"); return; }
       function doFill() {
         var n = wipe ? clearSelection() : fillSelection(blockPick, shapePick);
         toast(n < 0 ? ("영역이 너무 큽니다 (최대 " + REGION_MAX.toLocaleString("ko-KR") + "칸)")
@@ -1423,10 +1426,12 @@ window.addEventListener("touchmove", function (e) {
     var held = Date.now() - twoStart;
     twoStart = 0;
     if (held < 220 || held > 1400) return;
-    var h = raycast(6);
-    if (!h) return;
-    if (!S.selA || (S.selA && S.selB)) { S.selA = [h.x, h.y, h.z]; S.selB = null; toast("영역 시작"); }
-    else { S.selB = [h.x, h.y, h.z]; toast("영역 " + selectionText()); }
+    // 데스크톱과 같은 사거리로 본다 (v98) — 터치만 6칸이라
+    // 20×20 집터를 잡으려면 모서리마다 날아가야 했다
+    var cell = aimCell(64, true);
+    if (!cell) return;
+    if (!S.selA || (S.selA && S.selB)) { S.selA = cell.slice(); S.selB = null; toast("영역 시작 — 모양 단추를 길게 눌러 도구를"); }
+    else { S.selB = cell.slice(); toast("영역 " + selectionText() + " — 모양 단추를 길게"); }
   }, { passive: true });
 })();
 
@@ -1530,12 +1535,66 @@ bindHold("tb-menu", function () {
 });
 // 폰에는 G 키가 없어 **반블록·계단에 갈 길이 화면에 하나도 없었다** —
 // 30분을 지어도 나오는 건 네모 상자뿐이었다. 계단 모서리(v66)를 폰은 본 적이 없다.
+// 짧게 = 모양 순환, **길게 = 영역 도구 바** (v98).
+// 두 손가락 탭으로 영역은 찍히는데 그 영역으로 할 수 있는 일이 폰에 하나도 없었다 —
+// 채우기·비우기·복사·붙여넣기가 단추에도 메뉴에도 없고 명령창도 못 열었다.
+// 도움말은 "영역 도구는 키보드에서만" 이라는데 코드는 터치로 찍게 해 두었다
+var shapeHold = 0, shapeLong = false;
 bindHold("tb-shape", function () {
+  shapeLong = false;
+  clearTimeout(shapeHold);
+  shapeHold = setTimeout(function () {
+    shapeLong = true;
+    toggleRegionBar();
+  }, 450);
+}, function () {
+  clearTimeout(shapeHold);
+  if (shapeLong) { shapeLong = false; return; }
   setShapeMode(S.shapeMode + 1);
   toast(["전체 블록", "반블록", "계단"][S.shapeMode]);
   updateHandBlock();
   advanceTutTouch(3);
 });
+
+export function toggleRegionBar(on) {
+  S.regionBarOpen = (on === undefined) ? !S.regionBarOpen : !!on;
+  showHud(!S.hudHidden && !S.photoMode);
+  if (S.regionBarOpen) {
+    toast(S.selA && S.selB ? ("영역 " + selectionText())
+                           : "두 손가락으로 모서리 두 곳을 탭해 영역을 고르세요");
+  }
+}
+
+// 영역 도구 바 — 키보드(Ctrl+F·Shift+F·C·V·D)와 **같은 길**을 탄다
+(function bindRegionBar() {
+  function say(n, done) {
+    toast(n < 0 ? ("영역이 너무 큽니다 (최대 " + REGION_MAX.toLocaleString("ko-KR") + "칸)")
+                : (n ? n.toLocaleString("ko-KR") + "칸을 " + done : "먼저 영역을 고르세요"));
+  }
+  function on(id, fn) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("click", function (e) { e.stopPropagation(); fn(); });
+  }
+  on("rb-fill", function () {
+    var b = S.bar[S.selected];
+    if (isItem(b)) { toast("도구는 채울 수 없습니다 — 블록을 고르세요"); return; }
+    say(fillSelection(b, currentShape(false)), "채웠습니다");
+  });
+  on("rb-wipe", function () { say(clearSelection(), "비웠습니다"); });
+  on("rb-copy", function () { say(copySelection(), "복사했습니다"); });
+  on("rb-paste", function () {
+    var h = aimCell(64, true);
+    if (!h) { toast("붙여넣을 자리를 조준하세요"); return; }
+    var n = pasteClip(h[0], h[1], h[2]);
+    toast(n ? n.toLocaleString("ko-KR") + "칸을 붙여넣었습니다" : "복사한 것이 없습니다");
+  });
+  on("rb-clear", function () {
+    if (!S.selA && !S.selB && S.clip) { S.clip = null; toast("복사한 것을 비웠습니다"); return; }
+    S.selA = S.selB = null;
+    toggleRegionBar(false);
+    toast("영역 선택 해제");
+  });
+})();
 // 되돌리기는 짧게, **다시하기는 길게** (v91).
 // 폰에는 `Ctrl+Y` 가 없어 되돌리기의 짝이 아예 없었다 — 메뉴를 누르려다 손이
 // 한 칸 위로 가면 TNT 한 방(158칸)이 통째로 사라지고 되돌릴 길이 없었다.

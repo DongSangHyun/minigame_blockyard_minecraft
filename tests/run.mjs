@@ -11706,6 +11706,62 @@ test("v97 영역 도구: 지은 것이 통계·과제에 실리고, 빈칸까지
   eq(r.insideDefault, r.DIRT, "기본 붙여넣기가 빈칸까지 덮었다 — 예전 동작이 바뀌면 안 된다");
 });
 
+phoneTest("영역을 찍고 그 자리에서 채우고 복사한다 (v98)", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 20, Y = 40, Z = 78;
+    for (let dx = -2; dx <= 8; dx++) for (let dz = -2; dz <= 8; dz++)
+      for (let dy = -1; dy <= 8; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.pos.set(X - 4, Y + 3, Z - 4);
+    B.S.bar[B.S.selected] = B.B.STONE;
+    B.S.shapeMode = 0;
+
+    // 바가 닫혀 있으면 안 보인다
+    B.S.regionBarOpen = false; B.showHud(true);
+    const hiddenFirst = document.getElementById("regionbar").hidden;
+
+    // 모양 단추를 길게 누른 것과 같은 길
+    B.toggleRegionBar(true);
+    const shown = !document.getElementById("regionbar").hidden;
+
+    // 영역을 찍고 채운다
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 2, Y + 1, Z + 2];
+    document.getElementById("rb-fill").click();
+    let filled = 0;
+    for (let dx = 0; dx <= 2; dx++) for (let dz = 0; dz <= 2; dz++)
+      for (let dy = 0; dy <= 1; dy++) if (B.get(X + dx, Y + dy, Z + dz) === B.B.STONE) filled++;
+
+    // 복사 → 해제 → 복사한 것까지 비우기
+    document.getElementById("rb-copy").click();
+    const copied = !!B.S.clip;
+    document.getElementById("rb-clear").click();
+    const cleared = !B.S.selA && !B.S.selB;
+    const barClosed = document.getElementById("regionbar").hidden;
+
+    // 비우기도 같은 길
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 2, Y + 1, Z + 2];
+    B.toggleRegionBar(true);
+    document.getElementById("rb-wipe").click();
+    let left = 0;
+    for (let dx = 0; dx <= 2; dx++) for (let dz = 0; dz <= 2; dz++)
+      for (let dy = 0; dy <= 1; dy++) if (B.get(X + dx, Y + dy, Z + dz) !== B.B.AIR) left++;
+
+    B.S.selA = null; B.S.selB = null; B.S.clip = null;
+    B.toggleRegionBar(false);
+    B.endPlay(); B.setPaused(false);
+    return { hiddenFirst, shown, filled, copied, cleared, barClosed, left };
+  });
+  eq(r.hiddenFirst, true, "영역 바가 늘 떠 있다 — 화면을 먹는다");
+  eq(r.shown, true, "모양 단추를 길게 눌러도 영역 바가 안 뜬다");
+  eq(r.filled, 18, "영역 채우기가 " + r.filled + "칸만 채웠다 (18칸이라야 한다)");
+  eq(r.copied, true, "영역 복사가 안 먹는다");
+  eq(r.cleared, true, "해제가 안 먹는다");
+  eq(r.barClosed, true, "해제했는데 바가 남아 있다");
+  eq(r.left, 0, "비우기가 " + r.left + "칸을 남겼다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

@@ -1,6 +1,6 @@
 // loop.js — 게임 루프
 import { S } from "./state.js";
-import { padState, pollGamepad, pollGamepadMenu } from "./input.js";
+import { padState, pollGamepad, pollGamepadMenu , selectionText} from "./input.js";
 import { breedTick, MOB_KINDS, aimedMob, removeMob, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, CX, CZ, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
@@ -873,7 +873,10 @@ export function animate() {
            (hitNow ? "  (" + hitNow[0] + " · " + hitNow[1] + " · " + hitNow[2] + ")" : ""))
         : "—";
     }
-    tMode.textContent = player.flying ? "비행" : (S.wasUnderwater ? "헤엄" : "걷기");
+    // 고른 영역의 크기 — 토스트 2.5초가 지나면 어디에도 안 남아 있었다 (v98).
+    // 20×20 인지 21×20 인지 알려면 모서리를 다시 찍어야 했다
+    if (S.selA || S.selB) tMode.textContent = "영역 " + selectionText();
+    else tMode.textContent = player.flying ? "비행" : (S.wasUnderwater ? "헤엄" : "걷기");
     tShape.textContent = ["전체", "반블록", "계단"][S.shapeMode];
     tBlocks.innerHTML = "놓음 <b>" + stats.placed + "</b> · 캔 <b>" + stats.mined + "</b>";
     tAch.innerHTML = "<b>" + achCount() + "</b> / " + ACHIEVEMENTS.length;

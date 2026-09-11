@@ -11,7 +11,7 @@ import { enqueueGrow, enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround,
 import { markAllDirty, touch } from "./mesh.js";
 import { player, stats } from "./player.js";
 import { tone } from "./audio.js";
-import { helpAchList, refreshBar, showAchPop } from "./hud.js";
+import { helpAchList, refreshBar, showAchPop, toast } from "./hud.js";
 import { setWeather, localBiome } from "./sky.js";
 
 export var HISTORY_MAX = 240;
@@ -234,6 +234,24 @@ export function notePlaced(b, sh, n) {
   if (allKinds) unlock("collector");
 }
 
+// 제 몸이 고체에 잠겼으면 위로 밀어 올린다 (v98).
+// Ctrl+F 로 제 발밑을 채우면 걷지도 날지도 못하고 갇혔다 —
+// v95 가 /tp 에서 쓴 처방을 편집 쪽에도 둔다 (되돌리기가 있어도 갇힌 채로는 못 누른다)
+export function liftIfBuried() {
+  var gx = Math.floor(player.pos.x), gz = Math.floor(player.pos.z);
+  var gy = Math.floor(player.pos.y);
+  if (!inside(gx, gy, gz)) return false;
+  if (!isSolid(get(gx, gy, gz)) && !isSolid(get(gx, gy + 1, gz))) return false;
+  for (var y2 = gy; y2 < WY - 2; y2++) {
+    if (!isSolid(get(gx, y2, gz)) && !isSolid(get(gx, y2 + 1, gz))) {
+      player.pos.y = y2;
+      player.vel.set(0, 0, 0);
+      return true;
+    }
+  }
+  return false;
+}
+
 export function endBatch(label) {
   var b = S.batch;
   var cells = S.batchCells;
@@ -269,6 +287,7 @@ export function endBatch(label) {
   }
   trimHistory();
   S.future.length = 0;
+  if (liftIfBuried()) toast("몸이 묻혀 위로 올렸습니다");
   return b.n;
 }
 
