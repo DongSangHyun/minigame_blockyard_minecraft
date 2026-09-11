@@ -738,6 +738,36 @@ export function clearSelection() {
   return endBatch("비우기", true);
 }
 
+// 겉면만 · 속만 (v111) — **30분째에 가장 자주 짓는 모양은 속 빈 상자**다.
+// 지금까지는 20×20×20 을 돌로 채운 뒤 속을 비우려면, 안쪽 모서리가 방금 채운 돌 **안**에
+// 있어서 조준이 안 닿았다. 벽을 한 칸 캐고 기어들어가 모서리를 찍고 나오는 것이 유일한 길이었다.
+// mode — "hollow" 속을 공기로 · "walls" 옆 네 면만 · "shell" 여섯 면 전부
+export function shellSelection(block, sh, mode) {
+  var b = bounds();
+  if (!b) return 0;
+  if (selectionSize() > REGION_MAX) return -1;
+  beginBatch(selectionSize());
+  var n = 0;
+  for (var y = b.y0; y <= b.y1; y++)
+    for (var z = b.z0; z <= b.z1; z++)
+      for (var x = b.x0; x <= b.x1; x++) {
+        var onSide = (x === b.x0 || x === b.x1 || z === b.z0 || z === b.z1);
+        var onCap = (y === b.y0 || y === b.y1);
+        if (mode === "hollow") {
+          if (onSide || onCap) continue;            // 껍질 한 겹은 남긴다
+          if (applyEdit(x, y, z, AIR, true, SH_FULL)) n++;
+        } else if (mode === "walls") {
+          if (!onSide) continue;                    // 바닥·천장은 안 건드린다
+          if (applyEdit(x, y, z, block, true, sh || SH_FULL)) n++;
+        } else {
+          if (!onSide && !onCap) continue;
+          if (applyEdit(x, y, z, block, true, sh || SH_FULL)) n++;
+        }
+      }
+  endBatch(mode === "hollow" ? "속 비우기" : (mode === "walls" ? "벽 세우기" : "껍질"), true);
+  return n;
+}
+
 export function copySelection() {
   var b = bounds();
   if (!b) return 0;
@@ -848,7 +878,8 @@ export function pasteClip(px, py, pz, withAir) {
 // ── 명령 처리 — 짧은 이름 하나로 알아듣게
 export var CMD_HELP =
   "tp <x y z | 표식 번호|이름> · time <아침|정오|노을|밤|0~1> · weather <맑음|비|눈> · " +
-  "marks · marks del <번호> · fill <블록|공기> [바꿀블록] · expand <±dx> <±dy> <±dz> · clone <dx> <dy> <dz> [횟수] · give <블록> · count · bp <save|use|list|del> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
+  "marks · marks del <번호> · fill <블록|공기> [바꿀블록] · hollow · walls <블록> · " +
+  "expand/contract <±dx> <±dy> <±dz> · shift <dx> <dy> <dz> · clone <dx> <dy> <dz> [횟수] · give <블록> · count · bp <save|use|list|del> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
 
 // 한국어 이름과 영어 이름을 둘 다 알아듣는다 — "조약돌" 도 "cobble" 도 된다
 function findBlock(name) {
@@ -876,7 +907,7 @@ function findBlock(name) {
   return -1;
 }
 
-export var CMD_LIST = ["tp", "marks", "time", "weather", "fill", "expand", "clone", "give", "count", "bp", "undo", "redo", "seed", "gm", "help"];
+export var CMD_LIST = ["tp", "marks", "time", "weather", "fill", "hollow", "walls", "shell", "expand", "contract", "shift", "clone", "give", "count", "bp", "undo", "redo", "seed", "gm", "help"];
 // 앞글자만 쳐도 알아듣게 — 명령이 열 개나 되면 오타 한 번에 막힌다
 export function completeCommand(prefix) {
   var q = String(prefix || "").trim().toLowerCase();
@@ -897,7 +928,7 @@ export function runCommand(line) {
 
   // 표식 목록 — 96px 미니맵의 7px 글자 말고 **글자로 읽을 곳**이 필요하다.
   // 화면 밖 표식은 가장자리에 눌려 이름도 안 나온다.
-  // 표식은 12개가 상한인데 **멀리 있는 것을 지울 길이 없었다** (v100) —
+  // 표식은 상한이 있는데(12 → v111 에서 24) **멀리 있는 것을 지울 길이 없었다** (v100) —
   // toggleMark 는 내 자리 3칸 안만 보므로, 13번째를 찍으려면 쓸모없어진 표식까지
   // 날아가야 했다. 한 시간이면 굴 어귀·갱도·집·광맥으로 12개는 금방 찬다
   if (cmd === "marks" && parts[1] === "del") {
@@ -1014,6 +1045,24 @@ export function runCommand(line) {
     return n.toLocaleString("ko-KR") + "칸을 " + NAMES[fb] + " 로";
   }
 
+  // 속 비우기 · 벽 세우기 (v111) — 월드에디트의 //hollow · //walls 와 같은 자리.
+  // 채우기가 이미 8,000칸을 22ms 에 하는데, **가장 흔한 모양 하나**를 못 만들고 있었다
+  if (cmd === "hollow") {
+    var hn = shellSelection(AIR, SH_FULL, "hollow");
+    if (hn < 0) return "영역이 너무 큽니다";
+    if (!hn) return bounds() ? "비울 속이 없습니다 — 세 변이 모두 3칸 이상이라야 합니다"
+                             : "먼저 Alt+클릭으로 영역을 고르세요";
+    return hn.toLocaleString("ko-KR") + "칸을 비웠습니다 (껍질 한 겹은 남겼습니다)";
+  }
+  if (cmd === "walls" || cmd === "shell") {
+    var wb = findBlock(parts.slice(1).join(" "));
+    if (wb < 0) return cmd + " <블록> — 옆 네 면" + (cmd === "shell" ? "과 바닥·천장" : "") + "을 세웁니다";
+    var wn = shellSelection(wb, SH_FULL, cmd === "shell" ? "shell" : "walls");
+    if (wn < 0) return "영역이 너무 큽니다";
+    if (!wn) return bounds() ? "이미 " + NAMES[wb] + " 입니다" : "먼저 Alt+클릭으로 영역을 고르세요";
+    return wn.toLocaleString("ko-KR") + "칸을 " + NAMES[wb] + " 로";
+  }
+
   if (cmd === "gm") {
     var sp = parseFloat(parts[1]);
     if (!isFinite(sp)) return "gm <0.5~4>";
@@ -1073,6 +1122,44 @@ export function runCommand(line) {
     S.selA = [gx2[0], gy2[0], gz2[0]];
     S.selB = [gx2[1], gy2[1], gz2[1]];
     return "영역 " + (gx2[1] - gx2[0] + 1) + "×" + (gy2[1] - gy2[0] + 1) + "×" + (gz2[1] - gz2[0] + 1) +
+           " · " + selectionSize().toLocaleString("ko-KR") + "칸";
+  }
+
+  // 줄이기와 밀기 (v111) — `expand` 만 있고 짝이 없었다. 한 칸 크게 잡으면
+  // 다시 두 모서리를 찍는 수밖에 없었고, 같은 크기로 옆칸을 지으려면 처음부터 다시 골랐다.
+  if (cmd === "contract" || cmd === "shift") {
+    var cx3 = parseInt(parts[1], 10), cy3 = parseInt(parts[2], 10), cz3 = parseInt(parts[3], 10);
+    if (!isFinite(cx3) || !isFinite(cy3) || !isFinite(cz3)) {
+      return cmd === "contract" ? "contract <±dx> <±dy> <±dz> — 양수는 +쪽에서, 음수는 −쪽에서 줄인다"
+                                : "shift <dx> <dy> <dz> — 고른 영역을 통째로 민다 (블록은 그대로)";
+    }
+    var cb3 = bounds();
+    if (!cb3) return "먼저 Alt+클릭으로 영역을 고르세요";
+    function clampAxis(v, max) { return Math.max(0, Math.min(max - 1, v)); }
+    var nx3, ny3, nz3, nx4, ny4, nz4;
+    if (cmd === "shift") {
+      nx3 = cb3.x0 + cx3; nx4 = cb3.x1 + cx3;
+      ny3 = cb3.y0 + cy3; ny4 = cb3.y1 + cy3;
+      nz3 = cb3.z0 + cz3; nz4 = cb3.z1 + cz3;
+      // 세계 밖으로 밀면 **크기를 지킨 채** 안으로 되민다 — 잘리면 영역이 조용히 작아진다
+      if (nx3 < 0) { nx4 -= nx3; nx3 = 0; } if (nx4 > WX - 1) { nx3 -= nx4 - (WX - 1); nx4 = WX - 1; }
+      if (ny3 < 0) { ny4 -= ny3; ny3 = 0; } if (ny4 > WY - 1) { ny3 -= ny4 - (WY - 1); ny4 = WY - 1; }
+      if (nz3 < 0) { nz4 -= nz3; nz3 = 0; } if (nz4 > WZ - 1) { nz3 -= nz4 - (WZ - 1); nz4 = WZ - 1; }
+      nx3 = clampAxis(nx3, WX); nx4 = clampAxis(nx4, WX);
+      ny3 = clampAxis(ny3, WY); ny4 = clampAxis(ny4, WY);
+      nz3 = clampAxis(nz3, WZ); nz4 = clampAxis(nz4, WZ);
+    } else {
+      function shrink(lo, hi, d) {
+        if (d >= 0) hi -= d; else lo -= d;    // 양수는 +쪽에서, 음수는 −쪽에서 줄인다
+        if (lo > hi) lo = hi = (d >= 0 ? hi : lo);   // 한 칸까지만 줄어든다
+        return [lo, hi];
+      }
+      var rx = shrink(cb3.x0, cb3.x1, cx3), ry = shrink(cb3.y0, cb3.y1, cy3), rz = shrink(cb3.z0, cb3.z1, cz3);
+      nx3 = rx[0]; nx4 = rx[1]; ny3 = ry[0]; ny4 = ry[1]; nz3 = rz[0]; nz4 = rz[1];
+    }
+    S.selA = [nx3, ny3, nz3];
+    S.selB = [nx4, ny4, nz4];
+    return "영역 " + (nx4 - nx3 + 1) + "×" + (ny4 - ny3 + 1) + "×" + (nz4 - nz3 + 1) +
            " · " + selectionSize().toLocaleString("ko-KR") + "칸";
   }
 

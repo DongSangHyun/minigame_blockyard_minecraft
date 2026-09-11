@@ -16,7 +16,7 @@ import { ac, setAudioAwake, startAmbient, tone } from "./audio.js";
 import { renameSlot, clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo , rememberSlot, releaseLock, lockHeldByOther} from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
 import { undoEmptyWhy, lastEditLabel, blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
-import { helpOpen, closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
+import { helpOpen, bigMapOpen, toggleBigMap, closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
 import { place } from "./mine.js";
 import { setWeather } from "./sky.js";
@@ -810,9 +810,25 @@ export var refreshWorldPills = function () {};
     if (!tRow) return;
     for (var i = 0; i < tRow.children.length; i++) {
       var b = tRow.children[i];
+      if (b.getAttribute("data-hold")) {      // 「멈춤」 알약은 시각이 아니라 상태를 보인다
+        b.setAttribute("aria-current", opts.day === 0 ? "true" : "false");
+        continue;
+      }
       var v = parseFloat(b.getAttribute("data-time"));
       b.setAttribute("aria-current", Math.abs(S.timeOfDay - v) < 0.02 ? "true" : "false");
     }
+  }
+  // 시간을 그 자리에 못 박는다 (v111) — 하루 20분 중 9.6분이 밤이라,
+  // 벽 색을 맞춰 놓고 나면 곧 캄캄해진다. 껐다 켜도 **원래 길이로 돌아온다**
+  var dayWas = 0;
+  function toggleDayHold() {
+    var el = document.getElementById("s-day"), out = document.getElementById("o-day");
+    if (opts.day === 0) opts.day = dayWas || 20;
+    else { dayWas = opts.day; opts.day = 0; }
+    if (el) el.value = opts.day;
+    if (out) out.textContent = opts.day === 0 ? "고정" : opts.day + "분";
+    applyOpts(); saveOpts(); markTime();
+    toast(opts.day === 0 ? "시간을 멈췄습니다" : "시간이 다시 흐릅니다 (" + opts.day + "분)");
   }
   function markWeather() {
     if (!wRow) return;
@@ -825,6 +841,7 @@ export var refreshWorldPills = function () {};
   if (tRow) tRow.addEventListener("click", function (e) {
     var b = e.target.closest ? e.target.closest("button") : null;
     if (!b) return;
+    if (b.getAttribute("data-hold")) { toggleDayHold(); return; }
     S.timeOfDay = parseFloat(b.getAttribute("data-time"));
     applyTime(); markTime();
     S.worldDirty = true;
@@ -921,11 +938,14 @@ export function renameMarkHere() {
   return true;
 }
 
+export var MARK_MAX = 24;
 export function toggleMark(named) {
   var mx = Math.round(player.pos.x), my = Math.round(player.pos.y), mz = Math.round(player.pos.z);
   var near = markHere();
   if (near >= 0) { S.marks.splice(near, 1); toast("표식 지움"); }
-  else if (S.marks.length >= 12) toast("표식은 12개까지입니다");
+  // 12 → 24 (v111) — 12개는 "집 한 채" 시절의 치수다. 한 시간이면 굴 어귀·갱도·
+  // 집·광맥으로 다 차고, 그다음부터는 새로 찍으려면 쓰던 표식을 지워야 했다
+  else if (S.marks.length >= MARK_MAX) toast("표식은 " + MARK_MAX + "개까지입니다");
   else {
     // 높이까지 담는다 — 지하 갱도 입구와 지상 탑이 지도에서 같은 점이었다.
     // 예전 저장의 [x, z] 두 원소도 그대로 읽히게, 길이로 구분한다 (저장 버전은 v5 그대로).
@@ -1076,6 +1096,7 @@ window.addEventListener("keydown", function (e) {
     // 도움말도 S.uiOpen 을 세우므로(v67) 어느 창이 열렸는지 보고 닫는다 —
     // 안 그러면 closePicker 만 불러 도움말이 열린 채로 잠금만 풀린다
     if (helpOpen()) { toggleHelp(false); return; }
+    if (bigMapOpen()) { toggleBigMap(false); return; }
     if (S.uiOpen) { closePicker(true); return; }
     if (!S.lockMode && S.active) { endPlay(); return; }
     return;
@@ -1085,6 +1106,14 @@ window.addEventListener("keydown", function (e) {
   if (e.code === "KeyE") { e.preventDefault(); if (S.uiOpen) closePicker(true); else openPicker(); return; }
   // 도움말은 자기 키로 닫을 수 있어야 한다 — 아래 조기 반환보다 먼저 본다
   if (e.code === S.binds.help && helpOpen()) { toggleHelp(false); return; }
+  // 큰 지도 (v111) — `M` 은 소리 끄기가 이미 물고 있어 `N` 이다.
+  // 자기 키로 닫히지 않으면 도움말이 그랬듯 잠금만 풀린 채 판이 남는다
+  if (e.code === "KeyN" && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    e.preventDefault();
+    if (bigMapOpen()) toggleBigMap(false);
+    else if (!S.uiOpen) { toggleBigMap(true); advanceTut(6); }
+    return;
+  }
   if (S.uiOpen) {
     // 목록이 열린 동안에도 숫자키는 산다 — 어느 칸에 넣을지 고르는 데 쓴다.
     // 이것이 없으면 목록을 여닫으며 칸을 옮겨야 해서 팔레트를 짤 수가 없다.

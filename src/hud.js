@@ -361,7 +361,38 @@ export function refreshMouthDots() {
   return mouthDots.length;
 }
 
-export function drawMinimap() {
+// 큰 지도 (v111) — 96×96 지도를 128px 로 보던 것이 "집 한 채" 시절의 치수였다.
+// 30분이면 집 둘·갱도 하나·굴 어귀 스물이 한 세계에 있는데, **다음에 어디를 지을지
+// 고를 화면**이 없었다. 같은 그림을 배율만 올려 그린다 — 칠하는 규칙은 하나뿐이라야
+// 지상/지하·밝힌 자리·표식이 두 화면에서 어긋나지 않는다.
+export var BIG_K = 5;                       // 큰 지도의 한 칸 = 5px (96칸 → 480px)
+var mmScratch = null;
+export var bigMapEl = document.getElementById("bigmap");
+var bigCanvas = document.getElementById("bigmap-c");
+var bigCtx = bigCanvas ? bigCanvas.getContext("2d") : null;
+if (bigCanvas) { bigCanvas.width = WX * BIG_K; bigCanvas.height = WZ * BIG_K; }
+export function bigMapOpen() { return !!(bigMapEl && !bigMapEl.hidden); }
+// 큰 지도는 **세계를 통째로** 보여 준다 (확대는 무시한다) — 계획을 세우는 화면이다
+export function drawBigMap() { if (bigCtx) drawMinimapTo(bigCtx, BIG_K, true); }
+export function toggleBigMap(on) {
+  if (!bigMapEl) return;
+  var want = on === undefined ? bigMapEl.hidden : on;
+  bigMapEl.hidden = !want;
+  S.uiOpen = want;
+  if (want) {
+    if (document.pointerLockElement === canvas) document.exitPointerLock();
+    drawBigMap();
+  }
+}
+if (bigMapEl) bigMapEl.addEventListener("click", function (e) {
+  // 지도 자체를 눌렀을 때는 안 닫는다 — 들여다보려고 누르는 일이 잦다
+  if (e.target === bigMapEl) toggleBigMap(false);
+});
+export function drawMinimap() { drawMinimapTo(mmCtx, 1, false); }
+// ctx — 그릴 곳 · scale — 한 칸 몇 px · full — 확대를 무시하고 세계를 통째로.
+// **이름을 `k` 로 두면 안 된다** — 아래 지하 단면 루프가 `for (var k = 0; ...)` 를 쓰고,
+// ES5 의 `var` 는 함수 전체에 하나라 **인자가 6으로 덮여** 지도가 통째로 비었다 (v111 에서 데었다)
+export function drawMinimapTo(ctx, scale, full) {
   var d = mmImage.data;
   // 걸어온 만큼 지도가 열린다. 지하에서는 시야가 좁고, 밝히는 층도 따로다.
   var pxc = Math.max(0, Math.min(WX - 1, Math.floor(player.pos.x)));
@@ -388,7 +419,7 @@ export function drawMinimap() {
 
   // 확대 — 보이는 칸 수를 줄이고 한 칸을 여러 픽셀로 그린다
   // 지상과 지하가 각자 축척을 기억한다 (v87)
-  var zoom = S.mmUnder ? S.mmZoomUnder : S.mmZoom;
+  var zoom = full ? 1 : (S.mmUnder ? S.mmZoomUnder : S.mmZoom);
   var spanX = Math.max(8, Math.round(WX / zoom));
   var spanZ = Math.max(8, Math.round(WZ / zoom));
   var x0 = Math.max(0, Math.min(WX - spanX, pxc - (spanX >> 1)));
@@ -461,10 +492,20 @@ export function drawMinimap() {
       d[o + 2] = Math.min(255, c[2] * shade * dim);
     }
   }
-  mmCtx.putImageData(mmImage, 0, 0);
+  if (scale === 1) ctx.putImageData(mmImage, 0, 0);
+  else {
+    // 확대는 **뭉개지 않는다** — 복셀 지도는 픽셀이 칸이다
+    if (!mmScratch) { mmScratch = document.createElement("canvas"); mmScratch.width = WX; mmScratch.height = WZ; }
+    mmScratch.getContext("2d").putImageData(mmImage, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, WX * scale, WZ * scale);
+    ctx.drawImage(mmScratch, 0, 0, WX * scale, WZ * scale);
+  }
 
   // 표식(B) — 찍어 놓고 화면에 안 보이면 있으나 마나다
-  var sx = WX / spanX, sz = WZ / spanZ;
+  // k 를 여기 한 번만 곱한다 — 아래 좌표는 전부 sx·sz 를 거친다
+  var sx = WX / spanX * scale, sz = WZ / spanZ * scale;
+  var MW = WX * scale, MH = WZ * scale;      // 그리는 판의 크기 (작은 지도는 96×96)
 
   // 굴 어귀 — **한 어귀당 점 하나.** 덩어리가 클수록 점도 크다.
   // 지하에서는 그 기둥 둘레(±4칸)에 실제로 공기가 있을 때만 찍는다 —
@@ -481,36 +522,36 @@ export function drawMinimap() {
       if (!hasAir) continue;
     }
     var mdx = (md[0] - x0) * sx, mdz = (md[1] - z0) * sz;
-    if (mdx < -2 || mdz < -2 || mdx > WX + 2 || mdz > WZ + 2) continue;
-    mmCtx.beginPath();
-    mmCtx.arc(mdx, mdz, md[2] >= 24 ? 2.6 : (md[2] >= 8 ? 2.0 : 1.5), 0, Math.PI * 2);
-    mmCtx.fillStyle = "#e89640";
-    mmCtx.fill();
-    mmCtx.lineWidth = 0.8;
-    mmCtx.strokeStyle = "rgba(20,14,8,.8)";
-    mmCtx.stroke();
+    if (mdx < -2 || mdz < -2 || mdx > MW + 2 || mdz > MH + 2) continue;
+    ctx.beginPath();
+    ctx.arc(mdx, mdz, (md[2] >= 24 ? 2.6 : (md[2] >= 8 ? 2.0 : 1.5)) * Math.sqrt(scale), 0, Math.PI * 2);
+    ctx.fillStyle = "#e89640";
+    ctx.fill();
+    ctx.lineWidth = 0.8 * Math.sqrt(scale);
+    ctx.strokeStyle = "rgba(20,14,8,.8)";
+    ctx.stroke();
   }
   for (var mi = 0; mi < S.marks.length; mi++) {
     var mk = S.marks[mi];
     // marks 는 예전 [x, z] 와 지금 [x, y, z, 이름] 두 모양이다 — markX/markZ 로만 읽는다.
     // (v58 에서 mk[2] 를 직접 읽어 NaN 이 되고 캔버스가 조용히 아무것도 안 그렸다)
     var mxp = (markX(mk) - x0) * sx, mzp = (markZ(mk) - z0) * sz;
-    var edge = mxp < 2 || mzp < 2 || mxp > WX - 2 || mzp > WZ - 2;
-    mxp = Math.max(2, Math.min(WX - 2, mxp));
-    mzp = Math.max(2, Math.min(WZ - 2, mzp));
-    mmCtx.beginPath();
-    mmCtx.arc(mxp, mzp, edge ? 1.6 : 2.4, 0, Math.PI * 2);
-    mmCtx.fillStyle = "#e0c060";
-    mmCtx.fill();
-    mmCtx.lineWidth = 1;
-    mmCtx.strokeStyle = "rgba(255,255,255,.85)";
-    mmCtx.stroke();
+    var edge = mxp < 2 || mzp < 2 || mxp > MW - 2 || mzp > MH - 2;
+    mxp = Math.max(2, Math.min(MW - 2, mxp));
+    mzp = Math.max(2, Math.min(MH - 2, mzp));
+    ctx.beginPath();
+    ctx.arc(mxp, mzp, (edge ? 1.6 : 2.4) * Math.sqrt(scale), 0, Math.PI * 2);
+    ctx.fillStyle = "#e0c060";
+    ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(255,255,255,.85)";
+    ctx.stroke();
     // 번호를 옆에 적는다 — 열두 개가 전부 똑같은 금색 점이면
     // "집·채석장·나무농장" 이 구별이 안 돼 다섯 개째부터 찍을 이유가 없어진다
     if (!edge) {
-      mmCtx.font = "7px monospace";
-      mmCtx.textAlign = "left";
-      mmCtx.textBaseline = "middle";
+      ctx.font = Math.round(7 * (scale === 1 ? 1 : scale * 0.62)) + "px monospace";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
       // 이름을 붙였으면 번호 대신 이름 — 지우면 뒤 번호가 전부 밀려 번호만으로는 못 외운다
       var tag = markName(mk) || String(mi + 1);
       // 지하 단면에서는 **그 표식이 이 층에 있는지**가 이름보다 급하다 —
@@ -520,40 +561,40 @@ export function drawMinimap() {
         if (dy >= 3) tag += " ▲" + dy;
         else if (dy <= -3) tag += " ▼" + (-dy);
       }
-      mmCtx.fillStyle = "rgba(10,14,16,.85)";
-      mmCtx.fillText(tag, mxp + 4, mzp + 1);
-      mmCtx.fillStyle = "#f0d888";
-      mmCtx.fillText(tag, mxp + 3, mzp);
+      ctx.fillStyle = "rgba(10,14,16,.85)";
+      ctx.fillText(tag, mxp + 4 * Math.sqrt(scale), mzp + 1);
+      ctx.fillStyle = "#f0d888";
+      ctx.fillText(tag, mxp + 3 * Math.sqrt(scale), mzp);
     }
   }
 
   // 직접 정한 시작 지점(V) — 집 자리를 찍어 놨는데 지도에 안 나오면 찍은 보람이 없다
   if (S.spawnPoint) {
     var hx = (S.spawnPoint[0] - x0) * sx, hz = (S.spawnPoint[2] - z0) * sz;
-    if (hx > -2 && hz > -2 && hx < WX + 2 && hz < WZ + 2) {
-      mmCtx.beginPath();
-      mmCtx.arc(Math.max(2, Math.min(WX - 2, hx)), Math.max(2, Math.min(WZ - 2, hz)), 2.6, 0, Math.PI * 2);
-      mmCtx.fillStyle = "#5aa8e0";
-      mmCtx.fill();
-      mmCtx.lineWidth = 1;
-      mmCtx.strokeStyle = "rgba(255,255,255,.9)";
-      mmCtx.stroke();
+    if (hx > -2 && hz > -2 && hx < MW + 2 && hz < MH + 2) {
+      ctx.beginPath();
+      ctx.arc(Math.max(2, Math.min(MW - 2, hx)), Math.max(2, Math.min(MH - 2, hz)), 2.6 * Math.sqrt(scale), 0, Math.PI * 2);
+      ctx.fillStyle = "#5aa8e0";
+      ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(255,255,255,.9)";
+      ctx.stroke();
     }
   }
 
-  var px = (player.pos.x - x0) * (WX / spanX);
-  var pz = (player.pos.z - z0) * (WZ / spanZ);
-  var arrow = 3.2 * Math.min(3, zoom);
+  var px = (player.pos.x - x0) * sx;
+  var pz = (player.pos.z - z0) * sz;
+  var arrow = 3.2 * Math.min(3, zoom) * Math.sqrt(scale);
   var dirX = -Math.sin(player.yaw), dirZ = -Math.cos(player.yaw);
-  mmCtx.fillStyle = "#e07a3a";
-  mmCtx.beginPath();
-  mmCtx.moveTo(px + dirX * arrow, pz + dirZ * arrow);
-  mmCtx.lineTo(px - dirZ * (arrow * 0.62) - dirX * (arrow * 0.44),
+  ctx.fillStyle = "#e07a3a";
+  ctx.beginPath();
+  ctx.moveTo(px + dirX * arrow, pz + dirZ * arrow);
+  ctx.lineTo(px - dirZ * (arrow * 0.62) - dirX * (arrow * 0.44),
                pz + dirX * (arrow * 0.62) - dirZ * (arrow * 0.44));
-  mmCtx.lineTo(px + dirZ * (arrow * 0.62) - dirX * (arrow * 0.44),
+  ctx.lineTo(px + dirZ * (arrow * 0.62) - dirX * (arrow * 0.44),
                pz - dirX * (arrow * 0.62) - dirZ * (arrow * 0.44));
-  mmCtx.closePath();
-  mmCtx.fill();
+  ctx.closePath();
+  ctx.fill();
 }
 
 

@@ -17,7 +17,7 @@ import { EYE, HALF, moveAxis, moveHorizontal, player, pointSolid, raycast, spawn
 import { splash, waterLap, fireCrackle, at, caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { pushPrev, saveGame , touchLock} from "./save.js";
 import { checkBuildAchievements, checkFoundAchievements, ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
-import { refreshMouthDots, refreshMinimapCap, tAim, airBar, airEl, drawMinimap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
+import { refreshMouthDots, refreshMinimapCap, tAim, airBar, airEl, drawMinimap, bigMapOpen, drawBigMap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
 import { updateBody } from "./body.js";
 import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
@@ -937,6 +937,7 @@ export function animate() {
   }
   if (S.mmTimer > 0.2 && S.active) {
     drawMinimap();
+    if (bigMapOpen()) drawBigMap();     // 큰 지도가 열려 있으면 같은 박자로 따라 그린다
     refreshMinimapCap();
     S.mmTimer = 0;
   }

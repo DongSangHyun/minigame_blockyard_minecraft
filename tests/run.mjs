@@ -4392,6 +4392,13 @@ test("v24 울타리: 점프로 넘을 수 없다", async (page) => {
     for (let dx = -4; dx <= 4; dx++) B.applyEdit(X + dx, Y, Z, B.B.FENCE, false, 0);
     B.refreshAllTops(); B.relightAll(false);
     B.setPaused(true); B.beginPlay();
+    // 걸음에 붙는 것을 전부 못 박는다 (v111) — 10회 중 한 번 "뛰어넘었다(z=48.7)" 가 났다.
+    // loop.js 는 S.stick 이 0 이 아니면 키보드를 무시하고, S.sprintTap 이 남아 있으면
+    // 달리기로 들이받는다. 재려는 것은 **울타리 높이**지 앞선 시험이 남긴 상태가 아니다
+    B.S.stick.x = 0; B.S.stick.z = 0;
+    B.S.sprintTap = false; B.S.sneaking = false; B.S.sneakLatch = false;
+    B.S.keys.ControlLeft = false; B.S.keys.ControlRight = false;
+    B.S.flySpeed = 1;
     B.player.pos.set(X + 0.5, Y, Z - 1.5);
     B.player.vel.set(0, 0, 0); B.player.flying = false;
     B.player.yaw = Math.PI;                 // +z 쪽(울타리)으로 전진
@@ -4399,11 +4406,15 @@ test("v24 울타리: 점프로 넘을 수 없다", async (page) => {
     for (let i = 0; i < 240; i++) B.step(1 / 60);
     B.setKey("KeyW", false); B.setKey("Space", false);
     const z = B.player.pos.z;
+    const fenceStill = B.get(X, Y, Z) === B.B.FENCE;
+    const flying = B.player.flying, y = B.player.pos.y;
     B.endPlay(); B.setPaused(false);
-    return { z, fence: Z };
+    return { z, y, fence: Z, fenceStill, flying, sprint: B.S.sprintingNow };
   });
+  eq(r.fenceStill, true, "울타리가 서 있지 않다 — 시험대가 안 섰다");
   // 기둥은 칸 한가운데(0.375~0.625)에 선다 — 그 앞에서 멈춰야 한다
-  assert(r.z < r.fence + 0.375, "울타리를 뛰어넘었다 — z=" + r.z.toFixed(2));
+  assert(r.z < r.fence + 0.375, "울타리를 뛰어넘었다 — z=" + r.z.toFixed(2) +
+     " (y=" + r.y.toFixed(2) + " · 비행 " + r.flying + " · 달리기 " + r.sprint + ")");
 });
 
 test("v24 사다리: 벽이 사라지면 같이 떨어진다", async (page) => {
@@ -12918,6 +12929,179 @@ test("v110 첫 화면: 도움말이 초보부터 열리고, 캐기 기본값이 
   assert(r.digLabel.indexOf("빠름") >= 0,
      "캐기 속도 설정 이름이 '" + r.digLabel + "' — 기본값이 무엇인지 안 알려 준다");
   await page.setViewportSize(beforeVp);
+});
+
+test("v111 영역: 속을 비우고 벽만 세우고 영역을 밀고 줄인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 30, Y = 30, Z = 30;
+    for (let dx = -1; dx <= 8; dx++) for (let dz = -1; dz <= 8; dz++)
+      for (let dy = -1; dy <= 8; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    B.S.history.length = 0; B.S.future.length = 0;
+
+    // 5×5×5 를 돌로 채운다
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 4, Y + 4, Z + 4];
+    const filled = B.fillSelection(B.B.STONE, 0);
+    function count(block) {
+      let n = 0;
+      for (let y = Y; y <= Y + 4; y++) for (let z = Z; z <= Z + 4; z++) for (let x = X; x <= X + 4; x++)
+        if (B.get(x, y, z) === block) n++;
+      return n;
+    }
+    const stoneFull = count(B.B.STONE);
+
+    // /hollow — 속 3×3×3 = 27칸이 공기가 되고 껍질 98칸은 남는다
+    const msg = B.runCommand("hollow");
+    const air = count(B.B.AIR), shell = count(B.B.STONE);
+    const inner = B.get(X + 2, Y + 2, Z + 2), face = B.get(X, Y + 2, Z + 2);
+
+    // 되돌리기 한 번에 속이 다시 찬다
+    B.undo();
+    const backFull = count(B.B.STONE);
+
+    // /walls — 빈 자리에 옆 네 면만 (5×5×5 겉 옆면 = 16 × 5층 = 80칸)
+    B.clearSelection();
+    const wmsg = B.runCommand("walls 조약돌");
+    let cobble = 0, ceiling = 0;
+    for (let y = Y; y <= Y + 4; y++) for (let z = Z; z <= Z + 4; z++) for (let x = X; x <= X + 4; x++)
+      if (B.get(x, y, z) === B.B.COBBLE) cobble++;
+    for (let z = Z + 1; z <= Z + 3; z++) for (let x = X + 1; x <= X + 3; x++)
+      if (B.get(x, Y + 4, z) !== B.B.AIR) ceiling++;      // 천장 속은 안 건드린다
+
+    // /contract · /shift 는 **영역만** 움직이고 블록은 그대로
+    const beforeShift = B.selectionSize();
+    B.runCommand("contract 0 2 0");
+    const afterContract = B.selectionBounds();
+    B.runCommand("shift 10 0 0");
+    const afterShift = B.selectionBounds();
+    let cobbleAfter = 0;
+    for (let y = Y; y <= Y + 4; y++) for (let z = Z; z <= Z + 4; z++) for (let x = X; x <= X + 4; x++)
+      if (B.get(x, y, z) === B.B.COBBLE) cobbleAfter++;
+
+    // 세계 밖으로 밀어도 크기를 지킨다
+    B.runCommand("shift -999 0 0");
+    const clamped = B.selectionBounds();
+
+    for (let dx = -1; dx <= 8; dx++) for (let dz = -1; dz <= 8; dz++)
+      for (let dy = -1; dy <= 8; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    B.S.selA = null; B.S.selB = null;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { filled, stoneFull, air, shell, inner, face, backFull, cobble, ceiling,
+             msg, wmsg, beforeShift,
+             contractH: afterContract ? afterContract.y1 - afterContract.y0 + 1 : -1,
+             shiftX: afterShift ? afterShift.x0 : -1,
+             shiftW: afterShift ? afterShift.x1 - afterShift.x0 + 1 : -1,
+             clampX: clamped ? clamped.x0 : -1,
+             clampW: clamped ? clamped.x1 - clamped.x0 + 1 : -1,
+             cobbleAfter };
+  });
+  eq(r.stoneFull, 125, "5×5×5 채우기가 " + r.stoneFull + "칸이다 — 시험대가 안 섰다");
+  eq(r.air, 27, "/hollow 가 속을 " + r.air + "칸 비웠다 — 3×3×3 = 27 이라야 한다");
+  eq(r.shell, 98, "껍질이 " + r.shell + "칸 남았다 — 125 − 27 = 98 이라야 한다");
+  eq(r.inner, 0, "속 한가운데가 안 비었다");
+  assert(r.face !== 0, "껍질 한 겹이 같이 사라졌다 — 벽이 뚫린다");
+  eq(r.backFull, 125, "되돌렸는데 " + r.backFull + "칸만 돌아왔다 — 한 묶음이 아니다");
+  eq(r.cobble, 80, "/walls 가 " + r.cobble + "칸을 세웠다 — 옆 네 면 16×5 = 80 이라야 한다");
+  eq(r.ceiling, 0, "/walls 가 천장까지 덮었다 — 바닥·천장은 그대로라야 한다");
+  eq(r.contractH, 3, "/contract 0 2 0 뒤 높이가 " + r.contractH + " 다 — 5 − 2 = 3");
+  eq(r.shiftW, 5, "/shift 가 영역 크기를 " + r.shiftW + " 로 바꿨다 — 밀기는 크기를 안 바꾼다");
+  eq(r.cobbleAfter, 80, "/shift 가 블록을 옮겼다 — 영역만 움직여야 한다");
+  eq(r.clampW, 5, "세계 밖으로 밀었더니 영역이 " + r.clampW + "칸으로 잘렸다");
+  eq(r.clampX, 0, "세계 밖으로 민 영역이 x=" + r.clampX + " 에 섰다 — 0 이라야 한다");
+});
+
+test("v111 시간 멈춤: 알약 하나로 시간이 서고, 다시 흐른다", async (page) => {
+  const r = await page.evaluate(async () => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keepDay = B.opts.day;
+    B.opts.day = 20;
+    const pill = document.getElementById("pill-dayhold");
+    const slider = document.getElementById("s-day");
+    if (!pill) return { none: true };
+
+    // 멈추기 전 — 시간이 흐른다
+    B.S.timeOfDay = 0.30;
+    for (let k = 0; k < 60 * 20; k++) B.step(1 / 60);
+    const moved = Math.abs(B.S.timeOfDay - 0.30);
+
+    pill.click();
+    const heldOpt = B.opts.day, sliderV = slider ? parseFloat(slider.value) : -1;
+    const t0 = B.S.timeOfDay;
+    for (let k = 0; k < 60 * 60; k++) B.step(1 / 60);
+    const drift = Math.abs(B.S.timeOfDay - t0);
+    const marked = pill.getAttribute("aria-current");
+
+    pill.click();                       // 다시 흐르게 — 원래 길이로 돌아온다
+    const backOpt = B.opts.day;
+    const t1 = B.S.timeOfDay;
+    for (let k = 0; k < 60 * 20; k++) B.step(1 / 60);
+    const movedAgain = Math.abs(B.S.timeOfDay - t1);
+
+    B.opts.day = keepDay;
+    B.applyOpts();
+    B.endPlay(); B.setPaused(false);
+    return { moved, heldOpt, sliderV, drift, marked, backOpt, movedAgain };
+  });
+  if (r.none) return;
+  assert(r.moved > 0.001, "멈추기 전에도 시간이 안 흘렀다 — 시험대가 안 섰다");
+  eq(r.heldOpt, 0, "「멈춤」 을 눌렀는데 하루 길이가 " + r.heldOpt + " 다");
+  eq(r.sliderV, 0, "「하루 길이」 슬라이더가 " + r.sliderV + " 에 남았다 — 두 손잡이가 어긋난다");
+  assert(r.drift < 0.0005, "멈췄는데 1분 사이에 시각이 " + r.drift.toFixed(4) + " 움직였다");
+  eq(r.marked, "true", "멈춘 상태인데 알약이 눌린 것으로 안 보인다");
+  eq(r.backOpt, 20, "다시 누르니 하루 길이가 " + r.backOpt + "분이 됐다 — 원래 20분이었다");
+  assert(r.movedAgain > 0.001, "다시 눌렀는데 시간이 안 흐른다");
+});
+
+test("v111 큰 지도: N 으로 열리고 세계를 통째로 그린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.terrain = 0;
+    B.generate(4242, 2); B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    B.seenMap.fill(0);
+    B.player.flying = true;
+    B.player.pos.set(48, 40, 48);
+    B.S.mmZoom = 4;                 // 작은 지도는 확대해 둔다 — 큰 지도는 그것을 무시해야 한다
+    B.drawMinimap();
+
+    function inked(id) {
+      const cv = document.getElementById(id);
+      const d = cv.getContext("2d").getImageData(0, 0, cv.width, cv.height).data;
+      let n = 0;
+      for (let i = 0; i < cv.width * cv.height; i++)
+        if (!(d[i*4] === 12 && d[i*4+1] === 16 && d[i*4+2] === 20) && d[i*4+3] > 0) n++;
+      return n / (cv.width * cv.height);
+    }
+    const openedBefore = B.bigMapOpen();
+    B.toggleBigMap(true);
+    const el = document.getElementById("bigmap");
+    const cv = document.getElementById("bigmap-c");
+    const opened = B.bigMapOpen() && !el.hidden;
+    const small = inked("mm"), big = inked("bigmap-c");
+    const uiOpen = B.S.uiOpen;
+    B.toggleBigMap(false);
+    const closed = !B.bigMapOpen() && el.hidden;
+
+    B.player.flying = false;
+    B.S.mmZoom = 1;
+    B.endPlay(); B.setPaused(false);
+    return { openedBefore, opened, closed, small, big, uiOpen,
+             w: cv.width, h: cv.height };
+  });
+  eq(r.openedBefore, false, "큰 지도가 처음부터 열려 있다");
+  eq(r.opened, true, "큰 지도가 안 열린다");
+  eq(r.uiOpen, true, "큰 지도가 열렸는데 S.uiOpen 이 안 섰다 — 뒤에서 블록이 캐진다");
+  eq(r.closed, true, "큰 지도가 안 닫힌다");
+  assert(r.w >= 384 && r.h >= 384, "큰 지도 판이 " + r.w + "×" + r.h + " 다 — 128px 지도와 다를 게 없다");
+  // 확대(×4)를 무시하고 **세계를 통째로** 그린다 — 작은 지도보다 밝힌 칸 비율이 낮아야 한다
+  assert(r.big > 0.01, "큰 지도에 아무것도 안 그려졌다");
+  assert(r.big < r.small, "큰 지도가 작은 지도와 같은 범위를 그린다 (" +
+     (r.big * 100).toFixed(1) + "% vs " + (r.small * 100).toFixed(1) + "%) — 확대를 안 무시했다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

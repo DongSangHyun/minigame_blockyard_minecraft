@@ -17,8 +17,8 @@ import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, move
 import { SOFT, WOOD, CLOTH, GLASSY, startAmbient, updateAmbient, ac, at, tone, crunch, breakSound, caveSound, lavaHiss, lavaPop, listenAt, miningSound, moodChord, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
 import { lastSlot, lockHeldByOther, touchLock, releaseLock, prevKey, pushPrev, renameSlot, curKey, OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName, baseRev, setBaseRev, ensureGist, req } from "./cloud.js";
-import { checkFoundAchievements, FOUND_IDS, undoEmptyWhy, HISTORY_CELLS_MAX, editLabel, blueprintList, deleteBlueprint, settleWorld, mirrorClip, rotateClip, BATCH_RELIGHT_ALL, checkBuildAchievements, ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
-import { refreshMouthDots, mouthDots, naturalRoof, roofDepth, ROOF_R, UNDER_ROOF, refreshMinimapCap, openPicker, closePicker, pickBtns, airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp , setHelpTab, toast} from "./hud.js";
+import { checkFoundAchievements, FOUND_IDS, undoEmptyWhy, HISTORY_CELLS_MAX, editLabel, blueprintList, deleteBlueprint, settleWorld, mirrorClip, rotateClip, BATCH_RELIGHT_ALL, checkBuildAchievements, ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, shellSelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
+import { refreshMouthDots, mouthDots, naturalRoof, roofDepth, ROOF_R, UNDER_ROOF, refreshMinimapCap, openPicker, closePicker, pickBtns, airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawMinimapTo, drawBigMap, toggleBigMap, bigMapOpen, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp , setHelpTab, toast} from "./hud.js";
 import { updateGhost, ghostMesh, ghostMat, updateHandLight, handMat, makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
 import { bodyRoot, updateBody, armL, armR, legL, legR, neck, upper } from "./body.js";
 import { toggleRegionBar, refreshResume, advanceTut, setStick, advanceTutTouch, HINT_TOUCH, refreshBlueprints, afterWorldSwap, aimCell, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink , swapBarPage, setShapeMode, cycleMinimapZoom, toggleMark, markHere, renameMarkHere} from "./input.js";
@@ -215,7 +215,7 @@ window.__blockyard = {
   pushOutOfMobs: pushOutOfMobs, exportWorld: exportWorld, importWorldText: importWorldText,
   hasBackup: hasBackup, restoreBackup: restoreBackup, pushBackup: pushBackup, backupKey: backupKey,
   cloudGroupHigh: cloudGroupHigh, FREE_DIST: FREE_DIST,
-  fillSelection: fillSelection, clearSelection: clearSelection, rotateClip: rotateClip, mirrorClip: mirrorClip,
+  fillSelection: fillSelection, clearSelection: clearSelection, shellSelection: shellSelection, rotateClip: rotateClip, mirrorClip: mirrorClip,
   SH_SLAB: SH_SLAB, SH_SLAB_UP: SH_SLAB_UP, SH_STAIR_E: SH_STAIR_E, SH_STAIR_N: SH_STAIR_N, SH_STAIR_W: SH_STAIR_W, SH_STAIR_S: SH_STAIR_S,
   SH_STAIR_NU: SH_STAIR_NU, SH_STAIR_EU: SH_STAIR_EU, SH_STAIR_SU: SH_STAIR_SU, SH_STAIR_WU: SH_STAIR_WU,
   isStairShape: isStairShape, copySelection: copySelection, pasteClip: pasteClip,
@@ -226,6 +226,7 @@ window.__blockyard = {
   aimedMob: aimedMob, removeMob: removeMob,
   breedTick: breedTick, MOB_MAX: MOB_MAX,
   toggleHelp: toggleHelp, helpEl: helpEl, setHelpTab: setHelpTab,
+  toggleBigMap: toggleBigMap, bigMapOpen: bigMapOpen, drawBigMap: drawBigMap, drawMinimapTo: drawMinimapTo,
   refreshMouthDots: refreshMouthDots, mouthDots: mouthDots, naturalRoof: naturalRoof,
   roofDepth: roofDepth, ROOF_R: ROOF_R, UNDER_ROOF: UNDER_ROOF,
   isConnecting: isConnecting, isClimbable: isClimbable, isOpenable: isOpenable,

@@ -664,6 +664,25 @@
   #touchwarn { color: var(--ember); }
 
   /* ---------- 도움말 ---------- */
+  /* 큰 지도 (v111) — 128px 지도는 "집 한 채" 시절의 치수다.
+     30분이면 집 둘·갱도·굴 어귀 스물이 한 세계에 있는데 계획을 세울 화면이 없었다 */
+  #bigmap {
+    position: fixed; inset: 0; z-index: 12;
+    display: grid; place-items: center; gap: 10px; align-content: center;
+    background: color-mix(in srgb, var(--void) 78%, transparent);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    padding: 16px;
+  }
+  #bigmap canvas {
+    width: min(80vh, 90vw); height: min(80vh, 90vw);
+    image-rendering: pixelated; display: block;
+    border: 2px solid var(--line); background: #0c1014;
+  }
+  #bigmap .bigmap-legend {
+    font-family: var(--mono); font-size: 11px; color: var(--stone);
+    text-align: center; line-height: 1.8;
+  }
+  #bigmap .bigmap-legend b { color: var(--bone); }
   #help {
     position: fixed; inset: 0; z-index: 12;
     display: grid; place-items: start center; align-content: safe center; padding: 24px;
@@ -921,6 +940,14 @@
   </div>
 </div>
 
+<div id="bigmap" hidden role="dialog" aria-modal="true" aria-label="큰 지도">
+  <canvas id="bigmap-c" width="480" height="480"></canvas>
+  <div class="bigmap-legend" id="bigmap-cap">
+    <b>N</b> 또는 <b>ESC</b> 로 닫습니다 ·
+    <b style="color:#e89640">주황</b> 굴 어귀 · <b style="color:#e0c060">금색</b> 표식 ·
+    <b style="color:#5aa8e0">파랑</b> 시작 지점
+  </div>
+</div>
 <div id="help" hidden role="dialog" aria-modal="true" aria-label="조작 도움말">
   <div class="help-card">
     <div class="help-tabs">
@@ -948,7 +975,10 @@
              블록을 열 개 놓아 본 사람이 읽을 글이 아니다. 1024×640 에서 40줄 중
              15줄이 첫 화면 밖이라, 「세계」와 「화면」은 아예 안 보였다 -->
         <dt>세계</dt><dd><kbd>T</kbd> 시간 · <kbd>K</kbd> 날씨 · <kbd>M</kbd> 소리 · <kbd>R</kbd>×2 새 세계</dd>
+        <dd><b>밤이 싫으면</b> — <kbd>ESC</kbd> 메뉴 › 설정 › 「지금 이 세계」 의 <b>멈춤</b> 으로
+            시간을 그 자리에 못 박습니다 (하루 20분 중 9.6분이 밤입니다)</dd>
         <dd><kbd>V</kbd> 시작 지점 · <kbd>B</kbd> 미니맵 표식(<kbd>Shift</kbd>+<kbd>B</kbd> 이름 붙여 찍기) · <kbd>[</kbd> <kbd>]</kbd> 미니맵 확대</dd>
+        <dd><kbd>N</kbd> <b>큰 지도</b> — 세계를 통째로 크게 봅니다 (표식 이름이 읽힙니다 · 표식은 24개까지)</dd>
         <dd>지도 — <b style="color:#e89640">주황</b> 굴 어귀 · <b style="color:#e0c060">금색</b> 표식 ·
             <b style="color:#5aa8e0">파랑</b> 시작 지점 · 땅속에서는 지금 층이 진하고 다른 층은 흐립니다</dd>
         <dd>표식으로 돌아가려면 <kbd>/</kbd><b>tp 3</b> 또는 <kbd>/</kbd><b>tp 채석장</b> · <kbd>/</kbd><b>marks</b> 로 목록</dd>
@@ -960,6 +990,10 @@
         <dd><kbd>Ctrl</kbd>+<kbd>F</kbd> 채우기 · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> 비우기 · <kbd>Ctrl</kbd>+<kbd>C</kbd> 복사 · <kbd>Ctrl</kbd>+<kbd>V</kbd> 붙여넣기 · <kbd>Ctrl</kbd>+<kbd>R</kbd> 90° 회전 · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> 거울</dd>
         <dd>명령창에서는 <kbd>/</kbd><b>fill 공기</b> 로도 비웁니다 — 되돌리기는 한 번에</dd>
         <dd><kbd>/</kbd><b>fill 조약돌 벽돌</b> — 벽돌인 칸만 조약돌로 (창문·안쪽 공기는 그대로)</dd>
+        <dd><kbd>/</kbd><b>hollow</b> — 채운 상자의 <b>속을 비웁니다</b> (껍질 한 겹만 남깁니다) ·
+            <kbd>/</kbd><b>walls 조약돌</b> — 옆 네 면만 세웁니다 (바닥·천장은 그대로)</dd>
+        <dd><kbd>/</kbd><b>expand 0 20 0</b> 늘리기 · <kbd>/</kbd><b>contract 0 5 0</b> 줄이기 ·
+            <kbd>/</kbd><b>shift 8 0 0</b> — 고른 영역을 통째로 밀기 (블록은 그대로)</dd>
         <dd><kbd>/</kbd><b>clone 0 0 -4 12</b> — 같은 조각을 4칸 간격으로 12번 (기둥·난간)</dd>
         <dd><kbd>Alt</kbd>+클릭 영역 모서리는 <b>보이는 데까지</b> 찍힙니다</dd>
         <dd>복사한 것은 <kbd>/</kbd><b>bp save 이름</b> 으로 남깁니다 — <kbd>ESC</kbd> 메뉴의 <b>청사진</b> 에서 다시 꺼냅니다</dd>
@@ -1156,6 +1190,11 @@
             <button type="button" data-time="0.50">정오</button>
             <button type="button" data-time="0.74">노을</button>
             <button type="button" data-time="0.98">한밤</button>
+            <!-- 시간 멈춤 (v111) — 하루 20분 중 **9.6분이 밤**이다(밝기 0.35 아래).
+                 지은 것을 보려고 시간을 멈추는 길이 두 칸 아래 「하루 길이」 슬라이더를
+                 0 으로 끄는 것뿐이었는데, 라벨이 「하루 길이」라 그게 낮 고정이라는 걸
+                 아무도 못 읽는다. 마크 건축자는 거의 항상 doDaylightCycle false 로 시작한다 -->
+            <button type="button" data-hold="1" id="pill-dayhold">멈춤</button>
           </div></div>
         <div class="opt"><span>날씨</span>
           <div class="pillrow" id="row-weather">
@@ -1174,7 +1213,7 @@
       <p class="opt-head">세계와 저장</p>
       <div class="opt-grid">
         <label class="opt"><span>소리 크기</span><input type="range" id="s-vol" min="0" max="100" step="5"><output id="o-vol"></output></label>
-        <label class="opt"><span>하루 길이</span><input type="range" id="s-day" min="0" max="20" step="1"><output id="o-day"></output></label>
+        <label class="opt"><span>하루 길이 (0 = 시간 고정)</span><input type="range" id="s-day" min="0" max="20" step="1"><output id="o-day"></output></label>
         <label class="opt"><span>자동 저장</span><input type="range" id="s-save" min="5" max="120" step="5"><output id="o-save"></output></label>
         <label class="opt"><span>되돌리기 단계</span><input type="range" id="s-undo" min="60" max="2000" step="20"><output id="o-undo"></output></label>
       </div>
