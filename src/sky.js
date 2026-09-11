@@ -5,7 +5,7 @@ import { SEA, WX, WY, WZ, idx } from "./dims.js";
 import { makeRng } from "./atlas.js";
 import { AIR, WATER, LAVA, ICE } from "./blocks.js";
 import { biomeMap, set, topMap, world } from "./world.js";
-import { camera, scene } from "./scene.js";
+import { camera, scene, sky, cloudGroup, cloudGroupHigh } from "./scene.js";
 import { dayLight } from "./daynight.js";
 import { player } from "./player.js";
 
@@ -133,16 +133,16 @@ export function updateSkyBodies() {
   // 새 문턱은 해가 수평선에 닿는 순간(L=0.42)에 정확히 0 이 된다
   starMat.opacity = Math.max(0, Math.min(1, 1.02 - L * 2.45)) * clear;
   brightMat.opacity = starMat.opacity * 1.25;
-  brightStars.visible = brightMat.opacity > 0.01;
+  brightStars.visible = !skyHidden && brightMat.opacity > 0.01;
   brightStars.position.copy(camera.position);
   // 해는 수평선에 닿을 때 가장 크고 또렷해야 한다 (v103) —
   // 예전에는 그 순간 불투명도가 0.30 까지 떨어져, 주황 하늘 위에서 대비가 절반이 됐다
   // (노을 Δ48 대 아침 Δ104). 노을은 이 게임에서 찍을 만한 구도 1번이다
   sunMat.opacity = Math.max(0, Math.min(1, (sy / R) * 1.5 + 0.82)) * clear;
   moonMat.opacity = Math.max(0, Math.min(1, (-sy / R) * 2.4 + 0.20)) * clear;
-  sunSprite.visible = sunMat.opacity > 0.01;
-  moonSprite.visible = moonMat.opacity > 0.01;
-  stars.visible = starMat.opacity > 0.01;
+  sunSprite.visible = !skyHidden && sunMat.opacity > 0.01;
+  moonSprite.visible = !skyHidden && moonMat.opacity > 0.01;
+  stars.visible = !skyHidden && starMat.opacity > 0.01;
 }
 
 // ── 날씨 (0 맑음 · 1 비 · 2 눈)
@@ -213,6 +213,19 @@ export function applyWeather() {
   seedWeather();
   weatherPoints.visible = S.weather === 2;
   rainLines.visible = S.weather === 1;
+}
+
+// 물·용암 속에서 하늘을 통째로 감춘다 (v104) — 안개가 지형에만 걸리기 때문이다
+export var skyHidden = false;
+export function setSkyHidden(on) {
+  skyHidden = !!on;
+  sky.visible = !skyHidden;
+  cloudGroup.visible = !skyHidden;
+  cloudGroupHigh.visible = !skyHidden;
+  if (!skyHidden) return;
+  // 해·달·별은 updateSkyBodies 가 프레임마다 다시 켜므로 그쪽에서도 막는다
+  sunSprite.visible = false; moonSprite.visible = false;
+  stars.visible = false; brightStars.visible = false;
 }
 
 export function localBiome() {

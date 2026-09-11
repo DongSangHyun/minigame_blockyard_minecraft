@@ -112,7 +112,10 @@ export var voxUniforms = {
   uFogFar: { value: 120 },
   uGamma: { value: 1 },
   uTileSpan: { value: new THREE.Vector2(TILE / atlas.width, TILE / atlas.height) },
-  uTileInset: { value: 0.25 / TILE }
+  uTileInset: { value: 0.25 / TILE },
+  // 바깥 바다의 밑색 — 물 타일의 평균색을 그대로 쓴다 (미니맵이 쓰는 값과 같다)
+  uWaterBase: { value: new THREE.Color(0.13, 0.30, 0.47) },
+  uEdge: { value: 0 }      // 세계 끝 격자의 진하기 (updateEdge 가 넣는다)
 };
 export function voxMaterial(extra) {
   var opts = {
@@ -204,14 +207,24 @@ export var outerSea = (function () {
       "uniform float uFogFar;",
       "uniform float uDay;",
       "uniform float uTime;",
+      "uniform vec3 uNight;",
+      "uniform float uGamma;",
+      "uniform vec3 uWaterBase;",
       "varying vec3 vW;",
       "void main() {",
       "  float d = length(vW - cameraPosition);",
-      "  vec3 water = vec3(0.13, 0.30, 0.47) * (0.35 + 0.65 * uDay);",
+      // 세계 물과 **같은 식**으로 밝힌다 (v104) — 예전에는 0.35+0.65*uDay 뿐이라
+      // 세계 끝 한 픽셀 줄에서 밝기가 43% 꺾이고(129 → 74) 노을에는 색상까지 갈렸다.
+      // 이 판은 "물이 일직선으로 잘리면 디오라마가 된다" 고 넣은 것인데
+      // 그 판 자체가 일직선을 하나 더 긋고 있었다
+      "  float litness = 0.045 + 0.955 * pow(clamp(uDay, 0.0, 1.0), 1.30);",
+      "  vec3 tint = mix(uNight, vec3(1.0), clamp(uDay * 1.25, 0.0, 1.0));",
+      "  vec3 water = uWaterBase * litness * tint;",
       // 잔물결 — 완전히 평평하면 판때기로 보인다. 가까울수록만 보이게 한다
       "  float w = sin(vW.x * 0.09 + uTime * 0.7) * sin(vW.z * 0.11 - uTime * 0.5);",
       "  water += vec3(0.020, 0.028, 0.034) * w * (1.0 - smoothstep(0.0, 90.0, d));",
-      "  float f = smoothstep(uFogNear, uFogFar, d);",
+          "  float f = smoothstep(uFogNear, uFogFar, d);",
+      "  water = pow(max(water, 0.0), vec3(uGamma));",
       "  gl_FragColor = vec4(mix(water, uFogColor, f), 1.0);",
       "}"
     ].join("\n")
@@ -531,9 +544,34 @@ export function updateParticles(dt) {
 }
 
 // ── 세계의 끝 — 보이지 않는 벽 대신, 가까이 가면 옅은 격자벽이 보인다
-export var edgeMat = new THREE.MeshBasicMaterial({
-  color: 0x7ec850, transparent: true, opacity: 0, fog: false,
-  side: THREE.DoubleSide, depthWrite: false, wireframe: true
+// 세계 끝 격자 — 안개를 받는다 (v104).
+// fog:false 였을 때는 물속에서 지형이 22칸에 다 지워지는데 격자만 제 불투명도를
+// 다 들고 남아, 화면 절반이 **라임색 삼각 격자**로 덮여 디버그 와이어프레임처럼 보였다.
+// 하필 격자는 8칸 안에서만 뜨므로 **바닷가로 헤엄쳐 나갈 때만** 나타난다 — 가장 어두울 때다
+export var edgeMat = new THREE.ShaderMaterial({
+  uniforms: voxUniforms,
+  transparent: true, depthWrite: false, fog: false,
+  side: THREE.DoubleSide, wireframe: true,
+  vertexShader: [
+    "varying float vD;",
+    "void main() {",
+    "  vec4 wp = modelMatrix * vec4(position, 1.0);",
+    "  vD = length(wp.xyz - cameraPosition);",
+    "  gl_Position = projectionMatrix * viewMatrix * wp;",
+    "}"
+  ].join("\n"),
+  fragmentShader: [
+    "uniform vec3 uFogColor;",
+    "uniform float uFogNear;",
+    "uniform float uFogFar;",
+    "uniform float uEdge;",
+    "varying float vD;",
+    "void main() {",
+    "  float f = smoothstep(uFogNear, uFogFar, vD);",
+    "  vec3 c = mix(vec3(0.494, 0.784, 0.314), uFogColor, f);",
+    "  gl_FragColor = vec4(c, uEdge * (1.0 - f));",
+    "}"
+  ].join("\n")
 });
 export var edgeGroup = new THREE.Group();
 (function () {
@@ -558,8 +596,8 @@ scene.add(edgeGroup);
 export function updateEdge(px, pz) {
   var d = Math.min(px, WX - px, pz, WZ - pz);
   var near = Math.max(0, 1 - d / 10);
-  edgeMat.opacity = near * near * 0.34;
-  edgeGroup.visible = edgeMat.opacity > 0.005;
+  voxUniforms.uEdge.value = near * near * 0.34;
+  edgeGroup.visible = voxUniforms.uEdge.value > 0.005;
 }
 
 // ── 영역 선택 상자 — 두 모서리를 찍으면 초록 테두리가 뜬다.

@@ -1964,10 +1964,11 @@ test("v11 저장 슬롯: 셋이 서로 다른 키를 쓰고 1번은 기존 키�
 test("v11 세계의 끝: 가장자리에 가까이 가면 격자벽이 보인다", async (page) => {
   const r = await page.evaluate(() => {
     const B = window.__blockyard;
+    // v104 부터 격자는 셰이더로 그린다 — 진하기는 uEdge 유니폼이다
     B.updateEdge(B.WX / 2, B.WZ / 2);
-    const mid = B.edgeMat.opacity;
+    const mid = B.voxUniforms.uEdge.value;
     B.updateEdge(1.5, B.WZ / 2);
-    const edge = B.edgeMat.opacity;
+    const edge = B.voxUniforms.uEdge.value;
     B.updateEdge(B.WX / 2, B.WZ / 2);
     return { mid, edge };
   });
@@ -11871,7 +11872,7 @@ test("v99 멈춤: 메뉴를 열어 두면 불도 물도 멈춘다", async (page)
       for (let dy = 0; dy <= 2; dy++)
         if (B.get(X + dx, Y + dy, Z + dz) === B.B.FIRE) fireCells++;
     B.beginPlay();
-    for (let k = 0; k < 60 * 20; k++) B.step(1 / 60);
+    for (let k = 0; k < 60 * 45; k++) B.step(1 / 60);
     const afterPlaying = planks();
     let fireAfter = 0;
     for (let dx = -5; dx <= 5; dx++) for (let dz = -5; dz <= 5; dz++)
@@ -12248,6 +12249,64 @@ test("v103 하늘: 반딧불이가 뭍에만 뜨고, 노을에 별이 안 뜬다
   assert(r.sunAtSunset > 0.7,
      "수평선의 해가 " + r.sunAtSunset.toFixed(2) + " 로 흐리다 — 노을에 해가 사라진다");
   assert(r.starsAtNight > 0.5, "한밤인데 별이 " + r.starsAtNight.toFixed(2) + " 다");
+});
+
+test("v104 물: 세계 끝에서 색이 안 갈리고, 물속에서 하늘이 사라진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    // 물속에 들어가면 하늘이 통째로 감춰진다
+    const X = 20, Y = 30, Z = 20;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+      for (let dy = -2; dy <= 8; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 3, Z + dz, B.B.STONE);
+      for (let dy = -2; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, B.B.WATER);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.flying = true;
+    B.player.pos.set(X + 0.5, Y + 60, Z + 0.5);      // 물 밖
+    for (let k = 0; k < 4; k++) B.step(1 / 60);
+    B.updateSkyBodies();
+    const dryCloud = B.cloudGroup.visible, drySky = B.skyMesh.visible;
+
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);           // 물속
+    for (let k = 0; k < 4; k++) B.step(1 / 60);
+    B.updateSkyBodies();
+    const wetCloud = B.cloudGroup.visible, wetSky = B.skyMesh.visible;
+    const wetStars = B.stars.visible, wetSun = B.sunSprite.visible;
+
+    B.player.pos.set(X + 0.5, Y + 60, Z + 0.5);      // 다시 물 밖
+    for (let k = 0; k < 4; k++) B.step(1 / 60);
+    B.updateSkyBodies();
+    const backCloud = B.cloudGroup.visible, backSky = B.skyMesh.visible;
+
+    // 바깥 바다의 밑색이 물 타일 평균에서 왔나 (세계 물과 같은 밑색이라야 안 갈린다)
+    const wb = B.voxUniforms.uWaterBase.value;
+    const av = B.AVG_TOP[B.B.WATER];
+
+    // 부어 둔 물을 걷고 동물을 다시 뿌린다 — 그 자리에 서 있던 동물이 물에 잠긴 채로
+    // 남으면 뒤에 오는 동물 시험이 "물에 빠졌다" 로 깨진다
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -3; dy <= 8; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false);
+    while (B.mobs.length) B.disposeMob(B.mobs.pop());
+    B.seedMobs();
+    B.player.flying = false;
+    B.player.pos.set(48.5, 40, 48.5);
+    B.endPlay(); B.setPaused(false);
+    return { dryCloud, drySky, wetCloud, wetSky, wetStars, wetSun, backCloud, backSky,
+             wb: [wb.r, wb.g, wb.b], av };
+  });
+  eq(r.drySky, true, "물 밖인데 하늘이 안 보인다 — 시험대가 안 섰다");
+  eq(r.dryCloud, true, "물 밖인데 구름이 안 보인다");
+  eq(r.wetSky, false, "물속인데 하늘 구가 그대로 보인다");
+  eq(r.wetCloud, false, "물속인데 구름이 그대로 보인다 — 수심 3칸에서 슬래브가 또렷하다");
+  eq(r.wetStars, false, "물속인데 별밭이 물 위로 비친다");
+  eq(r.wetSun, false, "물속인데 해가 그대로 보인다");
+  eq(r.backSky, true, "물에서 나왔는데 하늘이 안 돌아왔다");
+  eq(r.backCloud, true, "물에서 나왔는데 구름이 안 돌아왔다");
+  assert(Math.abs(r.wb[0] - r.av[0] / 255) < 0.02 && Math.abs(r.wb[2] - r.av[2] / 255) < 0.02,
+     "바깥 바다 밑색이 물 타일 평균과 다르다 — 세계 끝에서 색이 갈린다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

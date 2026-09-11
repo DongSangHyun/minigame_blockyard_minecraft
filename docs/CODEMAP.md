@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-11 · 모듈 29개 · 합계 12,762줄
+생성일 2026-09-11 · 모듈 29개 · 합계 12,825줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -21,7 +21,7 @@
 | [`light.js`](../src/light.js) | 광원 — 햇빛과 블록광 BFS | 182 | state · dims · blocks · world · mesh · player |
 | [`fluids.js`](../src/fluids.js) | 물 흐름 · 낙하 블록 · 잎 부패 | 798 | state · atlas · settings · queues · dims · blocks · world · tree · light · mesh · scene · audio · player · edit |
 | [`mesh.js`](../src/mesh.js) | 면 데이터 + 청크 메싱 | 428 | dims · blocks · atlas · world · light |
-| [`scene.js`](../src/scene.js) | three.js 씬 · 셰이더 · 파티클 | 610 | dims · boot · blocks · atlas · world · mesh |
+| [`scene.js`](../src/scene.js) | three.js 씬 · 셰이더 · 파티클 | 648 | dims · boot · blocks · atlas · world · mesh |
 | [`daynight.js`](../src/daynight.js) | 낮과 밤 | 87 | state · world · scene |
 | [`settings.js`](../src/settings.js) | 설정 | 106 | state · boot · scene |
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 361 | state · dims · blocks · world · scene |
@@ -34,11 +34,11 @@
 | [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1850 | state · world · queues · mobs · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
 | [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 277 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
 | [`mobs.js`](../src/mobs.js) | 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다. | 637 | dims · world · blocks · scene · player · audio · light · daynight · state |
-| [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 469 | state · audio · dims · atlas · blocks · world · scene · daynight · player |
+| [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 482 | state · audio · dims · atlas · blocks · world · scene · daynight · player |
 | [`cloud.js`](../src/cloud.js) | 기기 사이 이어하기 (GitHub Gist 에 세계를 올리고 내려받는다) | 243 | state · save |
-| [`loop.js`](../src/loop.js) | 게임 루프 | 956 | state · input · mobs · queues · dims · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · body · mine · sky |
+| [`loop.js`](../src/loop.js) | 게임 루프 | 961 | state · input · mobs · queues · dims · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · body · mine · sky |
 | [`version.js`](../src/version.js) | 빌드 도장 (자동 생성) | 8 | — |
-| [`main.js`](../src/main.js) | 조립과 시작 | 282 | state · tree · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · body · input · mine · sky · loop |
+| [`main.js`](../src/main.js) | 조립과 시작 | 289 | state · tree · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · body · input · mine · sky · loop |
 
 ## 모듈별 공개 함수
 
@@ -250,17 +250,17 @@
 
 | 함수 | 줄 |
 |---|---:|
-| `voxMaterial(extra)` | 117 |
-| `outerSeaY()` | 168 |
-| `updateOuterSea(camY)` | 234 |
-| `updateChunkVisibility(farDist, floor, aboveGround, deepUnder)` | 276 |
-| `boxesToEdges(boxes)` | 351 |
-| `dynamicHighlight(boxes)` | 373 |
-| `burst(x, y, z, blockId, count)` | 480 |
-| `updateParticles(dt)` | 501 |
-| `updateEdge(px, pz)` | 558 |
-| `updatePasteBox(c, p)` | 586 |
-| `updateSelectionBox(b, anchor)` | 596 |
+| `voxMaterial(extra)` | 120 |
+| `outerSeaY()` | 171 |
+| `updateOuterSea(camY)` | 247 |
+| `updateChunkVisibility(farDist, floor, aboveGround, deepUnder)` | 289 |
+| `boxesToEdges(boxes)` | 364 |
+| `dynamicHighlight(boxes)` | 386 |
+| `burst(x, y, z, blockId, count)` | 493 |
+| `updateParticles(dt)` | 514 |
+| `updateEdge(px, pz)` | 596 |
+| `updatePasteBox(c, p)` | 624 |
+| `updateSelectionBox(b, anchor)` | 634 |
 
 내보내는 값 — `matOpaque` · `scene` · `stage` · `VOX_VS` · `VOX_FS` · `voxUniforms` · `skyUniforms` · `sky` · `outerSea` · `FREE_DIST` · `chunkFreed` · `BURIED_KEEP` · `UNDER_SPAN` · `chunkBuried` · `DEEP_UNDER` · `cloudMat` · `cloudMatHigh` · `cloudGroup` · `cloudGroupHigh` · `HL_EDGES` · `HL_GEO` · `HL_CROSS` · `SHAPE_BOUNDS` · `PRIMED_MAX` · `primedMat` · `primedBoxes` · `highlight` · `crackMat` · `crackMesh` · `PMAX` · `pPos` · `pVel` · `pCount` · `pGeo` · `pMat` · `particles` · `edgeMat` · `edgeGroup` · `SEL_DONE` · `selMat` · `selBox` · `pasteMat` · `pasteBox`
 
@@ -571,15 +571,16 @@
 | `seedWeather()` | 182 |
 | `setWeather(w)` | 191 |
 | `applyWeather()` | 199 |
-| `localBiome()` | 218 |
-| `strikeBolt(fx, fz)` | 240 |
-| `updateStorm(dt)` | 281 |
-| `updateWeather(dt)` | 311 |
-| `seedCreatures()` | 405 |
-| `placeCreature(i)` | 417 |
-| `updateCreatures(dt)` | 439 |
+| `setSkyHidden(on)` | 220 |
+| `localBiome()` | 231 |
+| `strikeBolt(fx, fz)` | 253 |
+| `updateStorm(dt)` | 294 |
+| `updateWeather(dt)` | 324 |
+| `seedCreatures()` | 418 |
+| `placeCreature(i)` | 430 |
+| `updateCreatures(dt)` | 452 |
 
-내보내는 값 — `sunMat` · `sunSprite` · `MOON_PHASES` · `moonTex` · `moonMat` · `moonSprite` · `brightMat` · `brightStars` · `starMat` · `stars` · `WCOUNT` · `wPos` · `wDraw` · `HIDE_Y` · `wGeo` · `wMat` · `weatherPoints` · `rPos` · `rGeo` · `rainLines` · `BOLT_SEG` · `boltMesh` · `boltAt` · `CCOUNT` · `cPos` · `cSeed` · `cGeo` · `cMat` · `creatures`
+내보내는 값 — `sunMat` · `sunSprite` · `MOON_PHASES` · `moonTex` · `moonMat` · `moonSprite` · `brightMat` · `brightStars` · `starMat` · `stars` · `WCOUNT` · `wPos` · `wDraw` · `HIDE_Y` · `wGeo` · `wMat` · `weatherPoints` · `rPos` · `rGeo` · `rainLines` · `skyHidden` · `BOLT_SEG` · `boltMesh` · `boltAt` · `CCOUNT` · `cPos` · `cSeed` · `cGeo` · `cMat` · `creatures`
 
 ### `cloud.js` — 기기 사이 이어하기 (GitHub Gist 에 세계를 올리고 내려받는다)
 
@@ -616,10 +617,10 @@
 | `refreshChunkFloor()` | 31 |
 | `newWorld(seed)` | 56 |
 | `step(dt)` | 106 |
-| `animate()` | 807 |
-| `autoTuneFar(fps)` | 913 |
-| `farNow()` | 931 |
-| `refreshPerf()` | 933 |
+| `animate()` | 812 |
+| `autoTuneFar(fps)` | 918 |
+| `farNow()` | 936 |
+| `refreshPerf()` | 938 |
 
 내보내는 값 — `GRAVITY` · `chunkFloor` · `PLACE_DELAY` · `SNEAK_MUL` · `AIR_CONTROL` · `fwd` · `clock`
 

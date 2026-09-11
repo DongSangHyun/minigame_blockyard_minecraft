@@ -21,7 +21,7 @@ import { refreshMouthDots, refreshMinimapCap, tAim, airBar, airEl, drawMinimap, 
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
 import { updateBody } from "./body.js";
 import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
-import { localBiome, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather } from "./sky.js";
+import { localBiome, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather , setSkyHidden} from "./sky.js";
 
 export var GRAVITY = 26, JUMP = 8.4, WALK = 4.6, SPRINT = 6.0, FLY = 12;
 
@@ -371,6 +371,11 @@ export function step(dt) {
     underwaterEl.classList.toggle("lava", eyeInLava);
     S.wasUnderwater = eyeInLiquid;
     S.wasInLava = eyeInLava;
+    // 물·용암 속에서는 하늘을 통째로 덮는다 (v104).
+    // 안개는 지형에만 걸리고 하늘 구·구름·해·달·별은 전부 fog:false 라,
+    // 수심 3칸에서 구름 슬래브가 또렷하고 밤이면 별밭이 물 위로 비쳤다.
+    // 마크는 물속에서 하늘이 완전히 사라지고, 거기서 "다른 세계" 라는 감각이 나온다
+    setSkyHidden(eyeInLiquid);
   }
   if (eyeInLava) {
     voxUniforms.uFogNear.value = 0.05;

@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { growTree } from "./tree.js";
 import { breedTick, MOB_MAX, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, loadMobs, disposeMob, mobOccupies, aimedMob, removeMob, mobs, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
-import { atlasSample, SWATCH_SIDE, animateLiquids, atlas, painted } from "./atlas.js";
+import { atlasSample, SWATCH_SIDE, animateLiquids, atlas, painted, AVG_TOP } from "./atlas.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, GEN, setGen, seaLift, WX, WY, WZ, idx, inside } from "./dims.js";
 import { isThin, needsFloor, needsWall, POT, FRAME, BUCKET, BOOKSHELF, CARPET, CARPET0, CARPET_COUNT, isCarpet, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SAPLING, SAPLING_BIRCH, SAPLING_SPRUCE, isSapling, doorOpen, doorFacing, doorShapeFor, DOOR, AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, SPRUCE_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DEFAULT_BAR2, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLINT, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, ITEMS, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, categoryOf, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isItem, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
@@ -10,7 +10,7 @@ import { markX, markY, markZ, markName, SEEN_TOP, SEEN_UNDER, SEEN_UNDER_ALL, UN
 import { WATER_DIM, lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
 import { growTick, enqueueGrow, lavaFlowTick, lavaDryTick, LAVA_FLOW, grassTick, primeTNT, primeTick, TNT_FUSE, lavaTick, BLAST_R, FIRE_REACH, MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueFreeze, enqueueWaterAround, explode, fallTick, fireTick, freezeTick, ignite, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
 import { markDirty, FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll, setBuildFocus } from "./mesh.js";
-import { selBox, selMat, SEL_DONE, SEL_ANCHOR, pasteBox, updatePasteBox, outerSea, updateOuterSea, outerSeaY, pCol, pCount, FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudMat, cloudMatHigh, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, chunkBuried, BURIED_KEEP, UNDER_SPAN, DEEP_UNDER, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
+import { selBox, selMat, SEL_DONE, SEL_ANCHOR, pasteBox, updatePasteBox, outerSea, updateOuterSea, outerSeaY, pCol, pCount, FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, sky, cloudMat, cloudMatHigh, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, chunkBuried, BURIED_KEEP, UNDER_SPAN, DEEP_UNDER, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { OPT_KEY, applyOpts, applyFov, applyTbtn, applyUi, UI_MIN_H, fovForAspect, FOV_BASE_ASPECT, calmMotion, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, playerOccupies, pointSolid, rayBox, raycast, spawn, stats, unstick } from "./player.js";
@@ -23,7 +23,7 @@ import { updateGhost, ghostMesh, ghostMat, updateHandLight, handMat, makeBlockGe
 import { bodyRoot, updateBody, armL, armR, legL, legR, neck, upper } from "./body.js";
 import { toggleRegionBar, refreshResume, advanceTut, setStick, advanceTutTouch, HINT_TOUCH, refreshBlueprints, afterWorldSwap, aimCell, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink , swapBarPage, setShapeMode, cycleMinimapZoom, toggleMark, markHere, renameMarkHere} from "./input.js";
 import { canPlaceAt, mineAt, place, tryInteract, upperFromHit } from "./mine.js";
-import { weatherPoints, applyWeather, HIDE_Y, starMat, sunMat, cPos, placeCreature, MOON_PHASES, boltAt, boltMesh, strikeBolt, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
+import { weatherPoints, applyWeather, HIDE_Y, starMat, sunMat, stars, sunSprite, cPos, placeCreature, MOON_PHASES, boltAt, boltMesh, strikeBolt, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
 import { newWorld, PLACE_DELAY, PLACE_REPEAT, SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, farNow, refreshPerf, step , chunkFloor, refreshChunkFloor} from "./loop.js";
 
 // 주소에 ?seed=1234&t=2 가 있으면 그 세계로 연다 — 링크 하나로 같은 세계를 나눈다
@@ -38,6 +38,12 @@ import { newWorld, PLACE_DELAY, PLACE_REPEAT, SNEAK_MUL, SPRINT, WALK, animate, 
   } catch (e) {}
 })();
 
+// 바깥 바다의 밑색을 물 타일 평균에서 가져온다 (v104) — 세계 물과 같은 밑색이라야
+// 세계 끝에서 색이 안 갈린다
+(function () {
+  var av = AVG_TOP[WATER];
+  if (av) voxUniforms.uWaterBase.value.setRGB(av[0] / 255, av[1] / 255, av[2] / 255);
+})();
 applyOpts();
 bootProgress("세계를 여는 중…", 0.08);
 // 마지막으로 논 슬롯부터 연다 (v99) — 늘 슬롯 1 을 열던 것이
@@ -237,6 +243,7 @@ window.__blockyard = {
   S: S, setZoom: function (z) { S.mmZoom = z; }, burst: burst,
   SWATCH_SIDE: SWATCH_SIDE,
   pColArray: function () { return pCol; }, pCount: function () { return pCount; },
+  skyMesh: sky, stars: stars, sunSprite: sunSprite, cloudGroup: cloudGroup, AVG_TOP: AVG_TOP,
   starMat: starMat, sunMat: sunMat, cPos: cPos, seedCreatures: seedCreatures, placeCreature: placeCreature,
   cloudMat: cloudMat, cloudMatHigh: cloudMatHigh, ghostMat: ghostMat, updateHandLight: updateHandLight,
   WATER_DIM: WATER_DIM, showHud: showHud, toggleRegionBar: toggleRegionBar,
