@@ -11953,6 +11953,45 @@ test("v100 되돌리기: 손댄 자국도 되돌아온다 · 과제 진행도 ·
   eq(r.leftMarks, 0, "/marks del 로 표식이 안 지워진다: " + r.delMsg);
 });
 
+test("v100 클라우드: 슬롯마다 다른 세계로 올라간다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const keep = B.S.slot;
+    // 앞 시험이 세계 이름을 지어 두고 갈 수 있다 — 기본값을 재려면 먼저 비운다
+    const NK = "blockyard.cloud.world";
+    const saved = {};
+    for (const k of [NK, NK + ".2", NK + ".3"]) {
+      saved[k] = localStorage.getItem(k);
+      localStorage.removeItem(k);
+    }
+    const names = [];
+    for (const n of [1, 2, 3]) {
+      B.S.slot = n;
+      names.push(B.cloud.worldName());
+    }
+    // 손으로 이름을 지으면 그 슬롯에만 붙는다
+    B.S.slot = 2;
+    B.cloud.setWorldName("castle");
+    const named2 = B.cloud.worldName();
+    B.S.slot = 3;
+    const still3 = B.cloud.worldName();
+    B.S.slot = 1;
+    const still1 = B.cloud.worldName();
+    B.S.slot = keep;
+    for (const k in saved) {
+      if (saved[k] === null) localStorage.removeItem(k);
+      else localStorage.setItem(k, saved[k]);
+    }
+    return { names, named2, still3, still1 };
+  });
+  eq(r.names[0], "main", "슬롯 1 의 기본 이름이 바뀌었다 — 이미 올려 둔 세계를 못 읽는다");
+  assert(r.names[1] !== r.names[0] && r.names[2] !== r.names[0] && r.names[1] !== r.names[2],
+     "슬롯 셋이 같은 클라우드 세계를 쓴다: " + r.names.join(","));
+  eq(r.named2, "castle", "슬롯 2 에 지은 이름이 안 붙는다");
+  assert(r.still3 !== "castle", "슬롯 2 의 이름이 슬롯 3 까지 바꿨다");
+  eq(r.still1, "main", "슬롯 2 의 이름이 슬롯 1 까지 바꿨다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

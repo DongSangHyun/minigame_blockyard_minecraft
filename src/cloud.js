@@ -34,8 +34,18 @@ export function normalizeName(n) {
   n = String(n == null ? "" : n).toLowerCase().replace(/[^a-z0-9_-]/g, "");
   return n.slice(0, 24) || "main";
 }
-export function worldName() { return normalizeName(lsGet(NAME_KEY) || "main"); }
-export function setWorldName(n) { var v = normalizeName(n); lsSet(NAME_KEY, v); return v; }
+// 세계 이름은 **슬롯마다** 다르다 (v100).
+// 예전에는 전역 한 칸이라 슬롯 1 을 올리고 슬롯 2 를 올리면 같은 `main.json` 판 2 가 됐고,
+// 같은 기기라 baseRev 도 따라 올라가 **덮어쓰기 경고조차 안 떴다.**
+// 내려받기는 "지금 슬롯" 을 덮으므로 슬롯 1 세계가 슬롯 3에 앉기도 했다.
+// 「기기 사이 이어하기」가 슬롯 셋을 조용히 하나로 뭉개고 있었다.
+// 손으로 이름을 지은 사람은 그대로 쓴다(NAME_KEY) — 슬롯 1의 기본 이름도 "main" 그대로라
+// 이미 올려 둔 세계가 그대로 읽힌다
+export function slotNameKey() { return S.slot <= 1 ? NAME_KEY : NAME_KEY + "." + S.slot; }
+export function worldName() {
+  return normalizeName(lsGet(slotNameKey()) || (S.slot <= 1 ? "main" : "slot" + S.slot));
+}
+export function setWorldName(n) { var v = normalizeName(n); lsSet(slotNameKey(), v); return v; }
 
 // 기기 이름 — 어느 기기가 마지막으로 올렸는지 보여 주려고만 쓴다
 export function deviceName() {
@@ -189,6 +199,13 @@ export function pushWorld(force) {
       if (!force && remote > baseRev(name)) {
         return { conflict: true, name: name, rev: remote,
                  at: cur.at || "", device: cur.device || "" };
+      }
+      // 같은 이름에 **딴 세계**가 얹히려 하면 되묻는다 (v100) —
+      // 판 번호만 보던 때는 같은 기기가 올린 것이라 경고가 안 떴다
+      if (!force && cur && cur.seed !== undefined && (cur.seed >>> 0) !== meta.seed) {
+        return { conflict: true, otherWorld: true, name: name, rev: remote,
+                 at: cur.at || "", device: cur.device || "",
+                 theirSeed: cur.seed >>> 0, mySeed: meta.seed };
       }
       var rev = remote + 1;
       ix.worlds[name] = { rev: rev, at: new Date().toISOString(),

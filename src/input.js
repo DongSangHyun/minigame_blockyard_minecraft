@@ -344,8 +344,13 @@ if (cPush) cPush.addEventListener("click", function (e) {
     cloudBusy(false);
     if (r.conflict) {
       var when = String(r.at).slice(0, 16).replace("T", " ");
-      var ok = window.confirm("다른 기기(" + (r.device || "?") + ")가 " + when +
-        " 에 올린 판이 있습니다.\n덮어쓸까요? (이전 판은 gist 기록에 남습니다)");
+      // 같은 이름에 **딴 세계**가 얹히려는 경우를 따로 말해 준다 (v100)
+      var msg = r.otherWorld
+        ? ("클라우드의 \"" + r.name + "\" 는 **다른 세계**입니다 (SEED " + r.theirSeed +
+           " · 지금 것은 " + r.mySeed + ").\n덮어쓸까요? 덮어쓰면 그 세계는 gist 기록에만 남습니다.")
+        : ("다른 기기(" + (r.device || "?") + ")가 " + when +
+           " 에 올린 판이 있습니다.\n덮어쓸까요? (이전 판은 gist 기록에 남습니다)");
+      var ok = window.confirm(msg);
       if (!ok) { cloudSay("올리지 않았습니다 — 먼저 내려받으세요", "bad"); return; }
       cloudBusy(true); cloudSay("덮어쓰는 중…");
       return pushWorld(true).then(function (r2) {
