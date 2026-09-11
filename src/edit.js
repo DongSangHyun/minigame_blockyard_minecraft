@@ -3,13 +3,13 @@ import { S } from "./state.js";
 import { Q } from "./queues.js";
 import { opts } from "./settings.js";
 import { encodeArrB64, decodeArrB64, SLOTS } from "./save.js";
-import { SEA, DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
+import { SEA, DIRS, N, PLANE, WX, WY, WZ, idx, inside } from "./dims.js";
 import { isCarpet, ITEMS, POT, FRAME, FENCE, GLASS, PLANKS, BRICK, isSapling, SH_STAIR_N, SH_STAIR_E, SH_STAIR_S, SH_STAIR_W, SH_STAIR_NU, LAMP, FLOWER_R, FLOWER_Y, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
 import { markX, markY, markZ, markName, topMap, refreshAllTops, touched, get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightAll, relightLocal } from "./light.js";
 import { enqueueGrow, enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
 import { markAllDirty, touch } from "./mesh.js";
-import { player, stats } from "./player.js";
+import { boxHitsWorld, player, stats } from "./player.js";
 import { tone } from "./audio.js";
 import { helpAchList, refreshBar, showAchPop, toast } from "./hud.js";
 import { setWeather, localBiome } from "./sky.js";
@@ -238,12 +238,14 @@ export function notePlaced(b, sh, n) {
 // Ctrl+F 로 제 발밑을 채우면 걷지도 날지도 못하고 갇혔다 —
 // v95 가 /tp 에서 쓴 처방을 편집 쪽에도 둔다 (되돌리기가 있어도 갇힌 채로는 못 누른다)
 export function liftIfBuried() {
-  var gx = Math.floor(player.pos.x), gz = Math.floor(player.pos.z);
+  // **몸 상자가 실제로 블록과 겹칠 때만** 올린다 (v99).
+  // isSolid(get(...)) 는 모양을 못 봐서, 반블록·계단·카펫·눈 위에 선 것까지
+  // "묻혔다" 로 읽었다 — endBatch 는 기록되는 편집마다 도니까,
+  // 반블록 바닥에서 블록 하나만 놓아도 사람이 한 칸 위로 튀어 올랐다.
+  if (!boxHitsWorld(player.pos.x, player.pos.y, player.pos.z)) return false;
   var gy = Math.floor(player.pos.y);
-  if (!inside(gx, gy, gz)) return false;
-  if (!isSolid(get(gx, gy, gz)) && !isSolid(get(gx, gy + 1, gz))) return false;
   for (var y2 = gy; y2 < WY - 2; y2++) {
-    if (!isSolid(get(gx, y2, gz)) && !isSolid(get(gx, y2 + 1, gz))) {
+    if (!boxHitsWorld(player.pos.x, y2, player.pos.z)) {
       player.pos.y = y2;
       player.vel.set(0, 0, 0);
       return true;
@@ -252,7 +254,12 @@ export function liftIfBuried() {
   return false;
 }
 
-export function endBatch(label) {
+// credit 이 참일 때만 통계·과제에 싣는다 (v99).
+// v97 이 여기서 무조건 셌더니 ① 손으로 놓은 블록이 **두 번** 세어져
+// 「100칸」이 50칸에, 「등대지기」가 램프 5개에 열렸고(문은 3배)
+// ② **자란 나무 30칸·번진 불·깬 얼음까지** 사람이 놓은 것으로 쳤다.
+// applyEdit 은 기록되는 단일 편집마다 제 묶음을 열기 때문에 기본이 거짓이라야 한다.
+export function endBatch(label, credit) {
   var b = S.batch;
   var cells = S.batchCells;
   S.batch = null; S.batchCells = 0;
@@ -272,7 +279,7 @@ export function endBatch(label) {
   // 영역 도구로 지은 것도 통계·과제에 싣는다 (v97).
   // 같은 종류는 한 번만 세지 않고 칸수만큼 센다 — 램프 열 개를 영역으로 깔아도
   // 「등대지기」가 열려야 한다. 종류별로 모아 불러 unlock 검사를 덜 돌린다
-  if (b.n) {
+  if (b.n && credit) {
     var byKind = {}, ki;
     for (ki = 0; ki < b.n; ki++) {
       var tb = b.to[ki];
@@ -570,26 +577,34 @@ function checkRoom(x0, x1, z0, z1) {
 // 밖으로 새지 않으면 칸 수를, 새면 0 을 돌려준다
 // 「내 집」이 방으로 인정하는 최대 칸수 (v97) — 20×20×4 집이 1,296칸이다
 export var ROOM_MAX = 6000;
+// 상한 600 은 **천장 3칸짜리 15×15 집이 이미 넘는 값**이었다 (v97).
+// 영역 도구로 20×20 집(1,296칸)을 지은 사람이 정확히 그 이유로 과제를 못 땄다 —
+// 작게 지어야 상을 받는 셈이었다. "동굴이 아니다" 는 아래 topMap 검사가 가린다.
+// 상한을 열 배로 올리는 만큼 **스택과 방문 표시를 정수로** 바꿨다 (v99) —
+// 칸마다 [x,y,z] 배열을 만들고 객체 키를 문자열로 굴리면 그 비용도 열 배가 된다.
+var floodSeen = new Uint8Array(N);
+var floodStack = new Int32Array(ROOM_MAX * 6 + 8);
+var floodMark = 0;
 function floodEnclosed(sx, sy, sz) {
-  var seen = {}, stack = [[sx, sy, sz]], n = 0;
-  while (stack.length) {
-    var c = stack.pop();
-    var cx = c[0], cy = c[1], cz = c[2];
-    if (!inside(cx, cy, cz)) return 0;                 // 세계 밖으로 샜다
-    var key = idx(cx, cy, cz);
-    if (seen[key]) continue;
-    var b = world[key];
-    if (b !== AIR) continue;                           // 벽·문에 막힌다 (문도 벽으로 친다)
+  if (++floodMark > 250) { floodSeen.fill(0); floodMark = 1; }   // 표시를 세대로 굴린다
+  var top = 0, n = 0;
+  floodStack[top++] = idx(sx, sy, sz);
+  while (top) {
+    var key = floodStack[--top];
+    if (floodSeen[key] === floodMark) continue;
+    var cy = (key / PLANE) | 0, rem = key - cy * PLANE;
+    var cz = (rem / WX) | 0, cx = rem - cz * WX;
+    if (world[key] !== AIR) continue;                  // 벽·문에 막힌다 (문도 벽으로 친다)
     // 빛이 아니라 **막혀 있는가**를 본다. 유리 지붕(채광창)은 빛이 15로 그대로 내려와
     // "야외" 로 오판됐다 — 창문 달린 집이 집이다.
     if (topMap[cz * WX + cx] <= cy) return 0;          // 위에 아무것도 없으면 야외다
-    seen[key] = 1;
-    // 상한 600 은 **천장 3칸짜리 15×15 집이 이미 넘는 값**이었다 (v97).
-    // 영역 도구로 20×20 집(1,296칸)을 지은 사람이 정확히 그 이유로 과제를 못 땄다 —
-    // 작게 지어야 상을 받는 셈이었다. "동굴이 아니다" 는 위의 topMap 검사가 이미 가린다
+    floodSeen[key] = floodMark;
     if (++n > ROOM_MAX) return 0;
-    for (var d = 0; d < 6; d++)
-      stack.push([cx + DIRS[d][0], cy + DIRS[d][1], cz + DIRS[d][2]]);
+    for (var d = 0; d < 6; d++) {
+      var nx = cx + DIRS[d][0], ny = cy + DIRS[d][1], nz = cz + DIRS[d][2];
+      if (!inside(nx, ny, nz)) return 0;               // 세계 밖으로 샜다
+      if (top < floodStack.length) floodStack[top++] = idx(nx, ny, nz);
+    }
   }
   return n;
 }
@@ -669,7 +684,7 @@ export function fillSelection(block, sh, only) {
         if (only !== undefined && only >= 0 && world[idx(x, y, z)] !== only) continue;
         applyEdit(x, y, z, block, true, sh || SH_FULL);
       }
-  return endBatch(only !== undefined && only >= 0 ? "바꾸기" : "채우기");
+  return endBatch(only !== undefined && only >= 0 ? "바꾸기" : "채우기", true);
 }
 
 // 영역 비우기 — 채우기와 같은 길을 쓰되 되돌리기 이름만 다르다.
@@ -686,7 +701,7 @@ export function clearSelection() {
     for (var z = b.z0; z <= b.z1; z++)
       for (var x = b.x0; x <= b.x1; x++)
         applyEdit(x, y, z, AIR, true, SH_FULL);
-  return endBatch("비우기");
+  return endBatch("비우기", true);
 }
 
 export function copySelection() {
@@ -793,7 +808,7 @@ export function pasteClip(px, py, pz, withAir) {
           enqueueDryAround(px + x, py + y, pz + z);
         }
       }
-  return endBatch("붙여넣기");
+  return endBatch("붙여넣기", true);
 }
 
 // ── 명령 처리 — 짧은 이름 하나로 알아듣게
@@ -1053,18 +1068,18 @@ export function loadBlueprints() {
   try { return JSON.parse(localStorage.getItem(BP_KEY) || "{}"); } catch (e) { return {}; }
 }
 export function saveBlueprint(name) {
+  if (!S.clip) return "복사한 것이 없습니다";
+  if (!name) return "이름을 적어 주세요";
   // 같은 이름이 있으면 되묻는다 (v97) — 지우기 단추에는 confirm 이 붙어 있는데
   // **덮어쓰기가 곧 삭제**인 이 쪽만 무방비였다. 청사진은 건축 설계가
-  // 세션을 넘어 남는 유일한 곳이라, 이름 한 번 잘못 치면 복구가 없다
-  var existing = blueprintNames();
-  if (existing.indexOf(name) >= 0) {
+  // 세션을 넘어 남는 유일한 곳이라, 이름 한 번 잘못 치면 복구가 없다.
+  // 취소하면 **취소했다고 답한다** — false 를 돌리면 부르는 쪽이 "저장" 이라 말했다 (v99)
+  if (blueprintNames().indexOf(name) >= 0) {
     var ok2 = true;
     try { ok2 = window.confirm("청사진 \"" + name + "\" 이 이미 있습니다. 덮어쓸까요?"); }
     catch (e2) { ok2 = true; }
-    if (!ok2) return false;
+    if (!ok2) return "취소했습니다 — 청사진은 그대로입니다";
   }
-  if (!S.clip) return "복사한 것이 없습니다";
-  if (!name) return "이름을 적어 주세요";
   var all = loadBlueprints();
   // 숫자 배열을 그대로 JSON 에 넣으면 15,376칸이 63KB 다 — 세계 저장 3슬롯과
   // localStorage 를 나눠 쓰는데 청사진 몇 개면 밀어낸다. 세계 저장과 같은 RLE+Base64 로.

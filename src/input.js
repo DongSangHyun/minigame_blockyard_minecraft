@@ -13,7 +13,7 @@ import { applyTime } from "./daynight.js";
 import { applyOpts, applyFov, applyTbtn, applyUi, opts, saveOpts } from "./settings.js";
 import { EYE, currentShape, player, raycast, spawn, stats } from "./player.js";
 import { ac, setAudioAwake, startAmbient, tone } from "./audio.js";
-import { renameSlot, clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
+import { renameSlot, clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo , rememberSlot} from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
 import { undoEmptyWhy, lastEditLabel, blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
 import { helpOpen, closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
@@ -62,9 +62,19 @@ export var TUT_TOUCH = [
   '<b>웅크림</b> 버튼을 누른 채면 모서리에서 떨어지지 않습니다'
 ];
 export function tutLine(i) { return (isTouch ? TUT_TOUCH : TUT)[i]; }
+var hintFade = 0;
 export function refreshHint() {
+  // 다 배웠으면 접는다 (v99) — 튜토리얼 7단계는 2~3분이면 끝나는데
+  // 그 뒤 **57분 동안** 같은 문장이 화면 왼쪽 아래에 붙어 있었다.
+  // "다 배웠다" 는 신호가 없어, 게임이 아직 나를 초보로 보는 느낌이 내내 갔다.
+  // 메뉴에서 돌아오거나 도움말을 닫으면 잠깐 다시 뜬다(이 함수가 그때 불린다)
   hintEl.innerHTML = hintText(S.tut < TUT.length ? tutLine(S.tut)
     : (isTouch ? HINT_TOUCH : (S.lockMode ? HINT_LOCK : HINT_DRAG)));
+  if (!S.hudHidden && !S.photoMode) hintEl.hidden = false;
+  clearTimeout(hintFade);
+  if (S.tut >= (isTouch ? TUT_TOUCH.length : TUT.length)) {
+    hintFade = setTimeout(function () { if (hintEl) hintEl.hidden = true; }, 9000);
+  }
 }
 // 폰에서 3·5·6 단계가 각각 G 키·Ctrl+F·H 키에만 걸려 있어, 네 번째 줄에서 영영 멈췄다.
 // 그 뒤 세 줄(줄 긋기·스틱·웅크림)은 아무도 못 봤다.
@@ -151,6 +161,7 @@ if (slotsEl) {
     if (n === S.slot) return;
     if (S.worldDirty) saveGame();
     S.slot = n;
+    rememberSlot(n);        // 다음에 열 때 이 슬롯부터 (v99)
     if (hasSave() && loadGame()) {
       afterWorldSwap("슬롯 " + n + " 을 불러왔습니다", true);
     } else {
@@ -1351,7 +1362,7 @@ var LOOK_SLOP = 8;
 function ownsDrag(el) {
   for (var n = el; n; n = n.parentNode) {
     if (n.id === "tbtns" || n.id === "hotbar" || n.id === "stickzone" ||
-        n.id === "photobar") return true;   // 사진 모드 미니 바도 임자가 있다 (v97)
+        n.id === "photobar" || n.id === "regionbar") return true;   // 미니 바들도 임자가 있다 (v97·v99)
   }
   return false;
 }
@@ -1583,9 +1594,11 @@ export function toggleRegionBar(on) {
   on("rb-wipe", function () { say(clearSelection(), "비웠습니다"); });
   on("rb-copy", function () { say(copySelection(), "복사했습니다"); });
   on("rb-paste", function () {
-    var h = aimCell(64, true);
+    // 키보드(Ctrl+V)와 같이 **맞은 면 바깥**에 놓는다 (v99).
+    // aimCell 은 맞은 칸 자체라, 폰에서만 붙여넣기가 한 칸 안쪽으로 박혔다
+    var h = raycast(64);
     if (!h) { toast("붙여넣을 자리를 조준하세요"); return; }
-    var n = pasteClip(h[0], h[1], h[2]);
+    var n = pasteClip(h.x + h.nx, h.y + h.ny, h.z + h.nz);
     toast(n ? n.toLocaleString("ko-KR") + "칸을 붙여넣었습니다" : "복사한 것이 없습니다");
   });
   on("rb-clear", function () {

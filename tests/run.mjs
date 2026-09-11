@@ -5956,15 +5956,24 @@ test("v58 시각: 새 세계는 06:00 에 시작하고 시작 화면에서는 �
     B.S.timeOfDay = 0.25;
     for (let i = 0; i < 300; i++) B.step(1 / 60);   // 5초
     const idle = B.S.timeOfDay;
+    // v99 부터 **ESC 로 나가 있으면 세계가 통째로 멈춘다** — 시계도 같이 선다
     B.S.started = true;
+    B.beginPlay();
+    B.S.timeOfDay = 0.25;
     for (let i = 0; i < 300; i++) B.step(1 / 60);
     const playing = B.S.timeOfDay;
+    // 메뉴로 나가면 다시 멈춘다
+    B.endPlay();
+    B.S.timeOfDay = 0.4;
+    for (let i = 0; i < 300; i++) B.step(1 / 60);
+    const paused = B.S.timeOfDay;
     B.S.started = wasStarted;
     B.setPaused(false);
-    return { idle, playing, dflt: B.DEFAULT_TIME };
+    return { idle, playing, paused, dflt: B.DEFAULT_TIME };
   });
   near(r.idle, 0.25, 1e-9, "시작 화면에서 시계가 돈다 — 소개문 읽는 사이 낮이 사라진다");
   assert(r.playing > 0.25, "플레이 중에는 시계가 돌아야 한다");
+  near(r.paused, 0.4, 1e-9, "메뉴를 열어 둔 동안 시계가 돈다 — 잠깐 나갔다 오는 것이 안전해야 한다");
 });
 
 test("v59 되돌리기: 딸려 사라진 것도 함께 되살아난다", async (page) => {
@@ -11665,10 +11674,10 @@ test("v97 영역 도구: 지은 것이 통계·과제에 실리고, 빈칸까지
     const before = B.stats.placed;
     const lampBefore = B.S.lampsPlaced;
     B.S.earned = {};
-    B.beginBatch(4096);
-    for (let dx = 0; dx < 4; dx++) for (let dz = 0; dz < 4; dz++)
-      B.applyEdit(X + dx, Y, Z + dz, B.B.LAMP, true, 0);
-    B.endBatch("시험 채우기");
+    // 실제 영역 채우기 경로를 탄다 — 셈은 **부르는 쪽이 시킬 때만** 돈다 (v99)
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 3, Y, Z + 3];
+    B.fillSelection(B.B.LAMP, 0);
+    B.S.selA = null; B.S.selB = null;
     const placed = B.stats.placed - before;
     const lamps = B.S.lampsPlaced - lampBefore;
     const lampAch = !!B.S.earned.lamp10;
@@ -11760,6 +11769,129 @@ phoneTest("영역을 찍고 그 자리에서 채우고 복사한다 (v98)", asyn
   eq(r.cleared, true, "해제가 안 먹는다");
   eq(r.barClosed, true, "해제했는데 바가 남아 있다");
   eq(r.left, 0, "비우기가 " + r.left + "칸을 남겼다");
+});
+
+test("v99 셈: 손으로 놓은 것은 한 번만, 세계가 한 것은 안 센다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 88, Y = 40, Z = 86;
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++) {
+      for (let dy = -1; dy <= 12; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.GRASS);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.pos.set(X - 3, Y, Z - 3); B.player.yaw = 0; B.player.pitch = 0;
+    B.player.flying = true;
+
+    // (1) 손으로 하나 놓으면 통계가 **하나만** 는다 (v97 은 두 번 셌다)
+    B.S.bar[B.S.selected] = B.B.LAMP;
+    B.S.lampsPlaced = 0;
+    // place() 는 hit 을 받지 않고 스스로 조준선을 쏜다 — 발밑을 실제로 내려다본다
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    B.player.yaw = 0; B.player.pitch = 1.2;
+    B.camera.position.set(X + 0.5, Y + 0.3, Z + 0.5);
+    B.camera.rotation.set(-1.2, 0, 0);
+    const p0 = B.stats.placed;
+    B.place();
+    const oneHand = B.stats.placed - p0;
+    const oneLamp = B.S.lampsPlaced;
+
+    // (2) 영역으로 놓은 것은 칸수만큼 센다
+    const p1 = B.stats.placed;
+    B.S.selA = [X + 1, Y, Z + 1]; B.S.selB = [X + 2, Y, Z + 2];
+    B.fillSelection(B.B.STONE, 0);
+    const area = B.stats.placed - p1;
+    B.S.selA = null; B.S.selB = null;
+
+    // (3) 세계가 스스로 한 것(자란 나무)은 안 센다
+    const p2 = B.stats.placed;
+    const kindsBefore = Object.keys(B.S.placedKinds).length;
+    B.applyEdit(X - 2, Y, Z - 2, B.B.SAPLING, false, 0);
+    let ticks = 0;
+    while (B.get(X - 2, Y, Z - 2) === B.B.SAPLING && ticks < 400) { B.growTick(1.0); ticks++; }
+    const grew = B.get(X - 2, Y, Z - 2) === B.B.LOG;
+    const worldCounted = B.stats.placed - p2;
+    const kindsAfter = Object.keys(B.S.placedKinds).length;
+
+    // (4) 반블록 위에 서서 블록을 놓아도 몸이 안 튄다
+    B.player.flying = false;
+    B.applyEdit(X + 3, Y - 1, Z + 3, B.B.STONE, false, B.SH.SLAB);
+    B.refreshAllTops();
+    B.player.pos.set(X + 3.5, Y - 0.5, Z + 3.5); B.player.vel.set(0, 0, 0);
+    const beforeY = B.player.pos.y;
+    B.applyEdit(X + 3, Y + 2, Z + 3, B.B.STONE, true, 0);
+    const jumped = Math.abs(B.player.pos.y - beforeY);
+
+    B.player.flying = false;
+    B.player.pos.set(48.5, 40, 48.5);
+    B.endPlay(); B.setPaused(false);
+    return { oneHand, oneLamp, area, grew, worldCounted, kindsBefore, kindsAfter, jumped, ticks };
+  });
+  eq(r.oneHand, 1, "손으로 하나 놓았는데 통계가 " + r.oneHand + " 늘었다 — 두 번 세면 과제가 반값에 열린다");
+  eq(r.oneLamp, 1, "램프 하나를 놓았는데 카운터가 " + r.oneLamp + " 다");
+  eq(r.area, 4, "영역으로 4칸을 놓았는데 통계가 " + r.area + " 늘었다");
+  assert(r.grew, "시험대가 안 섰다 — 나무가 안 자랐다");
+  eq(r.worldCounted, 0, "자란 나무 " + r.worldCounted + "칸이 내가 놓은 것으로 실렸다");
+  eq(r.kindsAfter, r.kindsBefore, "자란 나무가 「수집가」 진행도를 올렸다");
+  assert(r.jumped < 0.01, "반블록 위에서 블록을 놓았더니 몸이 " + r.jumped.toFixed(2) + "칸 튀었다");
+});
+
+test("v99 멈춤: 메뉴를 열어 두면 불도 물도 멈춘다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 14, Y = 40, Z = 90;
+    for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++) {
+      for (let dy = 0; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    }
+    // 판자 바닥을 깔고 불을 붙인다
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++)
+      B.set(X + dx, Y, Z + dz, B.B.PLANKS);
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.pos.set(X, Y + 3, Z);
+    B.opts.firespread = 1;
+    function planks() {
+      let n = 0;
+      for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++)
+        if (B.get(X + dx, Y, Z + dz) === B.B.PLANKS) n++;
+      return n;
+    }
+    B.ignite(X, Y + 1, Z);
+    const start = planks();
+    // 메뉴로 나간 채 30초 — 아무것도 타면 안 된다
+    B.endPlay();
+    for (let k = 0; k < 60 * 30; k++) B.step(1 / 60);
+    const afterPaused = planks();
+    // 돌아오면 이어서 탄다 — 불은 확률로 번지므로 **불이 살아 있는지**로 잰다
+    // (판자가 줄기만 기다리면 10회 중 한 번은 20초 안에 안 줄어든다)
+    let fireCells = 0;
+    for (let dx = -5; dx <= 5; dx++) for (let dz = -5; dz <= 5; dz++)
+      for (let dy = 0; dy <= 2; dy++)
+        if (B.get(X + dx, Y + dy, Z + dz) === B.B.FIRE) fireCells++;
+    B.beginPlay();
+    for (let k = 0; k < 60 * 20; k++) B.step(1 / 60);
+    const afterPlaying = planks();
+    let fireAfter = 0;
+    for (let dx = -5; dx <= 5; dx++) for (let dz = -5; dz <= 5; dz++)
+      for (let dy = 0; dy <= 2; dy++)
+        if (B.get(X + dx, Y + dy, Z + dz) === B.B.FIRE) fireAfter++;
+
+    B.opts.firespread = 1;
+    for (let dx = -5; dx <= 5; dx++) for (let dz = -5; dz <= 5; dz++)
+      for (let dy = 0; dy <= 3; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops();
+    B.endPlay(); B.setPaused(false);
+    return { start, afterPaused, afterPlaying, fireCells, fireAfter };
+  });
+  assert(r.start > 60, "시험대가 안 섰다 — 판자가 " + r.start + "칸뿐이다");
+  eq(r.afterPaused, r.start,
+     "메뉴를 열어 둔 30초에 판자 " + (r.start - r.afterPaused) + "칸이 탔다 — 세계가 안 멈춘다");
+  assert(r.fireCells > 0, "멈춘 동안 불이 꺼졌다 — 큐가 사라졌다");
+  assert(r.afterPlaying < r.start || r.fireAfter > 0,
+     "돌아왔는데 불이 안 이어진다 (판자 " + r.afterPlaying + "/" + r.start +
+     " · 불 " + r.fireAfter + ")");
 });
 
 // ── 실행 ───────────────────────────────────────────────

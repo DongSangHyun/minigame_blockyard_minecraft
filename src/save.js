@@ -16,6 +16,23 @@ export var SLOTS = 3;
 // 슬롯 — 1번은 기존 키를 그대로 써서 예전 세계를 잃지 않는다
 export function slotKey(n) { return n <= 1 ? SAVE_KEY : SAVE_KEY + "." + n; }
 export function curKey() { return slotKey(S.slot); }
+
+// 마지막으로 논 슬롯을 기억한다 (v99).
+// 예전에는 S.slot 이 localStorage 에 한 번도 안 쓰여서, 슬롯 2에서 한 시간을 짓고
+// 닫으면 **다시 열 때 슬롯 1** 로 떨어졌다 — 「이어서 짓던 곳」 카드가 큰 글씨로
+// "0분 플레이" 라고 하니 처음에는 세계가 날아간 줄 안다. 슬롯 셋을 쓰는 사람은
+// **매번** 이 길을 지난다
+export var LAST_SLOT_KEY = "blockyard.slot";
+export function rememberSlot(n) {
+  try { localStorage.setItem(LAST_SLOT_KEY, String(n)); } catch (e) {}
+}
+export function lastSlot() {
+  try {
+    var v = parseInt(localStorage.getItem(LAST_SLOT_KEY), 10);
+    if (v >= 1 && v <= SLOTS) return v;
+  } catch (e) {}
+  return 1;
+}
 export function slotInfo(n) {
   try {
     var raw = localStorage.getItem(slotKey(n));
@@ -128,6 +145,7 @@ export function liftLegacy(src, dst, asRuns) {
 }
 
 export function saveGame() {
+  rememberSlot(S.slot);
   try {
     pushBackup();
     localStorage.setItem(curKey(), JSON.stringify({

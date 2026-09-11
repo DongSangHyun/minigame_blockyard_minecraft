@@ -379,7 +379,12 @@ export function drawMinimap() {
   // 아래층 지도에 통돌로 뜬다. 밝히는 반경도 6 → 8 로 — 지하가 두 배가 됐는데
   // 반경이 그대로면 같은 지도를 채우는 데 두 배로 걸어야 한다.
   var seenBit = S.mmUnder ? underBand(py) : SEEN_TOP;
-  markSeen(player.pos.x, player.pos.z, S.mmUnder ? 8 : 14, seenBit);
+  // 새로 밝힌 칸이 있으면 그것도 **저장할 거리**다 (v99).
+  // 블록을 안 건드리면 worldDirty 가 안 켜져서, 지도만 채우며 20분을 걸어도
+  // 자동 저장·beforeunload 가 한 번도 안 썼다 — 다시 열면 지도 53%가 19%로 돌아갔다.
+  // 시작 화면이 "모든 것은 자동 저장됩니다" 라고 약속하는데 탐험만 예외였다.
+  // 새 칸이 없으면 안 켜지니 스스로 멎는다
+  if (markSeen(player.pos.x, player.pos.z, S.mmUnder ? 8 : 14, seenBit)) S.worldDirty = true;
 
   // 확대 — 보이는 칸 수를 줄이고 한 칸을 여러 픽셀로 그린다
   // 지상과 지하가 각자 축척을 기억한다 (v87)

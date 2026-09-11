@@ -118,7 +118,7 @@ export function step(dt) {
   var thick = feetBlock === LAVA;
 
   // 시작 화면에서는 시계를 멈춘다 — 소개문 읽고 시드 넣는 2~3분이 그대로 낮에서 빠졌다
-  if (opts.day > 0 && S.started) {
+  if (opts.day > 0 && S.started && S.active) {
     var prevDay = S.timeOfDay;
     S.timeOfDay = (S.timeOfDay + dt / (opts.day * 60)) % 1;
     if (S.timeOfDay < prevDay) S.moonDay++;      // 자정을 넘기면 달 위상이 바뀐다
@@ -636,9 +636,14 @@ export function step(dt) {
     primedBoxes[pi].visible = Math.sin(S.playSeconds * rate * 6.283) > 0;
   }
 
-  // 바닷물 흐름
+  // 바닷물 흐름 — **ESC 로 나가 있으면 세계가 멈춘다** (v99).
+  // 예전에는 액체·불·낙하·시계가 playing 을 안 봐서, 불을 붙여 둔 채 메뉴를 30초 열어
+  // 두면 판자 집에서 184칸이 탔다. 게다가 그 틱들이 worldDirty 를 켜므로
+  // **자동 저장이 그 피해를 저장까지** 했다. 마크도 싱글은 ESC 에 세계가 통째로 멈춘다.
+  // 기준은 S.active 다 — playing(= active && !uiOpen)을 쓰면 블록 목록만 열어도
+  // 물이 멈춰 과하다. 큐는 그대로 남아 돌아오면 이어진다
   S.waterTimer += dt;
-  if (S.waterTimer > 0.15) {
+  if (S.active && S.waterTimer > 0.15) {
     S.waterTimer = 0;
     dryTick(300);
     fireTick(40);
