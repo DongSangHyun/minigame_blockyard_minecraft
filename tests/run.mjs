@@ -4094,7 +4094,10 @@ test("v22 우클릭: 한 번 누르면 하나만, 홀드는 천천히 반복된�
     return { tap, held, delay: B.PLACE_DELAY, repeat: B.PLACE_REPEAT };
   });
   eq(r.tap, 1, "한 번 클릭했는데 여러 개가 놓였다");
-  assert(r.delay >= 0.4, "홀드 첫 반복까지의 뜸이 너무 짧다");
+  // v106 부터 0.32 — 마크는 처음부터 0.2초 간격이다. 사람이 톡 누르는 시간(0.1초)보다
+  // 넉넉하면 "톡 누른 것이 둘로 늘어나지 않는다" 는 뜻은 그대로 선다
+  assert(r.delay >= 0.25 && r.delay <= 0.4,
+     "홀드 첫 반복까지의 뜸이 " + r.delay + " 다 — 0.25~0.4 라야 한다");
   // 간격은 v78 에서 0.35 → 0.20 으로 옮겼다 (마크는 4틱 = 0.20초).
   // 여기서 지키는 것은 "간격을 지키는가" 지 특정 숫자가 아니다 —
   // 정확한 값은 `v78 놓기` 가 문서와 함께 못 박는다.
@@ -12365,28 +12368,29 @@ test("v105 바위 노두: 섬에 세로가 생기고, 지형은 한 칸도 안 �
      "노두가 공중에 뜬 돌을 늘렸다: " + r.floats.join(","));
 });
 
-test("v106 소리: 재질이 갈리고, 헛스윙에도 팔이 움직이고, 눈은 조용하다", async (page) => {
+test("v106 소리: 재질 표가 갈리고, 헛스윙에도 팔이 움직인다", async (page) => {
   const r = await page.evaluate(() => {
     const B = window.__blockyard;
     B.setPaused(true); B.beginPlay();
-    const c = B.ac();
-    if (!c) return { skipped: true };
 
-    // (1) 재질 갈래 — 78종이 네 통에 몰려 있으면 안 된다
-    const sigs = {};
-    const realCrunch = c.createBufferSource.bind(c);
-    let last = null;
-    const realFilter = c.createBiquadFilter.bind(c);
-    c.createBiquadFilter = function () { const f = realFilter(); last = f; return f; };
+    // (1) 재질 표를 **직접** 본다 — 소리를 들어 갈래를 세려 하면 v106 이 넣은
+    // ±8% 지터가 한 재질을 일곱 통으로 흩어, 전부 돌이어도 통과해 버린다
+    const tables = { SOFT: B.SOFT, WOOD: B.WOOD, CLOTH: B.CLOTH, GLASSY: B.GLASSY };
+    const counts = {};
+    let stone = 0;
+    const missing = [];
     for (const b of B.ALL_BLOCKS) {
-      last = null;
-      B.placeSound(b);
-      const key = last ? Math.round(last.frequency.value / 60) : -1;
-      sigs[key] = (sigs[key] || 0) + 1;
+      let where = null;
+      for (const k in tables) if (tables[k][b]) { where = k; break; }
+      if (!where) { stone++; if (stone <= 8) missing.push(B.NAMES[b]); }
+      else counts[where] = (counts[where] || 0) + 1;
     }
-    c.createBiquadFilter = realFilter;
-    const buckets = Object.keys(sigs).length;
-    const biggest = Math.max.apply(null, Object.keys(sigs).map((k) => sigs[k]));
+    // 소리가 꼭 갈려야 하는 것들 — 여기 빠지면 "돌" 이 된다
+    const mustWood = [B.B.LOG, B.B.BIRCH_LOG, B.B.SPRUCE_LOG, B.B.PLANKS,
+                      B.B.FENCE, B.B.GATE, B.B.DOOR, B.B.LADDER].map((b) => !!B.WOOD[b]);
+    const mustCloth = [B.WOOL0, B.WOOL0 + 7, B.WOOL0 + 15].map((b) => !!B.CLOTH[b]);
+    const mustGlass = [B.B.GLASS, B.B.PANE, B.B.LAMP, B.B.ICE].map((b) => !!B.GLASSY[b]);
+    const leavesSoft = [B.B.LEAVES, B.B.BIRCH_LEAVES, B.B.SPRUCE_LEAVES].map((b) => !!B.SOFT[b]);
 
     // (2) 허공에 좌클릭해도 팔이 움직인다
     const X = 40, Y = 60, Z = 40;
@@ -12401,28 +12405,39 @@ test("v106 소리: 재질이 갈리고, 헛스윙에도 팔이 움직이고, 눈
     for (let k = 0; k < 40; k++) { B.step(1 / 60); if (B.S.swing > 0.2) swung++; }
     B.S.mouseDown[0] = false; B.S.lockMode = false;
 
-    // (3) 눈에는 빗소리가 안 난다
-    B.S.weatherLock = true;
-    B.S.weather = 2; B.S.weatherMix = 1;
-    let rainCalls = 0;
-    const realRain = B.rainHiss;
-    // rainHiss 자체는 훅으로 감쌀 수 없으니 updateWeather 를 돌리고 게인을 본다
-    for (let k = 0; k < 30; k++) { B.S.rainTimer = 0; B.updateWeather(1 / 60); }
-    const snowRain = B.S.rainGain === undefined ? null : B.S.rainGain;
+    // (3) 조준 칸을 훑어도 캐는 박자가 안 무너진다
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      B.set(X + dx, Y - 2, Z + dz, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.pitch = 1.2;                          // 발밑을 본다
+    B.S.lockMode = true; B.S.mouseDown[0] = true; B.S.swingBeat = 0; B.S.swing = 0;
+    let swings = 0, wasLow = true;
+    for (let k = 0; k < 300; k++) {
+      B.player.pos.set(X + 0.5 + Math.sin(k * 0.7) * 1.4, Y, Z + 0.5 + Math.cos(k * 0.7) * 1.4);
+      B.step(1 / 60);
+      if (B.S.swing > 0.9 && wasLow) { swings++; wasLow = false; }
+      if (B.S.swing < 0.5) wasLow = true;
+    }
+    B.S.mouseDown[0] = false; B.S.lockMode = false;
 
-    B.S.weather = 0; B.S.weatherMix = 0; B.S.weatherLock = false;
     B.player.flying = false;
     B.player.pos.set(48.5, 40, 48.5);
     B.endPlay(); B.setPaused(false);
-    return { skipped: false, buckets, biggest, swung, total: B.ALL_BLOCKS.length };
+    return { counts, stone, missing, total: B.ALL_BLOCKS.length,
+             mustWood, mustCloth, mustGlass, leavesSoft, swung, swings };
   });
-  if (r.skipped) return;
-  assert(r.buckets >= 5,
-     "블록 " + r.total + "종이 소리 갈래 " + r.buckets + "개뿐이다 — 재질이 안 갈린다");
-  assert(r.biggest < r.total * 0.5,
-     "한 갈래에 " + r.biggest + "종이 몰려 있다 (전체 " + r.total + ")");
+  assert(r.mustWood.every(Boolean), "원목·판자·울타리·문·사다리 중 나무 소리가 아닌 것이 있다");
+  assert(r.mustCloth.every(Boolean), "양털이 천 소리가 아니다");
+  assert(r.mustGlass.every(Boolean), "유리·유리판·조명·얼음 중 유리 소리가 아닌 것이 있다");
+  assert(r.leavesSoft.every(Boolean), "자작·가문비 잎이 푹신한 소리가 아니다");
+  assert(r.stone < r.total * 0.45,
+     "블록 " + r.total + "종 중 " + r.stone + "종이 어느 표에도 없다(= 돌 소리): " + r.missing.join(", "));
   assert(r.swung > 8,
      "하늘을 보고 좌클릭을 40프레임 눌렀는데 팔이 " + r.swung + "프레임만 움직였다");
+  // 5초에 0.28초 박자면 18번 언저리다 — 조준 칸이 바뀔 때마다 되돌리면 수십 번이 된다
+  assert(r.swings <= 26,
+     "조준을 훑는 5초 동안 팔을 " + r.swings + "번 휘둘렀다 — 박자가 조준에 끌려다닌다");
+  assert(r.swings >= 10, "조준을 훑는 동안 팔이 " + r.swings + "번밖에 안 움직였다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

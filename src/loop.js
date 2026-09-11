@@ -47,7 +47,10 @@ export function refreshChunkFloor() {
 // 간격이 짧은 것이 아니었다.** 지금은 늘 간격을 지키므로 마크(4틱 = 0.20초)에 맞춘다.
 // 20칸 줄이 7.15초에서 4.4초로 줄어든다 (자문 12차 #7).
 // 첫 뜸(PLACE_DELAY)은 그대로 둔다 — 한 번 톡 누른 것이 둘로 늘어나지 않게 하는 자리다.
-export var PLACE_DELAY = 0.50, PLACE_REPEAT = 0.20;
+// 첫 반복까지의 뜸 — 0.50 은 두 번째 블록이 0.517초 뒤에 오는 값이었다 (v106 실측).
+// 마크는 처음부터 0.2초 간격이다. "톡 누른 것이 둘로 늘어나지 않게" 하는 뜻은
+// 0.32 로도 선다 (사람이 톡 누르는 시간은 0.1초 안쪽이다)
+export var PLACE_DELAY = 0.32, PLACE_REPEAT = 0.20;
 export var SNEAK_MUL = 0.32; // 웅크릴 때 이동 배율
 export var AIR_CONTROL = 0.24; // 공중에서는 방향을 거의 못 바꾼다
 export var fwd = new THREE.Vector3(), right = new THREE.Vector3();
@@ -347,8 +350,11 @@ export function step(dt) {
     updatePasteBox(S.clip, ph2 ? [ph2.x + ph2.nx, ph2.y + ph2.ny, ph2.z + ph2.nz] : null);
   } else updatePasteBox(null, null);
   updateCreatures(dt);
-  // 동물도 ESC 에 선다 (v106) — v99 가 물·불·시계를 멈춰 놓고 동물만 빠졌다
-  if (S.active) {
+  // 동물도 ESC 에 선다 (v106) — v99 가 물·불·시계를 멈춰 놓고 동물만 빠져서,
+  // 메뉴를 열어 둔 30초 동안 14마리가 52칸을 걷고 14번 울었다.
+  // **시작 화면은 예외다** — 거기서는 세계가 살아 움직이는 것이 보여야 한다
+  // (구름·해·동물이 도는 것이 그 화면의 배경이다). S.started 로 가른다
+  if (S.active || !S.started) {
     updateMobs(dt);
     if (breedTick(dt)) unlock("breed");
     updateFlocks(dt);

@@ -149,7 +149,23 @@ export var GLASSY = {};
 GLASSY[GLASS] = 1; GLASSY[LAMP] = 1; GLASSY[PANE] = 1; GLASSY[ICE] = 1;
 // 잎 넷은 푹신한 쪽이다 (참나무 잎만 SOFT 에 있었다)
 SOFT[BIRCH_LEAVES] = 1; SOFT[SPRUCE_LEAVES] = 1;
+// 연달아 캘 때는 소리를 깎는다 (v106) — 「캐기 속도: 즉시」로 벽을 쓸면
+// 초당 14.5개가 게인 0.20 으로 한꺼번에 나 통째로 굉음이었다
+var lastBreakAt = -99, breakRun = 0;
+function breakDuck() {
+  var now = (S.audioCtx && S.audioCtx.currentTime) || 0;
+  if (now - lastBreakAt < 0.12) breakRun = Math.min(6, breakRun + 1);
+  else breakRun = 0;
+  lastBreakAt = now;
+  return 1 / (1 + breakRun * 0.55);
+}
 export function breakSound(b) {
+  var duck = breakDuck();
+  if (duck < 0.99) {
+    // 쓸어 캐는 중 — 짧고 작게 한 번만
+    crunch(0.07, 0.09 * duck, SOFT[b] ? 900 : (WOOD[b] ? 1500 : 2600));
+    return;
+  }
   if (SOFT[b]) crunch(0.16, 0.16, 900);
   else if (GLASSY[b]) { tone(1400, 0.09, "square", 0.05); crunch(0.1, 0.1, 4200); }
   else if (CLOTH[b]) crunch(0.15, 0.13, 560);          // 양털 — 게임에서 가장 푹신하다

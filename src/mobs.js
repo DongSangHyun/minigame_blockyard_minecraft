@@ -363,11 +363,14 @@ export function updateMobs(dt) {
       // 12칸 너머에서 귀뚜라미보다 작았다(0.0059). 스폰의 14마리 중 실제로 들리는 건
       // 8칸 안 셋뿐이었다 — v78 이 무리 스폰을, v91 이 먹이 따라오기를 넣어 목장을
       // 살려 놨는데 **잡으러 갈 때 귀가 안 도와줬다.** 마크의 양은 16칸 밖에서도 또렷하다
-      if (Math.sqrt(dx * dx + dz * dz) < 30) {
-        // 동물 자리에서 난다 — 어느 쪽에 양이 있는지 귀로 안다
+      var cd = Math.sqrt(dx * dx + dz * dz);
+      if (cd < 30) {
+        // 동물 자리에서 난다 — 어느 쪽에 양이 있는지 귀로 안다.
+        // 패너가 없는 브라우저에서는 거리 감쇠가 통째로 사라지므로 손으로 깎는다
         var pn = at(m.x, m.y + 0.6, m.z);
-        tone(k.cry * (0.9 + Math.random() * 0.2), 0.22, "triangle", 0.11, pn);
-        crunch(0.10, 0.07, 900, pn);
+        var far = pn ? 1 : Math.max(0.08, 1 - cd / 30);
+        tone(k.cry * (0.9 + Math.random() * 0.2), 0.22, "triangle", 0.11 * far, pn);
+        crunch(0.10, 0.07 * far, 900, pn);
       }
     }
 

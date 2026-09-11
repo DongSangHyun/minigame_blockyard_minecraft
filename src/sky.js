@@ -321,6 +321,7 @@ export function updateStorm(dt) {
   thunder(Math.min(2600, 120 + d * 26), near);
 }
 
+var rainOn = false;   // 빗소리 루프를 켜 둔 적이 있나 — 맑은 날 내내 0 을 밀어 넣지 않게 (v106)
 export function updateWeather(dt) {
   // 손으로 고른 날씨는 잠긴다 — 노을 사진을 찍으려고 맑음을 골랐는데
   // 2분 뒤 저절로 비가 오면 사진 모드도 화면 저장도 쓸 수가 없다.
@@ -353,7 +354,8 @@ function updateWeatherMix(dt) {
     if (S.weather === 1 && S.weatherMix > 0.05) {
       var openSky = player.pos.y > columnTop(player.pos.x, player.pos.z) - 0.5;
       rainHiss(S.weatherMix * (openSky ? 1 : 0.12));
-    } else if (S.weather !== 1) rainHiss(0);
+      rainOn = true;
+    } else if (S.weather !== 1 && rainOn) { rainHiss(0); rainOn = false; }
   }
 
   if (!S.weather && S.weatherMix < 0.02) return;

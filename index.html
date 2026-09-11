@@ -134,9 +134,11 @@
   }
 
   /* ---------- 도전 과제 알림 ---------- */
+  /* 왼쪽 위로 보낸다 (v106) — 화면 위 한가운데라 E 를 연 순간 「블록」 제목과
+     필터 줄을 덮었다. 오른쪽 위는 미니맵 자리다(옮겨 보니 40% 를 가렸다) */
   #achpop {
-    position: fixed; top: calc(18px + var(--safe-t)); left: 50%;
-    transform: translateX(-50%) translateY(-16px); z-index: 15;
+    position: fixed; top: calc(18px + var(--safe-t)); left: calc(16px + var(--safe-l));
+    transform: translateY(-16px); z-index: 15; max-width: min(46vw, 380px); text-align: left;
     padding: 12px 18px; text-align: center;
     background: color-mix(in srgb, var(--panel) 94%, transparent);
     border: 2px solid var(--moss);
@@ -145,7 +147,7 @@
        3초 동안 그 자리를 탭해도 표식이 안 찍혔다 (자문 15차 #4) */
     pointer-events: none;
   }
-  #achpop.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #achpop.on { opacity: 1; transform: translateY(0); }
   #achpop b {
     display: block; font-family: var(--pixel); font-size: 11px;
     color: var(--moss); letter-spacing: .12em; margin-bottom: 5px;
@@ -449,11 +451,14 @@
   #slots .del:hover { color: var(--ember); }
 
   /* ---------- overlay ---------- */
+  /* 뒤 풍경을 조금 더 보여 준다 (v106) — 카드가 1024폭에서 화면의 67% 를 덮고
+     남은 양쪽이 어두워, 첫 인상이 "게임" 이 아니라 "어두운 카드" 였다.
+     이 게임은 시작 화면 뒤에서도 세계가 돌아가고 있다(구름·해·동물) */
   #overlay {
     position: fixed; inset: 0;
     display: grid; place-items: center; padding: 24px;
-    background: color-mix(in srgb, var(--void) 62%, transparent);
-    backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px);
+    background: color-mix(in srgb, var(--void) 44%, transparent);
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
     overflow: auto;
   }
   .card {

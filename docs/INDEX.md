@@ -63,6 +63,6 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v105 — 섬에 세로가 생겼다 — 바위 노두 · 회귀 테스트 351항목 전부 통과.**
+**v106 — 귀와 손 — 자문 24차 아홉 건 · 회귀 테스트 351항목 전부 통과.**
 숫자가 이 줄과 `docs/HANDOFF.md` 상태표에서 어긋나면 **상태표를 믿으십시오** (도구가 씁니다).
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/

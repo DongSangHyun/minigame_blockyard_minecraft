@@ -14,7 +14,7 @@ import { selBox, selMat, SEL_DONE, SEL_ANCHOR, pasteBox, updatePasteBox, outerSe
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { OPT_KEY, applyOpts, applyFov, applyTbtn, applyUi, UI_MIN_H, fovForAspect, FOV_BASE_ASPECT, calmMotion, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, playerOccupies, pointSolid, rayBox, raycast, spawn, stats, unstick } from "./player.js";
-import { startAmbient, updateAmbient, ac, at, tone, crunch, breakSound, caveSound, lavaHiss, lavaPop, listenAt, miningSound, moodChord, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
+import { SOFT, WOOD, CLOTH, GLASSY, startAmbient, updateAmbient, ac, at, tone, crunch, breakSound, caveSound, lavaHiss, lavaPop, listenAt, miningSound, moodChord, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
 import { lastSlot, lockHeldByOther, touchLock, releaseLock, prevKey, pushPrev, renameSlot, curKey, OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName, baseRev, setBaseRev, ensureGist, req } from "./cloud.js";
 import { checkFoundAchievements, FOUND_IDS, undoEmptyWhy, HISTORY_CELLS_MAX, editLabel, blueprintList, deleteBlueprint, settleWorld, mirrorClip, rotateClip, BATCH_RELIGHT_ALL, checkBuildAchievements, ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
@@ -263,6 +263,7 @@ window.__blockyard = {
   setKey: function (code, v) { S.keys[code] = !!v; },
   step: step, footSupported: footSupported,
   placeSound: placeSound, miningSound: miningSound, breakSound: breakSound,
+  SOFT: SOFT, WOOD: WOOD, CLOTH: CLOTH, GLASSY: GLASSY, WOOL0: WOOL0,
   updateHand: updateHand, getSwing: function () { return S.swing; },
   beginPlay: beginPlay, endPlay: endPlay,
   setPaused: function (v) { S.loopPaused = !!v; },
