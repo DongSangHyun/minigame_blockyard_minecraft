@@ -278,11 +278,12 @@ export function endBatch(label, credit) {
   var fluidPending = Q.waterHead < Q.waterQ.length || Q.dryHead < Q.dryQ.length ||
                      Q.lavaHead < Q.lavaQ.length || Q.lavaDryHead < Q.lavaDryQ.length;
   S.fluidOwner = fluidPending ? b : null;
-  if (b.n >= 100) unlock("build100");
+
   // 영역 도구로 지은 것도 통계·과제에 싣는다 (v97).
   // 같은 종류는 한 번만 세지 않고 칸수만큼 센다 — 램프 열 개를 영역으로 깔아도
   // 「등대지기」가 열려야 한다. 종류별로 모아 불러 unlock 검사를 덜 돌린다
   if (b.n && credit) {
+
     var byKind = {}, ki;
     for (ki = 0; ki < b.n; ki++) {
       var tb = b.to[ki];
@@ -290,10 +291,16 @@ export function endBatch(label, credit) {
       var kk = tb * 32 + (b.toSh[ki] | 0);
       byKind[kk] = (byKind[kk] || 0) + 1;
     }
+    var placedN = 0;
     for (var kv in byKind) {
       if (!byKind.hasOwnProperty(kv)) continue;
       notePlaced(Math.floor(kv / 32), kv % 32, byKind[kv]);
+      placedN += byKind[kv];
     }
+    // **짓는 것**만 센다 (v108) — 예전에는 묶음 칸수만 봐서
+    // 영역 비우기 144칸도, TNT 169칸도 「대공사(짓는다)」를 열었다.
+    // byKind 는 AIR 을 건너뛰므로 여기 남은 수가 "실제로 놓은 칸" 이다
+    if (placedN >= 100) unlock("build100");
   }
   trimHistory();
   S.future.length = 0;
@@ -399,9 +406,9 @@ export var ACHIEVEMENTS = [
   { id: "coal", name: "검은 돌", desc: "석탄 광석을 캔다" },
   { id: "iron", name: "쇠맛", desc: "철 광석을 캔다" },
   { id: "deep", name: "깊은 곳", desc: "높이 3 아래로 내려간다" },
-  { id: "high", name: "꼭대기", desc: "해수면보다 9칸 높은 곳에 딛고 선다 (날아서는 안 된다)" },
+  { id: "high", name: "꼭대기", desc: "해수면보다 16칸 높은 곳에 딛고 선다 (날아서는 안 된다)" },
   { id: "lamp10", name: "등대지기", desc: "램프를 10개 놓는다" },
-  { id: "flood", name: "수문장", desc: "바닷물을 끌어들인다" },
+  { id: "flood", name: "수문장", desc: "물을 흘려 퍼뜨린다" },
   { id: "gravity", name: "사태", desc: "모래나 자갈을 무너뜨린다" },
   { id: "night", name: "밤샘", desc: "한밤중에 바깥에 서 있는다" },
   { id: "snow", name: "설원", desc: "설원에 발을 딛는다" },
@@ -414,7 +421,7 @@ export var ACHIEVEMENTS = [
   { id: "flower", name: "꽃다발", desc: "꽃을 심는다" },
   { id: "waterfall", name: "폭포", desc: "높은 곳에서 물을 떨어뜨린다" },
   { id: "slabmerge", name: "빈틈없이", desc: "반블록 두 장을 겹쳐 한 블록으로 만든다" },
-  { id: "fire", name: "불장난", desc: "횃불로 무언가에 불을 붙인다" },
+  { id: "fire", name: "불장난", desc: "부싯돌로 무언가에 불을 붙인다" },
   { id: "boom", name: "쾅", desc: "TNT 를 터뜨린다" },
   { id: "build100", name: "대공사", desc: "영역 채우기로 100칸 이상을 한 번에 짓는다" },
   { id: "explorer", name: "탐험가", desc: "미니맵 표식을 5개 찍는다" },
@@ -523,6 +530,7 @@ export function checkBuildAchievements() {
   // 탑 — 한 기둥에 사람이 쌓은 블록이 20칸 연속
   // 다리 — 물 위(해수면 위)로 사람이 놓은 블록이 20칸 이어짐
   var wools = {}, woolN = 0;
+  bridgeEW.length = 0;
   for (x = x0; x <= x1; x++) {
     for (z = z0; z <= z1; z++) {
       var run = 0, bridgeRun = 0;
@@ -548,8 +556,12 @@ export function checkBuildAchievements() {
           if (ub !== AIR) break;
         }
       }
+      // **두 축을 다 센다** (v108) — z 루프 안에서만 누적하고 x 한 줄이 끝날 때마다
+      // 0 으로 되돌려서, **동서로 놓은 다리는 영원히 20 에 못 닿았다**(기둥마다 1).
+      // 방향은 지형이 정하는데 사람은 자기가 뭘 잘못했는지 알 길이 없었다
       bridgeSpan = over ? bridgeSpan + 1 : 0;
-      if (bridgeSpan >= 20) unlock("bridge");
+      bridgeEW[z] = over ? (bridgeEW[z] || 0) + 1 : 0;
+      if (bridgeSpan >= 20 || bridgeEW[z] >= 20) unlock("bridge");
     }
     bridgeSpan = 0;                       // 기둥 줄이 바뀌면 이어짐이 끊긴다
   }
@@ -577,6 +589,7 @@ export function checkBuildAchievements() {
   checkRoom(x0, x1, z0, z1);
 }
 var bridgeSpan = 0;
+var bridgeEW = [];    // z 줄마다의 **동서** 이어짐 (v108)
 
 // 문 옆 공기에서 6방향으로 번져 본다. 상한(600칸) 안에서 갇히면 방이다.
 function checkRoom(x0, x1, z0, z1) {
@@ -643,7 +656,7 @@ export function refreshStats() {
     "<dt>지형</dt><dd>" + BIOME_NAMES[localBiome()] + "</dd>" +
     "<dt>램프</dt><dd>" + S.lampsPlaced + "</dd>" +
     "<dt>과제</dt><dd>" + achCount() + " / " + ACHIEVEMENTS.length + "</dd>" +
-    "<dt>지형</dt><dd>" + ["보통", "평지", "산악", "군도"][S.terrain | 0] + "</dd>" +
+    "<dt>세계 모양</dt><dd>" + ["보통", "평지", "산악", "군도"][S.terrain | 0] + "</dd>" +
     "<dt>슬롯</dt><dd>" + S.slot + " / " + SLOTS + "</dd>" +
     "<dt>표식</dt><dd>" + S.marks.length + "개</dd>" +
     "<dt>블록 종류</dt><dd>" + Object.keys(S.placedKinds).length + " / " + ALL_BLOCKS.length + "</dd>" +
@@ -834,8 +847,8 @@ export function pasteClip(px, py, pz, withAir) {
 
 // ── 명령 처리 — 짧은 이름 하나로 알아듣게
 export var CMD_HELP =
-  "marks del <번호> · tp <x> <y> <z> · time <아침|정오|노을|밤|0~1> · weather <맑음|비|눈> · " +
-  "tp <x y z|표식> · marks · fill <블록|공기> [바꿀블록] · expand <±dx> <±dy> <±dz> · clone <dx> <dy> <dz> [횟수] · give <블록> · count · bp <save|use|list|del> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
+  "tp <x y z | 표식 번호|이름> · time <아침|정오|노을|밤|0~1> · weather <맑음|비|눈> · " +
+  "marks · marks del <번호> · fill <블록|공기> [바꿀블록] · expand <±dx> <±dy> <±dz> · clone <dx> <dy> <dz> [횟수] · give <블록> · count · bp <save|use|list|del> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
 
 // 한국어 이름과 영어 이름을 둘 다 알아듣는다 — "조약돌" 도 "cobble" 도 된다
 function findBlock(name) {

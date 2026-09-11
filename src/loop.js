@@ -652,7 +652,9 @@ export function step(dt) {
   S.wasInLavaFeet = thick;
 
   // TNT 도화선 — 매 프레임 태우고, 남은 시간에 맞춰 빠르게 깜빡인다
-  if (S.primed.length) {
+  // TNT 도 ESC 에 선다 (v108) — 「ESC 는 세계를 멈춥니다」라고 적어 놓고
+  // 도화선만 계속 타서, 메뉴를 연 채 5초면 85칸이 사라지고 자동 저장이 그것을 저장했다
+  if (S.active && S.primed.length) {
     primeTick(dt);
     S.primedBeep -= dt;
     if (S.primedBeep <= 0) {

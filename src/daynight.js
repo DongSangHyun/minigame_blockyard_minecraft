@@ -3,6 +3,7 @@ import { S } from "./state.js";
 import { lerp } from "./world.js";
 import { cloudMat, cloudMatHigh, pMat, skyUniforms, voxUniforms } from "./scene.js";
 
+// (하루 길이는 설정의 opts.day 분이다 — 이 상수는 아무도 안 읽는다)
 export var DAY_LEN = 300;
 export var SKY_STOPS = [
   { t: 0.00, top: 0x050810, low: 0x0d1424 },
