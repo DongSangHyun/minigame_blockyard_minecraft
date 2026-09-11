@@ -7,6 +7,7 @@ import { AIR, WATER, LAVA, ICE } from "./blocks.js";
 import { biomeMap, set, topMap, world } from "./world.js";
 import { camera, scene, sky, cloudGroup, cloudGroupHigh } from "./scene.js";
 import { dayLight } from "./daynight.js";
+import { calmMotion } from "./settings.js";
 import { player } from "./player.js";
 
 export function discTexture(size, stops) {
@@ -306,6 +307,19 @@ export function updateStorm(dt) {
   S.stormTimer -= dt;
   if (S.stormTimer > 0) return;
   S.stormTimer = 12 + Math.random() * 22;
+
+  // **번쩍임은 취향이 아니라 안전 문제다** (v113) — 「화면 흔들림·번쩍임 줄이기」를 켜면
+  // 섬광과 볼트를 걷고 소리만 남긴다. 예전에는 이 설정이 카메라·손·구름·팔다리만 멈췄고,
+  // 번개를 피하는 유일한 길이 **날씨를 「맑음」에 못 박는 것**이었다 —
+  // "비 오는 날 짓지 마라" 와 같은 말이다. 마크가 「Hide Lightning Flashes」를
+  // 별도 항목으로 빼 둔 데는 이유가 있다.
+  if (calmMotion()) {
+    var dQ = 16 + Math.random() * 54;                 // 천둥은 남긴다 — 소리는 번쩍이지 않는다
+    thunder(Math.min(2600, 120 + dQ * 26), dQ < 34);
+    S.flash = 0;
+    boltMesh.visible = false;
+    return;
+  }
 
   // 떨어질 자리 — 보이는 거리 안에 두어야 "저기 떨어졌다" 가 된다
   var ang = Math.random() * Math.PI * 2;

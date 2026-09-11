@@ -524,12 +524,17 @@ export function drawMinimapTo(ctx, scale, full) {
     }
     var mdx = (md[0] - x0) * sx, mdz = (md[1] - z0) * sz;
     if (mdx < -2 || mdz < -2 || mdx > MW + 2 || mdz > MH + 2) continue;
+    // **속 빈 동그라미** (v113) — 지도의 기호 셋이 전부 같은 원이었고,
+    // 굴 어귀(주황)와 표식(금색)은 색약 변환에서 색차 ΔE 10.2 까지 붙는다.
+    // 색을 못 가르는 사람에게는 같은 점 두 개였다. 마크의 지도 표식은 **모양**이 다르다
+    var mr = (md[2] >= 24 ? 3.0 : (md[2] >= 8 ? 2.4 : 1.9)) * Math.sqrt(scale);
     ctx.beginPath();
-    ctx.arc(mdx, mdz, (md[2] >= 24 ? 2.6 : (md[2] >= 8 ? 2.0 : 1.5)) * Math.sqrt(scale), 0, Math.PI * 2);
-    ctx.fillStyle = "#e89640";
-    ctx.fill();
-    ctx.lineWidth = 0.8 * Math.sqrt(scale);
-    ctx.strokeStyle = "rgba(20,14,8,.8)";
+    ctx.arc(mdx, mdz, mr, 0, Math.PI * 2);
+    ctx.lineWidth = 2.4 * Math.sqrt(scale);
+    ctx.strokeStyle = "rgba(20,14,8,.85)";
+    ctx.stroke();
+    ctx.lineWidth = 1.4 * Math.sqrt(scale);
+    ctx.strokeStyle = "#e89640";
     ctx.stroke();
   }
   for (var mi = 0; mi < S.marks.length; mi++) {
@@ -540,12 +545,18 @@ export function drawMinimapTo(ctx, scale, full) {
     var edge = mxp < 2 || mzp < 2 || mxp > MW - 2 || mzp > MH - 2;
     mxp = Math.max(2, Math.min(MW - 2, mxp));
     mzp = Math.max(2, Math.min(MH - 2, mzp));
+    // **마름모** (v113) — 굴 어귀(빈 동그라미)와 모양으로 갈린다
+    var mkr = (edge ? 2.0 : 3.0) * Math.sqrt(scale);
     ctx.beginPath();
-    ctx.arc(mxp, mzp, (edge ? 1.6 : 2.4) * Math.sqrt(scale), 0, Math.PI * 2);
+    ctx.moveTo(mxp, mzp - mkr);
+    ctx.lineTo(mxp + mkr, mzp);
+    ctx.lineTo(mxp, mzp + mkr);
+    ctx.lineTo(mxp - mkr, mzp);
+    ctx.closePath();
     ctx.fillStyle = "#e0c060";
     ctx.fill();
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = "rgba(255,255,255,.85)";
+    ctx.lineWidth = 1 * Math.sqrt(scale);
+    ctx.strokeStyle = "rgba(20,14,8,.9)";
     ctx.stroke();
     // 번호를 옆에 적는다 — 열두 개가 전부 똑같은 금색 점이면
     // "집·채석장·나무농장" 이 구별이 안 돼 다섯 개째부터 찍을 이유가 없어진다
@@ -573,12 +584,20 @@ export function drawMinimapTo(ctx, scale, full) {
   if (S.spawnPoint) {
     var hx = (S.spawnPoint[0] - x0) * sx, hz = (S.spawnPoint[2] - z0) * sz;
     if (hx > -2 && hz > -2 && hx < MW + 2 && hz < MH + 2) {
+      // **집 모양** (v113) — 세 기호가 색이 아니라 모양으로 갈린다
+      var sxp = Math.max(2, Math.min(MW - 2, hx)), szp = Math.max(2, Math.min(MH - 2, hz));
+      var hr = 3.0 * Math.sqrt(scale);
       ctx.beginPath();
-      ctx.arc(Math.max(2, Math.min(MW - 2, hx)), Math.max(2, Math.min(MH - 2, hz)), 2.6 * Math.sqrt(scale), 0, Math.PI * 2);
+      ctx.moveTo(sxp, szp - hr);                       // 지붕 꼭대기
+      ctx.lineTo(sxp + hr, szp - hr * 0.1);
+      ctx.lineTo(sxp + hr * 0.66, szp + hr);
+      ctx.lineTo(sxp - hr * 0.66, szp + hr);
+      ctx.lineTo(sxp - hr, szp - hr * 0.1);
+      ctx.closePath();
       ctx.fillStyle = "#5aa8e0";
       ctx.fill();
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = "rgba(255,255,255,.9)";
+      ctx.lineWidth = 1 * Math.sqrt(scale);
+      ctx.strokeStyle = "rgba(10,14,20,.9)";
       ctx.stroke();
     }
   }

@@ -129,6 +129,12 @@ export function step(dt) {
   applyTime(dt);
   voxUniforms.uTime.value += dt;
 
+  // 게임패드는 **창이 열려 있어도 읽는다** (v113) — 예전에는 아래 `if (playing)` 안에
+  // 있어서, Y 로 블록 목록을 연 순간 `S.uiOpen` 이 서고 이 함수가 다음 프레임부터
+  // 아예 안 불렸다. 패드가 통째로 먹통이 되고 Y 로 닫히지도 않았다.
+  // 창 안에서 무엇을 살릴지는 pollGamepad 가 스스로 가른다
+  var padOn = S.active ? pollGamepad(dt) : false;
+
   if (playing) {
     // 몸이 블록에 묻혔으면 먼저 빼낸다 — 안 그러면 어떤 조작으로도 움직일 수 없다
     if (unstick()) toast("블록에서 빠져나왔습니다");
@@ -136,8 +142,6 @@ export function step(dt) {
     fwd.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
     right.set(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
 
-    // 게임패드가 있으면 왼쪽 스틱이 이동을 대신한다
-    var padOn = pollGamepad(dt);
     var ix = ((S.keys.KeyD || S.keys.ArrowRight) ? 1 : 0) - ((S.keys.KeyA || S.keys.ArrowLeft) ? 1 : 0);
     var iz = ((S.keys.KeyW || S.keys.ArrowUp) ? 1 : 0) - ((S.keys.KeyS || S.keys.ArrowDown) ? 1 : 0);
     if (S.stick.x || S.stick.z) { ix = S.stick.x; iz = S.stick.z; }
@@ -343,9 +347,15 @@ export function step(dt) {
   updateWeather(dt);
   updateStorm(dt);
   updateEdge(player.pos.x, player.pos.z);
-  updateSelectionBox(selectionBounds(), S.selA && !S.selB ? S.selA : (S.selB && !S.selA ? S.selB : null));
+  // **사진에는 보조선이 안 찍힌다** (v113) — 사진 모드가 HUD 여섯과 1인칭 손은 치우면서
+  // 3D 씬 안의 보조선 셋(조준 테두리·영역 상자·붙여넣기 미리보기)은 그대로 두었다.
+  // 집을 다 짓고 찍으면 20×6×20 철사 상자가 같이 찍혔다. F1(HUD 숨김)도 마크처럼
+  // 블록 외곽선까지 지운다 — **조준 자체는 살아 있다** (숨긴 채로도 짓는다)
+  var quiet = S.photoMode || S.hudHidden;
+  updateSelectionBox(quiet ? null : selectionBounds(),
+                     quiet ? null : (S.selA && !S.selB ? S.selA : (S.selB && !S.selA ? S.selB : null)));
   // 복사한 것이 있으면 조준한 자리에 놓일 상자를 미리 그린다
-  if (playing && S.clip) {
+  if (playing && S.clip && !quiet) {
     var ph2 = raycast(6);
     updatePasteBox(S.clip, ph2 ? [ph2.x + ph2.nx, ph2.y + ph2.ny, ph2.z + ph2.nz] : null);
   } else updatePasteBox(null, null);
@@ -406,7 +416,7 @@ export function step(dt) {
   // 조준 면을 남겨 둔다 — HUD 는 animate() 에 있어 이 지역 변수를 못 본다
   S.aimFace = hit ? [hit.x + hit.nx, hit.y + hit.ny, hit.z + hit.nz] : null;
   S.aimHit = hit ? [hit.x, hit.y, hit.z] : null;   // 겨눈 칸 자체 (계기판 「조준」· v93)
-  if (hit) {
+  if (hit && !S.photoMode && !S.hudHidden) {
     highlight.visible = true;
     if (isCross(hit.block)) {
       highlight.geometry = HL_CROSS[hit.block] || HL_GEO[0];
@@ -861,7 +871,9 @@ export function animate() {
       var pad = Math.max(10, Math.round(cv.height * 0.018));
       cc.font = Math.max(11, Math.round(cv.height * 0.020)) + "px ui-monospace, monospace";
       cc.textBaseline = "bottom";
-      var stampTxt = "SEED " + S.worldSeed + "   " +
+      // **지형 판(T)을 같이 새긴다** (v113) — 시드만 적어 두면 산악 판에서 찍은 사진을
+      // 받은 사람이 같은 시드로 열었을 때 **다른 세계**가 나온다 (공유 링크는 ?seed=&t= 둘 다 싣는다)
+      var stampTxt = "SEED " + S.worldSeed + " T" + (S.terrain | 0) + "   " +
         Math.floor(player.pos.x) + " " + Math.floor(player.pos.y) + " " + Math.floor(player.pos.z) +
         "   " + clockText();
       cc.fillStyle = "rgba(0,0,0,.55)";

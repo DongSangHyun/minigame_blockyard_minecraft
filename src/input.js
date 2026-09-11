@@ -475,9 +475,12 @@ export var RESERVED = {
   Space: "점프", ShiftLeft: "웅크리기", ShiftRight: "웅크리기",
   ControlLeft: "달리기", ControlRight: "달리기", AltLeft: "영역 도구", AltRight: "영역 도구",
   KeyE: "블록 목록", KeyT: "시간", KeyK: "날씨", KeyM: "소리", KeyR: "새 세계",
-  KeyB: "청사진",
+  // 이름이 낡아 있었다 (v113) — B 는 청사진이 아니라 **표식**이고,
+  // 대괄호는 모양이 아니라 **미니맵 확대**다. N(큰 지도)은 아예 빠져 있었다.
+  // 키를 재배정하는 사람이 "여기는 비었네" 하고 겹쳐 먹는다
+  KeyB: "미니맵 표식", KeyN: "큰 지도", KeyV: "시작 지점",
   Backslash: "미니맵 등고선",
-  BracketLeft: "이전 모양", BracketRight: "다음 모양", Slash: "명령창",
+  BracketLeft: "지도 축소", BracketRight: "지도 확대", Slash: "명령창",
   Escape: "메뉴", Tab: "자동완성", F1: "F1", F2: "화면 담기", F3: "자세히", F5: "F5", F6: "F6",
   Digit1: "핫바", Digit2: "핫바", Digit3: "핫바", Digit4: "핫바", Digit5: "핫바",
   Digit6: "핫바", Digit7: "핫바", Digit8: "핫바", Digit9: "핫바", Digit0: "핫바"
@@ -1740,6 +1743,7 @@ window.addEventListener("resize", function () {
   renderer.setSize(window.innerWidth, window.innerHeight);
   applyTbtn();                      // 단추가 화면 밖으로 자라지 않게 다시 잰다 (v93)
   applyUi();                        // HUD 도 화면에 맞춰 다시 잰다 (v96)
+  refreshScaleLabels();             // 상한이 바뀌었으면 설정에 적힌 값도 고친다 (v113)
   // 화면 배율이 다른 모니터로 옮겨 갔을 수 있다 — 부팅 때 한 번 잡고 마는 값이었다
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 });
@@ -1762,8 +1766,10 @@ export function bindOpt(inputId, outId, key, fmt) {
   out.textContent = fmt(opts[key]);
   el.addEventListener("input", function () {
     opts[key] = parseFloat(el.value);
-    out.textContent = fmt(opts[key]);
+    // **먼저 먹이고 나서 적는다** (v113) — 「잘린 값」을 적으려면 applyOpts 가
+    // S.uiScale·S.tbtnScale 을 갱신한 뒤라야 한다. 순서가 바뀌면 한 칸 늦은 값이 적힌다
     applyOpts();
+    out.textContent = fmt(opts[key]);
     saveOpts();
   });
   el.addEventListener("click", function (e) { e.stopPropagation(); });
@@ -1774,8 +1780,21 @@ bindOpt("s-far", "o-far", "far", function (v) { return v + "m"; });
 bindOpt("s-vol", "o-vol", "vol", function (v) { return v + "%"; });
 bindOpt("s-day", "o-day", "day", function (v) { return v === 0 ? "고정" : v + "분"; });
 bindOpt("s-bright", "o-bright", "bright", function (v) { return v + "%"; });
-bindOpt("s-ui", "o-ui", "ui", function (v) { return v + "%"; });
-bindOpt("s-tbtn", "o-tbtn", "tbtn", function (v) { return v + "%"; });
+// 잘렸으면 **잘렸다고 적는다** (v113) — 폰에서 "150%" 라고 써 놓고 130% 에서 자르면,
+// 슬라이더가 사람을 속인다. 안 듣는 눈금을 남기지 않는 것이 제일 좋지만(마크는 아예 지운다),
+// 창 크기에 따라 상한이 움직이므로 **적는 쪽**을 골랐다
+function clampNote(v, actual) {
+  var eff = Math.round((actual || 1) * 100);
+  return v + "%" + (eff < v ? " (이 화면에서는 " + eff + "%)" : "");
+}
+bindOpt("s-ui", "o-ui", "ui", function (v) { return clampNote(v, S.uiScale); });
+bindOpt("s-tbtn", "o-tbtn", "tbtn", function (v) { return clampNote(v, S.tbtnScale); });
+// 창 크기가 바뀌면 상한도 바뀐다 — 설정을 열어 둔 채 화면을 돌리면 적힌 값이 낡는다
+export function refreshScaleLabels() {
+  var ou = document.getElementById("o-ui"), ot = document.getElementById("o-tbtn");
+  if (ou) ou.textContent = clampNote(opts.ui, S.uiScale);
+  if (ot) ot.textContent = clampNote(opts.tbtn, S.tbtnScale);
+}
 bindOpt("s-save", "o-save", "autosave", function (v) { return v + "초"; });
 bindOpt("s-undo", "o-undo", "undo", function (v) { return v + "단계"; });
 bindOpt("s-dig", "o-dig", "dig", function (v) { return ["보통", "빠름", "즉시"][v] || "보통"; });
@@ -1838,16 +1857,32 @@ export function pollGamepad(dt) {
   padState.rx = dead(g.axes[2] || 0);
   padState.ry = dead(g.axes[3] || 0);
 
-  // 시점 — 오른쪽 스틱
-  if (padState.rx || padState.ry) {
-    applyLook(padState.rx * 620 * dt, padState.ry * 480 * dt);
-  }
-
   function pressed(n) { return !!(g.buttons[n] && g.buttons[n].pressed); }
   function tapped(n) {
     var now = pressed(n), was = padPrev[n];
     padPrev[n] = now;
     return now && !was;
+  }
+
+  // **창이 열려 있으면 여기서 갈라진다** (v113) — 예전에는 이 함수가 통째로
+  // `if (playing)` 안에서 불렸다. Y 로 블록 목록을 열면 `S.uiOpen` 이 서고
+  // playing 이 거짓이 되어 **다음 프레임부터 패드가 아예 안 읽혔다** —
+  // 목록을 연 순간 패드가 먹통이고 Y 로 닫히지도 않아서, 패드만 쓰는 사람에게는
+  // 키보드 `E`/`ESC` 나 마우스 말고는 나갈 길이 없었다.
+  // 창 안에서는 **닫기·취소·핫바 칸**만 살린다 (시점·이동·캐기·놓기는 쉰다).
+  if (S.uiOpen) {
+    S.mouseDown[0] = false; S.touchPlace = false;
+    padState.lx = 0; padState.ly = 0; padState.rx = 0; padState.ry = 0;
+    if (tapped(3) || tapped(1) || tapped(9)) closePicker(true);   // Y · B · 메뉴 — 닫는다
+    if (tapped(4) || tapped(14)) selectSlot(S.selected - 1);
+    if (tapped(5) || tapped(15)) selectSlot(S.selected + 1);
+    for (var q = 0; q < 16; q++) padPrev[q] = pressed(q);         // 나머지는 눌린 상태만 기억한다
+    return true;
+  }
+
+  // 시점 — 오른쪽 스틱
+  if (padState.rx || padState.ry) {
+    applyLook(padState.rx * 620 * dt, padState.ry * 480 * dt);
   }
 
   // 눌렸을 때만 켠다. 가만히 있는 패드가 키보드·마우스를 끄면 안 된다.
@@ -1883,5 +1918,16 @@ export function pollGamepad(dt) {
     else S.padFlyTap = nowA;
   }
   if (tapped(9)) endPlay();                        // 메뉴 — 시작 화면으로
+  // 비어 있던 버튼 셋에 **안전망과 모양**을 건다 (v113) —
+  // 되돌리기는 문서가 "물·용암을 지우는 유일한 안전망" 이라고 적어 둔 것인데
+  // 패드 배치에 없었다. 모양(G)도 없어서 패드만으로는 반블록·계단을 못 놓았다
+  if (tapped(13)) { undo(); toast("되돌리기"); }   // 십자 아래 — 되돌리기
+  if (tapped(12)) {                                // 십자 위 — 모양 (G 와 같은 길)
+    setShapeMode(S.shapeMode + 1);
+    updateHandBlock();
+    toast(["전체 블록", "반블록", "계단"][S.shapeMode]);
+    tone(560 + S.shapeMode * 120, 0.06, "square", 0.04);
+  }
+  if (tapped(8)) { toggleHelp(true); setHelpTab(false); }   // View — 도움말
   return true;
 }

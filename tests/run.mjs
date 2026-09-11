@@ -10400,7 +10400,9 @@ phoneTest("도움말이 지도 조작을 알려 준다", async (page) => {
   assert(/탭하면\s*표식|탭하면.{0,4}표식/.test(r.body),
      "폰 도움말이 '지도를 탭하면 표식' 을 안 알려 준다");
   assert(/길게 누르면 확대/.test(r.body), "폰 도움말이 지도 확대를 안 알려 준다");
-  assert(/주황/.test(r.body), "폰 도움말이 지도 기호(주황=굴 어귀)를 안 알려 준다");
+  // 기호는 **모양 이름**으로 적는다 (v113) — 색 이름만으로는 색약에게 범례가 아니다
+  assert(/빈 동그라미/.test(r.body), "폰 도움말이 지도 기호(빈 동그라미=굴 어귀)를 안 알려 준다");
+  assert(/마름모/.test(r.body), "폰 도움말이 표식 기호(마름모)를 안 알려 준다");
   // v83 이 넣은 것을 "안 된다" 고 말하면 안 된다
   assert(!/미니맵 표식은 지금.{0,10}키보드에서만/.test(r.body),
      "폰 도움말이 표식을 키보드 전용이라고 말한다 — v83 이 넣었는데");
@@ -13244,6 +13246,171 @@ test("v112 원과 구: /cyl 과 /sphere 가 둥글게 놓고 한 번에 되돌�
   assert(r.shell > 100, "속빔 구가 " + r.shell + "칸뿐이다 — 껍질이 안 섰다");
   eq(r.afterUndo2, 0, "구를 되돌렸는데 " + r.afterUndo2 + "칸이 남았다");
   assert(/너무 큽니다/.test(r.big), "반지름 32 구를 거절하지 않았다 — " + r.big);
+});
+
+test("v113 접근성: 조준선이 어느 배경에서도 뜨고, 굳은 회색이 없다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const ret = document.getElementById("reticle");
+    const cs = getComputedStyle(ret);
+    const before = getComputedStyle(ret, "::before");
+    // 차분 합성은 배경이 중간 밝기면 배경과 같아진다 — 모래벽 앞에서 1.31:1 이었다
+    const blend = cs.mixBlendMode;
+    const shadow = before.boxShadow;
+    // 굳은 회색 — 고대비(.hc)가 --stone 을 밝혀도 이 값들은 안 따라왔다.
+    // 스타일시트 규칙은 브라우저가 막을 수 있어(SecurityError) **실제로 칠해진 색**을 잰다
+    function colorOf(sel, pseudo) {
+      const el = document.querySelector(sel);
+      return el ? getComputedStyle(el, pseudo || null).color : "";
+    }
+    const greys = [colorOf(".fineprint"), colorOf(".stamp"), colorOf(".ach")];
+    const hardGrey = greys.filter((c) => /109, *120, *115|95, *106, *102/.test(c)).length;
+    return { blend, shadow, hardGrey, greys };
+  });
+  assert(r.blend !== "difference",
+     "조준선이 아직 차분 합성이다 — 모래 앞에서 1.31:1 로 사라진다");
+  assert(/rgb/.test(r.shadow) && r.shadow !== "none",
+     "조준선에 테두리가 없다 — 밝은 배경에서 흰 십자가 묻힌다 (" + r.shadow + ")");
+  eq(r.hardGrey, 0, "고대비가 못 만지는 굳은 회색이 " + r.hardGrey + "곳 남았다 (" + r.greys.join(" · ") + ")");
+});
+
+test("v113 번쩍임: 「흔들림·번쩍임 줄이기」가 번개 섬광을 멈춘다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keep = B.opts.steady, keepW = B.S.weather, keepT = B.S.thundery;
+    B.S.weather = 1; B.S.thundery = true;
+
+    function storm(steady) {
+      B.opts.steady = steady ? 1 : 0;
+      B.applyOpts();
+      B.S.flash = 0; B.S.bolt = 0; B.S.stormTimer = 0;
+      let flashes = 0, bolts = 0;
+      for (let k = 0; k < 60 * 120; k++) {
+        B.S.flash = 0;
+        B.step(1 / 60);
+        if (B.S.flash > 0) flashes++;
+        if (B.S.bolt > 0) bolts++;
+      }
+      return { flashes, bolts };
+    }
+    const loud = storm(false);
+    const calm = storm(true);
+    const steadyClass = document.documentElement.classList.contains("steady");
+    B.opts.steady = keep; B.applyOpts();
+    B.S.weather = keepW; B.S.thundery = keepT;
+    B.S.flash = 0; B.S.bolt = 0;
+    B.endPlay(); B.setPaused(false);
+    return { loud, calm, steadyClass };
+  });
+  assert(r.loud.flashes > 0, "뇌우인데 번개가 한 번도 안 쳤다 — 시험대가 안 섰다");
+  eq(r.calm.flashes, 0, "「번쩍임 줄이기」를 켰는데 섬광이 " + r.calm.flashes + "프레임 났다");
+  eq(r.calm.bolts, 0, "「번쩍임 줄이기」를 켰는데 볼트가 " + r.calm.bolts + "프레임 그려졌다");
+  eq(r.steadyClass, true, "html.steady 가 안 붙었다 — CSS 쪽 감속이 OS 설정에만 듣는다");
+});
+
+test("v113 패드·사진·지도: 목록에서도 패드가 살고, 사진에 보조선이 없다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+
+    // (1) 블록 목록이 열려도 패드를 읽는다 — 예전에는 if (playing) 안이라 통째로 죽었다
+    let polls = 0;
+    const realGetGamepads = navigator.getGamepads && navigator.getGamepads.bind(navigator);
+    navigator.getGamepads = function () { polls++; return []; };
+    B.openPicker();
+    polls = 0;
+    for (let k = 0; k < 10; k++) B.step(1 / 60);
+    const polledWhileOpen = polls;
+    B.closePicker(true);
+    polls = 0;
+    for (let k = 0; k < 10; k++) B.step(1 / 60);
+    const polledWhilePlaying = polls;
+    if (realGetGamepads) navigator.getGamepads = realGetGamepads;
+
+    // (2) 사진 모드에서는 조준 테두리·영역 상자가 안 그려진다
+    const X = 70, Y = 34, Z = 70;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = -1; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.set(X, Y - 1, Z, B.B.STONE);
+    // 겨눌 것 — **눈높이까지** 두 칸 세운다 (눈은 발+1.62 라, 한 칸이면 위로 지나간다)
+    B.set(X, Y, Z, B.B.STONE); B.set(X, Y + 1, Z, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false);
+    // yaw = π 이면 앞은 +z 다 (fwd = -sin, 0, -cos) — 돌보다 **-z 쪽**에 서야 겨눈다
+    B.player.pos.set(X + 0.5, Y, Z - 2.5);
+    B.player.yaw = Math.PI; B.player.pitch = 0;
+    B.S.selA = [X - 1, Y, Z - 1]; B.S.selB = [X + 1, Y + 1, Z + 1];
+    B.step(1 / 60);
+    const normal = { hl: B.highlight.visible, sel: B.selBox ? B.selBox.visible : null };
+    B.setPhotoMode(true);
+    B.step(1 / 60);
+    const photo = { hl: B.highlight.visible, sel: B.selBox ? B.selBox.visible : null };
+    B.setPhotoMode(false);
+    B.S.selA = null; B.S.selB = null;
+    B.step(1 / 60);
+
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = -1; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false);
+    B.endPlay(); B.setPaused(false);
+    return { polledWhileOpen, polledWhilePlaying, normal, photo };
+  });
+  assert(r.polledWhileOpen > 0,
+     "블록 목록이 열린 동안 패드를 한 번도 안 읽었다 — 패드만 쓰는 사람은 나갈 길이 없다");
+  assert(r.polledWhilePlaying > 0, "플레이 중에 패드를 안 읽는다 — 시험대가 안 섰다");
+  eq(r.normal.hl, true, "평소에 조준 테두리가 안 보인다 — 시험대가 안 섰다");
+  eq(r.photo.hl, false, "사진 모드인데 조준 테두리가 찍힌다");
+  if (r.normal.sel !== null) {
+    eq(r.normal.sel, true, "영역 상자가 평소에 안 보인다 — 시험대가 안 섰다");
+    eq(r.photo.sel, false, "사진 모드인데 영역 상자(철사 상자)가 찍힌다");
+  }
+});
+
+test("v113 한 손: 세 키 조합에 명령 대안이 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 36, Y = 34, Z = 36;
+    for (let dx = -4; dx <= 8; dx++) for (let dz = -4; dz <= 8; dz++)
+      for (let dy = -1; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dx = -4; dx <= 8; dx++) for (let dz = -4; dz <= 8; dz++) B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    B.S.history.length = 0; B.S.future.length = 0;
+
+    // 복사할 조각 — 한 귀퉁이만 벽돌, 나머지는 빈칸
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 2, Y, Z + 2];
+    B.applyEdit(X, Y, Z, B.B.BRICK, false, 0);
+    B.copySelection();
+
+    // /mirror · /rotate — 복사한 것에 듣는가
+    const mirrorMsg = B.runCommand("mirror");
+    const rotateMsg = B.runCommand("rotate");
+
+    // /paste 공기 — 빈칸까지 덮는가 (Ctrl+Shift+V 의 대안)
+    B.applyEdit(X + 5, Y, Z + 5, B.B.LAMP, false, 0);   // 덮여야 할 자리
+    B.S.aimFace = [X + 5, Y, Z + 5];
+    const pasteMsg = B.runCommand("paste 공기");
+    let lampGone = B.get(X + 5, Y, Z + 5) !== B.B.LAMP;
+
+    const help = B.CMD_HELP;
+    for (let dx = -4; dx <= 8; dx++) for (let dz = -4; dz <= 8; dz++)
+      for (let dy = -1; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    B.S.selA = null; B.S.selB = null; B.S.clip = null;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { mirrorMsg, rotateMsg, pasteMsg, lampGone, help,
+             list: B.CMD_LIST.join(" ") };
+  });
+  assert(!/없습니다|하세요/.test(r.mirrorMsg), "/mirror 가 안 먹는다 — " + r.mirrorMsg);
+  assert(!/없습니다|하세요/.test(r.rotateMsg), "/rotate 가 안 먹는다 — " + r.rotateMsg);
+  assert(/칸을 붙여넣었습니다/.test(r.pasteMsg), "/paste 공기 가 안 먹는다 — " + r.pasteMsg);
+  eq(r.lampGone, true, "/paste 공기 인데 빈칸이 원래 블록을 안 덮었다");
+  // /help 가 실제로 있는 명령을 다 말하는가 (shell 이 목록에만 있고 도움말에 없었다)
+  ["hollow", "walls", "shell", "cyl", "sphere", "paste", "mirror", "rotate"].forEach((c) => {
+    assert(r.help.indexOf(c) >= 0, "/help 가 " + c + " 을 안 알려 준다");
+    assert(r.list.indexOf(c) >= 0, "CMD_LIST 에 " + c + " 이 없다 — 자동완성이 안 된다");
+  });
 });
 
 // ── 실행 ───────────────────────────────────────────────

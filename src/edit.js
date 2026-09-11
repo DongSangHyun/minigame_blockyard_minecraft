@@ -916,7 +916,8 @@ export function pasteClip(px, py, pz, withAir) {
 export var CMD_HELP =
   "tp <x y z | 표식 번호|이름> · time <아침|정오|노을|밤|0~1> · weather <맑음|비|눈> · " +
   "marks · marks del <번호> · fill <블록|공기> [바꿀블록] · hollow · walls <블록> · " +
-  "cyl <블록> <반지름> [높이] [속빔] · sphere <블록> <반지름> [속빔] · " +
+  "cyl <블록> <반지름> [높이] [속빔] · sphere <블록> <반지름> [속빔] · shell <블록> · " +
+  "paste [공기] · mirror · rotate · " +
   "expand/contract <±dx> <±dy> <±dz> · shift <dx> <dy> <dz> · clone <dx> <dy> <dz> [횟수] · give <블록> · count · bp <save|use|list|del> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
 
 // 한국어 이름과 영어 이름을 둘 다 알아듣는다 — "조약돌" 도 "cobble" 도 된다
@@ -945,7 +946,7 @@ function findBlock(name) {
   return -1;
 }
 
-export var CMD_LIST = ["tp", "marks", "time", "weather", "fill", "hollow", "walls", "shell", "cyl", "sphere", "expand", "contract", "shift", "clone", "give", "count", "bp", "undo", "redo", "seed", "gm", "help"];
+export var CMD_LIST = ["tp", "marks", "time", "weather", "fill", "hollow", "walls", "shell", "cyl", "sphere", "paste", "mirror", "rotate", "expand", "contract", "shift", "clone", "give", "count", "bp", "undo", "redo", "seed", "gm", "help"];
 // 앞글자만 쳐도 알아듣게 — 명령이 열 개나 되면 오타 한 번에 막힌다
 export function completeCommand(prefix) {
   var q = String(prefix || "").trim().toLowerCase();
@@ -1125,6 +1126,25 @@ export function runCommand(line) {
     return rn.toLocaleString("ko-KR") + "칸을 " + NAMES[cb4] + " 로 (" +
            (cmd === "cyl" ? "원기둥 반지름 " + rad + " · 높이 " + hei : "구 반지름 " + rad) +
            (hollowWord ? " · 속빔" : "") + ")";
+  }
+
+  // 세 키 조합에 **명령 대안**을 둔다 (v113) — Ctrl+Shift+V(빈칸까지 붙여넣기)와
+  // Ctrl+Shift+R(거울)에는 대안이 하나도 없었다. 한 손으로 치는 사람에게
+  // 수식키 둘 + 글자키는 "어렵다" 가 아니라 **불가능**이고,
+  // 이 게임이 자랑하는 영역 도구의 절반이 거기 있었다.
+  if (cmd === "paste") {
+    var withAirCmd = /^(공기|빈칸|air|빈칸까지)$/i.test(parts[1] || "");
+    var hitP = S.aimFace;
+    if (!hitP) return "붙여넣을 자리를 조준하세요";
+    var pn3 = pasteClip(hitP[0], hitP[1], hitP[2], withAirCmd);
+    if (!pn3) return "복사한 것이 없습니다";
+    return pn3.toLocaleString("ko-KR") + "칸을 붙여넣었습니다" + (withAirCmd ? " (빈칸까지)" : "");
+  }
+  if (cmd === "mirror" || cmd === "rotate") {
+    if (!S.clip) return "먼저 Ctrl+C 또는 영역 도구로 복사하세요";
+    if (cmd === "mirror") { mirrorClip(); return "복사한 것을 좌우로 뒤집었습니다"; }
+    rotateClip();
+    return "복사한 것을 90° 돌렸습니다";
   }
 
   if (cmd === "gm") {

@@ -39,6 +39,10 @@ export function applyOpts() {
   S.farNow = opts.far;      // 슬라이더를 움직이면 자동 조절도 거기서 다시 시작한다
   // 고대비 — UI 테두리와 글자를 또렷하게 (밝은 곳·색약 배려)
   document.documentElement.classList.toggle("hc", !!opts.contrast);
+  // 「화면 흔들림·번쩍임 줄이기」를 CSS 도 보게 한다 (v113) —
+  // 예전에는 prefers-reduced-motion 블록이 **OS 설정에만** 걸려 있어서,
+  // 게임 안 체크박스를 켠 사람은 토스트·스틱 트랜지션 감속을 못 받았다
+  document.documentElement.classList.toggle("steady", calmMotion());
   document.documentElement.classList.toggle("lefty", !!opts.lefty);
   applyTbtn();
   applyFov();
@@ -60,7 +64,11 @@ export function applyUi() {
   var want = (opts.ui || 100) / 100;
   var h = window.innerHeight || 800;
   var cap = Math.max(1.1, h / UI_MIN_H);
-  document.documentElement.style.setProperty("--ui", Math.min(want, cap).toFixed(2));
+  // **잘린 값을 남긴다** (v113) — 폰 844×390 에서 슬라이더를 150% 로 올려도 1.30 에서
+  // 잘리는데, 출력칸은 "150%" 라고 그대로 썼다. 눈금의 위쪽 28%가 아무 일도 안 하면서
+  // 안 하는 티도 안 냈다. 고를 수 있는데 안 듣는 눈금을 남기지 않는다 (마크의 GUI Scale).
+  S.uiScale = Math.min(want, cap);
+  document.documentElement.style.setProperty("--ui", S.uiScale.toFixed(2));
 }
 
 // 터치 단추 크기 — 슬라이더(80~160%)를 화면 높이로 **잘라서** 먹인다 (v93).
@@ -83,7 +91,8 @@ export function applyTbtn() {
   var bottom = parseFloat(getComputedStyle(el).bottom) || 84;
   var avail = window.innerHeight - bottom - TBTN_TOP_KEEP;
   var maxZoom = avail / natural;
-  root.style.setProperty("--tbtn", Math.max(0.8, Math.min(want, maxZoom)).toFixed(2));
+  S.tbtnScale = Math.max(0.8, Math.min(want, maxZoom));      // 잘린 값을 설정 화면이 읽는다 (v113)
+  root.style.setProperty("--tbtn", S.tbtnScale.toFixed(2));
 }
 export var TBTN_TOP_KEEP = 12;   // 화면 위쪽에 남겨 두는 여백(px)
 
