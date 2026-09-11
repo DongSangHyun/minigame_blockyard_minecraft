@@ -233,7 +233,7 @@ export function step(dt) {
     }
     S.wasFeetInWater = feetInWater;
 
-    if (player.onGround && !S.wasOnGround && fallSpeed < -6 && !feetInWater) {
+    if (player.onGround && !S.wasOnGround && fallSpeed < -10 && !feetInWater) {
       crunch(0.12, Math.min(0.22, Math.abs(fallSpeed) * 0.014), 700);
       // 착지 먼지 — 세게 떨어질수록 많이 인다
       var landB = get(Math.floor(player.pos.x), Math.floor(player.pos.y - 0.1),
@@ -254,7 +254,7 @@ export function step(dt) {
     S.bobAmount += (target - S.bobAmount) * Math.min(1, dt * 9);
     if (moving) {
       var prev = S.stepPhase;
-      S.stepPhase += dt * (1.8 + hSpeed * 1.6);
+      S.stepPhase += dt * (0.5 + hSpeed * 1.6);
       if (Math.floor(prev / Math.PI) !== Math.floor(S.stepPhase / Math.PI)) {
         var bodyCell = get(Math.floor(player.pos.x), Math.floor(player.pos.y + 0.4),
                            Math.floor(player.pos.z));
@@ -347,9 +347,12 @@ export function step(dt) {
     updatePasteBox(S.clip, ph2 ? [ph2.x + ph2.nx, ph2.y + ph2.ny, ph2.z + ph2.nz] : null);
   } else updatePasteBox(null, null);
   updateCreatures(dt);
-  updateMobs(dt);
-  if (breedTick(dt)) unlock("breed");
-  updateFlocks(dt);
+  // 동물도 ESC 에 선다 (v106) — v99 가 물·불·시계를 멈춰 놓고 동물만 빠졌다
+  if (S.active) {
+    updateMobs(dt);
+    if (breedTick(dt)) unlock("breed");
+    updateFlocks(dt);
+  }
 
   if (!calmMotion()) {
     cloudGroup.position.x += dt * 0.9;
@@ -463,20 +466,28 @@ export function step(dt) {
       }
     }
   }
+  // 좌클릭을 누르고 있으면 **언제나** 팔이 움직인다 (v106).
+  // triggerSwing 이 "맞은 블록이 있을 때" 안에만 있어서, 하늘을 보고 클릭하면
+  // 팔도 3인칭 몸도 죽어 있었다 — 헛스윙은 사람이 무의식중에 제일 많이 하는 동작이고
+  // 「내 손이 붙어 있다」 는 감각의 바닥이다. 소리는 캘 것이 있을 때만 낸다
+  if (wantBreak) {
+    S.swingBeat = (S.swingBeat || 0) - dt;
+    if (S.swingBeat <= 0) {
+      S.swingBeat = 0.28;
+      triggerSwing();
+      if (hit && hit.y > 0 && !isUnbreakable(hit.block) && !S.mobSwatted) miningSound(hit.block);
+    }
+  } else S.swingBeat = 0;
   if (wantBreak && hit && hit.y > 0 && !isUnbreakable(hit.block) && !S.mobSwatted) {
     if (!S.breaking.on || S.breaking.x !== hit.x || S.breaking.y !== hit.y || S.breaking.z !== hit.z) {
       S.breaking.on = true; S.breaking.x = hit.x; S.breaking.y = hit.y; S.breaking.z = hit.z;
       S.breaking.t = 0; S.breaking.need = digNeed(hit.block); S.breaking.stage = -1;
-      S.breaking.sw = 0;
+      // **스윙 박자는 여기서 안 건드린다** (v106) — 조준 칸이 바뀔 때마다 0 으로 되돌렸더니
+      // 누른 채 크로스헤어를 훑으면 **초당 60번** 「턱」 소리가 났다(캔 블록은 0개).
+      // 크리에이티브에서 벽을 지울 때 하는 동작이 정확히 그것이다.
+      // 마크의 히트 사운드도 조준을 어디로 옮기든 고정 박자를 지킨다
     }
     S.breaking.t += dt;
-    // 캐는 내내 팔을 휘두르고 "턱-턱" 소리를 반복한다 — 마크 채굴감의 핵심
-    S.breaking.sw -= dt;
-    if (S.breaking.sw <= 0) {
-      S.breaking.sw = 0.28;
-      triggerSwing();
-      miningSound(hit.block);
-    }
     if (S.breaking.t >= S.breaking.need) {
       mineAt(hit);
       S.breaking.on = false;
@@ -609,13 +620,25 @@ export function step(dt) {
         lavaPop(Math.min(1, 0.25 + near / 30), at(bx + 0.5, by + 0.5, bz + 0.5));
         unlock("lava");
       }
-      // 물과 불도 같은 틀로 — 세계에서 가장 넓은 것(바다)과 가장 눈에 띄는 것(불)이
-      // 둘 다 귀에는 없었다. 방향까지 맞는 패너를 그대로 쓴다.
-      ambientNear(lx, ly, lz, WATER, 6, function (n, node) {
-        waterLap(Math.min(1, 0.2 + n / 60), node);
-      });
+      // 불은 같은 틀로 — 세계에서 가장 눈에 띄는 것이 귀에는 없었다.
+      // **물은 따로 뗐다** (v106). 0.4~1.0초 틀에 물려 있어 물가에서 1분에 85번 울렸고,
+      // 섬 표면의 74% 가 물 6칸 안이라 어디에 집을 지어도 그 소리가 계속 났다.
+      // 한 시간이면 5,100번이다. 마크에는 "물결" 소리 자체가 없다 — 해변은 조용하다.
+      // 물속에서는 아예 안 낸다(수면 소리가 물속에서 최대 음량으로 나고 있었다)
       ambientNear(lx, ly, lz, FIRE, 5, function (n, node) {
         fireCrackle(Math.min(1, 0.35 + n / 8), node);
+      });
+    }
+  }
+
+  // 물결 — 제 틀로 3.2~5.2초에 한 번 (v106)
+  S.lapTimer -= dt;
+  if (S.lapTimer <= 0) {
+    S.lapTimer = 3.2 + Math.random() * 2.0;
+    if (playing && !eyeInLiquid) {
+      var wx2 = Math.floor(player.pos.x), wy2 = Math.floor(player.pos.y), wz2 = Math.floor(player.pos.z);
+      ambientNear(wx2, wy2, wz2, WATER, 6, function (n, node) {
+        waterLap(Math.min(1, 0.2 + n / 60), node);
       });
     }
   }

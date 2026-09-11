@@ -61,6 +61,9 @@ export const S = {
   // step() 이 이미 쏜 레이캐스트 결과를 animate() 로 넘기는 통로다 (두 번 쏘지 않으려고).
   aimFace: null,
   aimHit: null,     // 겨눈 칸의 좌표 (계기판 「조준」· v93)
+  swingBeat: 0,          // 좌클릭 스윙 박자 — 조준 칸이 바뀌어도 안 흔들린다 (v106)
+  audioAsleep: false,    // 탭을 숨겨 소리를 재웠나 (v106)
+  lapTimer: 2,           // 물결 소리 틀 (v106)
   lockTimer: 0,          // 탭 잠금 심장박동 (v101)
   otherTab: null,        // 다른 탭이 이 슬롯을 쥐고 있나
   saveFailed: false,     // 저장이 실패한 채인가 — 계기판에 남긴다 (v100)

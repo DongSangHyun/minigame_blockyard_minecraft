@@ -348,10 +348,12 @@ function updateWeatherMix(dt) {
     S.rainTimer = 0.8;
     // 실내·지하에서는 빗소리가 잦아든다 — 문을 닫으면 소리가 끊기는 것이
     // "안에 있다" 는 감각을 만든다. 완전히 끊지 않고 12% 만 남긴다.
-    if (S.weatherMix > 0.05) {
+    // **비일 때만** 빗소리다 (v106) — 날씨 종류를 안 봐서 눈에도 같은 소리가 났다.
+    // 마크의 눈은 완전한 무음이고, 설원의 정체가 그 고요다
+    if (S.weather === 1 && S.weatherMix > 0.05) {
       var openSky = player.pos.y > columnTop(player.pos.x, player.pos.z) - 0.5;
       rainHiss(S.weatherMix * (openSky ? 1 : 0.12));
-    }
+    } else if (S.weather !== 1) rainHiss(0);
   }
 
   if (!S.weather && S.weatherMix < 0.02) return;

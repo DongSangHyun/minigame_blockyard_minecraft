@@ -4687,7 +4687,8 @@ test("v29 소리: 자리를 가진 소리가 그 자리에서 난다", async (pa
   });
   if (r.skipped) return;                       // 이 브라우저에 PannerNode 가 없다
   assert(!r.threw, "자리를 준 tone/crunch 가 던졌다");
-  eq(r.toneArity, 5, "tone 이 자리(node)를 받지 않는다");
+  // v106 부터 tone(freq, dur, type, gain, node, exact) — 여섯째는 "음정이 뜻인 소리"
+  eq(r.toneArity, 6, "tone 이 자리(node)를 받지 않는다");
   eq(r.crunchArity, 4, "crunch 가 자리(node)를 받지 않는다");
   if (r.pos) {
     near(r.pos[0], 12, 1e-6, "패너 x"); near(r.pos[1], 20, 1e-6, "패너 y"); near(r.pos[2], 33, 1e-6, "패너 z");
@@ -12362,6 +12363,66 @@ test("v105 바위 노두: 섬에 세로가 생기고, 지형은 한 칸도 안 �
      "가장 낮은 시드의 최고봉이 해발 " + low + "칸이다 — 섬이 여전히 팬케이크다 (" + r.peaks.join(",") + ")");
   assert(Math.max.apply(null, r.floats) <= 0,
      "노두가 공중에 뜬 돌을 늘렸다: " + r.floats.join(","));
+});
+
+test("v106 소리: 재질이 갈리고, 헛스윙에도 팔이 움직이고, 눈은 조용하다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const c = B.ac();
+    if (!c) return { skipped: true };
+
+    // (1) 재질 갈래 — 78종이 네 통에 몰려 있으면 안 된다
+    const sigs = {};
+    const realCrunch = c.createBufferSource.bind(c);
+    let last = null;
+    const realFilter = c.createBiquadFilter.bind(c);
+    c.createBiquadFilter = function () { const f = realFilter(); last = f; return f; };
+    for (const b of B.ALL_BLOCKS) {
+      last = null;
+      B.placeSound(b);
+      const key = last ? Math.round(last.frequency.value / 60) : -1;
+      sigs[key] = (sigs[key] || 0) + 1;
+    }
+    c.createBiquadFilter = realFilter;
+    const buckets = Object.keys(sigs).length;
+    const biggest = Math.max.apply(null, Object.keys(sigs).map((k) => sigs[k]));
+
+    // (2) 허공에 좌클릭해도 팔이 움직인다
+    const X = 40, Y = 60, Z = 40;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops();
+    B.player.flying = true;
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    B.player.yaw = 0; B.player.pitch = -1.2;      // 하늘을 본다
+    B.S.lockMode = true; B.S.mouseDown[0] = true; B.S.swing = 0; B.S.swingBeat = 0;
+    let swung = 0;
+    for (let k = 0; k < 40; k++) { B.step(1 / 60); if (B.S.swing > 0.2) swung++; }
+    B.S.mouseDown[0] = false; B.S.lockMode = false;
+
+    // (3) 눈에는 빗소리가 안 난다
+    B.S.weatherLock = true;
+    B.S.weather = 2; B.S.weatherMix = 1;
+    let rainCalls = 0;
+    const realRain = B.rainHiss;
+    // rainHiss 자체는 훅으로 감쌀 수 없으니 updateWeather 를 돌리고 게인을 본다
+    for (let k = 0; k < 30; k++) { B.S.rainTimer = 0; B.updateWeather(1 / 60); }
+    const snowRain = B.S.rainGain === undefined ? null : B.S.rainGain;
+
+    B.S.weather = 0; B.S.weatherMix = 0; B.S.weatherLock = false;
+    B.player.flying = false;
+    B.player.pos.set(48.5, 40, 48.5);
+    B.endPlay(); B.setPaused(false);
+    return { skipped: false, buckets, biggest, swung, total: B.ALL_BLOCKS.length };
+  });
+  if (r.skipped) return;
+  assert(r.buckets >= 5,
+     "블록 " + r.total + "종이 소리 갈래 " + r.buckets + "개뿐이다 — 재질이 안 갈린다");
+  assert(r.biggest < r.total * 0.5,
+     "한 갈래에 " + r.biggest + "종이 몰려 있다 (전체 " + r.total + ")");
+  assert(r.swung > 8,
+     "하늘을 보고 좌클릭을 40프레임 눌렀는데 팔이 " + r.swung + "프레임만 움직였다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

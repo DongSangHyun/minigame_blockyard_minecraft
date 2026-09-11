@@ -33,9 +33,10 @@ export function mineAt(hit) {
   if (hit.block === DIAMOND) {
     // 채굴의 마지막 보상 — 마크의 "DIAMONDS!" 처럼 한 옥타브 위 세 음으로 따로 기념한다
     unlock("diamond");
-    tone(1320, 0.10, "triangle", 0.06);
-    setTimeout(function () { tone(1568, 0.10, "triangle", 0.06); }, 110);
-    setTimeout(function () { tone(2093, 0.18, "triangle", 0.07); }, 220);
+    // 음정이 뜻인 소리다 — 무작위 피치를 태우면 화음이 아니라 잡음이 된다 (v106)
+    tone(1320, 0.10, "triangle", 0.06, null, true);
+    setTimeout(function () { tone(1568, 0.10, "triangle", 0.06, null, true); }, 110);
+    setTimeout(function () { tone(2093, 0.18, "triangle", 0.07, null, true); }, 220);
   }
   if (stats.mined >= 100) unlock("mine100");
   burst(hit.x, hit.y, hit.z, hit.block, 24);
