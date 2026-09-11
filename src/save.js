@@ -23,6 +23,38 @@ export function curKey() { return slotKey(S.slot); }
 // "0분 플레이" 라고 하니 처음에는 세계가 날아간 줄 안다. 슬롯 셋을 쓰는 사람은
 // **매번** 이 길을 지난다
 export var LAST_SLOT_KEY = "blockyard.slot";
+
+// ── 탭 잠금 (v101) — 세이브는 localStorage **한 벌**뿐이라 두 탭이 같은 슬롯을 열면
+// 나중에 저장한 쪽이 조용히 이깁니다. 탭 A(한 시간 건축) → 탭 B 에서 새 세계 →
+// 탭 A 가 자동 저장하면 **탭 B 의 세계는 .bak 한 벌만 남고 다음 저장에 덮입니다.**
+// 한 시간 놀다 탭을 안 닫고 내일 새 탭에서 또 여는 것이 정확히 이 모양입니다.
+export var LOCK_PREFIX = "blockyard.lock.";
+export var LOCK_STALE = 20000;      // 이만큼 심장박동이 없으면 죽은 탭으로 본다
+export var sessionId = String(Date.now()) + "." + Math.floor(Math.random() * 1000000);
+export function lockKey(n) { return LOCK_PREFIX + (n || S.slot); }
+export function touchLock() {
+  try {
+    localStorage.setItem(lockKey(S.slot),
+      JSON.stringify({ id: sessionId, at: Date.now() }));
+  } catch (e) {}
+}
+// 다른 살아 있는 탭이 이 슬롯을 쥐고 있으면 그 정보를, 아니면 null
+export function lockHeldByOther(n) {
+  try {
+    var raw = localStorage.getItem(lockKey(n));
+    if (!raw) return null;
+    var d = JSON.parse(raw);
+    if (!d || d.id === sessionId) return null;
+    if (Date.now() - (d.at || 0) > LOCK_STALE) return null;   // 죽은 탭이다
+    return d;
+  } catch (e) { return null; }
+}
+export function releaseLock() {
+  try {
+    var raw = localStorage.getItem(lockKey(S.slot));
+    if (raw && JSON.parse(raw).id === sessionId) localStorage.removeItem(lockKey(S.slot));
+  } catch (e) {}
+}
 export function rememberSlot(n) {
   try { localStorage.setItem(LAST_SLOT_KEY, String(n)); } catch (e) {}
 }
@@ -146,6 +178,7 @@ export function liftLegacy(src, dst, asRuns) {
 
 export function saveGame() {
   rememberSlot(S.slot);
+  touchLock();
   try {
     pushBackup();
     localStorage.setItem(curKey(), JSON.stringify({

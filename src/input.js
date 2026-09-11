@@ -13,7 +13,7 @@ import { applyTime } from "./daynight.js";
 import { applyOpts, applyFov, applyTbtn, applyUi, opts, saveOpts } from "./settings.js";
 import { EYE, currentShape, player, raycast, spawn, stats } from "./player.js";
 import { ac, setAudioAwake, startAmbient, tone } from "./audio.js";
-import { renameSlot, clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo , rememberSlot} from "./save.js";
+import { renameSlot, clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo , rememberSlot, releaseLock, lockHeldByOther} from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
 import { undoEmptyWhy, lastEditLabel, blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
 import { helpOpen, closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
@@ -600,6 +600,13 @@ export function refreshResume() {
       " · 캔 " + info.mined.toLocaleString("ko-KR");
   }
   if (mk) {
+    // 다른 탭이 이 슬롯을 쥐고 있으면 **그것부터** 말한다 (v101) —
+    // 세이브가 한 벌뿐이라 둘이 같이 열면 나중에 저장한 쪽이 조용히 이긴다
+    if (S.otherTab && lockHeldByOther(S.slot)) {
+      mk.textContent = "⚠ 다른 탭에서 이 슬롯을 열고 있습니다 — 둘 다 놀면 한쪽이 지워집니다";
+      mk.hidden = false;
+      return nm ? nm.textContent : "";
+    }
     // 표식이 있으면 어디를 찍어 뒀는지도 알려 준다 — 돌아갈 곳이 곧 "하던 일" 이다
     var names = [];
     for (var i = 0; i < S.marks.length && names.length < 4; i++) {
@@ -1699,7 +1706,10 @@ window.addEventListener("resize", function () {
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 });
 
-window.addEventListener("beforeunload", function () { if (S.worldDirty) saveGame(); });
+window.addEventListener("beforeunload", function () {
+  if (S.worldDirty) saveGame();
+  releaseLock();          // 이 탭이 쥐고 있던 슬롯을 놓는다 (v101)
+});
 document.addEventListener("visibilitychange", function () {
   if (document.hidden && S.worldDirty) saveGame();
   // 탭을 뒤로 보내면 소리도 재운다 (v93) — rAF 가 멎어도 앰비언트 루프는

@@ -15,7 +15,7 @@ import { applyTime, clockText, dayLight } from "./daynight.js";
 import { calmMotion, fovForAspect, opts } from "./settings.js";
 import { EYE, HALF, moveAxis, moveHorizontal, player, pointSolid, raycast, spawn, stats, unstick } from "./player.js";
 import { splash, waterLap, fireCrackle, at, caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
-import { pushPrev, saveGame } from "./save.js";
+import { pushPrev, saveGame , touchLock} from "./save.js";
 import { checkBuildAchievements, checkFoundAchievements, ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
 import { refreshMouthDots, refreshMinimapCap, tAim, airBar, airEl, drawMinimap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
@@ -793,6 +793,10 @@ function snowSticksTo(b) {
     S.saveTimer += dt;
     if (S.saveTimer > (opts.autosave || 20)) { saveGame(); S.saveTimer = 0; }
   } else S.saveTimer = 0;
+  // 이 슬롯을 쥐고 있다고 5초마다 알린다 (v101) — 다른 탭이 이걸 보고 경고한다.
+  // 저장할 때도 찍지만, 아무것도 안 짓고 걷기만 해도 잠금은 살아 있어야 한다
+  S.lockTimer = (S.lockTimer || 0) + dt;
+  if (S.active && S.lockTimer > 5) { S.lockTimer = 0; touchLock(); }
 
   if (S.toastTimer > 0) {
     S.toastTimer -= dt;

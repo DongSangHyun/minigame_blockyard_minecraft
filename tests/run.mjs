@@ -11992,6 +11992,41 @@ test("v100 클라우드: 슬롯마다 다른 세계로 올라간다", async (pag
   eq(r.still1, "main", "슬롯 2 의 이름이 슬롯 1 까지 바꿨다");
 });
 
+test("v101 탭 잠금: 다른 탭이 쥔 슬롯을 알아챈다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const keep = B.S.slot;
+    const key = "blockyard.lock." + B.S.slot;
+    const saved = localStorage.getItem(key);
+
+    // 내가 찍은 잠금은 남으로 안 읽힌다
+    B.touchLock();
+    const mine = B.lockHeldByOther(B.S.slot);
+
+    // 남이 방금 찍은 것은 읽힌다
+    localStorage.setItem(key, JSON.stringify({ id: "다른탭", at: Date.now() }));
+    const other = B.lockHeldByOther(B.S.slot);
+
+    // 오래된 것(죽은 탭)은 안 읽힌다
+    localStorage.setItem(key, JSON.stringify({ id: "죽은탭", at: Date.now() - 60000 }));
+    const stale = B.lockHeldByOther(B.S.slot);
+
+    // 놓으면 사라진다
+    B.touchLock();
+    B.releaseLock();
+    const afterRelease = localStorage.getItem(key);
+
+    if (saved === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, saved);
+    B.S.slot = keep;
+    return { mine: !!mine, other: other && other.id, stale: !!stale, afterRelease };
+  });
+  eq(r.mine, false, "내가 찍은 잠금을 '다른 탭' 으로 읽는다 — 늘 경고가 뜬다");
+  eq(r.other, "다른탭", "다른 탭이 쥔 슬롯을 못 알아챈다 — 한쪽이 조용히 지워진다");
+  eq(r.stale, false, "죽은 탭의 잠금이 남아 슬롯을 영영 막는다");
+  eq(r.afterRelease, null, "탭을 닫았는데 잠금이 남았다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
