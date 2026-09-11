@@ -707,9 +707,37 @@ export function generate(seed, gen) {
   // 지표 카브 문턱(0.66)을 낮춰 봤지만 178→189 로 거의 안 늘었다 (v80 실측) —
   // 병목은 문턱이 아니라 **"바로 아래 칸이 이미 뚫려 있어야 한다"** 는 조건이다.
   // 그래서 아래에서 위로 뚫는 길을 따로 낸다. **별도 난수 줄기**를 쓴다.
-  if (DEEP && !S.noMouths) openCaveMouths(makeRng(S.worldSeed + 24680));
+  // 바위 노두 — 섬에 **세로**를 준다 (v105). 자문 23차 실측: 일곱 시드의 최고봉이
+  // 해발 6~14칸, 뭍 평균 3~5칸이라 어느 시드로 찍어도 동심원 계단 팬케이크가 나왔다.
+  // 실루엣에 절벽도 봉우리도 없어, 빛·물·하늘을 다 다듬어 놓고 **찍을 대상이 평평했다.**
+  // heightMap 을 한 칸도 안 옮긴다 — 지표 **위에** 얹으므로 공유한 시드 링크가 그대로 열리고
+  // 옛 저장도 그대로다. **별도 난수 줄기**를 쓴다 (기존 rng 를 이어 쓰면 모든 땅이 달라진다)
+  if (!S.noBoulders) buildBoulders(makeRng(S.worldSeed + 48151));
 
+  // 어귀와 갱도는 **노두 뒤**다 — 앞에 두면 노두가 굴 입구를 덮어
+  // 걸어서 드나들 수가 없다 (v105 에서 시험이 잡았다)
+  if (DEEP && !S.noMouths) openCaveMouths(makeRng(S.worldSeed + 24680));
   if (DEEP && !S.noMines) buildMines(makeRng(S.worldSeed + 31337));
+
+  // 어귀·갱도가 밑동을 뚫어 **공중에 뜬 노두**를 걷는다 (v105).
+  // 노두는 그 둘보다 먼저 서야 어귀가 바위를 뚫고 나오는데(안 그러면 입구를 덮는다),
+  // 그러면 이번엔 굴이 바위 밑을 파낸다. 놓은 칸을 기억해 두었다가 **위에서 아래로**
+  // 훑어 받침 없는 것을 걷는다
+  if (boulderCells.length) {
+    // **아래에서 위로** 훑는다 — 밑동이 걷히면 그 위도 줄줄이 걷혀야 한다.
+    // 위부터 보면 그때는 아래가 아직 있어서 한 겹밖에 안 걷힌다
+    // (맨 마지막 크로스 걷어내기가 같은 이유로 아래에서 위로 돈다)
+    boulderCells.sort(function (a, b) { return a - b; });
+    for (var bi2 = 0; bi2 < boulderCells.length; bi2++) {
+      var bc2 = boulderCells[bi2];
+      var by2 = (bc2 / PLANE) | 0, brem = bc2 - by2 * PLANE;
+      var bz2 = (brem / WX) | 0, bx2 = brem - bz2 * WX;
+      if (world[bc2] !== STONE && world[bc2] !== COBBLE) continue;
+      if (by2 < 1) continue;
+      if (!isSolid(world[idx(bx2, by2 - 1, bz2)])) set(bx2, by2, bz2, AIR);
+    }
+    boulderCells.length = 0;
+  }
 
   // ── 받침을 잃은 풀·꽃·덤불·횃불을 걷어낸다. **생성기의 맨 마지막이어야 한다.**
   // 앞에 두면 그 뒤에 오는 것이 받침을 도로 빼 간다 —
@@ -947,6 +975,87 @@ function endRoom(rng, x0, y, z0, axis, len) {
 }
 
 // 버려진 오두막 — 크기·재료·지붕·창·안에 놓인 것을 뽑아 채마다 다르게 짓는다.
+// 바위 노두 하나 — 타원 덩어리를 지표 위에 얹는다 (v105)
+export var BOULDER_MIN = 12, BOULDER_MAX = 20;
+export var boulderCells = [];
+function buildBoulders(rng) {
+  boulderCells.length = 0;
+  var want = BOULDER_MIN + ((rng() * (BOULDER_MAX - BOULDER_MIN + 1)) | 0);
+  var made = 0;
+  // 큰 봉우리는 **섬에서 가장 높은 뭍**에 세운다 — 낮은 자리에 세우면 실루엣이 안 산다.
+  // 후보를 여럿 뽑아 그중 가장 높은 곳을 쓴다 (heightMap 전체를 훑을 이유는 없다)
+  var peakX = -1, peakZ = -1, peakH = -1;
+  for (var pk = 0; pk < 140; pk++) {
+    var px3 = 8 + ((rng() * (WX - 16)) | 0), pz3 = 8 + ((rng() * (WZ - 16)) | 0);
+    var qdx = px3 - WX / 2, qdz = pz3 - WZ / 2;
+    if (qdx * qdx + qdz * qdz < 18 * 18) continue;       // 스폰 둘레는 비운다
+    var ph3 = heightMap[pz3 * WX + px3];
+    if (ph3 <= SEA + 2 || ph3 > peakH) { if (ph3 > peakH && ph3 > SEA + 2) { peakH = ph3; peakX = px3; peakZ = pz3; } }
+  }
+  for (var t = 0; t < want * 14 && made < want; t++) {
+    var bx = 6 + ((rng() * (WX - 12)) | 0), bz = 6 + ((rng() * (WZ - 12)) | 0);
+    if (made === 0 && peakX >= 0) { bx = peakX; bz = peakZ; }
+    // 스폰 자리를 비켜 준다 (v105) — spawn() 이 세계 한가운데에서 나선으로 찾으므로,
+    // 그 둘레에 바위를 세우면 **코앞이 벽인 채로 시작**한다 (v91 이 고친 그 장면이다)
+    var cdx = bx - WX / 2, cdz = bz - WZ / 2;
+    if (cdx * cdx + cdz * cdz < 18 * 18) continue;
+    var base = heightMap[bz * WX + bx];
+    if (base <= SEA + 1) continue;                       // 바다·물가는 건너뛴다
+    var surf = world[idx(bx, base, bz)];
+    if (surf !== GRASS && surf !== DIRT && surf !== SAND && surf !== SNOW && surf !== STONE) continue;
+    // **세계마다 큰 봉우리 하나** — 실루엣에 세로를 주는 것은 결국 그 하나다.
+    // 나머지는 3~5칸짜리 바위, 그중 가끔 6~8칸. 전부 같은 크기면 다시 팬케이크다
+    var first = made === 0;
+    var tall = rng() < 0.22;
+    var h = first ? (11 + ((rng() * 6) | 0))
+                  : (tall ? 6 + ((rng() * 3) | 0) : 3 + ((rng() * 3) | 0));
+    var rx = first ? (3.0 + rng() * 1.6) : (1.6 + rng() * 1.8);
+    var rz = first ? (3.0 + rng() * 1.6) : (1.6 + rng() * 1.8);
+    var span = first ? 5 : 3;
+    if (base + h + 2 >= WY) continue;
+    // 자리가 평평해야 덩어리가 공중에 안 뜬다
+    var flat = true;
+    var fr = made === 0 ? 3 : 2;
+    for (var qx = -fr; qx <= fr && flat; qx++)
+      for (var qz = -fr; qz <= fr; qz++) {
+        var hx2 = bx + qx, hz2 = bz + qz;
+        if (hx2 < 0 || hx2 >= WX || hz2 < 0 || hz2 >= WZ) { flat = false; break; }
+        if (Math.abs(heightMap[hz2 * WX + hx2] - base) > (made === 0 ? 3 : 2)) { flat = false; break; }
+      }
+    if (!flat) continue;
+    // 설원은 돌, 사막은 사암 대신 조약돌 — 지금 팔레트로는 돌·조약돌 둘뿐이다
+    var rock = rng() < 0.62 ? STONE : COBBLE;
+    // **기둥 단위로** 아래부터 쌓는다 — 층 단위로 돌면서 가장자리를 뜯으면
+    // 아래를 건너뛰고 위를 놓아 **공중에 뜬 돌**이 생긴다 (v105 에서 실제로 그랬다).
+    // 높이는 가운데가 높고 가장자리가 낮다 — 기둥이 아니라 바위로 보이게
+    for (var dx = -span; dx <= span; dx++)
+      for (var dz = -span; dz <= span; dz++) {
+        var nx2 = bx + dx, nz2 = bz + dz;
+        if (nx2 < 1 || nx2 >= WX - 1 || nz2 < 1 || nz2 >= WZ - 1) continue;
+        var e = (dx * dx) / (rx * rx) + (dz * dz) / (rz * rz);
+        if (e > 1) continue;
+        var colH = Math.round(h * (1 - e * 0.72));
+        if (e > 0.55 && rng() < 0.45) colH -= 1 + ((rng() * 2) | 0);   // 가장자리를 뜯는다
+        if (colH < 1) continue;
+        // 그 칸의 **제 지표**에서 쌓는다 — 중심 높이만 쓰면 비탈에서 뜬다
+        var g2 = heightMap[nz2 * WX + nx2];
+        if (g2 <= SEA) continue;
+        // 밑칸이 단단해야 얹는다 — 풀·물·동굴 입구 위에 쌓으면 그 받침이
+        // 나중에(맨 마지막 크로스 걷어내기·물 채우기) 사라져 돌이 공중에 뜬다
+        if (!isSolid(world[idx(nx2, g2, nz2)])) continue;
+        for (var dy = 0; dy < colH; dy++) {
+          var py2 = g2 + 1 + dy;
+          if (py2 >= WY - 1) break;
+          if (world[idx(nx2, py2, nz2)] !== AIR) break;   // 막히면 그 기둥은 거기까지
+          set(nx2, py2, nz2, rock);
+          boulderCells.push(idx(nx2, py2, nz2));
+        }
+      }
+    made++;
+  }
+  return made;
+}
+
 function buildHuts(rng) {
   var tries = 40;
   for (var ht = 0; ht < tries; ht++) {

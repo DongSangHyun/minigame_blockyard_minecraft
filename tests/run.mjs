@@ -12309,6 +12309,61 @@ test("v104 물: 세계 끝에서 색이 안 갈리고, 물속에서 하늘이 �
      "바깥 바다 밑색이 물 타일 평균과 다르다 — 세계 끝에서 색이 갈린다");
 });
 
+test("v105 바위 노두: 섬에 세로가 생기고, 지형은 한 칸도 안 움직인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const peaks = [], floats = [];
+    let sameHeight = true, sameBiome = true;
+    function countFloating() {
+      let n = 0;
+      for (let z = 1; z < B.WZ - 1; z++)
+        for (let x = 1; x < B.WX - 1; x++) {
+          const t = B.topMap[z * B.WX + x];
+          if (t <= B.SEA + 1) continue;
+          const b = B.world[B.idx(x, t, z)];
+          if (b !== B.B.STONE && b !== B.B.COBBLE) continue;
+          if (B.get(x, t - 1, z) === B.B.AIR) n++;
+        }
+      return n;
+    }
+    for (const seed of [1, 7, 42, 100, 333, 777, 2024]) {
+      // (1) 노두 없이 한 번 — 지형을 기억해 둔다
+      B.S.noBoulders = true;
+      B.generate(seed, 2); B.refreshAllTops();
+      const hm = Float32Array.from(B.heightMap);
+      const bm = Uint8Array.from(B.biomeMap);
+      const floatBefore = countFloating();
+      // (2) 노두를 켜고 같은 시드로 — heightMap·biomeMap 이 한 칸도 달라지면 안 된다
+      B.S.noBoulders = false;
+      B.generate(seed, 2); B.refreshAllTops();
+      for (let i = 0; i < hm.length; i++) {
+        if (hm[i] !== B.heightMap[i]) { sameHeight = false; break; }
+        if (bm[i] !== B.biomeMap[i]) { sameBiome = false; break; }
+      }
+      let top = 0;
+      for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++) {
+        const t = B.topMap[z * B.WX + x];
+        if (t > top) top = t;
+      }
+      peaks.push(top - B.SEA);
+      // (3) 노두가 **추가로** 띄운 돌이 있으면 안 된다.
+      // 오두막 지붕처럼 원래 떠 있는 것이 있으니 차이를 본다
+      floats.push(countFloating() - floatBefore);
+    }
+    B.S.noBoulders = false;
+    return { peaks, floats, sameHeight, sameBiome };
+  });
+  eq(r.sameHeight, true,
+     "노두를 켰더니 heightMap 이 달라졌다 — 공유한 시드 링크와 옛 저장이 어긋난다");
+  eq(r.sameBiome, true, "노두를 켰더니 바이옴이 달라졌다");
+  const low = Math.min.apply(null, r.peaks);
+  assert(low >= 12,
+     "가장 낮은 시드의 최고봉이 해발 " + low + "칸이다 — 섬이 여전히 팬케이크다 (" + r.peaks.join(",") + ")");
+  assert(Math.max.apply(null, r.floats) <= 0,
+     "노두가 공중에 뜬 돌을 늘렸다: " + r.floats.join(","));
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
