@@ -4,7 +4,7 @@ import { Q } from "./queues.js";
 import { opts } from "./settings.js";
 import { encodeArrB64, decodeArrB64, SLOTS } from "./save.js";
 import { SEA, DIRS, WX, WY, WZ, idx, inside } from "./dims.js";
-import { isCarpet, ITEMS, POT, FRAME, FENCE, GLASS, PLANKS, BRICK, isSapling, SH_STAIR_N, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
+import { isCarpet, ITEMS, POT, FRAME, FENCE, GLASS, PLANKS, BRICK, isSapling, SH_STAIR_N, SH_STAIR_E, SH_STAIR_S, SH_STAIR_W, SH_STAIR_NU, LAMP, FLOWER_R, FLOWER_Y, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
 import { markX, markY, markZ, markName, topMap, refreshAllTops, touched, get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightAll, relightLocal } from "./light.js";
 import { enqueueGrow, enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
@@ -214,6 +214,26 @@ function trimHistory() {
   while (S.history.length > 1 && cells > HISTORY_CELLS_MAX) cells -= entryCells(S.history.shift());
 }
 
+// 놓은 것을 센다 (v97) — 예전에는 이 셈이 **우클릭 한 경로에만** 있어서,
+// 영역 채우기·붙여넣기·청사진·/fill·/clone 으로 3,633칸을 지어도
+// stats.placed 0 · placedKinds 0/75 · 램프 과제 0 이었다.
+// 이 게임이 "마크보다 나은 부분" 이라고 적어 둔 도구를 쓸수록 게임이 나를 안 본 것으로 쳤다
+export function notePlaced(b, sh, n) {
+  if (b === AIR) return;
+  stats.placed += n;
+  unlock("firstPlace");
+  if (stats.placed >= 100) unlock("place100");
+  if (b === LAMP) { S.lampsPlaced += n; if (S.lampsPlaced >= 10) unlock("lamp10"); }
+  if (b === TORCH) { S.torchesPlaced += n; if (S.torchesPlaced >= 10) unlock("torch10"); }
+  if (b === FLOWER_R || b === FLOWER_Y) unlock("flower");
+  if (sh === SH_STAIR_N || sh === SH_STAIR_E || sh === SH_STAIR_S || sh === SH_STAIR_W ||
+      sh >= SH_STAIR_NU) unlock("stair");
+  S.placedKinds[b] = 1;
+  var allKinds = true;
+  for (var ak = 0; ak < ALL_BLOCKS.length; ak++) if (!S.placedKinds[ALL_BLOCKS[ak]]) allKinds = false;
+  if (allKinds) unlock("collector");
+}
+
 export function endBatch(label) {
   var b = S.batch;
   var cells = S.batchCells;
@@ -231,6 +251,22 @@ export function endBatch(label) {
                      Q.lavaHead < Q.lavaQ.length || Q.lavaDryHead < Q.lavaDryQ.length;
   S.fluidOwner = fluidPending ? b : null;
   if (b.n >= 100) unlock("build100");
+  // 영역 도구로 지은 것도 통계·과제에 싣는다 (v97).
+  // 같은 종류는 한 번만 세지 않고 칸수만큼 센다 — 램프 열 개를 영역으로 깔아도
+  // 「등대지기」가 열려야 한다. 종류별로 모아 불러 unlock 검사를 덜 돌린다
+  if (b.n) {
+    var byKind = {}, ki;
+    for (ki = 0; ki < b.n; ki++) {
+      var tb = b.to[ki];
+      if (tb === AIR) continue;
+      var kk = tb * 32 + (b.toSh[ki] | 0);
+      byKind[kk] = (byKind[kk] || 0) + 1;
+    }
+    for (var kv in byKind) {
+      if (!byKind.hasOwnProperty(kv)) continue;
+      notePlaced(Math.floor(kv / 32), kv % 32, byKind[kv]);
+    }
+  }
   trimHistory();
   S.future.length = 0;
   return b.n;
@@ -296,7 +332,11 @@ export function undo() {
   if (e.batch) {
     var big = e.batch.n > BATCH_RELIGHT_ALL;
     for (var i = e.batch.n - 1; i >= 0; i--) applyCellAt(e.batch, i, false, big);
-    if (big) settleWorld();
+    // **고친 자리만** 다시 굽는다 (v97). 예전에는 400칸이 넘는 묶음이면
+    // 어떤 되돌리기든 세계 144청크를 통째로 구웠다 — 441칸을 되돌리는 데
+    // 9청크면 될 것을 144청크 굽고, 2,400칸 집을 되돌리면 최악 프레임이 49.8ms 로 튀었다.
+    // endBatch 는 이미 목록을 넘겨 9청크로 끝내고 있었다 — 정답이 옆줄에 있었다
+    if (big) settleWorld(e.batch);
   }
   else applyCell(e, false);
   S.future.push(e);
@@ -310,7 +350,7 @@ export function redo() {
   if (e.batch) {
     var big2 = e.batch.n > BATCH_RELIGHT_ALL;
     for (var i = 0; i < e.batch.n; i++) applyCellAt(e.batch, i, true, big2);
-    if (big2) settleWorld();
+    if (big2) settleWorld(e.batch);   // 다시하기도 고친 자리만 (v97)
   }
   else applyCell(e, true);
   S.history.push(e);
@@ -449,7 +489,9 @@ export function checkBuildAchievements() {
       }
       // 다리는 가로로 잰다 — 이 기둥의 해수면 위 첫 사람 블록이 물 위에 떠 있는가
       var over = false;
-      for (y = SEA + 2; y < WY - 1 && !over; y++) {
+      // SEA + 1 부터 본다 (v97) — 바다를 건너는 다리는 **수면 바로 위 한 칸**에 놓는다.
+      // 아무도 2칸을 띄우지 않는데 그 한 칸 때문에 가장 자연스러운 다리가 안 세졌다
+      for (y = SEA + 1; y < WY - 1 && !over; y++) {
         i = idx(x, y, z);
         if (touched[i] !== 1 || world[i] === AIR) continue;
         // 아래로 훑어 바닥이 물이면 물 위에 놓인 것이다
@@ -507,6 +549,8 @@ function checkRoom(x0, x1, z0, z1) {
       }
 }
 // 밖으로 새지 않으면 칸 수를, 새면 0 을 돌려준다
+// 「내 집」이 방으로 인정하는 최대 칸수 (v97) — 20×20×4 집이 1,296칸이다
+export var ROOM_MAX = 6000;
 function floodEnclosed(sx, sy, sz) {
   var seen = {}, stack = [[sx, sy, sz]], n = 0;
   while (stack.length) {
@@ -521,7 +565,10 @@ function floodEnclosed(sx, sy, sz) {
     // "야외" 로 오판됐다 — 창문 달린 집이 집이다.
     if (topMap[cz * WX + cx] <= cy) return 0;          // 위에 아무것도 없으면 야외다
     seen[key] = 1;
-    if (++n > 600) return 0;                           // 너무 크면 방이 아니라 동굴이다
+    // 상한 600 은 **천장 3칸짜리 15×15 집이 이미 넘는 값**이었다 (v97).
+    // 영역 도구로 20×20 집(1,296칸)을 지은 사람이 정확히 그 이유로 과제를 못 땄다 —
+    // 작게 지어야 상을 받는 셈이었다. "동굴이 아니다" 는 위의 topMap 검사가 이미 가린다
+    if (++n > ROOM_MAX) return 0;
     for (var d = 0; d < 6; d++)
       stack.push([cx + DIRS[d][0], cy + DIRS[d][1], cz + DIRS[d][2]]);
   }
@@ -704,10 +751,14 @@ export function rotateClip() {
   return true;
 }
 
-export function pasteClip(px, py, pz) {
+// withAir 면 빈칸까지 붙여넣는다 (v97) — 속을 비운 집을 언덕에 붙여넣으면
+// 안쪽 192칸 중 137칸이 흙으로 남아 **들어갈 수 없는 집**이 생겼다.
+// 대칭 건물을 짓는 길이 복사 → 거울 → 붙여넣기인데, 목적지가 평지가 아니면
+// 그 순간 속이 찬 덩어리가 됐다. 월드에디트도 **빈칸까지가 기본**이다.
+export function pasteClip(px, py, pz, withAir) {
   var c = S.clip;
   if (!c) return 0;
-  beginBatch();
+  beginBatch(Math.max(1024, c.w * c.h * c.d));
   var n = 0;
   for (var y = 0; y < c.h; y++)
     for (var z = 0; z < c.d; z++)
@@ -715,7 +766,7 @@ export function pasteClip(px, py, pz) {
         var b = c.blocks[n], sh = c.shapes[n];
         var lv = c.levels ? c.levels[n] : 0;
         n++;
-        if (b === AIR) continue;                 // 빈칸은 덮어쓰지 않는다
+        if (b === AIR && !withAir) continue;     // 기본은 빈칸을 안 덮는다
         if (!applyEdit(px + x, py + y, pz + z, b, true, sh)) continue;
         // 흐르던 물은 붙여넣어도 흐르는 물이어야 한다 (applyEdit 은 손으로 놓은 물을 근원으로 본다)
         if ((b === WATER || b === LAVA) && lv > 0) {
@@ -957,15 +1008,18 @@ export function runCommand(line) {
     var cn = copySelection();
     if (cn < 0) { S.clip = keepClip; return "영역이 너무 큽니다"; }
     if (!cn) { S.clip = keepClip; return "영역이 비어 있습니다"; }
-    var done = 0;
+    var done = 0, didTimes = 0;
     for (var ci = 1; ci <= times; ci++) {
       var pn2 = pasteClip(bb.x0 + ox * ci, bb.y0 + oy * ci, bb.z0 + oz * ci);
       if (!pn2) break;
-      done += pn2;
+      done += pn2; didTimes++;
     }
     S.clip = keepClip;
     if (!done) return "붙여넣지 못했습니다";
-    return done.toLocaleString("ko-KR") + "칸을 " + times + "번 복제했습니다";
+    // **실제로 한 횟수**를 돌려준다 (v97) — 천장에 걸려 조용히 실패한 판까지
+    // "12번 했다" 고 말해, /undo 12 를 치면 앞의 편집까지 딸려 갔다
+    return done.toLocaleString("ko-KR") + "칸을 " + didTimes + "번 복제했습니다" +
+           (didTimes < times ? " (" + times + "번 중 — 자리가 모자랍니다)" : "");
   }
 
   if (cmd === "seed") return "SEED " + S.worldSeed;
@@ -980,6 +1034,16 @@ export function loadBlueprints() {
   try { return JSON.parse(localStorage.getItem(BP_KEY) || "{}"); } catch (e) { return {}; }
 }
 export function saveBlueprint(name) {
+  // 같은 이름이 있으면 되묻는다 (v97) — 지우기 단추에는 confirm 이 붙어 있는데
+  // **덮어쓰기가 곧 삭제**인 이 쪽만 무방비였다. 청사진은 건축 설계가
+  // 세션을 넘어 남는 유일한 곳이라, 이름 한 번 잘못 치면 복구가 없다
+  var existing = blueprintNames();
+  if (existing.indexOf(name) >= 0) {
+    var ok2 = true;
+    try { ok2 = window.confirm("청사진 \"" + name + "\" 이 이미 있습니다. 덮어쓸까요?"); }
+    catch (e2) { ok2 = true; }
+    if (!ok2) return false;
+  }
   if (!S.clip) return "복사한 것이 없습니다";
   if (!name) return "이름을 적어 주세요";
   var all = loadBlueprints();

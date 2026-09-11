@@ -52,12 +52,14 @@ export function applyOpts() {
 // 폰 160% 부터는 **미니맵이 조준선을 삼켰다**(844×390 에서 지도가 화면 정중앙으로 내려온다).
 // 「화면 표시 크기」는 글자가 작다는 사람이 먼저 만지는 손잡이인데, 끝까지 올리면
 // 조준을 못 하게 됐다 — v93 이 터치 단추에서 고친 것과 같은 모양이다.
-export var UI_MIN_H = 470;      // 이 높이(px)면 100% 가 겨우 들어간다
+// 상한의 기준 높이 — 390px(가로 폰)에서 1.30, 640px 창에서 2.13 이 된다.
+// v96 이 470 으로 잡았더니 **폰 기본값 110% 가 100% 로 깎였다**(390/470 = 0.83 → 1.00).
+// HUD 를 키우려고 만든 슬라이더가 폰에서 오히려 작게 만들면 안 된다 (v97).
+export var UI_MIN_H = 300;
 export function applyUi() {
   var want = (opts.ui || 100) / 100;
   var h = window.innerHeight || 800;
-  // 화면이 낮을수록 상한을 죈다 — 844×390 가로 폰에서 1.2, 800px 창에서 1.7
-  var cap = Math.max(1, h / UI_MIN_H);
+  var cap = Math.max(1.1, h / UI_MIN_H);
   document.documentElement.style.setProperty("--ui", Math.min(want, cap).toFixed(2));
 }
 

@@ -3,12 +3,12 @@ import { S } from "./state.js";
 import { MOB_MAX, aimingAtMob, feedNearbyMob, mobOccupies } from "./mobs.js";
 import { primeTNT, ignite } from "./fluids.js";
 import { WY, idx, inside } from "./dims.js";
-import { BUCKET, FRAME, FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, ALL_BLOCKS, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, LAMP, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_NU, SH_STAIR_S, SH_STAIR_W, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
+import { BUCKET, FRAME, FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
 import { get, shape } from "./world.js";
 import { burst } from "./scene.js";
 import { BODY, HALF, currentShape, player, raycast, stats } from "./player.js";
 import { breakSound, crunch, placeSound, tone } from "./audio.js";
-import { applyEdit, beginBatch, endBatch, unlock } from "./edit.js";
+import { notePlaced, applyEdit, beginBatch, endBatch, unlock } from "./edit.js";
 import { noteBlockUse, refreshSlot, toast } from "./hud.js";
 import { triggerSwing, updateHandBlock } from "./hand.js";
 import { advanceTut, advanceTutTouch } from "./input.js";
@@ -266,20 +266,10 @@ export function place(repeating) {
     if (!put) return;
   } else
   if (!applyEdit(px, py, pz, b, true, sh)) return;
-  stats.placed++;
-  unlock("firstPlace");
+  notePlaced(b, sh, 1);
   advanceTut(1);
-  if (stats.placed >= 100) unlock("place100");
-  if (b === LAMP && ++S.lampsPlaced >= 10) unlock("lamp10");
-  if (b === TORCH) { advanceTut(4); if (++S.torchesPlaced >= 10) unlock("torch10"); }
-  if (b === FLOWER_R || b === FLOWER_Y) unlock("flower");
-  if (sh === SH_STAIR_N || sh === SH_STAIR_E || sh === SH_STAIR_S || sh === SH_STAIR_W ||
-      sh >= SH_STAIR_NU) unlock("stair");
-  S.placedKinds[b] = 1;
+  if (b === TORCH) advanceTut(4);
   noteBlockUse(b);
-  var allKinds = true;
-  for (var ak = 0; ak < ALL_BLOCKS.length; ak++) if (!S.placedKinds[ALL_BLOCKS[ak]]) allKinds = false;
-  if (allKinds) unlock("collector");
   burst(px, py, pz, b, 5);
   placeSound(b);
   triggerSwing();

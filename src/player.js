@@ -17,10 +17,15 @@ export var stats = { placed: 0, mined: 0 };
 export function currentShape(upper) {
   if (S.shapeMode === 1) return upper ? SH_SLAB_UP : SH_SLAB;
   if (S.shapeMode === 2) {
+    // 높은 등이 **내 반대쪽**에 서야 한다 (v97).
+    // v96 까지는 반대여서, 게임이 시키는 대로 앞을 보며 한 칸씩 놓으면
+    // 턱이 1.0칸이 되어(STEP_UP 은 0.6) **내가 놓은 계단을 걸어서 못 올라갔다.**
+    // 마크도 낮은 단이 나를 향하고 등이 반대쪽에 선다 — 벽에 붙이면 등이 벽에 닿는다.
+    // (이미 놓인 계단은 모양이 저장되어 있어 그대로다. 새로 놓는 것만 바뀐다.)
     var fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
     var base;
-    if (Math.abs(fx) > Math.abs(fz)) base = fx > 0 ? SH_STAIR_W : SH_STAIR_E;
-    else base = fz > 0 ? SH_STAIR_N : SH_STAIR_S;
+    if (Math.abs(fx) > Math.abs(fz)) base = fx > 0 ? SH_STAIR_E : SH_STAIR_W;
+    else base = fz > 0 ? SH_STAIR_S : SH_STAIR_N;
     return upper ? base + SH_UP_OFF : base;
   }
   return SH_FULL;

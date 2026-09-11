@@ -1166,11 +1166,12 @@ test("v8 모양: 물·풀·횃불에는 반블록/계단 모양이 붙지 않는
     }
     B.refreshAllTops();
     B.setShapeMode(1);                       // 반블록 모드
+    B.beginPlay();
+    // beginPlay 가 저장된 자리·시점을 되살린다 — 자리는 그 뒤에 못 박는다 (v92 교훈)
     B.player.pos.set(x + 0.5, y, z + 0.5);
     B.player.yaw = 0; B.player.pitch = 1.2;  // 발밑을 본다
     B.camera.position.set(x + 0.5, y + 0.3, z + 0.5);
     B.camera.rotation.set(-1.2, 0, 0);
-    B.beginPlay();
     B.getBar()[B.getSelected()] = B.B.WATER;
     B.place();
     const out = {};
@@ -6843,7 +6844,8 @@ test("v66 계단: 놓기 전 미리보기도 모서리로 보인다", async (pag
     B.S.shapeMode = 2;                          // 계단 모드
     // 계단 방향은 시선이 정한다 — 안 세우면 어느 쪽이 "높은 쪽" 인지 모른 채 시험한다.
     // 높은 쪽이 -Z(SH_STAIR_N) 가 되게 돌려 놓고, 그렇게 됐는지 못 박는다.
-    B.player.yaw = Math.PI;
+    // v97 부터 **높은 등은 시선 반대쪽**이다 — -Z 를 높이려면 -Z 를 본다
+    B.player.yaw = 0;
     const ghostShape = B.currentShape(false);
 
     const alone = ghostTris();                  // 상자 2개 = 24
@@ -11599,6 +11601,109 @@ test("v96 가문비 원목 · 담긴 양동이가 세계를 안 따라온다", a
   eq(r.isLogToo, true, "isLog 가 가문비 원목을 안 잡는다 — 잎 부패·축 회전이 안 먹는다");
   assert(new Set(r.inks).size === 3, "원목 셋의 옆면 그림이 겹친다: " + r.inks.join(","));
   eq(r.carried, 0, "슬롯을 갈아탔는데 담긴 양동이가 따라왔다 — 세계 A 의 용암이 B 로 온다");
+});
+
+test("v97 계단: 앞을 보며 놓은 계단을 걸어서 올라간다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 34, Y = 40, Z = 34;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -2; dz <= 14; dz++) {
+      for (let dy = 0; dy <= 10; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.flying = false;
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    B.player.vel.set(0, 0, 0);
+    B.player.yaw = Math.PI;            // +Z 를 본다 (앞으로 걸어갈 쪽)
+    B.player.pitch = 0;
+    B.S.shapeMode = 2;                 // 계단 모드
+
+    // 게임이 주는 모양 그대로, 앞으로 가며 한 칸씩 올려 다섯 단을 놓는다
+    const sh = B.currentShape(false);
+    for (let k = 0; k < 5; k++) {
+      B.applyEdit(X, Y + k, Z + 1 + k, B.B.STONE, false, sh);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+
+    // 점프 없이 걸어 올라간다
+    const startY = B.player.pos.y;
+    // 다섯 단을 다 오르면 계단이 끝나고 평지로 떨어진다 — **가장 높이 올라간 곳**을 잰다
+    let peak = startY;
+    for (let k = 0; k < 300; k++) {
+      B.moveHorizontal(0, 0.035);
+      B.step(1 / 60);
+      if (B.player.pos.y > peak) peak = B.player.pos.y;
+    }
+    const gained = peak - startY;
+    const walkedZ = B.player.pos.z - (Z + 0.5);
+
+    B.S.shapeMode = 0;
+    B.player.pos.set(48.5, 40, 48.5); B.player.vel.set(0, 0, 0);
+    B.endPlay(); B.setPaused(false);
+    return { sh, gained, walkedZ, N: B.SH.N, S: B.SH.S };
+  });
+  eq(r.sh, r.S, "+Z 를 보고 놓은 계단의 높은 등이 내 쪽이다 — 턱이 1칸이 되어 못 오른다");
+  assert(r.gained > 3.5,
+     "다섯 단을 놓고 걸었는데 " + r.gained.toFixed(2) + "칸만 올라갔다 (앞으로 " +
+     r.walkedZ.toFixed(2) + "칸) — 계단이 뒤를 보고 놓인다");
+  assert(r.walkedZ > 4, "계단 앞에서 " + r.walkedZ.toFixed(2) + "칸 만에 멈춰 섰다");
+});
+
+test("v97 영역 도구: 지은 것이 통계·과제에 실리고, 빈칸까지 옮긴다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 76, Y = 40, Z = 12;
+    for (let dx = -2; dx <= 14; dx++) for (let dz = -2; dz <= 14; dz++)
+      for (let dy = -1; dy <= 10; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.pos.set(X - 6, Y + 2, Z - 6);
+
+    // (1) 영역 채우기가 통계·과제에 실리나 — 예전에는 3,633칸을 지어도 placed 0 이었다
+    const before = B.stats.placed;
+    const lampBefore = B.S.lampsPlaced;
+    B.S.earned = {};
+    B.beginBatch(4096);
+    for (let dx = 0; dx < 4; dx++) for (let dz = 0; dz < 4; dz++)
+      B.applyEdit(X + dx, Y, Z + dz, B.B.LAMP, true, 0);
+    B.endBatch("시험 채우기");
+    const placed = B.stats.placed - before;
+    const lamps = B.S.lampsPlaced - lampBefore;
+    const lampAch = !!B.S.earned.lamp10;
+
+    // (2) 빈칸까지 붙여넣기 — 속을 비운 상자를 흙 위로 옮긴다
+    for (let dx = 0; dx < 3; dx++) for (let dz = 0; dz < 3; dz++)
+      for (let dy = 0; dy < 3; dy++) {
+        const edge = (dx === 0 || dx === 2 || dz === 0 || dz === 2 || dy === 0 || dy === 2);
+        B.applyEdit(X + dx, Y + 4 + dy, Z + dx * 0 + dz, edge ? B.B.STONE : B.B.AIR, false, 0);
+      }
+    B.S.selA = [X, Y + 4, Z]; B.S.selB = [X + 2, Y + 6, Z + 2];
+    B.copySelection();
+    // 목적지를 흙으로 꽉 채워 둔다
+    const PX = X + 8, PY = Y + 4, PZ = Z + 8;
+    for (let dx = 0; dx < 3; dx++) for (let dz = 0; dz < 3; dz++)
+      for (let dy = 0; dy < 3; dy++) B.applyEdit(PX + dx, PY + dy, PZ + dz, B.B.DIRT, false, 0);
+    B.pasteClip(PX, PY, PZ, true);
+    const inside = B.get(PX + 1, PY + 1, PZ + 1);
+
+    // 빈칸을 안 쓰는 기본 동작은 그대로여야 한다
+    const QX = X + 8, QY = Y + 4, QZ = Z;
+    for (let dx = 0; dx < 3; dx++) for (let dz = 0; dz < 3; dz++)
+      for (let dy = 0; dy < 3; dy++) B.applyEdit(QX + dx, QY + dy, QZ + dz, B.B.DIRT, false, 0);
+    B.pasteClip(QX, QY, QZ);
+    const insideDefault = B.get(QX + 1, QY + 1, QZ + 1);
+
+    B.S.selA = null; B.S.selB = null; B.S.clip = null;
+    B.endPlay(); B.setPaused(false);
+    return { placed, lamps, lampAch, inside, insideDefault, AIR: B.B.AIR, DIRT: B.B.DIRT };
+  });
+  eq(r.placed, 16, "영역으로 16칸을 놓았는데 통계가 " + r.placed + " 다");
+  eq(r.lamps, 16, "램프 16개를 깔았는데 카운터가 " + r.lamps + " 다");
+  eq(r.lampAch, true, "램프 16개를 깔았는데 「등대지기」가 안 열렸다");
+  eq(r.inside, r.AIR, "빈칸까지 붙여넣었는데 속이 안 비었다 — 들어갈 수 없는 집이 된다");
+  eq(r.insideDefault, r.DIRT, "기본 붙여넣기가 빈칸까지 덮었다 — 예전 동작이 바뀌면 안 된다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

@@ -614,6 +614,9 @@ export function refreshMenu() {
 }
 
 export function beginPlay() {
+  // 사진 모드로 들어간 채 일시정지 화면을 거쳐 돌아오면, 아래 showHud(true) 가
+  // HUD 를 통째로 되켜서 **사진 모드가 반만 켜진 상태**가 됐다 (v97).
+  // 설정 안의 「사진 모드」 단추가 유일한 폰 진입점이라 늘 이 길을 탄다
   if (S.active) return;
   if (!S.started) {
     S.started = true;
@@ -633,7 +636,7 @@ export function beginPlay() {
   }
   S.active = true;
   overlay.hidden = true;
-  showHud(true);
+  showHud(!S.photoMode && !S.hudHidden);
   refreshHint();
   canvas.style.cursor = S.lockMode ? "none" : "grab";
   refreshMenu();
@@ -1061,6 +1064,13 @@ window.addEventListener("keydown", function (e) {
       selectSlot(dn === 0 ? 9 : dn - 1);
       refreshBar();
     }
+    // 쪽 넘김도 산다 (v97) — 숫자키만 살려 두어서, 2쪽 열 칸을 채우려면
+    // E→고르고→E→Tab→E 를 반복해야 했다. 건축 팔레트는 **20칸을 한 번에** 짜는 일이다
+    if (e.code === "Tab") {
+      e.preventDefault();
+      swapBarPage();
+      refreshBar();
+    }
     return;
   }
 
@@ -1113,14 +1123,27 @@ window.addEventListener("keydown", function (e) {
       e.preventDefault();
       var hitV = raycast(6);
       if (!hitV) { toast("붙여넣을 자리를 조준하세요"); return; }
-      var pn = pasteClip(hitV.x + hitV.nx, hitV.y + hitV.ny, hitV.z + hitV.nz);
-      toast(pn ? pn.toLocaleString("ko-KR") + "칸을 붙여넣었습니다" : "복사한 것이 없습니다");
+      // Shift 를 같이 누르면 **빈칸까지** 붙여넣는다 (v97) — 속을 비운 집을 옮길 때
+      var withAir = e.shiftKey;
+      var pn = pasteClip(hitV.x + hitV.nx, hitV.y + hitV.ny, hitV.z + hitV.nz, withAir);
+      toast(pn ? (pn.toLocaleString("ko-KR") + "칸을 붙여넣었습니다" +
+                  (withAir ? " (빈칸까지)" : ""))
+               : "복사한 것이 없습니다");
       return;
     }
     if (e.code === "KeyD") {
       e.preventDefault();
+      // 영역이 이미 없으면 **복사한 것까지** 비운다 (v97).
+      // 한 번 Ctrl+C 하면 20×6×20 철사 상자가 조준선에 붙어 세션 내내 따라다녔고,
+      // 떼어 낼 길이 세계를 갈아타는 것뿐이었다 (프레임마다 raycast 도 한 번 더 돌았다)
+      if (!S.selA && !S.selB && S.clip) {
+        S.clip = null;
+        toast("복사한 것을 비웠습니다");
+        return;
+      }
       S.selA = S.selB = null;
-      toast("영역 선택 해제");
+      toast(S.clip ? "영역 선택 해제 — 한 번 더 누르면 복사한 것도 비웁니다"
+                   : "영역 선택 해제");
       return;
     }
     if (e.code === "KeyZ") {
@@ -1324,7 +1347,8 @@ var LOOK_SLOP = 8;
 // 그 위에서 손가락이 조금 흔들렸다고 시점까지 같이 돌면 둘 다 어그러진다.
 function ownsDrag(el) {
   for (var n = el; n; n = n.parentNode) {
-    if (n.id === "tbtns" || n.id === "hotbar" || n.id === "stickzone") return true;
+    if (n.id === "tbtns" || n.id === "hotbar" || n.id === "stickzone" ||
+        n.id === "photobar") return true;   // 사진 모드 미니 바도 임자가 있다 (v97)
   }
   return false;
 }

@@ -1,5 +1,6 @@
 // fluids.js — 물 흐름 · 낙하 블록 · 잎 부패
 import { S } from "./state.js";
+import { makeRng } from "./atlas.js";
 import { opts } from "./settings.js";
 import { Q } from "./queues.js";
 import { DIRS, N, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
@@ -759,13 +760,25 @@ export function growTick(dt) {
     var logB = (kind === 2) ? SPRUCE_LOG : (kind === 1 ? BIRCH_LOG : LOG);
     var leafB = (kind === 2) ? SPRUCE_LEAVES : (kind === 1 ? BIRCH_LEAVES : LEAVES);
     // 묘목 자리를 먼저 비운다 — 줄기 첫 칸이 여기 서야 한다
+    // **먼저 자랄 수 있는지만 본다** (v97) — 세계를 안 건드리는 예행이다.
+    // 묘목을 지우고 나서 실패하면 되돌리기 목록에 "묘목이 사라졌다" 만 남아,
+    // 되돌렸다 다시하면 심어 둔 묘목을 잃는다. 같은 씨앗을 두 번 써서
+    // 예행과 실제가 **똑같은 나무**를 그리게 한다 (줄기 길이가 난수다).
+    var seed = (Math.random() * 1000000000) | 0;
+    var dryOk = growTree(x, y - 1, z, kind, logB, leafB, makeRng(seed),
+                         function (bx, by, bz) {
+                           // 묘목 칸은 실제 실행에서 비워지므로 예행에서도 빈 것으로 본다
+                           return (bx === x && by === y && bz === z) ? AIR : get(bx, by, bz);
+                         },
+                         function () {}, AIR, WY);
+    if (!dryOk) { keep.push(i); continue; }      // 묘목은 그대로 남는다
+
     // 묘목 자리를 비우는 것도 **묶음 안에서** 기록한다 (v96).
     // 예전에는 이 한 줄이 묶음 밖에 있어(기록 false), 자란 나무를 Ctrl+Z 하면
     // 나무는 사라지는데 **묘목도 같이 사라졌다** — 심은 것을 잃는다.
-    // "되돌릴 수 없는 것은 없습니다"(v72)가 묘목 한 칸만큼 새고 있었다.
     beginBatch(64);
     applyEdit(x, y, z, AIR, true, SH_FULL);
-    var ok = growTree(x, y - 1, z, kind, logB, leafB, Math.random,
+    var ok = growTree(x, y - 1, z, kind, logB, leafB, makeRng(seed),
                       get, function (bx, by, bz, b) { applyEdit(bx, by, bz, b, true, SH_FULL); },
                       AIR, WY);
     endBatch("나무 자람");

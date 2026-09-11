@@ -252,9 +252,14 @@ export function strikeBolt(fx, fz) {
   var dcy = y0 - camera.position.y;
   var camD = Math.sqrt(dcx * dcx + dcy * dcy + dcz * dcz);
   var spread = Math.max(0.22, camD * 0.022);
+  // 벌리는 방향도 **카메라와 수직**이라야 한다 (v97) — 월드 고정 방향(1, 0.72)이면
+  // 볼트가 그 방향에 설 때 셋이 한 화면 열로 겹쳐, 고친 증상이 그대로 돌아온다
+  var perpX = 1, perpZ = 0;
+  var flat = Math.sqrt(dcx * dcx + dcz * dcz);
+  if (flat > 0.001) { perpX = -dcz / flat; perpZ = dcx / flat; }
   var w = 0;
   for (var sd = 0; sd < BOLT_STRANDS; sd++) {
-    var ox = (sd - 1) * spread, oz = (sd - 1) * spread * 0.72;
+    var ox = (sd - 1) * spread * perpX, oz = (sd - 1) * spread * perpZ;
     for (var k = 0; k < BOLT_SEG; k++) {
       boltArr[w++] = px[k] + ox;     boltArr[w++] = py[k];     boltArr[w++] = pz[k] + oz;
       boltArr[w++] = px[k + 1] + ox; boltArr[w++] = py[k + 1]; boltArr[w++] = pz[k + 1] + oz;
