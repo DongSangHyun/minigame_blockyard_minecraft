@@ -231,12 +231,18 @@
   #telemetry dd { margin: 0; color: var(--bone); font-weight: 500; }
   /* 기본은 좌표·시각·모양 세 줄만 — 나머지는 F3 으로 펼친다 */
   /* 2번째(시각)는 남긴다 — 하루 20분에 첫 밤이 10분 뒤라 시계 없이는 예고가 없다 */
+  /* 늘 켜져 있는 다섯 줄을 **처음 온 사람 기준**으로 골랐다 (v110).
+     예전에는 좌표·시각·밝기 15/15·모양 전체·FPS 였는데 —
+     「밝기」는 지하에 가야 뜻이 생기고, 「모양」은 G 를 누르기 전까지 뜻이 없고,
+     「FPS」는 개발자 숫자다. 정작 **방위**(96×96 섬에서 길 찾는 유일한 글자)와
+     **과제 n/40**(이 게임의 유일한 목표 장치)이 꺼져 있었다.
+     남기는 것: 좌표 · 방위 · 시각 · 모양 · 과제 */
   #telemetry.lean dt:nth-of-type(2), #telemetry.lean dd:nth-of-type(2),
-  #telemetry.lean dt:nth-of-type(4), #telemetry.lean dd:nth-of-type(4),
   #telemetry.lean dt:nth-of-type(5), #telemetry.lean dd:nth-of-type(5),
+  #telemetry.lean dt:nth-of-type(6), #telemetry.lean dd:nth-of-type(6),
   #telemetry.lean dt:nth-of-type(7), #telemetry.lean dd:nth-of-type(7),
   #telemetry.lean dt:nth-of-type(9), #telemetry.lean dd:nth-of-type(9),
-  #telemetry.lean dt:nth-of-type(10), #telemetry.lean dd:nth-of-type(10) { display: none; }
+  #telemetry.lean dt:nth-of-type(11), #telemetry.lean dd:nth-of-type(11) { display: none; }
   #telemetry dd b { color: var(--moss); font-weight: 500; }
 
   /* ---------- minimap ---------- */
@@ -932,8 +938,23 @@
         <dd><kbd>E</kbd> 블록 목록 · <kbd data-bind="pick">Q</kbd>/휠클릭 복사 · <kbd data-bind="shape">G</kbd> 반블록·계단</dd>
         <dd><kbd>Tab</kbd> 핫바 2쪽 · <kbd>1</kbd>–<kbd>0</kbd> 칸 고르기</dd>
         <dd><kbd>Ctrl</kbd>+<kbd>Z</kbd> 되돌리기 · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> 다시하기</dd>
+        <dd><b>양동이</b>(<kbd>Tab</kbd> 으로 핫바 2쪽에 있습니다)를 들고 <b>우클릭</b> —
+            물·용암을 <b>담고</b>, 담긴 양동이로 다시 우클릭하면 <b>붓습니다</b>
+            (근원을 걷으면 흘러 나간 것도 물러납니다 · <kbd>Ctrl</kbd>+<kbd>Z</kbd> 로 되돌아옵니다)</dd>
       </dl>
       <dl>
+        <!-- 처음 온 사람이 먼저 읽을 것을 앞에 둔다 (v110) — 예전에는 둘째 칸의
+             첫 항목이 「영역 도구」 였고 그 안에 /clone·/fill·/bp 가 들어 있었다.
+             블록을 열 개 놓아 본 사람이 읽을 글이 아니다. 1024×640 에서 40줄 중
+             15줄이 첫 화면 밖이라, 「세계」와 「화면」은 아예 안 보였다 -->
+        <dt>세계</dt><dd><kbd>T</kbd> 시간 · <kbd>K</kbd> 날씨 · <kbd>M</kbd> 소리 · <kbd>R</kbd>×2 새 세계</dd>
+        <dd><kbd>V</kbd> 시작 지점 · <kbd>B</kbd> 미니맵 표식(<kbd>Shift</kbd>+<kbd>B</kbd> 이름 붙여 찍기) · <kbd>[</kbd> <kbd>]</kbd> 미니맵 확대</dd>
+        <dd>지도 — <b style="color:#e89640">주황</b> 굴 어귀 · <b style="color:#e0c060">금색</b> 표식 ·
+            <b style="color:#5aa8e0">파랑</b> 시작 지점 · 땅속에서는 지금 층이 진하고 다른 층은 흐립니다</dd>
+        <dd>표식으로 돌아가려면 <kbd>/</kbd><b>tp 3</b> 또는 <kbd>/</kbd><b>tp 채석장</b> · <kbd>/</kbd><b>marks</b> 로 목록</dd>
+        <dd><kbd>ESC</kbd> 메뉴의 슬롯 옆 <b>✎</b> 로 세계에 이름을 붙입니다</dd>
+        <dt>화면</dt><dd><kbd>F1</kbd> HUD 숨기기 · <kbd>F2</kbd> 화면 저장 · <kbd>F3</kbd> 성능 · <kbd>F5</kbd> 3인칭 · <kbd>F6</kbd> 사진 모드</dd>
+        <dt>도움말</dt><dd><kbd data-bind="help">H</kbd> 로 열고 닫습니다 · <kbd>ESC</kbd> 메뉴</dd>
         <dt>영역 도구</dt>
         <dd><kbd>Alt</kbd>+좌클릭 시작 모서리 · <kbd>Alt</kbd>+우클릭 끝 모서리</dd>
         <dd><kbd>Ctrl</kbd>+<kbd>F</kbd> 채우기 · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> 비우기 · <kbd>Ctrl</kbd>+<kbd>C</kbd> 복사 · <kbd>Ctrl</kbd>+<kbd>V</kbd> 붙여넣기 · <kbd>Ctrl</kbd>+<kbd>R</kbd> 90° 회전 · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> 거울</dd>
@@ -943,8 +964,6 @@
         <dd><kbd>Alt</kbd>+클릭 영역 모서리는 <b>보이는 데까지</b> 찍힙니다</dd>
         <dd>복사한 것은 <kbd>/</kbd><b>bp save 이름</b> 으로 남깁니다 — <kbd>ESC</kbd> 메뉴의 <b>청사진</b> 에서 다시 꺼냅니다</dd>
         <dd><kbd>Ctrl</kbd>+<kbd>D</kbd> 선택 해제 — 대량 편집도 한 번에 되돌립니다</dd>
-        <dd><b>양동이</b>를 들고 <b>우클릭</b> — 물·용암을 <b>담고</b>, 담긴 양동이로 다시 우클릭하면 <b>붓습니다</b>
-            (근원을 걷으면 흘러 나간 것도 물러납니다 · <kbd>Ctrl</kbd>+<kbd>Z</kbd> 로 되돌아옵니다)</dd>
         <dt>동물</dt>
         <dd>꽃이나 <b>키큰풀</b>을 들고 동물에게 <b>우클릭</b> — 잠시 따라옵니다</dd>
         <dd>같은 종 두 마리에게 20초 안에 먹이를 주고 <b>3칸</b> 안에 모아 두면 새끼가 납니다</dd>
@@ -955,14 +974,6 @@
         <dd><b>묘목은 세 종류</b>입니다 — 참나무·자작나무·가문비. <b>심은 대로 자랍니다</b>
             (초원에도 가문비를 심을 수 있습니다)</dd>
         <dd>어둡거나 위가 <b>7칸</b> 트이지 않으면 자라지 않습니다 — 실내에서는 안 자랍니다</dd>
-        <dt>세계</dt><dd><kbd>T</kbd> 시간 · <kbd>K</kbd> 날씨 · <kbd>M</kbd> 소리 · <kbd>R</kbd>×2 새 세계</dd>
-        <dd><kbd>V</kbd> 시작 지점 · <kbd>B</kbd> 미니맵 표식(<kbd>Shift</kbd>+<kbd>B</kbd> 이름 붙여 찍기) · <kbd>[</kbd> <kbd>]</kbd> 미니맵 확대</dd>
-        <dd>지도 — <b style="color:#e89640">주황</b> 굴 어귀 · <b style="color:#e0c060">금색</b> 표식 ·
-            <b style="color:#5aa8e0">파랑</b> 시작 지점 · 땅속에서는 지금 층이 진하고 다른 층은 흐립니다</dd>
-        <dd>표식으로 돌아가려면 <kbd>/</kbd><b>tp 3</b> 또는 <kbd>/</kbd><b>tp 채석장</b> · <kbd>/</kbd><b>marks</b> 로 목록</dd>
-        <dd><kbd>ESC</kbd> 메뉴의 슬롯 옆 <b>✎</b> 로 세계에 이름을 붙입니다</dd>
-        <dt>화면</dt><dd><kbd>F1</kbd> HUD 숨기기 · <kbd>F2</kbd> 화면 저장 · <kbd>F3</kbd> 성능 · <kbd>F5</kbd> 3인칭 · <kbd>F6</kbd> 사진 모드</dd>
-        <dt>도움말</dt><dd><kbd data-bind="help">H</kbd> 로 열고 닫습니다 · <kbd>ESC</kbd> 메뉴</dd>
       </dl>
     </div>
 
@@ -1122,7 +1133,7 @@
         <label class="opt check"><span>Y축 반전</span><input type="checkbox" id="s-inv"><output id="o-inv"></output></label>
         <label class="opt check"><span>왼손잡이 배치</span><input type="checkbox" id="s-lefty"><output id="o-lefty"></output></label>
         <label class="opt check"><span>웅크리기 전환식</span><input type="checkbox" id="s-sneaktog"><output id="o-sneaktog"></output></label>
-        <label class="opt"><span>캐기 속도</span><input type="range" id="s-dig" min="0" max="2" step="1"><output id="o-dig"></output></label>
+        <label class="opt"><span>캐기 속도 (크리에이티브 기본은 빠름)</span><input type="range" id="s-dig" min="0" max="2" step="1"><output id="o-dig"></output></label>
         <label class="opt check"><span>불 번짐 (붙인 자리에서 9칸까지)</span><input type="checkbox" id="s-fire"><output id="o-fire"></output></label>
         <label class="opt"><span>터치 버튼 크기</span><input type="range" id="s-tbtn" min="80" max="160" step="10"><output id="o-tbtn"></output></label>
       </div>

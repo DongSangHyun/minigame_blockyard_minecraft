@@ -149,6 +149,7 @@ ALL_BLOCKS.concat(ITEMS).forEach(function (b) {
     refreshSlot(S.selected);
     updateHandBlock();
     S.worldDirty = true;
+    advanceTut(2);          // **고른 것**으로 넘어간다 — 여는 것만으로는 아무것도 안 배운다 (v110)
     toast(NAMES[b] + " → " + (S.selected === 9 ? "0" : (S.selected + 1)) + "번 칸");
   });
   pickGrid.appendChild(btn);
@@ -165,7 +166,6 @@ export function openPicker() {
   S.uiOpen = true;
   pickerEl.hidden = false;
   if (document.pointerLockElement === canvas) document.exitPointerLock();
-  advanceTut(2);
   var first = pickGrid.querySelector(".pick");
   if (first && first.focus) first.focus();
 }

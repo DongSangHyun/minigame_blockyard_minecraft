@@ -5,6 +5,7 @@ import { primeTNT, ignite } from "./fluids.js";
 import { WY, idx, inside } from "./dims.js";
 import { BUCKET, FRAME, FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
 import { get, shape } from "./world.js";
+import { lightSky } from "./light.js";
 import { burst } from "./scene.js";
 import { BODY, HALF, currentShape, player, raycast, stats } from "./player.js";
 import { breakSound, crunch, placeSound, tone } from "./audio.js";
@@ -269,7 +270,11 @@ export function place(repeating) {
   if (!applyEdit(px, py, pz, b, true, sh)) return;
   notePlaced(b, sh, 1);
   advanceTut(1);
-  if (b === TORCH) advanceTut(4);
+  // 4단계는 **어두운 곳에** 꽂았을 때만 (v110) — 06:00 대낮 잔디밭에서 통과하면
+  // 시작 화면이 자랑한 "빛이 닿지 않는 곳은 정말로 캄캄합니다" 를 볼 일이 없다
+  if (b === TORCH && lightSky[idx(px, py, pz)] < 8) advanceTut(4);
+  // 3단계는 **그 모양으로 놓았을 때** — G 를 누른 것만으로는 한 칸도 안 지었다
+  if (sh !== SH_FULL) advanceTut(3);
   noteBlockUse(b);
   burst(px, py, pz, b, 5);
   placeSound(b);

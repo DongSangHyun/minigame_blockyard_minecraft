@@ -6582,6 +6582,10 @@ test("v65 비행: 날면서도 달린다", async (page) => {
     B.S.sneaking = false; B.S.sneakLatch = false; B.S.sprintTap = false;
     B.S.keys.KeyW = false; B.S.keys.Space = false;
     B.S.keys.ControlLeft = false; B.S.keys.ControlRight = false;
+    // 조이스틱도 못 박는다 (v110) — loop.js 는 S.stick 이 0 이 아니면 **키보드를 무시한다**.
+    // 폰 시험이 스틱을 밀어 둔 채 끝나면 여기서 엉뚱한 방향으로 날고, 앞으로 간 거리만
+    // 재는 이 시험은 "안 빨라진다" 로 읽는다 (10회 중 1회 실패로 나왔다).
+    B.S.stick.x = 0; B.S.stick.z = 0;
     // 예전에는 (48,45,48) 이 늘 허공이었는데, 지형이 올라가(v79) 산속일 수 있다.
     // 날아갈 길을 손으로 비운다 — 시험대는 지형에 기대지 않는다.
     for (let dx = -4; dx <= 4; dx++) for (let dz = -12; dz <= 12; dz++)
@@ -6608,14 +6612,20 @@ test("v65 비행: 날면서도 달린다", async (page) => {
     }
     const slow = run(false);
     const fast = run(true);
+    // 실패했을 때 읽을 것들을 **여기서** 뜬다 — endPlay 뒤에는 자리가 초기화된다
+    const dump = { stick: B.S.stick.x.toFixed(2) + "," + B.S.stick.z.toFixed(2),
+                   flySpeed: B.S.flySpeed,
+                   end: B.player.pos.x.toFixed(1) + "," + B.player.pos.y.toFixed(1) + "," +
+                        B.player.pos.z.toFixed(1) };
     B.S.keys.KeyW = false; B.S.keys.ControlLeft = false; B.S.keys.Space = false;
     B.player.flying = false;
     B.endPlay(); B.setPaused(false);
-    return { slow, fast };
+    return { slow, fast, stick: dump.stick, flySpeed: dump.flySpeed, end: dump.end };
   });
   assert(r.slow.far > 1, "시험대가 안 섰다 — 그냥 날 때도 안 움직인다: " + r.slow.far);
   assert(r.fast.far > r.slow.far * 1.6,
-         "날면서 Ctrl 을 눌러도 안 빨라진다 — " + r.slow.far.toFixed(1) + " → " + r.fast.far.toFixed(1));
+         "날면서 Ctrl 을 눌러도 안 빨라진다 — " + r.slow.far.toFixed(1) + " → " + r.fast.far.toFixed(1) +
+         " (스틱 " + r.stick + " · 날기배율 " + r.flySpeed + " · 끝난 자리 " + r.end + ")");
   assert(r.fast.up > r.slow.up * 1.6,
          "수직만 그대로다 — 높이 뜨는 데 시간이 걸린다: " + r.slow.up.toFixed(1) + " → " + r.fast.up.toFixed(1));
 });
@@ -7144,9 +7154,39 @@ phoneTest("튜토리얼 일곱 줄을 터치만으로 끝까지 간다", async (
     const steps = [];
     function note(what) { steps.push([what, B.S.tut]); }
 
-    B.advanceTut(0); note("캐기");                     // mine.js 가 부르는 것과 같은 자리
-    B.advanceTut(1); note("놓기");
-    B.openPicker(); B.closePicker(false); note("목록");  // openPicker 안에서 advanceTut(2)
+    // **실제 경로로** 민다 (v110) — 예전에는 0·1·4단계를 advanceTut 직접 호출로
+    // 넘겨서, "터치만으로" 라는 이름과 달리 세 단추가 정말 미는지 한 번도 안 쟀다
+    function aimAt(bx, by, bz, fromZ) {
+      B.player.pos.set(bx + 0.5, by + 1, bz + fromZ);
+      B.player.yaw = 0;
+      B.camera.rotation.order = "YXZ";
+      for (let pi = 0; pi <= 30; pi++) {
+        B.player.pitch = -pi * 0.05;
+        B.camera.rotation.y = 0; B.camera.rotation.x = B.player.pitch;
+        B.camera.position.set(B.player.pos.x, B.player.pos.y + B.EYE, B.player.pos.z);
+        B.camera.updateMatrixWorld(true);
+        const h = B.raycast(6);
+        if (h && h.x === bx && h.y === by && h.z === bz) return h;
+      }
+      return null;
+    }
+    // 1단계 — 캐기 단추를 실제로 누른다
+    const hitMine = aimAt(X, Y, Z, 2.5);
+    B.S.touchBreak = true;
+    for (let k = 0; k < 200 && B.get(X, Y, Z) !== B.B.AIR; k++) B.step(1 / 60);
+    B.S.touchBreak = false;
+    note("캐기");
+    // 2단계 — 놓기 단추
+    B.S.bar[B.S.selected] = B.B.STONE;
+    aimAt(X, Y - 1, Z, 2.5);
+    B.place();
+    note("놓기");
+    // 3단계 — 목록에서 **고른다** (여는 것만으로는 안 넘어간다 · v110)
+    B.openPicker();
+    const pick = document.querySelector("#pick-grid button");
+    if (pick) pick.click();
+    B.closePicker(false);
+    note("목록");
 
     // 4번째 — 놓기를 누른 채 끌기 (place(repeating))
     B.S.bar[B.S.selected] = B.B.BRICK;
@@ -7167,13 +7207,25 @@ phoneTest("튜토리얼 일곱 줄을 터치만으로 끝까지 간다", async (
     note("줄 긋기");
     const diag = { isTouch: B.isTouch, aim: aimHit ? [aimHit.x, aimHit.y, aimHit.z] : null };
 
-    // 5번째 — 횃불
-    B.advanceTut(4); note("횃불");
+    // 5번째 — 횃불을 **어두운 곳에** 꽂는다 (v110). 지하에 방을 파고 그 안에서.
+    // 대낮 잔디밭에서 통과하면 "빛이 닿지 않는 곳" 을 첫 5분에 볼 일이 없다
+    const TY = 12;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy <= 5; dy++) B.set(X + dx, TY + dy, Z + dz, B.B.STONE);
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++)
+      for (let dy = 0; dy <= 2; dy++) B.set(X + dx, TY + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false);
+    B.S.bar[B.S.selected] = B.B.TORCH;
+    aimAt(X, TY - 1, Z, 1.5);
+    B.place();
+    note("횃불");
 
-    // 6번째 — 스틱
-    B.setStick(40, -40);
-    B.setStick(0, 0);
-    note("스틱");
+    // 6번째 — 되돌리기 단추 (v110 에서 "스틱으로 걷기" 를 갈아 끼웠다:
+    // 첫 3초에 이미 한 일을 3분 뒤에 가르치는 줄이었다)
+    const undoBtn = document.getElementById("tb-undo");
+    undoBtn.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
+    undoBtn.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true }));
+    note("되돌리기");
 
     // 7번째 — 웅크림 단추
     const sneak = document.getElementById("tb-sneak");
@@ -11478,9 +11530,12 @@ test("v95 동물: 좌클릭으로 보내고, 벽 너머는 못 잡는다", async
     B.player.yaw = 0; B.player.pitch = 0.36;
     const aimed = !!B.aimedMob();
 
-    // 사이에 벽을 세우면 못 잡는다 — 울타리 너머의 양이 벽을 뚫고 잡히면 안 된다
-    B.applyEdit(X, Y, Z - 1, B.B.STONE, false, 0);
-    B.applyEdit(X, Y + 1, Z - 1, B.B.STONE, false, 0);
+    // 사이에 벽을 세우면 못 잡는다 — 울타리 너머의 양이 벽을 뚫고 잡히면 안 된다.
+    // 벽은 **기반암**이라야 한다 (v110) — 돌로 세웠더니 캐기 기본값이 「빠름」이 된 뒤
+    // 0.5초 동안 누르는 사이에 벽이 뚫려 버렸고, 시험은 "벽을 뚫고 잡혔다" 고 읽었다.
+    // 재려는 것은 조준선이 벽을 통과하는가지, 벽이 얼마나 단단한가가 아니다
+    B.applyEdit(X, Y, Z - 1, B.B.BEDROCK, false, 0);
+    B.applyEdit(X, Y + 1, Z - 1, B.B.BEDROCK, false, 0);
     B.refreshAllTops();
     const beforeWall = B.mobs.length;
     B.S.mouseDown[0] = true; B.S.lockMode = true; B.S.mobSwatted = false;
@@ -11490,8 +11545,9 @@ test("v95 동물: 좌클릭으로 보내고, 벽 너머는 못 잡는다", async
     for (let k = 0; k < 3; k++) B.step(1 / 60);
 
     // 벽을 걷으면 잡힌다
-    B.applyEdit(X, Y, Z - 1, B.B.AIR, false, 0);
-    B.applyEdit(X, Y + 1, Z - 1, B.B.AIR, false, 0);
+    // 기반암은 applyEdit 가 거부한다 (edit.js 의 isUnbreakable 가드) — 직접 지운다
+    B.set(X, Y, Z - 1, 0); B.set(X, Y + 1, Z - 1, 0);
+    B.relightAll(false); B.rebuildAll();
     B.refreshAllTops();
     B.S.mouseDown[0] = true; B.S.mobSwatted = false;
     for (let k = 0; k < 30; k++) B.step(1 / 60);
@@ -12658,6 +12714,165 @@ test("v108 말과 실제: 과제 문구가 실제 조건과 맞는다", async (p
      "「수문장」 설명이 '" + r.flood + "' 인데 산꼭대기 물 한 칸에도 열린다");
   assert((r.cmd.match(/tp /g) || []).length === 1, "/help 가 tp 를 두 번 말한다");
   assert((r.cmd.match(/marks /g) || []).length <= 2, "/help 가 marks 를 여러 번 말한다");
+});
+
+test("v110 물: 지하로 샌 물이 멎고, 되돌리면 걷힌다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.generate(888, 2); B.refreshAllTops(); B.relightAll(false);
+    B.resetQueues();
+    B.S.history.length = 0; B.S.future.length = 0;
+    function water() {
+      let n = 0;
+      for (let i = 0; i < B.world.length; i++) if (B.world[i] === B.B.WATER) n++;
+      return n;
+    }
+    const before = water();
+    B.S.spawnPoint = null; B.spawn();
+    const px = Math.floor(B.player.pos.x), pz = Math.floor(B.player.pos.z);
+    const ty = B.topMap[pz * B.WX + px];
+    B.applyEdit(px, ty + 1, pz, B.B.WATER, true, 0);
+    for (let k = 0; k < 60 * 45; k++) B.step(1 / 60);
+    const at45 = water() - before;
+    for (let k = 0; k < 60 * 45; k++) B.step(1 / 60);
+    const at90 = water() - before;      // 멎었으면 같다
+    B.undo();
+    for (let k = 0; k < 60 * 60; k++) B.step(1 / 60);
+    const left = water() - before;
+
+    // 바다는 여전히 안 마른다 — 수면 한 칸을 지워도 다시 찬다
+    const sx = 2, sz = 2;
+    let seaY = -1;
+    for (let z = 1; z < B.WZ - 1 && seaY < 0; z++)
+      for (let x = 1; x < B.WX - 1; x++)
+        if (B.get(x, B.SEA, z) === B.B.WATER && B.get(x, B.SEA - 1, z) === B.B.WATER) {
+          seaY = B.SEA; B.applyEdit(x, B.SEA, z, B.B.AIR, false, 0);
+          for (let k = 0; k < 60 * 5; k++) B.step(1 / 60);
+          var refilled = B.get(x, B.SEA, z) === B.B.WATER;
+          break;
+        }
+
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { at45, at90, left, refilled: typeof refilled === "undefined" ? null : refilled };
+  });
+  assert(r.at45 > 50, "물이 " + r.at45 + "칸만 퍼졌다 — 시험대가 안 섰다");
+  // v109 까지는 초당 300칸으로 **멈추지 않고** 번져 60초에 1만 8천 칸이었다
+  assert(r.at45 < 8000, "45초에 " + r.at45 + "칸이 번졌다 — 지하가 통째로 잠긴다");
+  eq(r.at90, r.at45, "45→90초에 " + (r.at90 - r.at45) + "칸이 더 번졌다 — 확산이 안 멎는다");
+  assert(r.left < r.at45 * 0.75,
+     "되돌렸는데 " + r.left + "칸이 남았다 (퍼진 것은 " + r.at45 + "칸) — 되돌리기가 안 먹는다");
+  if (r.refilled !== null) eq(r.refilled, true, "바다 수면을 지웠는데 다시 안 찬다 — 바다가 말랐다");
+});
+
+test("v110 잎: 베고 되돌리면 캐노피까지 돌아온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 52, Y = 40, Z = 24;
+    for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++) {
+      for (let dy = -1; dy <= 14; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.GRASS);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    B.resetQueues();
+    // 나무 한 그루를 심어 기른다
+    B.applyEdit(X, Y, Z, B.B.SAPLING, false, 0);
+    let ticks = 0;
+    while (B.get(X, Y, Z) === B.B.SAPLING && ticks < 500) { B.growTick(1.0); ticks++; }
+    function leaves() {
+      let n = 0;
+      for (let dx = -5; dx <= 5; dx++) for (let dz = -5; dz <= 5; dz++)
+        for (let dy = 0; dy <= 13; dy++) if (B.isLeaf(B.get(X + dx, Y + dy, Z + dz))) n++;
+      return n;
+    }
+    const grown = leaves();
+    B.S.history.length = 0; B.S.future.length = 0;
+
+    // 줄기를 벤다 — 잎이 진다
+    let cut = 0;
+    for (let dy = 0; dy < 6; dy++) {
+      if (B.isLog(B.get(X, Y + dy, Z))) { B.applyEdit(X, Y + dy, Z, B.B.AIR, true, 0); cut++; }
+    }
+    for (let k = 0; k < 60 * 60; k++) B.step(1 / 60);
+    const afterCut = leaves();
+
+    // 되돌린다 — 원목도 잎도 돌아와야 한다
+    for (let k = 0; k < cut + 2; k++) B.undo();
+    const afterUndo = leaves();
+    let logsBack = 0;
+    for (let dy = 0; dy < 6; dy++) if (B.isLog(B.get(X, Y + dy, Z))) logsBack++;
+
+    for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++)
+      for (let dy = -1; dy <= 14; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false);
+    B.resetQueues();
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { grown, afterCut, afterUndo, cut, logsBack };
+  });
+  assert(r.grown > 20, "나무가 안 자랐다 — 시험대가 안 섰다 (잎 " + r.grown + ")");
+  assert(r.afterCut < r.grown * 0.6,
+     "줄기를 베었는데 잎이 " + r.afterCut + "/" + r.grown + " 로 안 졌다");
+  eq(r.logsBack, r.cut, "되돌렸는데 원목이 " + r.logsBack + "/" + r.cut + " 만 돌아왔다");
+  assert(r.afterUndo > r.grown * 0.85,
+     "되돌렸는데 잎이 " + r.afterUndo + "/" + r.grown + " 만 돌아왔다 — 맨 줄기가 허공에 선다");
+});
+
+test("v110 첫 화면: 도움말이 초보부터 열리고, 캐기 기본값이 빠름이다", async (page) => {
+  // 1024×640 — 노트북 한 화면. 자문이 "40줄 중 15줄이 화면 밖" 이라고 잰 크기다
+  const beforeVp = page.viewportSize();
+  await page.setViewportSize({ width: 1024, height: 640 });
+  const r = await page.evaluate(async () => {
+    const B = window.__blockyard;
+    B.toggleHelp(true); B.setHelpTab(false);
+    const keys = document.getElementById("help-keys");
+    const cols = keys.querySelectorAll("dl");
+    const col2 = Array.prototype.map.call(cols[1].querySelectorAll("dt"), (d) => d.textContent.trim());
+    const col1 = Array.prototype.map.call(cols[0].querySelectorAll("dt"), (d) => d.textContent.trim());
+    // 첫 화면 밖으로 밀린 항목 — 도움말은 카드가 아니라 **창 높이**로 잘린다
+    // (.help-card 에는 높이 제한이 없고 #help 가 overflow:auto 다.
+    //  카드 밑변으로 재면 아무것도 안 걸려 **절대 실패하지 않는 시험**이 된다)
+    const below = [];
+    Array.prototype.forEach.call(keys.querySelectorAll("dt"), (d) => {
+      if (d.getBoundingClientRect().top > window.innerHeight) below.push(d.textContent.trim());
+    });
+    const text = keys.textContent;
+    B.toggleHelp(false);
+    // 배포되는 기본값을 원문에서 읽는다 — 앞선 시험이 opts 를 만졌을 수 있다
+    const src = await fetch("./src/settings.js").then((x) => x.text());
+    const digs = (src.match(/dig:\s*(\d)/g) || []);
+    return { col1, col2, below, digs,
+             bucket: text.indexOf("양동이"), area: text.indexOf("영역 도구"),
+             label: (document.querySelector('label[for], .opt') && true) || true,
+             digLabel: (function () {
+               var el = document.getElementById("s-dig");
+               var lab = el && el.closest("label");
+               return lab ? lab.querySelector("span").textContent : "";
+             })() };
+  });
+  // 둘째 칸은 「세계」로 연다 — 예전에는 /clone·/bp 가 든 「영역 도구」가 첫 항목이었다
+  eq(r.col2[0], "세계", "도움말 둘째 칸이 '" + r.col2[0] + "' 로 시작한다 — 초보가 처음 읽을 글이 아니다");
+  assert(r.col2.indexOf("영역 도구") > r.col2.indexOf("도움말"),
+     "「영역 도구」가 「도움말」보다 앞에 있다");
+  assert(r.col2.indexOf("화면") >= 0 && r.col2.indexOf("화면") < r.col2.indexOf("영역 도구"),
+     "「화면」이 사라졌거나 「영역 도구」 뒤로 밀렸다");
+  // 양동이는 「짓기」에 있다 — 「영역 도구」 안에 숨어 있으면 아무도 못 찾는다
+  assert(r.bucket >= 0, "도움말에 양동이 설명이 없다");
+  assert(r.bucket < r.area, "양동이 설명이 「영역 도구」 뒤에 있다 — 짓기에 있어야 한다");
+  // 처음 온 사람이 읽을 다섯 항목은 **스크롤 없이** 보여야 한다.
+  // 밑으로 밀려도 되는 것은 「영역 도구」처럼 나중에 찾아 읽는 것뿐이다
+  ["이동", "짓기", "세계", "화면", "도움말"].forEach((n) => {
+    assert(r.below.indexOf(n) < 0,
+       "1024×640 첫 화면 밖으로 「" + n + "」 이 밀렸다 (밀린 것: " + r.below.join(" · ") + ")");
+  });
+  // 캐기 기본값 — 크리에이티브에서 5×5×3 돌방이 94초는 삽질이다
+  eq(r.digs.join(","), "dig: 1,dig: 1",
+     "settings.js 의 캐기 기본값이 " + r.digs.join(",") + " 다 — 빠름(1)이어야 한다");
+  assert(r.digLabel.indexOf("빠름") >= 0,
+     "캐기 속도 설정 이름이 '" + r.digLabel + "' — 기본값이 무엇인지 안 알려 준다");
+  await page.setViewportSize(beforeVp);
 });
 
 // ── 실행 ───────────────────────────────────────────────

@@ -38,6 +38,10 @@ export function enqueueWaterAround(x, y, z) {
 export var DECAY_R = 5; // 원목에서 이만큼까지 이어진 잎은 산다
 
 export function queueLeafDecay(x, y, z) {
+  // 이 편집이 "이 잎들의 주인" 이다 (v110) — 모래 낙하·불 번짐과 같은 틀.
+  // 되돌리기가 원목만 돌려놓고 잎을 잃던 것을 막는다
+  var lastEdit = S.history[S.history.length - 1];
+  S.decayOwner = (lastEdit && lastEdit.batch) ? lastEdit.batch : null;
   var R = DECAY_R + 1;
   var x0 = Math.max(0, x - R), x1 = Math.min(WX - 1, x + R);
   var y0 = Math.max(0, y - R), y1 = Math.min(WY - 1, y + R);
@@ -84,10 +88,26 @@ export function decayTick(budget) {
     var y = (i / PLANE) | 0, rem = i - y * PLANE;
     var z = (rem / WX) | 0, x = rem - z * WX;
     burst(x, y, z, world[i], 5);
-    applyEdit(x, y, z, AIR, false);
+    // **되돌리기에 싣는다** (v110) — 기록 false 였던 탓에, 나무 한 그루를 베면
+    // 잎 46~59장이 사라지고 되돌려도 **원목만 돌아와 맨 줄기가 허공에 다시 섰다.**
+    // `docs/GAMEPLAY.md` 의 「세계가 하는 일 → 어디에 실리나」 표에서 잎 부패만 빠져 있었다.
+    // 모래 낙하(fallOwner)·불 번짐(fireOwner)이 이미 쓰는 틀이다
+    if (S.decayOwner) {
+      batchPush(S.decayOwner, x, y, z, world[i], AIR, shape[i], SH_FULL, 0, 0,
+                isTouched(x, y, z));
+      world[i] = AIR; shape[i] = SH_FULL;
+      touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z);
+      // applyEdit 을 안 거치므로 그것이 하던 뒷일을 여기서 한다 —
+      // 이 줄이 없으면 잎이 진 자리 위의 모래가 큐에 안 들어가 **허공에 뜬다**
+      enqueueFall(x, y + 1, z);
+      enqueueWaterAround(x, y, z);
+      queueLeafDecay(x, y, z);
+      S.worldDirty = true;
+    } else applyEdit(x, y, z, AIR, false);
     gone++;
   }
   if (gone) crunch(0.09, 0.05, 850);
+  if (Q.decayHead >= Q.decayQ.length) S.decayOwner = null;
   if (Q.decayHead > 2048 && Q.decayHead === Q.decayQ.length) { Q.decayQ.length = 0; Q.decayHead = 0; }
   return gone;
 }
@@ -166,6 +186,24 @@ function releaseFluidOwner() {
   S.fluidOwner = null;
 }
 
+// 이 칸이 **진짜 바다**인가 — 수면(SEA)까지 물로 이어져 있는가 (v110).
+// 지하 동굴에 갇힌 물은 위가 돌로 막혀 있으므로 바다가 아니다.
+// 대개 첫 칸에서 판별나므로 싸다
+export function isSeaColumn(x, y, z) {
+  if (y > SEA) return false;
+  for (var yy = y + 1; yy <= SEA; yy++) {
+    var b = get(x, yy, z);
+    // **얼음도 바다다** — 설원의 수면은 얼음이다. 이걸 빼면 언 바다가 통째로 마른다
+    if (b !== WATER && b !== ICE) return false;
+  }
+  return true;
+}
+function isSeaColumn2(i, y) {
+  var rem = i - y * PLANE;
+  var z = (rem / WX) | 0;
+  return isSeaColumn(rem - z * WX, y, z);
+}
+
 export function waterTick(budget) {
   budget = budget || 300;
   var changed = 0;
@@ -180,8 +218,13 @@ export function waterTick(budget) {
     var x = rem - z * WX;
 
     var lvl = -1;
-    if (y <= SEA) {
-      // 해수면 아래 — 바다와 이어지면 그냥 잠긴다 (기존 동작)
+    if (y <= SEA && isSeaColumn(x, y, z)) {
+      // **진짜 바다일 때만** 그냥 잠긴다 (v110).
+      // 예전에는 해수면 아래면 무조건 근원(레벨 0)이라, 사람이 부은 물 한 칸이
+      // 지하로 새면 **동굴 전체를 초당 300칸으로 영원히 채웠다**
+      // (8시드 중 6개가 60초에 1만 8천 칸 · 그중 해수면 위는 153칸뿐이라
+      //  화면에서는 시냇물 하나로 보인다). 게다가 dryTick 이 해수면 아래를
+      //  통째로 건너뛰어 **되돌려도 남은 물끼리 서로를 먹여 다시 퍼졌다.**
       for (var d = 0; d < 6 && lvl < 0; d++) {
         if (get(x + DIRS[d][0], y + DIRS[d][1], z + DIRS[d][2]) === WATER) lvl = 0;
       }
@@ -282,7 +325,9 @@ export function dryTick(budget) {
     var i = Q.dryQ[Q.dryHead++];
     if (world[i] !== WATER) continue;
     var y = (i / PLANE) | 0;
-    if (y <= SEA) continue;                    // 바다는 마르지 않는다
+    // 바다는 마르지 않는다 — 그런데 **지하에 갇힌 물은 바다가 아니다** (v110).
+    // 수면까지 물로 이어진 기둥만 바다로 친다
+    if (y <= SEA && isSeaColumn2(i, y)) continue;
     var lvl = waterLvl[i];
     if (lvl === 0 && get2(i, 0, 1, 0) !== WATER) {
       // 위에서 떨어지던 물이 끊긴 근원 — 옆에서 받쳐 주지 않으면 사라진다

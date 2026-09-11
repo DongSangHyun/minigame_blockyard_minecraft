@@ -102,7 +102,7 @@ export function newWorld(seed) {
   saveGame();
   refreshMinimapCap();
   drawMinimap();
-  toast("새 세계 · SEED " + S.worldSeed);
+  toast("새 세계 · SEED " + S.worldSeed + " — 옛 세계는 설정 › 직전으로 되돌리기 에 있습니다");
   tone(300, 0.16, "sine", 0.05);
 }
 

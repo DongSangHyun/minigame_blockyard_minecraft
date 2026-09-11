@@ -11,7 +11,7 @@ import { SH_SLAB, SH_SLAB_UP, isStairShape, NAMES , isItem} from "./blocks.js";
 import { camera, crackMesh, renderer } from "./scene.js";
 import { applyTime } from "./daynight.js";
 import { applyOpts, applyFov, applyTbtn, applyUi, opts, saveOpts } from "./settings.js";
-import { EYE, currentShape, player, raycast, spawn, stats } from "./player.js";
+import { EYE, currentShape, player, raycast, spawn } from "./player.js";
 import { ac, setAudioAwake, startAmbient, tone } from "./audio.js";
 import { renameSlot, clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo , rememberSlot, releaseLock, lockHeldByOther} from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
@@ -42,7 +42,7 @@ export var HINT_TOUCH = '왼쪽 <b>스틱</b> 걷기 · 오른쪽 화면 끌어 
 export var hintEl = document.getElementById("hint");
 
 export var TUT = [
-  '먼저 <b>좌클릭을 길게</b> 눌러 블록을 캐보세요',
+  '먼저 <b>좌클릭</b>으로 블록을 캐보세요 — 단단한 것은 <b>누르고 있어야</b> 합니다',
   '이번엔 <b>우클릭</b>으로 블록을 놓아보세요',
   '<b>E</b> 를 눌러 블록 목록에서 다른 재료를 골라보세요',
   '<b>{shape}</b> 로 반블록·계단으로 바꿔 지어보세요',
@@ -53,12 +53,12 @@ export var TUT = [
 // 터치용 튜토리얼 — 단계 번호는 TUT 와 같게 맞춘다 (advanceTut 이 같은 인덱스를 쓴다).
 // 폰에는 마우스도 Alt 도 없으니 문구가 달라야 하고, 이 줄이 480px 아래에서 숨겨져 있어 평생 안 보였다.
 export var TUT_TOUCH = [
-  '먼저 <b>캐기</b> 버튼을 길게 눌러 블록을 캐보세요',
+  '먼저 <b>캐기</b> 버튼으로 블록을 캐보세요 — 단단한 것은 <b>누른 채로</b> 두세요',
   '이번엔 <b>놓기</b> 버튼으로 블록을 놓아보세요',
   '<b>목록</b> 버튼으로 다른 재료를 골라보세요',
   '<b>놓기</b>를 누른 채 화면을 끌면 줄이 그어집니다',
   '핫바의 <b>횃불</b>을 골라 어두운 곳을 밝혀보세요',
-  '왼쪽 <b>스틱</b>으로 걷고, 오른쪽 화면을 끌어 둘러보세요',
+  '<b>되돌리기</b> 버튼으로 방금 한 것을 지워 보세요 (길게 누르면 다시하기)',
   '<b>웅크림</b> 버튼을 누른 채면 모서리에서 떨어지지 않습니다'
 ];
 export function tutLine(i) { return (isTouch ? TUT_TOUCH : TUT)[i]; }
@@ -73,7 +73,11 @@ export function refreshHint() {
   if (!S.hudHidden && !S.photoMode) hintEl.hidden = false;
   clearTimeout(hintFade);
   if (S.tut >= (isTouch ? TUT_TOUCH.length : TUT.length)) {
-    hintFade = setTimeout(function () { if (hintEl) hintEl.hidden = true; }, 9000);
+    // 첫 판은 더 오래 둔다 (v110) — 되돌리기와 비행이 적힌 유일한 상시 자리인데
+    // 9초에 접혀서, 그 둘의 화면 노출 총량이 **9초**였다.
+    // 둘 다 튜토리얼 일곱 줄에는 한 줄도 없다
+    hintFade = setTimeout(function () { if (hintEl) hintEl.hidden = true; },
+                          S.playSeconds < 240 ? 30000 : 9000);
   }
 }
 // 폰에서 3·5·6 단계가 각각 G 키·Ctrl+F·H 키에만 걸려 있어, 네 번째 줄에서 영영 멈췄다.
@@ -718,8 +722,11 @@ export function requestPlay() {
 goBtn.addEventListener("click", function (e) { e.stopPropagation(); requestPlay(); });
 altBtn.addEventListener("click", function (e) {
   e.stopPropagation();
-  // 지어 놓은 것이 있으면 한 번 더 묻는다 — 세계는 되돌릴 수 없다
-  if (stats.placed + stats.mined > 30 && !S.confirmNew) {
+  // **언제나** 한 번 더 묻는다 (v110) — 세계는 되돌릴 수 없다.
+  // 예전에는 "30칸 넘게 건드렸을 때" 만 물어서, **첫 5분의 초보만 무방비**였다
+  // (29칸을 건드린 사람은 한 번 누르면 그대로 세계가 바뀐다).
+  // CLAUDE.md 8번 규칙("파괴적 조작에는 확인을 건다")에 문턱을 둘 이유가 없다
+  if (!S.confirmNew) {
     S.confirmNew = true;
     altBtn.textContent = "정말 새 세계? (다시 누르기)";
     setTimeout(function () {
@@ -1111,6 +1118,9 @@ window.addEventListener("keydown", function (e) {
       if (!wipe && isItem(blockPick)) { toast("도구는 채울 수 없습니다 — 블록을 고르세요"); return; }
       function doFill() {
         var n = wipe ? clearSelection() : fillSelection(blockPick, shapePick);
+        // 5단계는 **채웠을 때** 넘어간다 (v110) — Alt+우클릭 한 번(1칸)으로 통과해서,
+        // 이 게임이 자랑하는 영역 도구를 한 번도 안 써 보고 튜토리얼이 끝났다
+        if (n > 0) advanceTut(5);
         toast(n < 0 ? ("영역이 너무 큽니다 (최대 " + REGION_MAX.toLocaleString("ko-KR") + "칸)")
                     : (n ? n.toLocaleString("ko-KR") + "칸을 " + (wipe ? "비웠습니다" : "채웠습니다")
                          : "먼저 영역을 고르세요"));
@@ -1200,7 +1210,6 @@ window.addEventListener("keydown", function (e) {
     updateHandBlock();
     toast(["전체 블록", "반블록", "계단"][S.shapeMode]);
     tone(560 + S.shapeMode * 120, 0.06, "square", 0.04);
-    advanceTut(3);
   }
   if (e.code === "Slash" || (e.key === "/" && !e.ctrlKey && !e.metaKey)) {
     e.preventDefault();
@@ -1310,7 +1319,6 @@ canvas.addEventListener("mousedown", function (e) {
     else if (e.button === 2) {
       S.selB = [hs[0], hs[1], hs[2]];
       toast("영역 " + selectionText());
-      advanceTut(5);
     }
     return;
   }
@@ -1637,6 +1645,7 @@ bindHold("tb-undo", function () {
   clearTimeout(undoHold);
   if (undoLong) { undoLong = false; return; }
   var ok = undo();
+  if (ok) advanceTutTouch(5);        // 폰 6번째 줄 — 되돌리기를 실제로 써 본다 (v110)
   toast(ok ? ("되돌리기" + (lastEditLabel ? " — " + lastEditLabel : ""))
            : (undoEmptyWhy || "더 없음"));
 });
