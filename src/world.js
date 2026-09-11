@@ -293,6 +293,19 @@ export function refreshAllTops() {
   for (var x = 0; x < WX; x++) for (var z = 0; z < WZ; z++) refreshTop(x, z);
 }
 
+// **자연 바다가 있던 자리** (v110b) — 세계를 만들거나 불러올 때 한 번 찍는다.
+// 액체가 "이 물은 바다인가" 를 물을 때 쓴다(`src/fluids.js` 의 `isSeaColumn`).
+// 이게 없으면 지표에서 부은 물이 굴로 떨어질 때 **그 물기둥 자체가 수면까지 물이라**
+// 바다로 읽혀 동굴이 통째로 잠긴다. 반대로 기둥만 보면 바다 위에 발판을 깐 순간
+// 그 밑이 마른다. 바다는 **지형이 정한 자리**지 물이 어디까지 이어졌는가가 아니다.
+export var seaCol = new Uint8Array(PLANE);
+export function snapshotSeaCol() {
+  for (var z = 0; z < WZ; z++) for (var x = 0; x < WX; x++) {
+    var b = world[idx(x, SEA, z)];
+    seaCol[z * WX + x] = (b === WATER || b === ICE) ? 1 : 0;
+  }
+}
+
 export function hash2(x, y, seed) {
   var h = Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(seed | 0, 1274126177);
   h = Math.imul(h ^ (h >>> 13), 1274126177);
@@ -757,6 +770,7 @@ export function generate(seed, gen) {
 
 
   refreshAllTops();
+  snapshotSeaCol();
 }
 
 // 갱도 한 줄기 — 통로 2칸 폭 · 3칸 높이. 조약돌 바닥에 울타리 기둥과 원목 들보,

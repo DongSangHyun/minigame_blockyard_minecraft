@@ -5,7 +5,7 @@ import { opts } from "./settings.js";
 import { Q } from "./queues.js";
 import { DIRS, N, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
 import { BIRCH_LEAVES, BIRCH_LOG, SPRUCE_LOG, LEAVES, LOG, SAPLING, SAPLING_BIRCH, SAPLING_SPRUCE, isSapling, SNOW, SPRUCE_LEAVES, DIRT, GRASS, blocksLight, AIR, COBBLE, FIRE, GRAVEL, ICE, LAVA, SAND, SH_FULL, STONE, TNT, WATER, isCross, isFlammable, isLeaf, isLiquid, isLog, isSolid, isUnbreakable } from "./blocks.js";
-import { topMap, isTouched, biomeMap, get, refreshTop, shape, waterLvl, world } from "./world.js";
+import { topMap, isTouched, biomeMap, get, refreshTop, seaCol, shape, waterLvl, world } from "./world.js";
 import { growTree } from "./tree.js";
 import { lightSky, lightBlk, relightLocal } from "./light.js";
 import { touch } from "./mesh.js";
@@ -191,6 +191,9 @@ function releaseFluidOwner() {
 // 대개 첫 칸에서 판별나므로 싸다
 export function isSeaColumn(x, y, z) {
   if (y > SEA) return false;
+  // **지형이 바다로 만든 기둥인가** (v110b) — 이게 없으면 지표에서 부은 물이
+  // 굴로 떨어질 때 그 물기둥이 수면까지 이어져 "바다" 로 읽힌다 (동굴이 통째로 잠겼다)
+  if (!seaCol[z * WX + x]) return false;
   for (var yy = y + 1; yy <= SEA; yy++) {
     var b = get(x, yy, z);
     // **얼음도 바다다** — 설원의 수면은 얼음이다. 이걸 빼면 언 바다가 통째로 마른다
@@ -198,14 +201,62 @@ export function isSeaColumn(x, y, z) {
   }
   return true;
 }
-function isSeaColumn2(i, y) {
+
+// 기둥만으로는 모자란다 (v110b) — **바다 위에 뭔가를 놓으면 그 밑이 말랐다.**
+// 수면에 돌 한 칸을 놓으면 8칸, 5×5 발판을 깔면 160칸이 빠졌다(실측). 바위 처마
+// 아래·다리 기둥 밑·부두 밑이 전부 그렇다. 바다인지는 **옆으로 이어진 데까지** 봐야 한다:
+// 물을 따라가다 수면까지 트인 기둥을 하나라도 만나면 그 물줄기는 전부 바다다.
+// 원래 주석이 말하던 "바다와 이어지면" 이 바로 이것이다 — 기둥은 그 근사였다.
+var SEA_SCAN_MAX = 6000;          // 이만큼 따라가도 수면을 못 만나면 바다가 아니다
+var seaMark = null;               // 0 모름 · 1 바다 · 2 아니다
+var seaStack = null;
+var seaUsed = false;
+// 세계가 바뀌면 표를 버린다 — 프레임마다 한 번, 쓴 적이 있을 때만 (memset 0.03ms)
+export function sweepSeaCache() {
+  if (!seaUsed || !seaMark) return;
+  seaMark.fill(0);
+  seaUsed = false;
+}
+export function isSeaCell(x, y, z) {
+  if (y > SEA || !inside(x, y, z) || world[idx(x, y, z)] !== WATER) return false;
+  if (!seaMark) { seaMark = new Uint8Array(N); seaStack = new Int32Array(SEA_SCAN_MAX); }
+  var start = idx(x, y, z);
+  if (seaMark[start]) return seaMark[start] === 1;
+  seaUsed = true;
+  var top = 0, n = 0, found = false;
+  seaStack[top++] = start; seaMark[start] = 3;    // 3 = 이번 탐색에서 이미 봤다
+  var seen = [start];
+  while (top > 0) {
+    var i = seaStack[--top];
+    var yy = (i / PLANE) | 0, rem = i - yy * PLANE;
+    var zz = (rem / WX) | 0, xx = rem - zz * WX;
+    if (isSeaColumn(xx, yy, zz)) { found = true; break; }
+    for (var d = 0; d < 6; d++) {
+      var nx = xx + DIRS[d][0], ny = yy + DIRS[d][1], nz = zz + DIRS[d][2];
+      if (ny > SEA || !inside(nx, ny, nz)) continue;
+      var ni = idx(nx, ny, nz);
+      if (seaMark[ni] === 3 || world[ni] !== WATER) continue;
+      if (seaMark[ni] === 1) { found = true; break; }   // 이미 바다로 판난 물줄기
+      if (seaMark[ni] === 2) continue;
+      if (top >= SEA_SCAN_MAX || ++n > SEA_SCAN_MAX) { top = 0; break; }
+      seaMark[ni] = 3; seaStack[top++] = ni; seen.push(ni);
+    }
+    if (found) break;
+  }
+  var val = found ? 1 : 2;
+  for (var k = 0; k < seen.length; k++) seaMark[seen[k]] = val;
+  return found;
+}
+
+function isSeaCell2(i, y) {
   var rem = i - y * PLANE;
   var z = (rem / WX) | 0;
-  return isSeaColumn(rem - z * WX, y, z);
+  return isSeaCell(rem - z * WX, y, z);
 }
 
 export function waterTick(budget) {
   budget = budget || 300;
+  sweepSeaCache();
   var changed = 0;
   var end = Q.waterQ.length;          // 한 틱에 한 칸씩만 번진다
   while (Q.waterHead < end && budget-- > 0) {
@@ -218,16 +269,21 @@ export function waterTick(budget) {
     var x = rem - z * WX;
 
     var lvl = -1;
-    if (y <= SEA && isSeaColumn(x, y, z)) {
+    var seaFed = false;
+    if (y <= SEA) {
+      for (var sd = 0; sd < 6; sd++) {
+        var sx2 = x + DIRS[sd][0], sy2 = y + DIRS[sd][1], sz2 = z + DIRS[sd][2];
+        if (get(sx2, sy2, sz2) === WATER && isSeaCell(sx2, sy2, sz2)) { seaFed = true; break; }
+      }
+    }
+    if (seaFed) {
       // **진짜 바다일 때만** 그냥 잠긴다 (v110).
       // 예전에는 해수면 아래면 무조건 근원(레벨 0)이라, 사람이 부은 물 한 칸이
       // 지하로 새면 **동굴 전체를 초당 300칸으로 영원히 채웠다**
       // (8시드 중 6개가 60초에 1만 8천 칸 · 그중 해수면 위는 153칸뿐이라
       //  화면에서는 시냇물 하나로 보인다). 게다가 dryTick 이 해수면 아래를
       //  통째로 건너뛰어 **되돌려도 남은 물끼리 서로를 먹여 다시 퍼졌다.**
-      for (var d = 0; d < 6 && lvl < 0; d++) {
-        if (get(x + DIRS[d][0], y + DIRS[d][1], z + DIRS[d][2]) === WATER) lvl = 0;
-      }
+      lvl = 0;
     } else if (get(x, y + 1, z) === WATER) {
       lvl = 0;                          // 위에서 떨어지는 물은 다시 근원이 된다
       unlock("waterfall");
@@ -319,6 +375,7 @@ export function freezeTick(budget) {
 
 export function dryTick(budget) {
   budget = budget || 300;
+  sweepSeaCache();
   var dried = 0;
   var end = Q.dryQ.length;
   while (Q.dryHead < end && budget-- > 0) {
@@ -327,7 +384,7 @@ export function dryTick(budget) {
     var y = (i / PLANE) | 0;
     // 바다는 마르지 않는다 — 그런데 **지하에 갇힌 물은 바다가 아니다** (v110).
     // 수면까지 물로 이어진 기둥만 바다로 친다
-    if (y <= SEA && isSeaColumn2(i, y)) continue;
+    if (y <= SEA && isSeaCell2(i, y)) continue;
     var lvl = waterLvl[i];
     if (lvl === 0 && get2(i, 0, 1, 0) !== WATER) {
       // 위에서 떨어지던 물이 끊긴 근원 — 옆에서 받쳐 주지 않으면 사라진다

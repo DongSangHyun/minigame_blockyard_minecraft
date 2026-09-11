@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { LEGACY_WY, GEN, setGen, WX, WZ, idx } from "./dims.js";
 import { DEFAULT_BAR, SH_FULL } from "./blocks.js";
-import { seenMap, expandLegacySeen, touched, refreshAllTops, set, shape, world, waterLvl } from "./world.js";
+import { seenMap, expandLegacySeen, touched, refreshAllTops, snapshotSeaCol, set, shape, world, waterLvl } from "./world.js";
 
 import { player, stats } from "./player.js";
 import { dumpMobs, loadMobs } from "./mobs.js";
@@ -299,6 +299,7 @@ export function loadGame() {
     S.weatherMix = S.weather ? 1 : 0;      // 불러오자마자 그 날씨로 보이게
     applyWeather();                        // 빗줄기·눈송이를 실제로 켠다 (S.weather 만 넣으면 안 보인다)
     refreshAllTops();
+    snapshotSeaCol();      // 어디가 바다였는지 다시 찍는다 (액체가 이걸 본다)
     return true;
   } catch (e) { return false; }
 }

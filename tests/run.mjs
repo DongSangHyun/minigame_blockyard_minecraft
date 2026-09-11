@@ -12820,6 +12820,51 @@ test("v110 잎: 베고 되돌리면 캐노피까지 돌아온다", async (page) 
      "되돌렸는데 잎이 " + r.afterUndo + "/" + r.grown + " 만 돌아왔다 — 맨 줄기가 허공에 선다");
 });
 
+test("v110 바다: 수면에 발판을 깔아도 그 밑이 안 마른다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.generate(1234, 2); B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    B.S.history.length = 0; B.S.future.length = 0;
+    function water() {
+      let n = 0;
+      for (let i = 0; i < B.world.length; i++) if (B.world[i] === B.B.WATER) n++;
+      return n;
+    }
+    // 깊은 바다 한 칸 — 수면 아래로 세 칸이 물인 자리
+    let sx = -1, sz = -1;
+    for (let z = 4; z < B.WZ - 4 && sx < 0; z++)
+      for (let x = 4; x < B.WX - 4; x++) {
+        let deep = true;
+        for (let d = 0; d <= 3; d++) if (B.get(x, B.SEA - d, z) !== B.B.WATER) deep = false;
+        if (deep) { sx = x; sz = z; break; }
+      }
+    if (sx < 0) return { none: true };
+
+    // 5×5 발판을 바다 위에 깐다 — 부두·다리 기둥이 하는 일이다
+    const before = water();
+    let placed = 0;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+      // 물이던 칸만 센다 — 물가라 흙이 섞여 있으면 그 칸은 물을 밀어낸 게 아니다
+      const wasWater = B.get(sx + dx, B.SEA, sz + dz) === B.B.WATER;
+      if (B.applyEdit(sx + dx, B.SEA, sz + dz, B.B.STONE, true, 0) && wasWater) placed++;
+    }
+    for (let k = 0; k < 60 * 90; k++) B.step(1 / 60);
+    const after = water();
+    const under = B.get(sx, B.SEA - 1, sz) === B.B.WATER;
+
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { before, after, placed, under, drained: before - after - placed };
+  });
+  if (r.none) return;                       // 이 시드에 깊은 바다가 없으면 넘긴다
+  eq(r.under, true, "발판 바로 밑의 바닷물이 말랐다");
+  // 놓은 칸이 물을 밀어낸 것 말고는 한 칸도 줄면 안 된다.
+  // v110 이 「수면까지 트인 기둥만 바다」로 고치면서, 바다 위에 뭘 놓으면
+  // 그 밑이 바다가 아니게 되어 **돌 한 칸에 8칸 · 5×5 발판에 160칸**이 빠졌다
+  eq(r.drained, 0, "발판 아래 바다가 " + r.drained + "칸 말랐다 (놓은 칸 " + r.placed + ")");
+});
+
 test("v110 첫 화면: 도움말이 초보부터 열리고, 캐기 기본값이 빠름이다", async (page) => {
   // 1024×640 — 노트북 한 화면. 자문이 "40줄 중 15줄이 화면 밖" 이라고 잰 크기다
   const beforeVp = page.viewportSize();

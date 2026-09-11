@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-11 · 모듈 29개 · 합계 13,107줄
+생성일 2026-09-11 · 모듈 29개 · 합계 13,179줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -17,16 +17,16 @@
 | [`blocks.js`](../src/blocks.js) | 블록 정의 · 모양 · 성질 | 352 | state |
 | [`tree.js`](../src/tree.js) | 나무 한 그루의 모양 | 47 | — |
 | [`atlas.js`](../src/atlas.js) | 텍스처 아틀라스 (코드로 그리는 16×16 도트) | 711 | blocks |
-| [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 1192 | state · tree · queues · dims · blocks · atlas |
+| [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 1206 | state · tree · queues · dims · blocks · atlas |
 | [`light.js`](../src/light.js) | 광원 — 햇빛과 블록광 BFS | 182 | state · dims · blocks · world · mesh · player |
-| [`fluids.js`](../src/fluids.js) | 물 흐름 · 낙하 블록 · 잎 부패 | 843 | state · atlas · settings · queues · dims · blocks · world · tree · light · mesh · scene · audio · player · edit |
+| [`fluids.js`](../src/fluids.js) | 물 흐름 · 낙하 블록 · 잎 부패 | 900 | state · atlas · settings · queues · dims · blocks · world · tree · light · mesh · scene · audio · player · edit |
 | [`mesh.js`](../src/mesh.js) | 면 데이터 + 청크 메싱 | 428 | dims · blocks · atlas · world · light |
 | [`scene.js`](../src/scene.js) | three.js 씬 · 셰이더 · 파티클 | 648 | dims · boot · blocks · atlas · world · mesh |
 | [`daynight.js`](../src/daynight.js) | 낮과 밤 | 88 | state · world · scene |
 | [`settings.js`](../src/settings.js) | 설정 | 106 | state · boot · scene |
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 361 | state · dims · blocks · world · scene |
 | [`audio.js`](../src/audio.js) | 소리 | 354 | state · blocks · daynight · settings |
-| [`save.js`](../src/save.js) | 저장 · 불러오기 | 376 | state · dims · blocks · world · player · mobs · hud · sky |
+| [`save.js`](../src/save.js) | 저장 · 불러오기 | 377 | state · dims · blocks · world · player · mobs · hud · sky |
 | [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 1198 | state · queues · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
 | [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 720 | state · version · dims · blocks · atlas · world · player · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 201 | state · settings · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
@@ -160,17 +160,18 @@
 | `isTouched(x, y, z)` | 282 |
 | `setTouched(x, y, z, on)` | 288 |
 | `refreshAllTops()` | 292 |
-| `hash2(x, y, seed)` | 296 |
-| `hash3(x, y, z, seed)` | 301 |
-| `smooth(t)` | 307 |
-| `lerp(a, b, t)` | 308 |
-| `noise2(x, y, seed)` | 310 |
-| `noise3(x, y, z, seed)` | 317 |
-| `oreCeil()` | 328 |
-| `lavaTop()` | 334 |
-| `generate(seed, gen)` | 336 |
+| `snapshotSeaCol()` | 302 |
+| `hash2(x, y, seed)` | 309 |
+| `hash3(x, y, z, seed)` | 314 |
+| `smooth(t)` | 320 |
+| `lerp(a, b, t)` | 321 |
+| `noise2(x, y, seed)` | 323 |
+| `noise3(x, y, z, seed)` | 330 |
+| `oreCeil()` | 341 |
+| `lavaTop()` | 347 |
+| `generate(seed, gen)` | 349 |
 
-내보내는 값 — `world` · `shape` · `heightMap` · `topMap` · `biomeMap` · `waterLvl` · `BIOME_NAMES` · `touched` · `SEEN_TOP` · `UNDER_BANDS` · `SEEN_UNDER_ALL` · `seenMap` · `MOUTH_DEPTH` · `MOUTH_W` · `MINE_W` · `BOULDER_MIN` · `boulderCells`
+내보내는 값 — `world` · `shape` · `heightMap` · `topMap` · `biomeMap` · `waterLvl` · `BIOME_NAMES` · `touched` · `SEEN_TOP` · `UNDER_BANDS` · `SEEN_UNDER_ALL` · `seenMap` · `seaCol` · `MOUTH_DEPTH` · `MOUTH_W` · `MINE_W` · `BOULDER_MIN` · `boulderCells`
 
 ### `light.js` — 광원 — 햇빛과 블록광 BFS
 
@@ -201,28 +202,30 @@
 | `enqueueFall(x, y, z)` | 116 |
 | `fallTick(budget)` | 120 |
 | `isSeaColumn(x, y, z)` | 192 |
-| `waterTick(budget)` | 207 |
-| `enqueueFreeze(x, y, z)` | 290 |
-| `freezeTick(budget)` | 296 |
-| `dryTick(budget)` | 320 |
-| `get2(i, dx, dy, dz)` | 348 |
-| `fedSideways(i, y, lvl)` | 354 |
-| `removeWater(i, y)` | 365 |
-| `ignite(x, y, z)` | 393 |
-| `grassTick(px, py, pz, tries)` | 427 |
-| `enqueueLava(x, y, z)` | 468 |
-| `enqueueLavaAround(x, y, z)` | 473 |
-| `enqueueLavaDry(x, y, z)` | 477 |
-| `enqueueLavaDryAround(x, y, z)` | 481 |
-| `lavaFlowTick(budget)` | 499 |
-| `lavaDryTick(budget)` | 554 |
-| `lavaTick(px, py, pz, tries)` | 586 |
-| `fireTick(budget)` | 606 |
-| `primeTNT(x, y, z, fuse)` | 686 |
-| `primeTick(dt)` | 697 |
-| `explode(cx, cy, cz, radius)` | 712 |
-| `enqueueGrow(x, y, z)` | 750 |
-| `growTick(dt)` | 773 |
+| `sweepSeaCache()` | 215 |
+| `isSeaCell(x, y, z)` | 220 |
+| `waterTick(budget)` | 257 |
+| `enqueueFreeze(x, y, z)` | 346 |
+| `freezeTick(budget)` | 352 |
+| `dryTick(budget)` | 376 |
+| `get2(i, dx, dy, dz)` | 405 |
+| `fedSideways(i, y, lvl)` | 411 |
+| `removeWater(i, y)` | 422 |
+| `ignite(x, y, z)` | 450 |
+| `grassTick(px, py, pz, tries)` | 484 |
+| `enqueueLava(x, y, z)` | 525 |
+| `enqueueLavaAround(x, y, z)` | 530 |
+| `enqueueLavaDry(x, y, z)` | 534 |
+| `enqueueLavaDryAround(x, y, z)` | 538 |
+| `lavaFlowTick(budget)` | 556 |
+| `lavaDryTick(budget)` | 611 |
+| `lavaTick(px, py, pz, tries)` | 643 |
+| `fireTick(budget)` | 663 |
+| `primeTNT(x, y, z, fuse)` | 743 |
+| `primeTick(dt)` | 754 |
+| `explode(cx, cy, cz, radius)` | 769 |
+| `enqueueGrow(x, y, z)` | 807 |
+| `growTick(dt)` | 830 |
 
 내보내는 값 — `MAXFLOW` · `DECAY_R` · `FIRE_LIFE` · `FIRE_REACH` · `GRASS_REACH` · `LAVA_FLOW` · `LAVA_REACH` · `BLAST_R` · `TNT_FUSE` · `GROW_EVERY` · `GROW_CHANCE` · `GROW_LIGHT`
 
@@ -366,15 +369,15 @@
 | `liftLegacy(src, dst, asRuns)` | 164 |
 | `saveGame()` | 179 |
 | `loadGame()` | 229 |
-| `clearSave()` | 305 |
-| `backupKey(n)` | 312 |
-| `pushBackup()` | 315 |
-| `prevKey(n)` | 325 |
-| `pushPrev()` | 326 |
-| `hasBackup()` | 333 |
-| `restoreBackup()` | 338 |
-| `exportWorld()` | 349 |
-| `importWorldText(text)` | 365 |
+| `clearSave()` | 306 |
+| `backupKey(n)` | 313 |
+| `pushBackup()` | 316 |
+| `prevKey(n)` | 326 |
+| `pushPrev()` | 327 |
+| `hasBackup()` | 334 |
+| `restoreBackup()` | 339 |
+| `exportWorld()` | 350 |
+| `importWorldText(text)` | 366 |
 
 내보내는 값 — `SAVE_KEY` · `OLD_KEY` · `SLOTS` · `LAST_SLOT_KEY` · `LOCK_PREFIX` · `LOCK_STALE` · `sessionId`
 
