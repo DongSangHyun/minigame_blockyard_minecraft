@@ -3287,6 +3287,80 @@ test("v18 오프라인: 우리 파일은 네트워크 먼저, CDN 은 캐시 먼
   assert(txt.indexOf("caches.delete") > 0, "옛 캐시 정리가 없다");
 });
 
+test("v108 오프라인: 껍데기에 모듈이 하나도 안 빠졌다", async (page) => {
+  // 시작 화면이 "홈 화면에 추가하면 인터넷 없이도 열립니다" 라고 약속한다.
+  // SHELL 은 손으로 적는 목록이라 **모듈을 새로 넣으면 조용히 다시 깨진다** —
+  // v108 전에는 main.js 하나뿐이라 첫 오프라인 실행이 MIME 거부 28개로 죽었다
+  const r = await page.evaluate(async () => {
+    const sw = await (await fetch("./sw.js")).text();
+    const shell = (sw.match(/var SHELL = \[([\s\S]*?)\];/) || [])[1] || "";
+    const listed = (shell.match(/"\.\/src\/[a-z0-9_.-]+\.js"/g) || [])
+      .map((q) => q.slice(7, -1));   // "./src/ 는 일곱 자
+    // 실제로 페이지가 읽어 들인 모듈 — main.js 가 import 하는 것을 성능 기록에서 본다
+    const loaded = performance.getEntriesByType("resource")
+      .map((e) => e.name)
+      .filter((n) => /\/src\/[a-z0-9_.-]+\.js$/.test(n))
+      .map((n) => n.slice(n.lastIndexOf("/src/") + 5));
+    const uniq = Array.from(new Set(loaded));
+    const missing = uniq.filter((m) => listed.indexOf(m) < 0);
+    const cdn = sw.indexOf("three.min.js") > 0;
+    return { listed: listed.length, loaded: uniq.length, missing, cdn };
+  });
+  assert(r.loaded > 20, "모듈을 " + r.loaded + "개만 읽었다 — 시험대가 안 섰다");
+  eq(r.missing.length, 0,
+     "오프라인 껍데기에 안 담긴 모듈: " + r.missing.join(", ") + " — 첫 오프라인 실행이 죽는다");
+  eq(r.cdn, true, "three.js CDN 이 껍데기에 없다 — 오프라인에서 라이브러리를 못 읽는다");
+});
+
+test("v108 멈춤: 메뉴를 열어 두면 TNT 도화선이 선다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 14, Y = 40, Z = 14;
+    for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++) {
+      for (let dy = -1; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    }
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++)
+      B.set(X + dx, Y, Z + dz, B.B.STONE);
+    B.set(X, Y + 1, Z, B.B.TNT);
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.pos.set(X + 5.5, Y + 3, Z + 5.5);
+    function stone() {
+      let n = 0;
+      for (let dx = -5; dx <= 5; dx++) for (let dz = -5; dz <= 5; dz++)
+        for (let dy = -1; dy <= 2; dy++) if (B.get(X + dx, Y + dy, Z + dz) === B.B.STONE) n++;
+      return n;
+    }
+    B.primeTNT(X, Y + 1, Z);
+    const primedNow = B.S.primed.length;
+    const before = stone();
+    // 메뉴로 나간 채 도화선(3초)보다 오래 — 아무것도 터지면 안 된다
+    B.endPlay();
+    for (let k = 0; k < 60 * 6; k++) B.step(1 / 60);
+    const afterPaused = stone();
+    const stillPrimed = B.S.primed.length;
+    // 돌아오면 터진다
+    B.beginPlay();
+    for (let k = 0; k < 60 * 6; k++) B.step(1 / 60);
+    const afterPlaying = stone();
+
+    for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++)
+      for (let dy = -1; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false);
+    B.resetQueues();
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.player.pos.set(48.5, 40, 48.5);
+    B.endPlay(); B.setPaused(false);
+    return { primedNow, before, afterPaused, stillPrimed, afterPlaying };
+  });
+  eq(r.primedNow, 1, "도화선이 안 붙었다 — 시험대가 안 섰다");
+  eq(r.afterPaused, r.before,
+     "메뉴를 열어 둔 6초에 돌 " + (r.before - r.afterPaused) + "칸이 사라졌다 — TNT 가 메뉴 안에서 터진다");
+  eq(r.stillPrimed, 1, "메뉴를 열어 뒀는데 도화선이 사라졌다");
+  assert(r.afterPlaying < r.before, "돌아왔는데 TNT 가 안 터진다 — 도화선이 얼어붙었다");
+});
+
 test("v18 게임패드: 연결이 없으면 조용히 넘어간다", async (page, errors) => {
   const before = errors.length;
   const r = await page.evaluate(() => {
@@ -11897,9 +11971,12 @@ test("v99 멈춤: 메뉴를 열어 두면 불도 물도 멈춘다", async (page)
   assert(r.start > 60, "시험대가 안 섰다 — 판자가 " + r.start + "칸뿐이다");
   eq(r.afterPaused, r.start,
      "메뉴를 열어 둔 30초에 판자 " + (r.start - r.afterPaused) + "칸이 탔다 — 세계가 안 멈춘다");
-  // 이 시험의 주장은 "멈추면 안 탄다" 이다. 돌아온 뒤는 불이 확률로 도니
-  // **큐가 살아 있었다**(멈춘 동안 불이 그대로였다)는 것으로 갈음한다
   assert(r.fireCells > 0, "멈춘 동안 불이 꺼졌다 — 큐가 사라졌다");
+  // **돌아오면 다시 돈다** — 이 단언이 없으면 큐를 영영 얼려 버리는 회귀가 통과한다.
+  // 불은 확률로 번지므로 "판자가 줄었다" 대신 **불 칸이 하나라도 움직였다**를 본다
+  assert(r.afterPlaying < r.start || r.fireAfter !== r.fireCells,
+     "돌아왔는데 세계가 그대로다 — 큐가 얼어붙었다 (판자 " + r.afterPlaying + "/" + r.start +
+     " · 불 " + r.fireCells + "→" + r.fireAfter + ")");
 });
 
 test("v100 되돌리기: 손댄 자국도 되돌아온다 · 과제 진행도 · 표식 지우기", async (page) => {
@@ -12521,10 +12598,13 @@ test("v108 말과 실제: 과제 문구가 실제 조건과 맞는다", async (p
     const seaY = B.SEA;
     function bridge(alongX) {
       B.S.earned = {};
-      // 물 띠를 만들고 그 위 한 칸에 다리를 놓는다
+      // 물 띠를 만들고 그 위 한 칸에 다리를 놓는다.
+      // **놓을 자리를 먼저 비운다** — 자연 지형에 이미 돌이 서 있으면 applyEdit 이
+      // 아무것도 안 해 touched 가 안 찍히고, 그 시드에서만 시험이 깨진다
       for (let k = -2; k <= 26; k++) {
         const bx = alongX ? X + k : X + 4;
         const bz = alongX ? Z + 4 : Z + k;
+        for (let dy = seaY - 5; dy <= seaY + 6; dy++) B.set(bx, dy, bz, 0);
         for (let dy = seaY - 3; dy <= seaY; dy++) B.set(bx, dy, bz, B.B.WATER);
         B.set(bx, seaY - 4, bz, B.B.STONE);
       }

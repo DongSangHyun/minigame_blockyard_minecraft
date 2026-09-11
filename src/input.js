@@ -1453,7 +1453,7 @@ window.addEventListener("touchmove", function (e) {
     // 20×20 집터를 잡으려면 모서리마다 날아가야 했다
     var cell = aimCell(64, true);
     if (!cell) return;
-    if (!S.selA || (S.selA && S.selB)) { S.selA = cell.slice(); S.selB = null; toast("영역 시작 — 모양 단추를 길게 눌러 도구를"); }
+    if (!S.selA || (S.selA && S.selB)) { S.selA = cell.slice(); S.selB = null; toast("영역 시작 — 반대쪽 모서리를 조준하고 두 손가락을 한 번 더"); }
     else { S.selB = cell.slice(); toast("영역 " + selectionText() + " — 모양 단추를 길게"); }
   }, { passive: true });
 })();
