@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-11 · 모듈 29개 · 합계 12,670줄
+생성일 2026-09-11 · 모듈 29개 · 합계 12,762줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -20,25 +20,25 @@
 | [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 1083 | state · tree · queues · dims · blocks · atlas |
 | [`light.js`](../src/light.js) | 광원 — 햇빛과 블록광 BFS | 182 | state · dims · blocks · world · mesh · player |
 | [`fluids.js`](../src/fluids.js) | 물 흐름 · 낙하 블록 · 잎 부패 | 798 | state · atlas · settings · queues · dims · blocks · world · tree · light · mesh · scene · audio · player · edit |
-| [`mesh.js`](../src/mesh.js) | 면 데이터 + 청크 메싱 | 396 | dims · blocks · atlas · world · light |
+| [`mesh.js`](../src/mesh.js) | 면 데이터 + 청크 메싱 | 428 | dims · blocks · atlas · world · light |
 | [`scene.js`](../src/scene.js) | three.js 씬 · 셰이더 · 파티클 | 610 | dims · boot · blocks · atlas · world · mesh |
-| [`daynight.js`](../src/daynight.js) | 낮과 밤 | 84 | state · world · scene |
+| [`daynight.js`](../src/daynight.js) | 낮과 밤 | 87 | state · world · scene |
 | [`settings.js`](../src/settings.js) | 설정 | 106 | state · boot · scene |
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 361 | state · dims · blocks · world · scene |
 | [`audio.js`](../src/audio.js) | 소리 | 301 | state · blocks · daynight · settings |
 | [`save.js`](../src/save.js) | 저장 · 불러오기 | 376 | state · dims · blocks · world · player · mobs · hud · sky |
 | [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 1185 | state · queues · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
 | [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 720 | state · version · dims · blocks · atlas · world · player · hand · input |
-| [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 197 | state · settings · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
+| [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 201 | state · settings · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
 | [`body.js`](../src/body.js) | 3인칭에서 보이는 플레이어 몸 | 200 | state · settings · scene · player · atlas · hand · blocks |
 | [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 1850 | state · world · queues · mobs · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
 | [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 277 | state · mobs · fluids · dims · blocks · world · scene · player · audio · edit · hud · hand · input |
-| [`mobs.js`](../src/mobs.js) | 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다. | 612 | dims · world · blocks · scene · player · audio |
-| [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 446 | state · audio · dims · atlas · world · scene · daynight · player |
+| [`mobs.js`](../src/mobs.js) | 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다. | 637 | dims · world · blocks · scene · player · audio · light · daynight · state |
+| [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 469 | state · audio · dims · atlas · blocks · world · scene · daynight · player |
 | [`cloud.js`](../src/cloud.js) | 기기 사이 이어하기 (GitHub Gist 에 세계를 올리고 내려받는다) | 243 | state · save |
-| [`loop.js`](../src/loop.js) | 게임 루프 | 953 | state · input · mobs · queues · dims · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · body · mine · sky |
+| [`loop.js`](../src/loop.js) | 게임 루프 | 956 | state · input · mobs · queues · dims · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · body · mine · sky |
 | [`version.js`](../src/version.js) | 빌드 도장 (자동 생성) | 8 | — |
-| [`main.js`](../src/main.js) | 조립과 시작 | 280 | state · tree · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · body · input · mine · sky · loop |
+| [`main.js`](../src/main.js) | 조립과 시작 | 282 | state · tree · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · body · input · mine · sky · loop |
 
 ## 모듈별 공개 함수
 
@@ -234,18 +234,17 @@
 | `chunkCX(id)` | 51 |
 | `chunkCZ(id)` | 52 |
 | `chunkCY(id)` | 53 |
-| `mergeSlot(f, slice, i, j)` | 79 |
-| `buildChunk(cx, cy, cz)` | 86 |
-| `emitCross(P, U, C, L, I, x, y, z, b, ci, T)` | 292 |
-| `applyGeo(mesh, pos, uv, col, lit, ind, tile)` | 326 |
-| `markDirty(x, y, z)` | 348 |
-| `touch(x, y, z)` | 354 |
-| `rebuildAll()` | 358 |
-| `markAllDirty()` | 363 |
-| `setBuildFocus(v)` | 368 |
-| `buildBudget(ms)` | 370 |
+| `buildChunk(cx, cy, cz)` | 92 |
+| `emitCross(P, U, C, L, I, x, y, z, b, ci, T)` | 320 |
+| `applyGeo(mesh, pos, uv, col, lit, ind, tile)` | 354 |
+| `markDirty(x, y, z)` | 380 |
+| `touch(x, y, z)` | 386 |
+| `rebuildAll()` | 390 |
+| `markAllDirty()` | 395 |
+| `setBuildFocus(v)` | 400 |
+| `buildBudget(ms)` | 402 |
 
-내보내는 값 — `FACES` · `FACE_UV` · `AO_LEVELS` · `opaqueMeshes` · `chunkFilled` · `chunkCenters` · `MERGE_IAXIS` · `MERGE_JAXIS` · `MERGE_LIGHT_STEPS` · `CROSS_PLANES` · `dirty` · `buildFocus`
+내보내는 값 — `FACES` · `FACE_UV` · `AO_LEVELS` · `opaqueMeshes` · `chunkFilled` · `chunkCenters` · `CROSS_PLANES` · `dirty` · `buildFocus`
 
 ### `scene.js` — three.js 씬 · 셰이더 · 파티클
 
@@ -273,7 +272,7 @@
 | `moonFullness()` | 33 |
 | `dayLight(t)` | 37 |
 | `applyTime(dt)` | 46 |
-| `clockText()` | 79 |
+| `clockText()` | 82 |
 
 내보내는 값 — `DAY_LEN` · `SKY_STOPS` · `_cA` · `_grey`
 
@@ -465,7 +464,7 @@
 | `updateGhost(px, py, pz, upper)` | 152 |
 | `triggerSwing()` | 169 |
 | `updateHandLight(dt)` | 172 |
-| `updateHand(dt)` | 187 |
+| `updateHand(dt)` | 191 |
 
 내보내는 값 — `handScene` · `handCam` · `handGroup` · `handMat` · `heldMesh` · `armMat` · `arm` · `ghostMat` · `ghostMesh`
 
@@ -543,22 +542,22 @@
 
 | 함수 | 줄 |
 |---|---:|
-| `disposeMob(m)` | 77 |
-| `dumpMobs()` | 88 |
-| `loadMobs(arr)` | 97 |
-| `seedMobs()` | 116 |
-| `anyMobNear(px, pz, r)` | 213 |
-| `updateMobs(dt)` | 246 |
-| `pushOutOfMobs(px, pz, half)` | 380 |
-| `mobOccupies(x, y, z)` | 400 |
-| `aimedMob(maxDist)` | 416 |
-| `aimingAtMob()` | 434 |
-| `removeMob(m)` | 439 |
-| `feedNearbyMob(pos)` | 452 |
-| `breedTick(dt)` | 495 |
-| `setMobsVisible(on)` | 530 |
-| `seedFlocks()` | 551 |
-| `updateFlocks(dt)` | 568 |
+| `disposeMob(m)` | 86 |
+| `dumpMobs()` | 97 |
+| `loadMobs(arr)` | 106 |
+| `seedMobs()` | 125 |
+| `anyMobNear(px, pz, r)` | 222 |
+| `updateMobs(dt)` | 255 |
+| `pushOutOfMobs(px, pz, half)` | 405 |
+| `mobOccupies(x, y, z)` | 425 |
+| `aimedMob(maxDist)` | 441 |
+| `aimingAtMob()` | 459 |
+| `removeMob(m)` | 464 |
+| `feedNearbyMob(pos)` | 477 |
+| `breedTick(dt)` | 520 |
+| `setMobsVisible(on)` | 555 |
+| `seedFlocks()` | 576 |
+| `updateFlocks(dt)` | 593 |
 
 내보내는 값 — `LOVE_HINT` · `MOB_COUNT` · `MOB_MAX` · `FISH_COUNT` · `BIRD_COUNT` · `MOB_KINDS` · `mobs` · `mobGroup` · `HERD` · `fish` · `birds`
 
@@ -566,19 +565,19 @@
 
 | 함수 | 줄 |
 |---|---:|
-| `discTexture(size, stops)` | 11 |
-| `updateSkyBodies()` | 117 |
-| `columnTop(fx, fz)` | 169 |
-| `seedWeather()` | 175 |
-| `setWeather(w)` | 184 |
-| `applyWeather()` | 192 |
-| `localBiome()` | 211 |
-| `strikeBolt(fx, fz)` | 233 |
-| `updateStorm(dt)` | 274 |
-| `updateWeather(dt)` | 304 |
-| `seedCreatures()` | 398 |
-| `placeCreature(i)` | 406 |
-| `updateCreatures(dt)` | 416 |
+| `discTexture(size, stops)` | 12 |
+| `updateSkyBodies()` | 118 |
+| `columnTop(fx, fz)` | 176 |
+| `seedWeather()` | 182 |
+| `setWeather(w)` | 191 |
+| `applyWeather()` | 199 |
+| `localBiome()` | 218 |
+| `strikeBolt(fx, fz)` | 240 |
+| `updateStorm(dt)` | 281 |
+| `updateWeather(dt)` | 311 |
+| `seedCreatures()` | 405 |
+| `placeCreature(i)` | 417 |
+| `updateCreatures(dt)` | 439 |
 
 내보내는 값 — `sunMat` · `sunSprite` · `MOON_PHASES` · `moonTex` · `moonMat` · `moonSprite` · `brightMat` · `brightStars` · `starMat` · `stars` · `WCOUNT` · `wPos` · `wDraw` · `HIDE_Y` · `wGeo` · `wMat` · `weatherPoints` · `rPos` · `rGeo` · `rainLines` · `BOLT_SEG` · `boltMesh` · `boltAt` · `CCOUNT` · `cPos` · `cSeed` · `cGeo` · `cMat` · `creatures`
 
@@ -618,9 +617,9 @@
 | `newWorld(seed)` | 56 |
 | `step(dt)` | 106 |
 | `animate()` | 807 |
-| `autoTuneFar(fps)` | 910 |
-| `farNow()` | 928 |
-| `refreshPerf()` | 930 |
+| `autoTuneFar(fps)` | 913 |
+| `farNow()` | 931 |
+| `refreshPerf()` | 933 |
 
 내보내는 값 — `GRAVITY` · `chunkFloor` · `PLACE_DELAY` · `SNEAK_MUL` · `AIR_CONTROL` · `fwd` · `clock`
 

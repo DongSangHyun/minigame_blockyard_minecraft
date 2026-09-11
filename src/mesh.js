@@ -60,30 +60,39 @@ export function chunkCY(id) { return (id / (CX * CZ)) | 0; }
 // 기존 길로 간다. 아틀라스를 늘려 쓸 수 없어서 UV 를 타일 안 0..w 로 넘기고
 // 셰이더가 fract 로 되풀이한다 (VOX_FS).
 // 평면 매핑 — f 0,1 은 x 축(i=z · j=y) · 2,3 은 y 축(i=x · j=z) · 4,5 는 z 축(i=x · j=y)
-export var MERGE_IAXIS = [2, 2, 0, 0, 0, 0];
-export var MERGE_JAXIS = [1, 1, 2, 2, 1, 1];
+var MERGE_IAXIS = [2, 2, 0, 0, 0, 0];
+var MERGE_JAXIS = [1, 1, 2, 2, 1, 1];
 var PLANES = 6 * CH;
 var mHas = new Uint8Array(PLANES * CH * CH);
 var mTile = new Float32Array(PLANES * CH * CH * 2);
 var mLum = new Float32Array(PLANES * CH * CH * 4);
 var mSky = new Float32Array(PLANES * CH * CH * 4);
 var mBlk = new Float32Array(PLANES * CH * CH * 4);
-// 서명 둘로 줄여 비교한다 — 열두 개를 낱낱이 견주면 병합이 메싱보다 비싸진다.
-// sigA = AO 네 개(8비트) + 하늘빛 네 개(24비트) · sigB = 타일(8비트) + 블록광 네 개(24비트)
-var mSigA = new Int32Array(PLANES * CH * CH);
-var mSigB = new Int32Array(PLANES * CH * CH);
-// 빛은 32단계로 잰다 — 15단계 값을 네 칸 평균한 것이라 종류가 많고,
-// 소수점 끝자리가 다르다는 이유로 안 붙으면 평평한 벽이 통째로 낱장으로 남는다.
-// 원래 광원 단계(15)의 **절반 눈금**이라 눈으로는 차이를 못 본다
-export var MERGE_LIGHT_STEPS = 31;
-export function mergeSlot(f, slice, i, j) {
+var MERGE_LIGHT_STEPS = 31;
+function mergeSlot(f, slice, i, j) {
   return ((f * CH + slice) * CH + j) * CH + i;
 }
+// 두 면이 **그림까지 똑같은가**. 타일과 네 정점의 빛·AO 를 낱낱이 견준다 —
+// 32비트 서명으로 줄여도 봤지만 오히려 덜 붙었고(값을 잃는다) 빨라지지도 않았다
 function sameFace(a, b) {
-  return mHas[b] === 1 && mSigA[a] === mSigA[b] && mSigB[a] === mSigB[b];
+  if (mHas[b] !== 1) return false;
+  if (mTile[a * 2] !== mTile[b * 2] || mTile[a * 2 + 1] !== mTile[b * 2 + 1]) return false;
+  for (var v = 0; v < 4; v++) {
+    if (mLum[a * 4 + v] !== mLum[b * 4 + v]) return false;
+    if (mSky[a * 4 + v] !== mSky[b * 4 + v]) return false;
+    if (mBlk[a * 4 + v] !== mBlk[b * 4 + v]) return false;
+  }
+  return true;
 }
+// 한 면 안에서 값을 담아 두는 자리 — 면마다 배열을 새로 만들면 병합이 메싱보다 비싸진다
+var fX = [0, 0, 0, 0], fY = [0, 0, 0, 0], fZ = [0, 0, 0, 0];
+var fU = [0, 0, 0, 0], fV = [0, 0, 0, 0], fTop = [0, 0, 0, 0];
+var fLum = [0, 0, 0, 0], fAo = [0, 0, 0, 0], fSky = [0, 0, 0, 0], fBlk = [0, 0, 0, 0];
 
 export function buildChunk(cx, cy, cz) {
+  // 들어올 때 마스크를 비운다 (v103) — 내보내기 단계의 곁효과로만 지워지고 있어서,
+  // 굽는 도중 예외가 나면 앞 청크의 면이 다음 청크에 유령으로 남는다
+  mHas.fill(0);
   var pos = [], uv = [], col = [], lit = [], ind = [], tl = [];
   var tpos = [], tuv = [], tcol = [], tlit = [], tind = [], ttl = [];
   var x0 = cx * CH, y0 = cy * CH, z0 = cz * CH;
@@ -144,7 +153,6 @@ export function buildChunk(cx, cy, cz) {
               slot = mergeSlot(f, sliceIdx, mi, mj);
               mHas[slot] = 1;
               mTile[slot * 2] = u0; mTile[slot * 2 + 1] = v0;
-              mSigA[slot] = 0; mSigB[slot] = TILES[b][faceKindFor(sh, f, face.kind)] & 255;
             }
             var base = P.length / 3;
             var ta = (na + 1) % 3, tb = (na + 2) % 3;
@@ -158,12 +166,13 @@ export function buildChunk(cx, cy, cz) {
               var local = [lx, ly, lz];
 
               var isTopVert = waterTop && ly === 1;
-              if (slot < 0) P.push(x + lx, y + ly - (isTopVert ? 0.12 : 0), z + lz);
+              fX[v] = x + lx; fY[v] = y + ly - (isTopVert ? 0.12 : 0); fZ[v] = z + lz;
+              fTop[v] = isTopVert ? 1 : 0;
 
               var uu = local[uvi.uAxis], vv = local[uvi.vAxis];
               if (uvi.uFlip) uu = 1 - uu;
               if (uvi.vFlip) vv = 1 - vv;
-              if (slot < 0) { U.push(uu, vv); T.push(u0, v0); }
+              fU[v] = uu; fV[v] = vv;
 
               var off = [0, 0, 0];
               off[na] = face.dir[na];
@@ -175,12 +184,9 @@ export function buildChunk(cx, cy, cz) {
               var s1 = blocksLight(get(x + o1[0], y + o1[1], z + o1[2])) ? 1 : 0;
               var s2 = blocksLight(get(x + o2[0], y + o2[1], z + o2[2])) ? 1 : 0;
               var sc = blocksLight(get(x + oc[0], y + oc[1], z + oc[2])) ? 1 : 0;
-              var lum = face.shade * AO_LEVELS[aoValue(s1, s2, sc)];
-              if (slot < 0) C.push(lum, lum, lum);
-              else {
-                mLum[slot * 4 + v] = lum;
-                mSigA[slot] |= (aoValue(s1, s2, sc) & 3) << (24 + v * 2);
-              }
+              var aov = aoValue(s1, s2, sc);
+              fAo[v] = aov;
+              fLum[v] = face.shade * AO_LEVELS[aov];
 
               var skySum = 0, blkSum = 0, cnt = 0;
               var cells = [[ax, ay, az],
@@ -204,17 +210,39 @@ export function buildChunk(cx, cy, cz) {
                 } else if (ay >= WY) { skySum = 15; blkSum = 0; }
                 cnt = 1;
               }
-              if (slot < 0) L.push(skySum / cnt / 15, blkSum / cnt / 15, isTopVert ? 1 : 0);
-              else {
-                var qsky = Math.round(skySum / cnt / 15 * MERGE_LIGHT_STEPS);
-                var qblk = Math.round(blkSum / cnt / 15 * MERGE_LIGHT_STEPS);
-                mSky[slot * 4 + v] = qsky / MERGE_LIGHT_STEPS;
-                mBlk[slot * 4 + v] = qblk / MERGE_LIGHT_STEPS;
-                mSigA[slot] |= (qsky & 63) << (v * 6);
-                mSigB[slot] |= (qblk & 63) << (8 + v * 6);
-              }
+              fSky[v] = skySum / cnt / 15;
+              fBlk[v] = blkSum / cnt / 15;
             }
-            if (slot < 0) I.push(base, base + 1, base + 2, base + 2, base + 1, base + 3);
+
+            // **면 하나 안에서 네 모서리가 같을 때만** 붙일 수 있다 (v103).
+            // 이웃끼리 서명이 같은지만 보면 AO 그라데이션이 통째로 늘어난다 —
+            // 울타리 옆 그늘이 사라지고 그 앞 것이 두 배 폭으로 늘어났다.
+            // 빛은 이웃한 두 칸이 같은 네 칸을 표본으로 삼아 서명이 같으면 균일이 강제되지만,
+            // AO 는 그 연속성이 없다
+            if (slot >= 0 &&
+                !(fAo[0] === fAo[1] && fAo[1] === fAo[2] && fAo[2] === fAo[3])) {
+              mHas[slot] = 0;
+              slot = -1;
+            }
+            if (slot >= 0) {
+              for (var mq = 0; mq < 4; mq++) {
+                mLum[slot * 4 + mq] = fLum[mq];
+                // 빛은 32단계로 재서 담는다 — 15단계 값을 네 칸 평균한 것이라 종류가 많고,
+                // 소수점 끝자리가 다르다는 이유로 안 붙으면 평평한 벽이 낱장으로 남는다.
+                // 원래 광원 단계(15)의 절반 눈금이라 눈으로는 차이를 못 본다
+                mSky[slot * 4 + mq] = Math.round(fSky[mq] * MERGE_LIGHT_STEPS) / MERGE_LIGHT_STEPS;
+                mBlk[slot * 4 + mq] = Math.round(fBlk[mq] * MERGE_LIGHT_STEPS) / MERGE_LIGHT_STEPS;
+              }
+            } else {
+              for (var eq = 0; eq < 4; eq++) {
+                P.push(fX[eq], fY[eq], fZ[eq]);
+                U.push(fU[eq], fV[eq]);
+                T.push(u0, v0);
+                C.push(fLum[eq], fLum[eq], fLum[eq]);
+                L.push(fSky[eq], fBlk[eq], fTop[eq]);
+              }
+              I.push(base, base + 1, base + 2, base + 2, base + 1, base + 3);
+            }
           }
         }
       }
@@ -336,7 +364,11 @@ export function applyGeo(mesh, pos, uv, col, lit, ind, tile) {
   g.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(uv), 2));
   g.setAttribute("acol", new THREE.BufferAttribute(new Float32Array(col), 3));
   g.setAttribute("alight", new THREE.BufferAttribute(new Float32Array(lit), 3));
-  g.setAttribute("atile", new THREE.BufferAttribute(new Float32Array(tile || []), 2));
+  // atile 이 없거나 짧으면 그 정점들은 조용히 아틀라스 (0,0) 을 샘플링한다 —
+  // 프래그먼트가 타일 원점을 여기서만 받기 때문이다. 길이를 맞춰 준다 (v103)
+  var tiles = tile && tile.length === (pos.length / 3) * 2 ? tile : new Array((pos.length / 3) * 2);
+  if (tiles !== tile) for (var tz = 0; tz < tiles.length; tz++) tiles[tz] = tile && tz < tile.length ? tile[tz] : 0;
+  g.setAttribute("atile", new THREE.BufferAttribute(new Float32Array(tiles), 2));
   g.setIndex(ind.length > 65000 ? new THREE.BufferAttribute(new Uint32Array(ind), 1)
                                 : new THREE.BufferAttribute(new Uint16Array(ind), 1));
   g.computeBoundingSphere();

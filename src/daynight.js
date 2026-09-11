@@ -1,7 +1,7 @@
 // daynight.js — 낮과 밤
 import { S } from "./state.js";
 import { lerp } from "./world.js";
-import { cloudMat, pMat, skyUniforms, voxUniforms } from "./scene.js";
+import { cloudMat, cloudMatHigh, pMat, skyUniforms, voxUniforms } from "./scene.js";
 
 export var DAY_LEN = 300;
 export var SKY_STOPS = [
@@ -74,6 +74,9 @@ export function applyTime(dt) {
   voxUniforms.uDay.value = L;
   voxUniforms.uFogColor.value.copy(skyUniforms.low.value);
   cloudMat.color.setRGB(L * 0.95, L * 0.96, L);
+  // 높은 층도 같이 (v103) — 두 층이 생길 때 한쪽만 배선돼서, 한밤 하늘에
+  // **새하얀 구름과 새까만 구름이 나란히** 떴다 (밝기 237 대 24 · 9.8배)
+  cloudMatHigh.color.setRGB(L * 0.95, L * 0.96, L);
   pMat.color.setRGB(0.35 + L * 0.65, 0.35 + L * 0.65, 0.35 + L * 0.65);
 }
 export function clockText() {

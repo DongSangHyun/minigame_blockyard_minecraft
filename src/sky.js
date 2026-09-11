@@ -1,9 +1,10 @@
 // sky.js — 해와 달과 별 · 날씨 · 앰비언트 생물
 import { S } from "./state.js";
 import { rainHiss, thunder } from "./audio.js";
-import { WX, WZ } from "./dims.js";
+import { SEA, WX, WY, WZ, idx } from "./dims.js";
 import { makeRng } from "./atlas.js";
-import { biomeMap, set, topMap } from "./world.js";
+import { AIR, WATER, LAVA, ICE } from "./blocks.js";
+import { biomeMap, set, topMap, world } from "./world.js";
 import { camera, scene } from "./scene.js";
 import { dayLight } from "./daynight.js";
 import { player } from "./player.js";
@@ -127,11 +128,17 @@ export function updateSkyBodies() {
 
   var L = dayLight(S.timeOfDay);
   var clear = S.weather === 0 ? 1 : 0.25;
-  starMat.opacity = Math.max(0, Math.min(1, 1.28 - L * 1.7)) * clear;
+  // 별은 하늘이 다 식은 뒤에 나온다 (v103) — 예전 문턱(1.28 - L*1.7)은
+  // **하늘이 아직 주황(#d98a55)일 때** 520개를 57% 로 켜, 노을 사진에 별이 총총 박혔다.
+  // 새 문턱은 해가 수평선에 닿는 순간(L=0.42)에 정확히 0 이 된다
+  starMat.opacity = Math.max(0, Math.min(1, 1.02 - L * 2.45)) * clear;
   brightMat.opacity = starMat.opacity * 1.25;
   brightStars.visible = brightMat.opacity > 0.01;
   brightStars.position.copy(camera.position);
-  sunMat.opacity = Math.max(0, Math.min(1, (sy / R) * 2.4 + 0.30)) * clear;
+  // 해는 수평선에 닿을 때 가장 크고 또렷해야 한다 (v103) —
+  // 예전에는 그 순간 불투명도가 0.30 까지 떨어져, 주황 하늘 위에서 대비가 절반이 됐다
+  // (노을 Δ48 대 아침 Δ104). 노을은 이 게임에서 찍을 만한 구도 1번이다
+  sunMat.opacity = Math.max(0, Math.min(1, (sy / R) * 1.5 + 0.82)) * clear;
   moonMat.opacity = Math.max(0, Math.min(1, (-sy / R) * 2.4 + 0.20)) * clear;
   sunSprite.visible = sunMat.opacity > 0.01;
   moonSprite.visible = moonMat.opacity > 0.01;
@@ -403,14 +410,30 @@ export function seedCreatures() {
     placeCreature(i);
   }
 }
+// 뭍 위에만 놓는다 (v103) — 예전에는 자리를 안 보고 뿌려서 **셋 중 하나가 바다 위**였다
+// (해변에서 54마리를 세니 낮 17 · 밤 18마리가 파도 위, 여덟 마리는 블록 안).
+// 시작 화면이 세 줄 중 한 줄을 "밤이면 반딧불이가 납니다" 에 쓰는데,
+// 바다 위의 노란 점은 반딧불이로 안 읽히고 화면 먼지로 읽힌다
 export function placeCreature(i) {
-  var x = player.pos.x + (Math.random() - 0.5) * 30;
-  var z = player.pos.z + (Math.random() - 0.5) * 30;
-  var gx = Math.max(0, Math.min(WX - 1, Math.floor(x)));
-  var gz = Math.max(0, Math.min(WZ - 1, Math.floor(z)));
-  cPos[i * 3] = x;
-  cPos[i * 3 + 1] = topMap[gz * WX + gx] + 1.4 + Math.random() * 2.4;
-  cPos[i * 3 + 2] = z;
+  for (var t = 0; t < 12; t++) {
+    var x = player.pos.x + (Math.random() - 0.5) * 30;
+    var z = player.pos.z + (Math.random() - 0.5) * 30;
+    var gx = Math.max(0, Math.min(WX - 1, Math.floor(x)));
+    var gz = Math.max(0, Math.min(WZ - 1, Math.floor(z)));
+    var top = topMap[gz * WX + gx];
+    if (top <= SEA) continue;                       // 바다·물가는 건너뛴다
+    var tb = world[idx(gx, top, gz)];
+    if (tb === WATER || tb === LAVA || tb === ICE) continue;
+    var fy = top + 1.4 + Math.random() * 2.4;
+    // 놓을 칸이 비어 있어야 한다 — 나뭇잎·오두막 안에서 반짝이면 안 보인다
+    var fyi = Math.min(WY - 1, Math.floor(fy));
+    if (world[idx(gx, fyi, gz)] !== AIR) continue;
+    cPos[i * 3] = x;
+    cPos[i * 3 + 1] = fy;
+    cPos[i * 3 + 2] = z;
+    return;
+  }
+  cPos[i * 3 + 1] = HIDE_Y;                         // 뭍을 못 찾으면 이 마리는 쉰다
 }
 
 export function updateCreatures(dt) {

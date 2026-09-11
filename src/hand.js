@@ -182,6 +182,10 @@ export function updateHandLight(dt) {
   var L = S.handLight;
   handMat.color.setScalar(L);
   armMat.color.setRGB(0.78 * L, 0.58 * L, 0.42 * L);
+  // 놓을 자리 고스트도 같은 밝기를 받는다 (v103) — 밤에 지으면 그 고스트가
+  // 화면에서 가장 밝은 것이 되어, 블록을 놓을 때마다 눈이 그쪽으로 끌려갔다.
+  // 바로 위 두 줄이 손에 대해 이미 하던 일이다
+  ghostMat.color.setScalar(Math.max(0.25, L));
 }
 
 export function updateHand(dt) {

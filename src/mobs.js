@@ -5,6 +5,9 @@ import { WOOL0, DOOR, doorOpen, FENCE, GATE, AIR, ICE, LAVA, WATER, isSolid } fr
 import { burst, scene } from "./scene.js";
 import { player } from "./player.js";
 import { at, crunch, tone } from "./audio.js";
+import { lightBlk, lightSky } from "./light.js";
+import { dayLight } from "./daynight.js";
+import { S } from "./state.js";
 
 // 하트 파티클 — 분홍 양털의 색을 빌려 쓴다 (새 텍스처를 만들지 않는다)
 export var LOVE_HINT = WOOL0 + 6;
@@ -34,17 +37,23 @@ function groundAt(x, z) {
   return topMap[gz * WX + gx] + 1;
 }
 
+// 재질에 기본색을 들려 보낸다 — 프레임마다 그 칸의 밝기를 곱한다 (v103)
+function litMat(color) {
+  var m = new THREE.MeshBasicMaterial({ color: color });
+  m.userData.base = new THREE.Color(color);
+  return m;
+}
 function makeMob(kind) {
   var k = MOB_KINDS[kind];
   var g = new THREE.Group();
   var body = new THREE.Mesh(
     new THREE.BoxGeometry(k.w, k.h, k.w * 1.5),
-    new THREE.MeshBasicMaterial({ color: k.body }));
+    litMat(k.body));
   body.position.y = k.h * 0.5 + 0.28;
   g.add(body);
   var head = new THREE.Mesh(
     new THREE.BoxGeometry(k.w * 0.62, k.h * 0.62, k.w * 0.62),
-    new THREE.MeshBasicMaterial({ color: k.head }));
+    litMat(k.head));
   head.position.set(0, k.h * 0.72 + 0.28, -k.w * 0.86);
   g.add(head);
   // 발밑 그림자 — 땅에 붙어 있다는 느낌을 만든다
@@ -56,7 +65,7 @@ function makeMob(kind) {
   shadow.position.y = 0.02;
   g.add(shadow);
 
-  var legMat = new THREE.MeshBasicMaterial({ color: 0x4a4038 });
+  var legMat = litMat(0x4a4038);
   var legs = [];
   for (var i = 0; i < 4; i++) {
     var leg = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.30, 0.13), legMat);
@@ -66,7 +75,7 @@ function makeMob(kind) {
     legs.push(leg);
   }
   mobGroup.add(g);
-  return { g: g, legs: legs, kind: kind, x: 0, y: 0, z: 0, yaw: 0,
+  return { g: g, legs: legs, kind: kind, lit: -1, x: 0, y: 0, z: 0, yaw: 0,
            turn: 0, walk: 0, phase: Math.random() * 6, cry: 3 + Math.random() * 12,
            follow: 0, love: 0, loveHint: 0, baby: 0 };
 }
@@ -367,6 +376,22 @@ export function updateMobs(dt) {
       var grow = 0.5 + 0.5 * (1 - Math.max(0, m.baby) / 60);
       m.g.scale.setScalar(grow);
     } else if (m.g.scale.x !== 1) m.g.scale.setScalar(1);
+    // 선 칸의 밝기를 몸에 먹인다 (v103) — 예전에는 고정 hex 라 **한밤에도 정오 색**이었다.
+    // 캄캄한 섬에서 유일하게 빛나는 것이 양떼라, 밤 사진이 전부 "어둠에 뜬 크림색 덩어리" 였다.
+    // src/body.js 가 3인칭 몸에 하는 것과 같은 처방인데 바로 옆의 동물만 빠져 있었다
+    var mgx = Math.max(0, Math.min(WX - 1, Math.floor(m.x)));
+    var mgz = Math.max(0, Math.min(WZ - 1, Math.floor(m.z)));
+    var mgy = Math.max(0, Math.min(WY - 1, Math.floor(m.y + 0.5)));
+    var mli = idx(mgx, mgy, mgz);
+    var mlv = Math.max(lightSky[mli] * dayLight(S.timeOfDay), lightBlk[mli]) / 15;
+    var mlt = Math.max(0.14, Math.min(1, 0.12 + mlv * 0.95));
+    if (Math.abs(mlt - m.lit) > 0.02) {
+      m.lit = mlt;
+      m.g.traverse(function (o) {
+        var bc = o.material && o.material.userData && o.material.userData.base;
+        if (bc) o.material.color.setRGB(bc.r * mlt, bc.g * mlt, bc.b * mlt);
+      });
+    }
     var sw = m.walk ? Math.sin(m.phase) * 0.5 : 0;
     for (var l = 0; l < 4; l++) {
       m.legs[l].rotation.x = (l === 0 || l === 3) ? sw : -sw;

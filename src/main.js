@@ -10,7 +10,7 @@ import { markX, markY, markZ, markName, SEEN_TOP, SEEN_UNDER, SEEN_UNDER_ALL, UN
 import { WATER_DIM, lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
 import { growTick, enqueueGrow, lavaFlowTick, lavaDryTick, LAVA_FLOW, grassTick, primeTNT, primeTick, TNT_FUSE, lavaTick, BLAST_R, FIRE_REACH, MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueFreeze, enqueueWaterAround, explode, fallTick, fireTick, freezeTick, ignite, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
 import { markDirty, FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll, setBuildFocus } from "./mesh.js";
-import { selBox, selMat, SEL_DONE, SEL_ANCHOR, pasteBox, updatePasteBox, outerSea, updateOuterSea, outerSeaY, pCol, pCount, FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, chunkBuried, BURIED_KEEP, UNDER_SPAN, DEEP_UNDER, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
+import { selBox, selMat, SEL_DONE, SEL_ANCHOR, pasteBox, updatePasteBox, outerSea, updateOuterSea, outerSeaY, pCol, pCount, FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudMat, cloudMatHigh, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, chunkBuried, BURIED_KEEP, UNDER_SPAN, DEEP_UNDER, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { OPT_KEY, applyOpts, applyFov, applyTbtn, applyUi, UI_MIN_H, fovForAspect, FOV_BASE_ASPECT, calmMotion, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, playerOccupies, pointSolid, rayBox, raycast, spawn, stats, unstick } from "./player.js";
@@ -19,11 +19,11 @@ import { lastSlot, lockHeldByOther, touchLock, releaseLock, prevKey, pushPrev, r
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName, baseRev, setBaseRev, ensureGist, req } from "./cloud.js";
 import { checkFoundAchievements, FOUND_IDS, undoEmptyWhy, HISTORY_CELLS_MAX, editLabel, blueprintList, deleteBlueprint, settleWorld, mirrorClip, rotateClip, BATCH_RELIGHT_ALL, checkBuildAchievements, ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
 import { refreshMouthDots, mouthDots, naturalRoof, roofDepth, ROOF_R, UNDER_ROOF, refreshMinimapCap, openPicker, closePicker, pickBtns, airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp , setHelpTab, toast} from "./hud.js";
-import { updateGhost, ghostMesh, updateHandLight, handMat, makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
+import { updateGhost, ghostMesh, ghostMat, updateHandLight, handMat, makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
 import { bodyRoot, updateBody, armL, armR, legL, legR, neck, upper } from "./body.js";
 import { toggleRegionBar, refreshResume, advanceTut, setStick, advanceTutTouch, HINT_TOUCH, refreshBlueprints, afterWorldSwap, aimCell, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink , swapBarPage, setShapeMode, cycleMinimapZoom, toggleMark, markHere, renameMarkHere} from "./input.js";
 import { canPlaceAt, mineAt, place, tryInteract, upperFromHit } from "./mine.js";
-import { weatherPoints, applyWeather, HIDE_Y, MOON_PHASES, boltAt, boltMesh, strikeBolt, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
+import { weatherPoints, applyWeather, HIDE_Y, starMat, sunMat, cPos, placeCreature, MOON_PHASES, boltAt, boltMesh, strikeBolt, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
 import { newWorld, PLACE_DELAY, PLACE_REPEAT, SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, farNow, refreshPerf, step , chunkFloor, refreshChunkFloor} from "./loop.js";
 
 // 주소에 ?seed=1234&t=2 가 있으면 그 세계로 연다 — 링크 하나로 같은 세계를 나눈다
@@ -237,6 +237,8 @@ window.__blockyard = {
   S: S, setZoom: function (z) { S.mmZoom = z; }, burst: burst,
   SWATCH_SIDE: SWATCH_SIDE,
   pColArray: function () { return pCol; }, pCount: function () { return pCount; },
+  starMat: starMat, sunMat: sunMat, cPos: cPos, seedCreatures: seedCreatures, placeCreature: placeCreature,
+  cloudMat: cloudMat, cloudMatHigh: cloudMatHigh, ghostMat: ghostMat, updateHandLight: updateHandLight,
   WATER_DIM: WATER_DIM, showHud: showHud, toggleRegionBar: toggleRegionBar,
   HL_CROSS: HL_CROSS, SHAPE_BOUNDS: SHAPE_BOUNDS,
   lavaPop: lavaPop, lavaHiss: lavaHiss,

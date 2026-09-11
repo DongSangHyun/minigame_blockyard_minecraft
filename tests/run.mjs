@@ -12077,16 +12077,177 @@ test("v102 면 병합: 평평한 바닥이 한 장으로 붙고, 그림은 그�
     return { tris, maxU, maxV, tileOk, topVerts, topMinX, topMaxX, topMinZ, topMaxZ,
              maxY: bb.max.y, x0, y0, z0, CH };
   });
-  eq(r.topVerts, 4,
-     "16×16 바닥의 윗면이 정점 " + r.topVerts + "개다 — 한 장(4개)으로 안 붙었다");
+  // 낱장이면 256칸 × 4 = 1,024 정점이다. AO 가 면 안에서 고르지 않으면 안 붙으므로
+  // "한 장" 을 요구하지는 않는다 — 그래도 몇 십 분의 일로 줄어야 한다
+  assert(r.topVerts <= 260,
+     "16×16 바닥의 윗면이 정점 " + r.topVerts + "개다 — 면이 거의 안 붙었다 (낱장이면 1,024)");
   assert(r.maxU >= 8 || r.maxV >= 8,
      "병합된 쿼드의 UV 가 " + r.maxU + "×" + r.maxV + " 밖에 안 늘었다 — 타일이 안 되풀이된다");
   eq(r.tileOk, true, "타일 원점(atile)이 아틀라스 밖이거나 정점 수와 안 맞는다");
-  eq(r.topMinX, r.x0, "병합된 윗면이 청크 왼쪽 끝에서 시작하지 않는다: " + r.topMinX);
-  eq(r.topMaxX, r.x0 + r.CH, "병합된 윗면이 청크 오른쪽 끝까지 안 간다: " + r.topMaxX);
-  eq(r.topMinZ, r.z0, "병합된 윗면의 z 시작이 어긋났다: " + r.topMinZ);
-  eq(r.topMaxZ, r.z0 + r.CH, "병합된 윗면의 z 끝이 어긋났다: " + r.topMaxZ);
+  eq(r.topMinX, r.x0, "윗면이 청크 왼쪽 끝에서 시작하지 않는다: " + r.topMinX);
+  eq(r.topMaxX, r.x0 + r.CH, "윗면이 청크 오른쪽 끝까지 안 간다: " + r.topMaxX);
+  eq(r.topMinZ, r.z0, "윗면의 z 시작이 어긋났다: " + r.topMinZ);
+  eq(r.topMaxZ, r.z0 + r.CH, "윗면의 z 끝이 어긋났다: " + r.topMaxZ);
   eq(r.maxY, r.y0 + 1, "바닥 윗면의 높이가 어긋났다: " + r.maxY);
+});
+
+test("v103 면 병합: 그늘이 진 면은 안 붙는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const CX = 3, CY = 2, CZ = 3, CH = B.CH;
+    const x0 = CX * CH, y0 = CY * CH, z0 = CZ * CH;
+    for (let x = x0 - 1; x < x0 + CH + 1; x++)
+      for (let z = z0 - 1; z < z0 + CH + 1; z++)
+        for (let y = y0; y < B.WY; y++) B.set(x, y, z, 0);
+    for (let x = x0 - 1; x < x0 + CH + 1; x++)
+      for (let z = z0 - 1; z < z0 + CH + 1; z++) B.set(x, y0, z, B.B.STONE);
+    // 바닥 위에 기둥 둘을 나란히 세운다 — 그 옆 칸에 그늘이 진다
+    B.set(x0 + 4, y0 + 1, z0 + 8, B.B.STONE);
+    B.set(x0 + 5, y0 + 1, z0 + 8, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false);
+    B.buildChunk(CX, CY, CZ);
+    const g = B.opaqueMeshes[B.chunkId(CX, CY, CZ)].geometry;
+    const pos = g.getAttribute("position"), col = g.getAttribute("acol");
+
+    // 기둥 옆(x0+6, z0+8) 바닥 윗면에 정점이 실제로 서 있어야 한다 —
+    // 병합이 그늘을 뭉개면 그 자리에 정점이 없고 밝기가 이웃에서 번져 온다
+    let hasCorner = false, shaded = false;
+    for (let i = 0; i < pos.count; i++) {
+      if (Math.abs(pos.getY(i) - (y0 + 1)) > 1e-6) continue;
+      const px = pos.getX(i), pz = pos.getZ(i);
+      if (Math.abs(px - (x0 + 6)) < 1e-6 && Math.abs(pz - (z0 + 8)) < 1e-6) hasCorner = true;
+      // 기둥 바로 옆 칸에는 그늘(AO)이 든 정점이 있어야 한다
+      if (px >= x0 + 4 && px <= x0 + 7 && pz >= z0 + 8 && pz <= z0 + 9 && col.getX(i) < 0.99) shaded = true;
+    }
+    return { hasCorner, shaded };
+  });
+  eq(r.hasCorner, true,
+     "기둥 옆 칸의 모서리에 정점이 없다 — 그늘 진 면까지 이어 붙였다");
+  eq(r.shaded, true, "기둥 옆인데 그늘(AO)이 든 정점이 하나도 없다");
+});
+
+test("v103 밤: 동물·구름·고스트가 어둠을 함께 받는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 44, Y = 40, Z = 96 - 8;
+    for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++) {
+      for (let dy = 0; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.GRASS);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    while (B.mobs.length) B.disposeMob(B.mobs.pop());
+    B.loadMobs([[Math.round((X + 0.5) * 4), Y * 4, Math.round((Z + 0.5) * 4), 0, 0, 0]]);
+    const m = B.mobs[0];
+    m.x = X + 0.5; m.y = Y; m.z = Z + 0.5;
+    B.player.pos.set(X + 0.5, Y, Z + 3.5);
+
+    function mobLum() {
+      let best = 0;
+      m.g.traverse((o) => { if (o.material && o.material.userData && o.material.userData.base)
+        best = Math.max(best, o.material.color.r + o.material.color.g + o.material.color.b); });
+      return best;
+    }
+    B.S.timeOfDay = 0.5; B.applyTime(0.016);
+    for (let k = 0; k < 8; k++) B.updateMobs(1 / 60);
+    const noonMob = mobLum();
+    const noonCloud = B.cloudMatHigh.color.r;
+
+    B.S.timeOfDay = 0.0; B.applyTime(0.016);
+    for (let k = 0; k < 8; k++) B.updateMobs(1 / 60);
+    const nightMob = mobLum();
+    const nightCloud = B.cloudMatHigh.color.r;
+    const nightLow = B.cloudMat.color.r;
+
+    // 고스트도 밝기를 받는다
+    // updateHandLight 은 목표를 향해 보간한다 — 여러 번 불러 수렴시킨다
+    B.player.pos.set(X + 0.5, Y, Z + 3.5);
+    B.S.timeOfDay = 0.5; B.applyTime(0.016);
+    for (let k = 0; k < 90; k++) B.updateHandLight(1 / 30);
+    const ghostNoonish = B.ghostMat.color.r;
+    // 캄캄한 돌방으로 옮긴다
+    const DX = X, DY = 12, DZ = Z;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = -2; dy <= 4; dy++) B.set(DX + dx, DY + dy, DZ + dz, B.B.STONE);
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++)
+      for (let dy = 0; dy <= 2; dy++) B.set(DX + dx, DY + dy, DZ + dz, 0);
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.pos.set(DX + 0.5, DY, DZ + 0.5);
+    for (let k = 0; k < 90; k++) B.updateHandLight(1 / 30);
+    const ghostDark = B.ghostMat.color.r;
+
+    B.S.timeOfDay = 0.5; B.applyTime(0.016);
+    while (B.mobs.length) B.disposeMob(B.mobs.pop());
+    B.seedMobs();
+    B.endPlay(); B.setPaused(false);
+    return { noonMob, nightMob, noonCloud, nightCloud, nightLow, ghostNoonish, ghostDark };
+  });
+  assert(r.nightMob < r.noonMob * 0.55,
+     "한밤에도 동물이 정오의 " + (r.nightMob / r.noonMob * 100).toFixed(0) + "% 밝기다");
+  assert(r.nightCloud < r.noonCloud * 0.6,
+     "높은 구름이 한밤에도 정오의 " + (r.nightCloud / r.noonCloud * 100).toFixed(0) + "% 다");
+  assert(Math.abs(r.nightCloud - r.nightLow) < 0.05,
+     "한밤에 두 구름층 밝기가 " + r.nightCloud.toFixed(2) + " 대 " + r.nightLow.toFixed(2) + " 로 갈린다");
+  assert(r.ghostDark < r.ghostNoonish * 0.7,
+     "캄캄한 방인데 놓을 자리 고스트가 " + r.ghostDark.toFixed(2) +
+     " 다 (밝은 곳 " + r.ghostNoonish.toFixed(2) + ") — 밤에 지으면 화면에서 가장 밝다");
+});
+
+test("v103 하늘: 반딧불이가 뭍에만 뜨고, 노을에 별이 안 뜬다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.generate(333, 2); B.refreshAllTops(); B.relightAll(false);
+    B.S.weather = 0; B.S.weatherLock = true;
+    // 해변에 선다 — 반은 물, 반은 뭍인 자리를 찾는다
+    let sx = -1, sz = -1;
+    for (let z = 8; z < B.WZ - 8 && sx < 0; z++)
+      for (let x = 8; x < B.WX - 8; x++) {
+        if (B.topMap[z * B.WX + x] <= B.SEA) continue;
+        let wet = 0;
+        for (let d = -6; d <= 6; d += 3)
+          for (let e = -6; e <= 6; e += 3)
+            if (B.topMap[(z + e) * B.WX + (x + d)] <= B.SEA) wet++;
+        if (wet >= 8) { sx = x; sz = z; break; }
+      }
+    B.player.pos.set(sx + 0.5, B.topMap[sz * B.WX + sx] + 1, sz + 0.5);
+    B.seedCreatures();
+    let overSea = 0, inBlock = 0, hidden = 0, total = 0;
+    for (let i = 0; i < B.cPos.length / 3; i++) {
+      const cx = B.cPos[i * 3], cy = B.cPos[i * 3 + 1], cz = B.cPos[i * 3 + 2];
+      if (cy <= B.HIDE_Y + 1) { hidden++; continue; }
+      total++;
+      const gx = Math.max(0, Math.min(B.WX - 1, Math.floor(cx)));
+      const gz = Math.max(0, Math.min(B.WZ - 1, Math.floor(cz)));
+      if (B.topMap[gz * B.WX + gx] <= B.SEA) overSea++;
+      if (B.get(gx, Math.floor(cy), gz) !== B.B.AIR) inBlock++;
+    }
+
+    // 노을에 별이 안 떠야 한다
+    B.S.timeOfDay = 0.75; B.updateSkyBodies();
+    const starsAtSunset = B.starMat.opacity;
+    const sunAtSunset = B.sunMat.opacity;
+    B.S.timeOfDay = 0.95; B.updateSkyBodies();
+    const starsAtNight = B.starMat.opacity;
+
+    B.S.weatherLock = false; B.S.timeOfDay = 0.5;
+    // 이 시험은 generate 로 **세계를 갈아치웠다** — 동물이 예전 세계 좌표에 서 있으면
+    // 뒤에 오는 동물 시험이 "물 위를 걷는다" 로 깨진다. 새 땅에 다시 뿌린다
+    while (B.mobs.length) B.disposeMob(B.mobs.pop());
+    B.seedMobs();
+    B.endPlay(); B.setPaused(false);
+    return { overSea, inBlock, total, hidden, starsAtSunset, sunAtSunset, starsAtNight, sx, sz };
+  });
+  assert(r.sx >= 0, "해변을 못 찾았다 — 시험대가 안 섰다");
+  assert(r.total > 10, "앰비언트 생물이 " + r.total + "마리뿐이다 — 너무 많이 숨었다");
+  eq(r.overSea, 0, "생물 " + r.total + "마리 중 " + r.overSea + "마리가 바다 위에 떴다");
+  eq(r.inBlock, 0, "생물 " + r.inBlock + "마리가 블록 안에 박혔다");
+  assert(r.starsAtSunset < 0.05,
+     "노을(t=0.75)에 별이 " + r.starsAtSunset.toFixed(2) + " 로 떴다 — 주황 하늘에 별이 박힌다");
+  assert(r.sunAtSunset > 0.7,
+     "수평선의 해가 " + r.sunAtSunset.toFixed(2) + " 로 흐리다 — 노을에 해가 사라진다");
+  assert(r.starsAtNight > 0.5, "한밤인데 별이 " + r.starsAtNight.toFixed(2) + " 다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

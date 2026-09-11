@@ -843,7 +843,10 @@ export function animate() {
     } catch (e) { toast("화면 저장에 실패했습니다"); }
   }
 
-  if (!S.thirdPerson) {
+  // 사진 모드·화면 표시 끄기에서는 손도 치운다 (v103) —
+  // 사진사 과제까지 갖춰 놓고 그 모든 길의 끝에 **든 블록 하나가 찍혀** 있었다
+  // (화면의 4.6%). F1 의 뜻은 "화면 표시를 다 끈다" 이다
+  if (!S.thirdPerson && !S.photoMode && !S.hudHidden) {
     renderer.autoClear = false;
     renderer.clearDepth();
     renderer.render(handScene, handCam);
