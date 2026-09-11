@@ -282,6 +282,12 @@ export function markTouched(x, y, z) {
 export function isTouched(x, y, z) {
   return inside(x, y, z) ? touched[idx(x, y, z)] === 1 : false;
 }
+// 되돌릴 때 그 자국도 되돌린다 (v100).
+// markTouched 는 찍히는데 되돌리는 길이 없어서, 눈이 영영 안 쌓이고
+// 흙이 영영 풀이 안 되는 칸이 **영구히** 남았다 (touched 는 저장에도 실린다)
+export function setTouched(x, y, z, on) {
+  if (inside(x, y, z)) touched[idx(x, y, z)] = on ? 1 : 0;
+}
 
 export function refreshAllTops() {
   for (var x = 0; x < WX; x++) for (var z = 0; z < WZ; z++) refreshTop(x, z);

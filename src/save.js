@@ -179,9 +179,17 @@ export function saveGame() {
     try { localStorage.removeItem(OLD_KEY); } catch (e2) {}
     S.worldDirty = false;
     S.saveWarned = false;
+    S.saveFailed = false;
     return true;
   } catch (e) {
-    if (!S.saveWarned) { S.saveWarned = true; toast("저장 공간이 부족합니다"); }
+    // 실패는 **상태**로 남긴다 (v100) — 예전에는 토스트 1.6초 한 번이 전부라,
+    // 40분 동안 120번을 내리 실패해도 화면 어디에도 표시가 없었다.
+    // 세이브는 localStorage 한 벌뿐이라 모르는 채로 한 시간을 더 짓는다
+    S.saveFailed = true;
+    if (!S.saveWarned) {
+      S.saveWarned = true;
+      toast("저장 공간이 부족합니다 — 메뉴 › 세계를 파일로 내보내기 로 지키세요");
+    }
     return false;
   }
 }

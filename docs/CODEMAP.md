@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-11 · 모듈 29개 · 합계 12,412줄
+생성일 2026-09-11 · 모듈 29개 · 합계 12,461줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -10,14 +10,14 @@
 
 | 모듈 | 하는 일 | 줄 | 기대는 곳 |
 |---|---|---:|---|
-| [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 196 | — |
+| [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 197 | — |
 | [`dims.js`](../src/dims.js) | 세계 치수와 좌표 계산 (의존성 없음) | 28 | — |
 | [`queues.js`](../src/queues.js) | 시뮬레이션 대기열 (의존성 없음) | 36 | — |
 | [`boot.js`](../src/boot.js) | 부팅 가드 · 환경 판별 | 29 | state |
 | [`blocks.js`](../src/blocks.js) | 블록 정의 · 모양 · 성질 | 352 | state |
 | [`tree.js`](../src/tree.js) | 나무 한 그루의 모양 | 47 | — |
 | [`atlas.js`](../src/atlas.js) | 텍스처 아틀라스 (코드로 그리는 16×16 도트) | 711 | blocks |
-| [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 1077 | state · tree · queues · dims · blocks · atlas |
+| [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 1083 | state · tree · queues · dims · blocks · atlas |
 | [`light.js`](../src/light.js) | 광원 — 햇빛과 블록광 BFS | 182 | state · dims · blocks · world · mesh · player |
 | [`fluids.js`](../src/fluids.js) | 물 흐름 · 낙하 블록 · 잎 부패 | 798 | state · atlas · settings · queues · dims · blocks · world · tree · light · mesh · scene · audio · player · edit |
 | [`mesh.js`](../src/mesh.js) | 면 데이터 + 청크 메싱 | 279 | dims · blocks · atlas · world · light |
@@ -26,8 +26,8 @@
 | [`settings.js`](../src/settings.js) | 설정 | 106 | state · boot · scene |
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 361 | state · dims · blocks · world · scene |
 | [`audio.js`](../src/audio.js) | 소리 | 301 | state · blocks · daynight · settings |
-| [`save.js`](../src/save.js) | 저장 · 불러오기 | 335 | state · dims · blocks · world · player · mobs · hud · sky |
-| [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 1152 | state · queues · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
+| [`save.js`](../src/save.js) | 저장 · 불러오기 | 343 | state · dims · blocks · world · player · mobs · hud · sky |
+| [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 1185 | state · queues · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
 | [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 720 | state · version · dims · blocks · atlas · world · player · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 197 | state · settings · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
 | [`body.js`](../src/body.js) | 3인칭에서 보이는 플레이어 몸 | 200 | state · settings · scene · player · atlas · hand · blocks |
@@ -36,7 +36,7 @@
 | [`mobs.js`](../src/mobs.js) | 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다. | 612 | dims · world · blocks · scene · player · audio |
 | [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 446 | state · audio · dims · atlas · world · scene · daynight · player |
 | [`cloud.js`](../src/cloud.js) | 기기 사이 이어하기 (GitHub Gist 에 세계를 올리고 내려받는다) | 226 | state · save |
-| [`loop.js`](../src/loop.js) | 게임 루프 | 948 | state · input · mobs · queues · dims · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · body · mine · sky |
+| [`loop.js`](../src/loop.js) | 게임 루프 | 949 | state · input · mobs · queues · dims · blocks · atlas · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · body · mine · sky |
 | [`version.js`](../src/version.js) | 빌드 도장 (자동 생성) | 8 | — |
 | [`main.js`](../src/main.js) | 조립과 시작 | 275 | state · tree · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · body · input · mine · sky · loop |
 
@@ -158,16 +158,17 @@
 | `seenRatio()` | 269 |
 | `markTouched(x, y, z)` | 279 |
 | `isTouched(x, y, z)` | 282 |
-| `refreshAllTops()` | 286 |
-| `hash2(x, y, seed)` | 290 |
-| `hash3(x, y, z, seed)` | 295 |
-| `smooth(t)` | 301 |
-| `lerp(a, b, t)` | 302 |
-| `noise2(x, y, seed)` | 304 |
-| `noise3(x, y, z, seed)` | 311 |
-| `oreCeil()` | 322 |
-| `lavaTop()` | 328 |
-| `generate(seed, gen)` | 330 |
+| `setTouched(x, y, z, on)` | 288 |
+| `refreshAllTops()` | 292 |
+| `hash2(x, y, seed)` | 296 |
+| `hash3(x, y, z, seed)` | 301 |
+| `smooth(t)` | 307 |
+| `lerp(a, b, t)` | 308 |
+| `noise2(x, y, seed)` | 310 |
+| `noise3(x, y, z, seed)` | 317 |
+| `oreCeil()` | 328 |
+| `lavaTop()` | 334 |
+| `generate(seed, gen)` | 336 |
 
 내보내는 값 — `world` · `shape` · `heightMap` · `topMap` · `biomeMap` · `waterLvl` · `BIOME_NAMES` · `touched` · `SEEN_TOP` · `UNDER_BANDS` · `SEEN_UNDER_ALL` · `seenMap` · `MOUTH_DEPTH` · `MOUTH_W` · `MINE_W`
 
@@ -359,16 +360,16 @@
 | `decodeWorld(runs, dst, len)` | 117 |
 | `liftLegacy(src, dst, asRuns)` | 132 |
 | `saveGame()` | 147 |
-| `loadGame()` | 188 |
-| `clearSave()` | 264 |
-| `backupKey(n)` | 271 |
-| `pushBackup()` | 274 |
-| `prevKey(n)` | 284 |
-| `pushPrev()` | 285 |
-| `hasBackup()` | 292 |
-| `restoreBackup()` | 297 |
-| `exportWorld()` | 308 |
-| `importWorldText(text)` | 324 |
+| `loadGame()` | 196 |
+| `clearSave()` | 272 |
+| `backupKey(n)` | 279 |
+| `pushBackup()` | 282 |
+| `prevKey(n)` | 292 |
+| `pushPrev()` | 293 |
+| `hasBackup()` | 300 |
+| `restoreBackup()` | 305 |
+| `exportWorld()` | 316 |
+| `importWorldText(text)` | 332 |
 
 내보내는 값 — `SAVE_KEY` · `OLD_KEY` · `SLOTS` · `LAST_SLOT_KEY`
 
@@ -377,39 +378,40 @@
 | 함수 | 줄 |
 |---|---:|
 | `applyEdit(x, y, z, to, record, sh, depth)` | 71 |
-| `batchPush(b, x, y, z, from, to, fromSh, toSh, wl, toWl)` | 152 |
-| `beginBatch(cap)` | 161 |
-| `ownFire()` | 170 |
-| `settleWorld(list)` | 182 |
-| `notePlaced(b, sh, n)` | 221 |
-| `liftIfBuried()` | 240 |
-| `endBatch(label, credit)` | 262 |
-| `editLabel(e)` | 329 |
-| `undo()` | 349 |
-| `redo()` | 372 |
-| `refreshAchList()` | 437 |
-| `checkFoundAchievements()` | 465 |
-| `checkBuildAchievements()` | 491 |
-| `refreshStats()` | 613 |
-| `achCount()` | 631 |
-| `unlock(id)` | 636 |
-| `selectionBounds()` | 663 |
-| `selectionSize()` | 664 |
-| `fillSelection(block, sh, only)` | 674 |
-| `clearSelection()` | 693 |
-| `copySelection()` | 707 |
-| `mirrorClip()` | 749 |
-| `rotateClip()` | 768 |
-| `pasteClip(px, py, pz, withAir)` | 792 |
-| `completeCommand(prefix)` | 847 |
-| `runCommand(line)` | 854 |
-| `loadBlueprints()` | 1067 |
-| `saveBlueprint(name)` | 1070 |
-| `useBlueprint(name)` | 1096 |
-| `blueprintNames()` | 1112 |
-| `blueprintList()` | 1115 |
-| `deleteBlueprint(name)` | 1125 |
-| `selectionCounts()` | 1135 |
+| `batchPush(b, x, y, z, from, to, fromSh, toSh, wl, toWl, fromT)` | 154 |
+| `beginBatch(cap)` | 164 |
+| `ownFire()` | 173 |
+| `settleWorld(list)` | 185 |
+| `notePlaced(b, sh, n)` | 224 |
+| `liftIfBuried()` | 243 |
+| `endBatch(label, credit)` | 265 |
+| `editLabel(e)` | 335 |
+| `undo()` | 355 |
+| `redo()` | 378 |
+| `achProgress(a)` | 447 |
+| `refreshAchList()` | 458 |
+| `checkFoundAchievements()` | 486 |
+| `checkBuildAchievements()` | 512 |
+| `refreshStats()` | 634 |
+| `achCount()` | 652 |
+| `unlock(id)` | 657 |
+| `selectionBounds()` | 684 |
+| `selectionSize()` | 685 |
+| `fillSelection(block, sh, only)` | 695 |
+| `clearSelection()` | 714 |
+| `copySelection()` | 728 |
+| `mirrorClip()` | 770 |
+| `rotateClip()` | 789 |
+| `pasteClip(px, py, pz, withAir)` | 813 |
+| `completeCommand(prefix)` | 868 |
+| `runCommand(line)` | 875 |
+| `loadBlueprints()` | 1100 |
+| `saveBlueprint(name)` | 1103 |
+| `useBlueprint(name)` | 1129 |
+| `blueprintNames()` | 1145 |
+| `blueprintList()` | 1148 |
+| `deleteBlueprint(name)` | 1158 |
+| `selectionCounts()` | 1168 |
 
 내보내는 값 — `HISTORY_MAX` · `FIRE_UNDO_MAX` · `FLUID_UNDO_MAX` · `BATCH_RELIGHT_ALL` · `HISTORY_CELLS_MAX` · `lastEditLabel` · `undoEmptyWhy` · `ACHIEVEMENTS` · `achGrid` · `BUILD_R` · `BUILD_IDS` · `FOUND_IDS` · `FOUND_R` · `ROOM_MAX` · `statGrid` · `REGION_MAX` · `CMD_HELP` · `CMD_LIST` · `BP_KEY`
 
@@ -610,9 +612,9 @@
 | `newWorld(seed)` | 56 |
 | `step(dt)` | 106 |
 | `animate()` | 803 |
-| `autoTuneFar(fps)` | 905 |
-| `farNow()` | 923 |
-| `refreshPerf()` | 925 |
+| `autoTuneFar(fps)` | 906 |
+| `farNow()` | 924 |
+| `refreshPerf()` | 926 |
 
 내보내는 값 — `GRAVITY` · `chunkFloor` · `PLACE_DELAY` · `SNEAK_MUL` · `AIR_CONTROL` · `fwd` · `clock`
 

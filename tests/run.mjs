@@ -11894,6 +11894,65 @@ test("v99 멈춤: 메뉴를 열어 두면 불도 물도 멈춘다", async (page)
      " · 불 " + r.fireAfter + ")");
 });
 
+test("v100 되돌리기: 손댄 자국도 되돌아온다 · 과제 진행도 · 표식 지우기", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 60, Y = 40, Z = 8;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+      for (let dy = 0; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.GRASS);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    B.S.history.length = 0; B.S.future.length = 0;
+
+    // (1) 낱개 편집 — 놓았다 되돌리면 "사람이 손댄 칸" 표시도 돌아온다
+    const before = B.isTouched(X, Y, Z);
+    B.applyEdit(X, Y, Z, B.B.STONE, true, 0);
+    const during = B.isTouched(X, Y, Z);
+    B.undo();
+    const afterUndo = B.isTouched(X, Y, Z);
+    B.redo();
+    const afterRedo = B.isTouched(X, Y, Z);
+    B.undo();
+
+    // (2) 묶음도 같다
+    B.S.selA = [X + 1, Y, Z + 1]; B.S.selB = [X + 2, Y, Z + 2];
+    B.fillSelection(B.B.STONE, 0);
+    const batchDuring = B.isTouched(X + 1, Y, Z + 1);
+    B.undo();
+    const batchAfter = B.isTouched(X + 1, Y, Z + 1);
+    B.S.selA = null; B.S.selB = null;
+
+    // (3) 과제 진행도가 숫자로 뜬다
+    B.S.earned = {};
+    B.refreshAchList();
+    const listText = document.getElementById("achgrid").textContent;
+    const hasCollector = /수집가[^·]*·[^(]*\(\s*\d+\s*\/\s*\d+\s*\)/.test(listText);
+
+    // (4) 멀리 있는 표식을 명령으로 지운다
+    B.S.marks.length = 0;
+    B.S.marks.push([10, 40, 10, "먼표식"]);
+    const hadMarks = B.S.marks.length;
+    const delMsg = B.runCommand("marks del 1");
+    const leftMarks = B.S.marks.length;
+
+    B.endPlay(); B.setPaused(false);
+    return { before, during, afterUndo, afterRedo, batchDuring, batchAfter,
+             hasCollector, hadMarks, leftMarks, delMsg };
+  });
+  eq(r.before, false, "시험대가 안 섰다 — 손 안 댄 칸이 이미 touched 다");
+  eq(r.during, true, "놓았는데 '손댄 칸' 으로 안 찍혔다");
+  eq(r.afterUndo, false,
+     "되돌렸는데 자국이 남았다 — 그 자리에 눈이 영영 안 쌓이고 잔디가 안 번진다");
+  eq(r.afterRedo, true, "다시하기 뒤에는 자국이 있어야 한다");
+  eq(r.batchDuring, true, "영역 채우기가 '손댄 칸' 으로 안 찍혔다");
+  eq(r.batchAfter, false, "묶음을 되돌렸는데 자국이 남았다");
+  eq(r.hasCollector, true, "과제 목록에 「수집가」 진행도 숫자가 없다");
+  eq(r.hadMarks, 1, "시험대가 안 섰다 — 표식을 못 넣었다");
+  eq(r.leftMarks, 0, "/marks del 로 표식이 안 지워진다: " + r.delMsg);
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

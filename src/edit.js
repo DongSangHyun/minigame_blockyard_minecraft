@@ -5,7 +5,7 @@ import { opts } from "./settings.js";
 import { encodeArrB64, decodeArrB64, SLOTS } from "./save.js";
 import { SEA, DIRS, N, PLANE, WX, WY, WZ, idx, inside } from "./dims.js";
 import { isCarpet, ITEMS, POT, FRAME, FENCE, GLASS, PLANKS, BRICK, isSapling, SH_STAIR_N, SH_STAIR_E, SH_STAIR_S, SH_STAIR_W, SH_STAIR_NU, LAMP, FLOWER_R, FLOWER_Y, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
-import { markX, markY, markZ, markName, topMap, refreshAllTops, touched, get, BIOME_NAMES, markTouched, refreshTop, shape, waterLvl, world } from "./world.js";
+import { markX, markY, markZ, markName, topMap, refreshAllTops, touched, get, BIOME_NAMES, markTouched, isTouched, setTouched, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightAll, relightLocal } from "./light.js";
 import { enqueueGrow, enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
 import { markAllDirty, touch } from "./mesh.js";
@@ -116,11 +116,12 @@ export function applyEdit(x, y, z, to, record, sh, depth) {
   S.worldDirty = true;
 
   if (record) {
+    var wasTouched = isTouched(x, y, z);   // 되돌릴 때 이 표시도 되돌린다 (v100)
     markTouched(x, y, z);          // 되돌리기에 남는 편집 = 사람이 손댄 자리
     // wl — 편집 전 물 레벨. 없으면 흐르는 물을 캔 뒤 되돌릴 때 근원(0)으로 되살아나 무한 물이 생긴다
-    if (S.batch) batchPush(S.batch, x, y, z, from, to, fromSh, toSh, fromWl);  // 묶음 중이면 모아 둔다
+    if (S.batch) batchPush(S.batch, x, y, z, from, to, fromSh, toSh, fromWl, 0, wasTouched);  // 묶음 중이면 모아 둔다
     else {
-      var rec = { x: x, y: y, z: z, from: from, to: to, fromSh: fromSh, toSh: toSh, wl: fromWl };
+      var rec = { x: x, y: y, z: z, from: from, to: to, fromSh: fromSh, toSh: toSh, wl: fromWl, fromT: wasTouched };
       S.history.push(rec);
       trimHistory();
       S.future.length = 0;
@@ -137,10 +138,11 @@ function makeBatch(cap) {
            x: new Uint16Array(cap), y: new Uint16Array(cap), z: new Uint16Array(cap),
            from: new Uint8Array(cap), to: new Uint8Array(cap),
            fromSh: new Uint8Array(cap), toSh: new Uint8Array(cap),
-           wl: new Uint8Array(cap), toWl: new Uint8Array(cap) };
+           wl: new Uint8Array(cap), toWl: new Uint8Array(cap),
+           fromT: new Uint8Array(cap) };   // 편집 전 '사람이 손댄 칸' 표시 (v100)
 }
 function batchGrow(b) {
-  var cap = b.cap * 2, keys = ["x", "y", "z", "from", "to", "fromSh", "toSh", "wl", "toWl"];
+  var cap = b.cap * 2, keys = ["x", "y", "z", "from", "to", "fromSh", "toSh", "wl", "toWl", "fromT"];
   var big = makeBatch(cap);
   for (var k = 0; k < keys.length; k++) big[keys[k]].set(b[keys[k]]);
   big.n = b.n;
@@ -149,12 +151,13 @@ function batchGrow(b) {
 }
 // toWl — 되돌린 것을 다시 할 때(redo) 돌아갈 물 레벨. 없으면 흐르던 물 192칸이
 // 전부 근원(0)으로 되살아나 무한 물이 된다 (자문 12차 #1).
-export function batchPush(b, x, y, z, from, to, fromSh, toSh, wl, toWl) {
+export function batchPush(b, x, y, z, from, to, fromSh, toSh, wl, toWl, fromT) {
   if (b.n === b.cap) batchGrow(b);
   var i = b.n++;
   b.x[i] = x; b.y[i] = y; b.z[i] = z;
   b.from[i] = from; b.to[i] = to;
   b.fromSh[i] = fromSh; b.toSh[i] = toSh; b.wl[i] = wl; b.toWl[i] = toWl || 0;
+  b.fromT[i] = fromT ? 1 : 0;
 }
 
 // 대량 편집(채우기·붙여넣기)은 한 덩어리로 묶어 한 번에 되돌린다
@@ -305,6 +308,8 @@ function applyCellAt(b, i, toSide, defer) {
   world[w] = toSide ? b.to[i] : b.from[i];
   shape[w] = (toSide ? b.toSh[i] : b.fromSh[i]) || SH_FULL;
   waterLvl[w] = toSide ? (b.toWl ? b.toWl[i] : 0) : b.wl[i];
+  // 사람이 손댄 자국도 그 순간으로 (v100) — 안 되돌리면 눈이 영영 안 쌓인다
+  setTouched(x, y, z, toSide ? 1 : (b.fromT ? b.fromT[i] : 1));
   if (!defer) { touch(x, y, z); refreshTop(x, z); relightLocal(x, y, z); }
   if (world[w] === AIR) enqueueWaterAround(x, y, z);
   if (b.from[i] === WATER || b.to[i] === WATER) { enqueueDryAround(x, y, z); enqueueWaterAround(x, y, z); }
@@ -316,6 +321,7 @@ function applyCell(e, toSide, defer) {
   shape[i] = (toSide ? e.toSh : e.fromSh) || SH_FULL;
   // 물 레벨도 그 순간으로 — 되돌리기가 세계를 딴 상태로 두면 되돌리기를 못 믿게 된다
   waterLvl[i] = toSide ? 0 : (e.wl || 0);
+  setTouched(e.x, e.y, e.z, toSide ? 1 : !!e.fromT);
   // defer — 큰 묶음을 되돌릴 때는 조명·기둥·메시를 칸마다 하지 않는다 (끝에 한 번)
   if (!defer) { touch(e.x, e.y, e.z); refreshTop(e.x, e.z); relightLocal(e.x, e.y, e.z); }
   if (world[i] === AIR) enqueueWaterAround(e.x, e.y, e.z);
@@ -430,9 +436,24 @@ export var ACHIEVEMENTS = [
   { id: "findMine", name: "먼저 온 사람", desc: "버려진 갱도를 찾아낸다 (지하의 나무 버팀목)" },
   { id: "findHut", name: "빈집", desc: "버려진 오두막을 찾아낸다" },
   { id: "palette", name: "색칠", desc: "한자리에 양털 여덟 빛깔을 쓴다" },
-  { id: "cartographer", name: "지도장이", desc: "섬의 8할을 걸어서 지도에 밝힌다" }
+  { id: "cartographer", name: "지도장이", desc: "섬의 8할을 지도에 밝힌다 (날아도 됩니다)" }
 ];
 export var achGrid = document.getElementById("achgrid");
+
+// 진행도가 있는 과제는 숫자를 같이 보여 준다 (v100).
+// 「수집가」는 76종인데 **무엇이 남았는지 알 길이 없어** 40개 중 하나가 죽은 목표였다 —
+// 76종 중 32종이 색만 다른 것(양털 16 + 색 카펫 16)이라 눈으로 훑기도 어렵다.
+// 개수는 S.placedKinds 로 이미 세고 있었다
+export function achProgress(a) {
+  if (S.earned[a.id]) return "";
+  if (a.id === "collector")
+    return " (" + Object.keys(S.placedKinds).length + " / " + ALL_BLOCKS.length + ")";
+  if (a.id === "lamp10") return " (" + Math.min(10, S.lampsPlaced | 0) + " / 10)";
+  if (a.id === "torch10") return " (" + Math.min(10, S.torchesPlaced | 0) + " / 10)";
+  if (a.id === "place100") return " (" + Math.min(100, stats.placed) + " / 100)";
+  if (a.id === "mine100") return " (" + Math.min(100, stats.mined) + " / 100)";
+  return "";
+}
 
 export function refreshAchList() {
   var html = "";
@@ -449,7 +470,7 @@ export function refreshAchList() {
     var a = ACHIEVEMENTS[i];
     html += '<div class="ach' + (S.earned[a.id] ? " got" : "") + '">' +
             '<b>' + (S.earned[a.id] ? "\u2714" : "\u2022") + '</b>' +
-            '<span>' + a.name + ' · ' + a.desc + '</span></div>';
+            '<span>' + a.name + ' · ' + a.desc + achProgress(a) + '</span></div>';
   }
   achGrid.innerHTML = html;
   if (helpAchList) helpAchList.innerHTML = html;
@@ -813,7 +834,7 @@ export function pasteClip(px, py, pz, withAir) {
 
 // ── 명령 처리 — 짧은 이름 하나로 알아듣게
 export var CMD_HELP =
-  "tp <x> <y> <z> · time <아침|정오|노을|밤|0~1> · weather <맑음|비|눈> · " +
+  "marks del <번호> · tp <x> <y> <z> · time <아침|정오|노을|밤|0~1> · weather <맑음|비|눈> · " +
   "tp <x y z|표식> · marks · fill <블록|공기> [바꿀블록] · expand <±dx> <±dy> <±dz> · clone <dx> <dy> <dz> [횟수] · give <블록> · count · bp <save|use|list|del> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
 
 // 한국어 이름과 영어 이름을 둘 다 알아듣는다 — "조약돌" 도 "cobble" 도 된다
@@ -863,6 +884,18 @@ export function runCommand(line) {
 
   // 표식 목록 — 96px 미니맵의 7px 글자 말고 **글자로 읽을 곳**이 필요하다.
   // 화면 밖 표식은 가장자리에 눌려 이름도 안 나온다.
+  // 표식은 12개가 상한인데 **멀리 있는 것을 지울 길이 없었다** (v100) —
+  // toggleMark 는 내 자리 3칸 안만 보므로, 13번째를 찍으려면 쓸모없어진 표식까지
+  // 날아가야 했다. 한 시간이면 굴 어귀·갱도·집·광맥으로 12개는 금방 찬다
+  if (cmd === "marks" && parts[1] === "del") {
+    var dn2 = parseInt(parts[2], 10);
+    if (!(dn2 >= 1 && dn2 <= S.marks.length)) return "/marks del <번호> — 번호는 /marks 로 봅니다";
+    var gone = markName(S.marks[dn2 - 1]) || ("표식 " + dn2);
+    S.marks.splice(dn2 - 1, 1);
+    S.worldDirty = true;
+    return gone + " 를 지웠습니다 (남은 표식 " + S.marks.length + "개)";
+  }
+
   if (cmd === "marks") {
     if (!S.marks.length) return "표식이 없습니다 — B 로 찍고, Shift+B 로 이름을 붙입니다";
     var out = [];
@@ -871,7 +904,7 @@ export function runCommand(line) {
       out.push((mq + 1) + " " + (markName(mm2) || "-") + " " +
                markX(mm2) + " " + (markY(mm2) >= 0 ? markY(mm2) : "?") + " " + markZ(mm2));
     }
-    return out.join(" · ") + "  (/tp 번호|이름 으로 갑니다)";
+    return out.join(" · ") + "  (/tp 번호 로 가고, /marks del 번호 로 지웁니다)";
   }
 
   if (cmd === "tp") {

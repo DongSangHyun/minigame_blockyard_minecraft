@@ -186,7 +186,7 @@ window.__blockyard = {
   markHere: markHere, renameMarkHere: renameMarkHere, markName: markName,
   cloudGroup: cloudGroup, applyTime: applyTime,
   setBuildFocus: setBuildFocus, autoTuneFar: autoTuneFar, farNow: farNow, CH: CH,
-  isTouched: isTouched, markTouched: markTouched, OPT_KEY: OPT_KEY,
+  isTouched: isTouched, markTouched: markTouched, OPT_KEY: OPT_KEY, refreshAchList: refreshAchList,
   FIRE_REACH: FIRE_REACH, aimingAtMob: aimingAtMob,
   runCommand: runCommand, CMD_HELP: CMD_HELP, completeCommand: completeCommand, CMD_LIST: CMD_LIST, openCmd: openCmd, closeCmd: closeCmd,
   stats: stats, DEFAULT_BAR2: DEFAULT_BAR2, ITEMS: ITEMS, isItem: isItem, touched: touched, pollGamepad: pollGamepad, pollGamepadMenu: pollGamepadMenu, padState: padState, clockText: clockText,

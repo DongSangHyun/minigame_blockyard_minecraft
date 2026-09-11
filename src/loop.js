@@ -853,7 +853,8 @@ export function animate() {
   if (S.hudTimer > 0.25) { S.worstMs = Math.max(S.worstMs * 0.5, S.worstAcc); S.worstAcc = 0; }
   if (S.hudTimer > 0.25) {
     tPos.textContent = Math.floor(player.pos.x) + " · " + Math.floor(player.pos.y) + " · " + Math.floor(player.pos.z);
-    tTime.textContent = clockText();
+    // 저장이 실패한 채면 시각 대신 그것부터 말한다 (v100) — 1.6초 토스트는 놓친다
+    tTime.textContent = S.saveFailed ? "⚠ 저장 안 됨" : clockText();
     tFace.textContent = facingText();
     tBiome.textContent = BIOME_NAMES[localBiome()] + " · 청크 " +
       ((player.pos.x / CH) | 0) + "," + ((player.pos.z / CH) | 0);
