@@ -2942,15 +2942,18 @@ test("v16 블록 목록: 갈래와 이름으로 걸러진다", async (page) => {
     find.value = "";
     find.dispatchEvent(new Event("input", { bubbles: true }));
     return { all, color, search,
-             wools: B.WOOL_COUNT, carpets: B.CARPET_COUNT,
+             wools: B.WOOL_COUNT, carpets: B.CARPET_COUNT, stained: B.B.STAINED_COUNT,
              cats: [B.categoryOf(B.WOOL0), B.categoryOf(B.B.STONE),
                     B.categoryOf(B.B.LAMP), B.categoryOf(B.B.BRICK),
-                    B.categoryOf(B.CARPET0)] };
+                    B.categoryOf(B.CARPET0), B.categoryOf(B.B.STAINED0)] };
   });
   assert(r.all > 30, "전체 목록이 너무 짧다: " + r.all);
-  // 색 갈래 = 양털 16 + 색 카펫 16 (v84). 숫자를 여기 적지 않고 상수에서 유도한다.
-  eq(r.color, r.wools + r.carpets,
-     "색 갈래가 " + r.color + "개 — 양털 " + r.wools + " + 카펫 " + r.carpets + " 이어야 한다");
+  // 색 갈래 = 양털 16 + 색 카펫 16 (v84) + 색 유리 16 (v112).
+  // 숫자를 여기 적지 않고 상수에서 유도한다 — 색을 더 넣어도 이 줄은 그대로다
+  eq(r.color, r.wools + r.carpets + r.stained,
+     "색 갈래가 " + r.color + "개 — 양털 " + r.wools + " + 카펫 " + r.carpets +
+     " + 색유리 " + r.stained + " 이어야 한다");
+  eq(r.cats[5], "color", "색 유리가 색 갈래에 없다");
   eq(r.cats[4], "color", "색 카펫이 색 갈래에 없다");
   eq(r.search, 16, "이름 검색이 안 걸린다: " + r.search);
   eq(r.cats[0], "color", "양털 갈래");
@@ -13102,6 +13105,145 @@ test("v111 큰 지도: N 으로 열리고 세계를 통째로 그린다", async 
   assert(r.big > 0.01, "큰 지도에 아무것도 안 그려졌다");
   assert(r.big < r.small, "큰 지도가 작은 지도와 같은 범위를 그린다 (" +
      (r.big * 100).toFixed(1) + "% vs " + (r.small * 100).toFixed(1) + "%) — 확대를 안 무시했다");
+});
+
+test("v112 색 유리: 열여섯 색이 유리처럼 굴고, 소리도 유리다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 20, Y = 34, Z = 20;
+    // **하늘까지 비운다** — 위가 막혀 있으면 색 유리든 돌이든 밑이 똑같이 0 이라
+    // "빛이 통하는가" 를 재는 시험이 아무것도 안 재게 된다
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy < B.WY - Y; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    // 바닥은 **두 칸 아래** — 재는 칸(Y-1)이 빈 칸이라야 한다.
+    // 블록 속의 하늘빛은 언제나 0 이라, 바닥에서 재면 유리든 돌이든 0 이 나온다
+    B.set(X, Y - 2, Z, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+
+    const S0 = B.B.STAINED0, N = B.B.STAINED_COUNT;
+    // 열여섯 색이 전부 이름·타일·경도를 갖췄는가 (「블록 추가 체크리스트」)
+    const names = new Set(), tiles = new Set();
+    let missing = 0, notTransparent = 0, blocks = 0, notGlassy = 0, notInList = 0;
+    for (let i = 0; i < N; i++) {
+      const b = S0 + i;
+      if (!B.NAMES[b]) missing++; else names.add(B.NAMES[b]);
+      const t = B.TILES[b];
+      if (!t) missing++; else tiles.add(t[0]);
+      if (!B.isTransparent(b)) notTransparent++;
+      if (B.blocksLight(b)) blocks++;
+      if (!B.GLASSY[b]) notGlassy++;
+      if (B.ALL_BLOCKS.indexOf(b) < 0) notInList++;
+      if (B.categoryOf(b) !== "color") notInList++;
+    }
+
+    // 실제로 놓아 본다 — 빛이 통하는가 (유리와 같아야 한다)
+    B.applyEdit(X, Y, Z, S0 + 4, false, 0);            // 빨강 색유리
+    B.relightAll(false);
+    const under = B.lightSky[B.idx(X, Y - 1, Z)];
+    B.applyEdit(X, Y, Z, B.B.STONE, false, 0);
+    B.relightAll(false);
+    const underStone = B.lightSky[B.idx(X, Y - 1, Z)];
+    B.applyEdit(X, Y, Z, B.B.GLASS, false, 0);
+    B.relightAll(false);
+    const underGlass = B.lightSky[B.idx(X, Y - 1, Z)];
+
+    // 사암·돌벽돌도 목록에 있는가
+    const sandOk = B.ALL_BLOCKS.indexOf(B.B.SANDSTONE) >= 0 && !!B.NAMES[B.B.SANDSTONE];
+    const brickOk = B.ALL_BLOCKS.indexOf(B.B.STONEBRICK) >= 0 && !!B.NAMES[B.B.STONEBRICK];
+    // 이름으로 꺼낼 수 있는가 — /give 가 엉뚱한 것을 주면 안 된다
+    B.runCommand("give 벽돌");
+    const giveBrick = B.S.bar[B.S.selected];
+    B.runCommand("give 돌벽돌");
+    const giveStoneBrick = B.S.bar[B.S.selected];
+    B.runCommand("give 사암");
+    const giveSand = B.S.bar[B.S.selected];
+
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -2; dy < B.WY - Y; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { nNames: names.size, nTiles: tiles.size, missing, notTransparent, blocks,
+             notGlassy, notInList, under, underStone, underGlass,
+             sandOk, brickOk, giveBrick, giveStoneBrick, giveSand,
+             BRICK: B.B.BRICK, SB: B.B.STONEBRICK, SS: B.B.SANDSTONE };
+  });
+  eq(r.missing, 0, "색 유리 16색 중 이름이나 타일이 빠진 것이 " + r.missing + "개 있다");
+  eq(r.nNames, 16, "색 유리 이름이 " + r.nNames + "가지뿐이다 — 열여섯이라야 한다");
+  eq(r.nTiles, 16, "색 유리 타일이 " + r.nTiles + "장뿐이다 — 색마다 한 장이라야 한다");
+  eq(r.notTransparent, 0, r.notTransparent + "색이 불투명하다 — 창 너머가 안 보이면 쓸 이유가 없다");
+  eq(r.blocks, 0, r.blocks + "색이 빛을 막는다 — 유리와 같아야 한다");
+  eq(r.notGlassy, 0, r.notGlassy + "색이 소리 표에 없다 — 「돌」 소리가 난다 (v106 의 43종)");
+  eq(r.notInList, 0, "블록 목록이나 갈래에서 빠진 색 유리가 있다");
+  eq(r.under, r.underGlass, "색 유리 밑 밝기가 " + r.under + " 인데 맑은 유리 밑은 " + r.underGlass + " 다");
+  assert(r.under > r.underStone, "색 유리가 돌처럼 빛을 막는다 (" + r.under + " vs 돌 " + r.underStone + ")");
+  eq(r.sandOk, true, "사암이 블록 목록에 없다");
+  eq(r.brickOk, true, "돌벽돌이 블록 목록에 없다");
+  eq(r.giveBrick, r.BRICK, "/give 벽돌 이 " + r.giveBrick + " 을 줬다 — 벽돌(" + r.BRICK + ")이라야 한다");
+  eq(r.giveStoneBrick, r.SB, "/give 돌벽돌 이 " + r.giveStoneBrick + " 을 줬다");
+  eq(r.giveSand, r.SS, "/give 사암 이 " + r.giveSand + " 을 줬다");
+});
+
+test("v112 원과 구: /cyl 과 /sphere 가 둥글게 놓고 한 번에 되돌아온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 60, Y = 34, Z = 60;
+    for (let dx = -12; dx <= 12; dx++) for (let dz = -12; dz <= 12; dz++)
+      for (let dy = -12; dy <= 12; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+
+    // 원기둥 — 반지름 5 · 높이 4
+    const msg = B.runCommand("cyl 돌 5 4");
+    function count(block, y0, y1) {
+      let n = 0;
+      for (let y = y0; y <= y1; y++) for (let dz = -11; dz <= 11; dz++) for (let dx = -11; dx <= 11; dx++)
+        if (B.get(X + dx, y, Z + dz) === block) n++;
+      return n;
+    }
+    const cylN = count(B.B.STONE, Y, Y + 3);
+    const corner = B.get(X + 5, Y, Z + 5);       // 모서리는 원 밖이다
+    const edge = B.get(X + 5, Y, Z);             // 축 위 반지름 끝은 원 안이다
+    const above = B.get(X, Y + 4, Z);            // 높이 4 — 다섯째 층은 없다
+    B.undo();
+    const afterUndo = count(B.B.STONE, Y, Y + 3);
+
+    // 속 빈 구 — 껍질만.
+    // **선 자리를 다시 못 박는다** — 앞의 원기둥이 몸을 묻자 게임이 사람을 위로 들어 올렸고
+    // (liftIfBuried), 그대로 두면 구가 네 칸 위에 생긴다
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    const smsg = B.runCommand("sphere 유리 6 속빔");
+    const shell = count(B.B.GLASS, Y - 7, Y + 7);
+    const core = B.get(X, Y, Z);                  // 속은 비어 있다
+    const skin = B.get(X + 6, Y, Z);              // 껍질은 있다
+    B.undo();
+    const afterUndo2 = count(B.B.GLASS, Y - 7, Y + 7);
+
+    // 너무 크면 거절한다 (REGION_MAX)
+    const big = B.runCommand("sphere 돌 32");
+
+    for (let dx = -12; dx <= 12; dx++) for (let dz = -12; dz <= 12; dz++)
+      for (let dy = -12; dy <= 12; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { msg, cylN, corner, edge, above, afterUndo, smsg, shell, core, skin, afterUndo2, big };
+  });
+  // 반지름 5.5 안의 칸은 층마다 97칸 (실측) — 상자(11×11=121)보다 적어야 원이다
+  assert(r.cylN > 4 * 80 && r.cylN < 4 * 121,
+     "/cyl 이 " + r.cylN + "칸을 놓았다 — 네 층짜리 원기둥이 아니다");
+  eq(r.corner, 0, "원기둥 모서리(5,5)가 채워졌다 — 상자를 놓았다");
+  assert(r.edge !== 0, "반지름 끝이 비었다 — 원이 너무 작다");
+  eq(r.above, 0, "높이 4 인데 다섯째 층이 생겼다");
+  eq(r.afterUndo, 0, "되돌렸는데 " + r.afterUndo + "칸이 남았다 — 한 묶음이 아니다");
+  eq(r.core, 0, "속빔 구의 한가운데가 차 있다");
+  assert(r.skin !== 0, "속빔 구의 껍질이 없다");
+  assert(r.shell > 100, "속빔 구가 " + r.shell + "칸뿐이다 — 껍질이 안 섰다");
+  eq(r.afterUndo2, 0, "구를 되돌렸는데 " + r.afterUndo2 + "칸이 남았다");
+  assert(/너무 큽니다/.test(r.big), "반지름 32 구를 거절하지 않았다 — " + r.big);
 });
 
 // ── 실행 ───────────────────────────────────────────────

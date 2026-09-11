@@ -5,7 +5,7 @@ import { breedTick, MOB_MAX, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish,
 import { atlasSample, SWATCH_SIDE, animateLiquids, atlas, painted, AVG_TOP } from "./atlas.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, GEN, setGen, seaLift, WX, WY, WZ, idx, inside } from "./dims.js";
-import { isThin, needsFloor, needsWall, POT, FRAME, BUCKET, BOOKSHELF, CARPET, CARPET0, CARPET_COUNT, isCarpet, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SAPLING, SAPLING_BIRCH, SAPLING_SPRUCE, isSapling, doorOpen, doorFacing, doorShapeFor, DOOR, AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, SPRUCE_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DEFAULT_BAR2, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLINT, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, ITEMS, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, categoryOf, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isItem, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
+import { isThin, needsFloor, needsWall, STAINED0, STAINED_COUNT, isStained, SANDSTONE, STONEBRICK, POT, FRAME, BUCKET, BOOKSHELF, CARPET, CARPET0, CARPET_COUNT, isCarpet, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SAPLING, SAPLING_BIRCH, SAPLING_SPRUCE, isSapling, doorOpen, doorFacing, doorShapeFor, DOOR, AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, SPRUCE_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DEFAULT_BAR2, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLINT, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, ITEMS, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, categoryOf, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isItem, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
 import { markX, markY, markZ, markName, SEEN_TOP, SEEN_UNDER, SEEN_UNDER_ALL, UNDER_BANDS, underBand, expandLegacySeen, seenMap, seenRatio, markSeen, biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBoxes, heightMap, isTouched, markTouched, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, touched, waterLvl, world , oreCeil, lavaTop} from "./world.js";
 import { WATER_DIM, lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
 import { growTick, enqueueGrow, lavaFlowTick, lavaDryTick, LAVA_FLOW, grassTick, primeTNT, primeTick, TNT_FUSE, lavaTick, BLAST_R, FIRE_REACH, MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueFreeze, enqueueWaterAround, explode, fallTick, fireTick, freezeTick, ignite, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
@@ -17,7 +17,7 @@ import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, move
 import { SOFT, WOOD, CLOTH, GLASSY, startAmbient, updateAmbient, ac, at, tone, crunch, breakSound, caveSound, lavaHiss, lavaPop, listenAt, miningSound, moodChord, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
 import { lastSlot, lockHeldByOther, touchLock, releaseLock, prevKey, pushPrev, renameSlot, curKey, OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName, baseRev, setBaseRev, ensureGist, req } from "./cloud.js";
-import { checkFoundAchievements, FOUND_IDS, undoEmptyWhy, HISTORY_CELLS_MAX, editLabel, blueprintList, deleteBlueprint, settleWorld, mirrorClip, rotateClip, BATCH_RELIGHT_ALL, checkBuildAchievements, ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, shellSelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
+import { checkFoundAchievements, FOUND_IDS, undoEmptyWhy, HISTORY_CELLS_MAX, editLabel, blueprintList, deleteBlueprint, settleWorld, mirrorClip, rotateClip, BATCH_RELIGHT_ALL, checkBuildAchievements, ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, shellSelection, roundSelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
 import { refreshMouthDots, mouthDots, naturalRoof, roofDepth, ROOF_R, UNDER_ROOF, refreshMinimapCap, openPicker, closePicker, pickBtns, airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawMinimapTo, drawBigMap, toggleBigMap, bigMapOpen, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp , setHelpTab, toast} from "./hud.js";
 import { updateGhost, ghostMesh, ghostMat, updateHandLight, handMat, makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
 import { bodyRoot, updateBody, armL, armR, legL, legR, neck, upper } from "./body.js";
@@ -105,6 +105,8 @@ window.__blockyard = {
        GOLD: GOLD, DIAMOND: DIAMOND, FENCE: FENCE, GATE: GATE, DOOR: DOOR,
        PANE: PANE, LADDER: LADDER, TNT: TNT, FIRE: FIRE, FLINT: FLINT,
        BUCKET: BUCKET, SPRUCE_LOG: SPRUCE_LOG,
+       STAINED0: STAINED0, STAINED_COUNT: STAINED_COUNT,
+       SANDSTONE: SANDSTONE, STONEBRICK: STONEBRICK,
        SAPLING: SAPLING, SAPLING_BIRCH: SAPLING_BIRCH, SAPLING_SPRUCE: SAPLING_SPRUCE,
        BOOKSHELF: BOOKSHELF, CARPET: CARPET },
   CARPET0: CARPET0, CARPET_COUNT: CARPET_COUNT, isCarpet: isCarpet,
@@ -174,7 +176,7 @@ window.__blockyard = {
   applyFov: applyFov, applyTbtn: applyTbtn, applyUi: applyUi, UI_MIN_H: UI_MIN_H, fovForAspect: fovForAspect, FOV_BASE_ASPECT: FOV_BASE_ASPECT,
 
   // ── 개선 v5 에서 추가된 것들
-  isUnbreakable: isUnbreakable, columnTop: columnTop, facingText: facingText,
+  isUnbreakable: isUnbreakable, isStained: isStained, columnTop: columnTop, facingText: facingText,
   isCross: isCross, isLiquid: isLiquid, isTransparent: isTransparent,
   atlas: atlas, painted: painted, crossBase: crossBase, surfaceTop: surfaceTop, needsFloor: needsFloor,
   cloud: { checkToken: checkToken, isLinked: isLinked, listWorlds: listWorlds,
@@ -215,7 +217,7 @@ window.__blockyard = {
   pushOutOfMobs: pushOutOfMobs, exportWorld: exportWorld, importWorldText: importWorldText,
   hasBackup: hasBackup, restoreBackup: restoreBackup, pushBackup: pushBackup, backupKey: backupKey,
   cloudGroupHigh: cloudGroupHigh, FREE_DIST: FREE_DIST,
-  fillSelection: fillSelection, clearSelection: clearSelection, shellSelection: shellSelection, rotateClip: rotateClip, mirrorClip: mirrorClip,
+  fillSelection: fillSelection, clearSelection: clearSelection, shellSelection: shellSelection, roundSelection: roundSelection, rotateClip: rotateClip, mirrorClip: mirrorClip,
   SH_SLAB: SH_SLAB, SH_SLAB_UP: SH_SLAB_UP, SH_STAIR_E: SH_STAIR_E, SH_STAIR_N: SH_STAIR_N, SH_STAIR_W: SH_STAIR_W, SH_STAIR_S: SH_STAIR_S,
   SH_STAIR_NU: SH_STAIR_NU, SH_STAIR_EU: SH_STAIR_EU, SH_STAIR_SU: SH_STAIR_SU, SH_STAIR_WU: SH_STAIR_WU,
   isStairShape: isStairShape, copySelection: copySelection, pasteClip: pasteClip,

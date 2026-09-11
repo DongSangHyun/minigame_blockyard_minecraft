@@ -1,6 +1,6 @@
 // audio.js — 소리
 import { S } from "./state.js";
-import { CARPET, CARPET0, CARPET_COUNT, SAPLING, SAPLING_BIRCH, SAPLING_SPRUCE, DEADBUSH, DIRT, DRYGRASS, FLOWER_R, FLOWER_Y, GLASS, GRASS, ICE, LAMP, LEAVES, LOG, PLANKS, SAND, SNOW, TALLGRASS, TORCH , BIRCH_LOG, SPRUCE_LOG, BIRCH_LEAVES, SPRUCE_LEAVES, FENCE, GATE, DOOR, LADDER, BOOKSHELF, FRAME, PANE, WOOL0, WOOL_COUNT} from "./blocks.js";
+import { CARPET, CARPET0, CARPET_COUNT, SAPLING, SAPLING_BIRCH, SAPLING_SPRUCE, DEADBUSH, DIRT, DRYGRASS, FLOWER_R, FLOWER_Y, GLASS, GRASS, ICE, LAMP, LEAVES, LOG, PLANKS, SAND, SNOW, TALLGRASS, TORCH , BIRCH_LOG, SPRUCE_LOG, BIRCH_LEAVES, SPRUCE_LEAVES, FENCE, GATE, DOOR, LADDER, BOOKSHELF, FRAME, PANE, WOOL0, WOOL_COUNT, STAINED0, STAINED_COUNT} from "./blocks.js";
 import { dayLight } from "./daynight.js";
 import { opts } from "./settings.js";
 
@@ -147,6 +147,8 @@ export var CLOTH = {};
 for (var wi2 = 0; wi2 < WOOL_COUNT; wi2++) CLOTH[WOOL0 + wi2] = 1;
 export var GLASSY = {};
 GLASSY[GLASS] = 1; GLASSY[LAMP] = 1; GLASSY[PANE] = 1; GLASSY[ICE] = 1;
+// 색 유리 16색도 유리다 (v112) — 표에 안 넣으면 「돌」 소리가 난다 (v106 의 43종이 그랬다)
+for (var sg = 0; sg < STAINED_COUNT; sg++) GLASSY[STAINED0 + sg] = 1;
 // 잎 넷은 푹신한 쪽이다 (참나무 잎만 SOFT 에 있었다)
 SOFT[BIRCH_LEAVES] = 1; SOFT[SPRUCE_LEAVES] = 1;
 // 연달아 캘 때는 소리를 깎는다 (v106) — 「캐기 속도: 즉시」로 벽을 쓸면

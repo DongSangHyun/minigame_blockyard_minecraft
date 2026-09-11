@@ -420,6 +420,59 @@ WOOL_COLORS.forEach(function (wc, wi) {
   });
 });
 
+// 색 유리 16색 (v112 · 타일 87~102) — 유리(타일 9)의 무늬에 양털 색을 입힌다.
+// **알파를 살려야 한다** — 불투명하게 칠하면 색만 다른 벽돌이 되고,
+// 창 너머가 안 보이면 색 유리를 쓸 이유가 없다.
+WOOL_COLORS.forEach(function (wc, wi) {
+  paint(87 + wi, function (p, r) {
+    var hex = wc[1];
+    var cr = parseInt(hex.slice(1, 3), 16), cg = parseInt(hex.slice(3, 5), 16),
+        cb = parseInt(hex.slice(5, 7), 16);
+    function rgba(d, a) {
+      return "rgba(" + Math.max(0, Math.min(255, cr + d)) + "," +
+                       Math.max(0, Math.min(255, cg + d)) + "," +
+                       Math.max(0, Math.min(255, cb + d)) + "," + a + ")";
+    }
+    for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var edge = x === 0 || y === 0 || x === 15 || y === 15;
+      // 테두리는 진하게(창틀이 읽힌다) · 가운데는 옅게(너머가 보인다)
+      p(x, y, edge ? rgba(-18, 0.82) : rgba(14, 0.38));
+    }
+    // 유리와 같은 빗금 — 색만 다르고 재질은 같아 보여야 한다
+    for (var i = 0; i < 6; i++) p(3 + i, 3 + i, "rgba(255,255,255,0.34)");
+    for (var j = 0; j < 4; j++) p(6 + j, 3 + j, "rgba(255,255,255,0.24)");
+  });
+});
+
+paint(103, function (p, r) {  // 사암 옆면 — 가로로 쌓인 결 (v112)
+  var band = ["#dbcb9a", "#d3c28e", "#e2d3a6", "#cdbb86"];
+  for (var y = 0; y < 16; y++) {
+    var c = band[Math.floor(y / 4) % band.length];
+    for (var x = 0; x < 16; x++) p(x, y, c);
+  }
+  for (var b = 0; b < 4; b++) for (var x2 = 0; x2 < 16; x2++) p(x2, b * 4, "#b8a674");
+  for (var k = 0; k < 26; k++) p(Math.floor(r() * 16), Math.floor(r() * 16), "rgba(150,132,92,.35)");
+});
+paint(104, function (p, r) {  // 사암 윗면 — 결 없이 고운 모래알
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+    var n = Math.floor((r() - 0.5) * 22);
+    p(x, y, "rgb(" + (219 + n) + "," + (203 + n) + "," + (154 + n) + ")");
+  }
+});
+paint(105, function (p, r) {  // 돌벽돌 — 어긋나게 쌓은 네모 (v112)
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+    var n2 = Math.floor((r() - 0.5) * 16);
+    p(x, y, "rgb(" + (124 + n2) + "," + (124 + n2) + "," + (120 + n2) + ")");
+  }
+  var mortar = "#5c5c58";
+  for (var ry = 0; ry < 4; ry++) {
+    for (var mx = 0; mx < 16; mx++) p(mx, ry * 4, mortar);     // 가로 줄눈
+    var off = (ry % 2 === 0) ? 0 : 8;
+    for (var my = 1; my < 4; my++) p(off, ry * 4 + my, mortar); // 세로 줄눈 — 한 칸씩 어긋난다
+    for (var my2 = 1; my2 < 4; my2++) p((off + 8) % 16, ry * 4 + my2, mortar);
+  }
+});
+
 paint(77, function (p, r) {  // 화분 옆면 — 토분에 테두리 한 줄
   for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
     // 아래 절반만 화분이고 위는 비운다 (작은 상자에 늘여 붙는다)

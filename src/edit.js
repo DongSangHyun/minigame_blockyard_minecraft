@@ -448,8 +448,9 @@ export var ACHIEVEMENTS = [
 export var achGrid = document.getElementById("achgrid");
 
 // 진행도가 있는 과제는 숫자를 같이 보여 준다 (v100).
-// 「수집가」는 76종인데 **무엇이 남았는지 알 길이 없어** 40개 중 하나가 죽은 목표였다 —
-// 76종 중 32종이 색만 다른 것(양털 16 + 색 카펫 16)이라 눈으로 훑기도 어렵다.
+// 「수집가」는 종류가 많은데(v100 당시 76 · v112 에서 94) **무엇이 남았는지 알 길이 없어**
+// 40개 중 하나가 죽은 목표였다 — 그중 48종이 색만 다른 것(양털·카펫·색 유리 각 16)이라
+// 눈으로 훑기도 어렵다.
 // 개수는 S.placedKinds 로 이미 세고 있었다
 export function achProgress(a) {
   if (S.earned[a.id]) return "";
@@ -768,6 +769,42 @@ export function shellSelection(block, sh, mode) {
   return n;
 }
 
+// 원기둥과 구 (v112) — 상자 채우기 말고는 없어서 원형 탑·돔 지붕·아치·연못이 전부 손이었다.
+// 마크 건축자가 월드에디트에서 //walls·//hollow 다음으로 배우는 것이 //cyl·//sphere 다.
+// 중심은 **선 자리**다 (월드에디트와 같다) — 조준한 칸으로 하면 채운 뒤에는
+// 그 칸이 블록 안이라 다시 겨눌 수가 없다 (v111 의 /hollow 가 고친 것과 같은 함정).
+export function roundSelection(block, sh, r, h, hollow, kind) {
+  r = Math.max(1, Math.min(32, Math.round(r)));
+  h = Math.max(1, Math.min(WY, Math.round(h || 1)));
+  var cx = Math.floor(player.pos.x), cy = Math.floor(player.pos.y), cz = Math.floor(player.pos.z);
+  var size = kind === "sphere" ? (2 * r + 1) * (2 * r + 1) * (2 * r + 1)
+                               : (2 * r + 1) * (2 * r + 1) * h;
+  if (size > REGION_MAX) return -1;
+  var n = 0;
+  beginBatch(size);
+  var y0 = kind === "sphere" ? cy - r : cy;
+  var y1 = kind === "sphere" ? cy + r : cy + h - 1;
+  for (var y = Math.max(0, y0); y <= Math.min(WY - 1, y1); y++)
+    for (var z = Math.max(0, cz - r); z <= Math.min(WZ - 1, cz + r); z++)
+      for (var x = Math.max(0, cx - r); x <= Math.min(WX - 1, cx + r); x++) {
+        var dx = x - cx, dz = z - cz, dy = y - cy;
+        // 반지름에 0.5 를 더해 재면 마크의 원 템플릿과 같은 모양이 나온다 —
+        // 정수로만 재면 지름이 짝수인 원의 옆구리가 납작해진다
+        var d2 = kind === "sphere" ? (dx * dx + dy * dy + dz * dz) : (dx * dx + dz * dz);
+        var rr = r + 0.5;
+        if (d2 > rr * rr) continue;
+        if (hollow) {
+          // 껍질만 — 한 칸 작은 반지름 안쪽은 건너뛴다.
+          // 원기둥은 **옆면만** 껍질이다 (바닥·천장을 덮으면 속에 들어갈 수가 없다)
+          var ri = r - 0.5;
+          if (d2 <= ri * ri) continue;
+        }
+        if (applyEdit(x, y, z, block, true, sh || SH_FULL)) n++;
+      }
+  endBatch(kind === "sphere" ? "구" : "원기둥", true);
+  return n;
+}
+
 export function copySelection() {
   var b = bounds();
   if (!b) return 0;
@@ -879,6 +916,7 @@ export function pasteClip(px, py, pz, withAir) {
 export var CMD_HELP =
   "tp <x y z | 표식 번호|이름> · time <아침|정오|노을|밤|0~1> · weather <맑음|비|눈> · " +
   "marks · marks del <번호> · fill <블록|공기> [바꿀블록] · hollow · walls <블록> · " +
+  "cyl <블록> <반지름> [높이] [속빔] · sphere <블록> <반지름> [속빔] · " +
   "expand/contract <±dx> <±dy> <±dz> · shift <dx> <dy> <dz> · clone <dx> <dy> <dz> [횟수] · give <블록> · count · bp <save|use|list|del> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
 
 // 한국어 이름과 영어 이름을 둘 다 알아듣는다 — "조약돌" 도 "cobble" 도 된다
@@ -907,7 +945,7 @@ function findBlock(name) {
   return -1;
 }
 
-export var CMD_LIST = ["tp", "marks", "time", "weather", "fill", "hollow", "walls", "shell", "expand", "contract", "shift", "clone", "give", "count", "bp", "undo", "redo", "seed", "gm", "help"];
+export var CMD_LIST = ["tp", "marks", "time", "weather", "fill", "hollow", "walls", "shell", "cyl", "sphere", "expand", "contract", "shift", "clone", "give", "count", "bp", "undo", "redo", "seed", "gm", "help"];
 // 앞글자만 쳐도 알아듣게 — 명령이 열 개나 되면 오타 한 번에 막힌다
 export function completeCommand(prefix) {
   var q = String(prefix || "").trim().toLowerCase();
@@ -1061,6 +1099,32 @@ export function runCommand(line) {
     if (wn < 0) return "영역이 너무 큽니다";
     if (!wn) return bounds() ? "이미 " + NAMES[wb] + " 입니다" : "먼저 Alt+클릭으로 영역을 고르세요";
     return wn.toLocaleString("ko-KR") + "칸을 " + NAMES[wb] + " 로";
+  }
+
+  // /cyl <블록> <반지름> [높이] [속빔] · /sphere <블록> <반지름> [속빔]
+  if (cmd === "cyl" || cmd === "sphere") {
+    var toks = parts.slice(1);
+    var hollowWord = false;
+    if (toks.length && /^(속빔|속|벽|hollow)$/i.test(toks[toks.length - 1])) {
+      hollowWord = true; toks = toks.slice(0, toks.length - 1);
+    }
+    // 뒤에서부터 숫자를 떼어 낸다 — 블록 이름이 두 낱말일 수 있다 ("빨강 색유리")
+    var nums = [];
+    while (toks.length && /^-?\d+$/.test(toks[toks.length - 1])) {
+      nums.unshift(parseInt(toks.pop(), 10));
+    }
+    var cb4 = findBlock(toks.join(" "));
+    if (cb4 < 0 || !nums.length) {
+      return cmd === "cyl" ? "cyl <블록> <반지름> [높이] [속빔] — 선 자리를 중심으로 원기둥"
+                           : "sphere <블록> <반지름> [속빔] — 선 자리를 중심으로 구";
+    }
+    var rad = nums[0], hei = cmd === "cyl" ? (nums.length > 1 ? nums[1] : 1) : 1;
+    var rn = roundSelection(cb4, SH_FULL, rad, hei, hollowWord, cmd);
+    if (rn < 0) return "너무 큽니다 — 반지름과 높이를 줄이세요 (" + REGION_MAX.toLocaleString("ko-KR") + "칸까지)";
+    if (!rn) return "이미 " + NAMES[cb4] + " 입니다";
+    return rn.toLocaleString("ko-KR") + "칸을 " + NAMES[cb4] + " 로 (" +
+           (cmd === "cyl" ? "원기둥 반지름 " + rad + " · 높이 " + hei : "구 반지름 " + rad) +
+           (hollowWord ? " · 속빔" : "") + ")";
   }
 
   if (cmd === "gm") {

@@ -36,6 +36,14 @@ export var SAPLING_BIRCH = 78, SAPLING_SPRUCE = 79;
 // 가문비 원목 (v96) — v92 가 묘목 세 종을 넣으며 "가문비 산장" 을 명분으로 삼았는데,
 // 정작 가문비는 **잎만 다르고 줄기는 참나무**였다. 산장 벽에 쓸 나무가 안 나왔다.
 export var SPRUCE_LOG = 80;
+// 색 유리 16색 (v112) — 81~96 을 연속으로 쓴다. 아틀라스 타일 87~102.
+// 통짜 불투명 건축 블록 36종 가운데 **무채색 석재가 돌·조약돌·벽돌·자갈 넷**뿐이고
+// 색은 양털 16 + 카펫 16 인데 둘 다 천이라, 두 번째 건물을 첫 번째와 다르게 지을 수가 없었다.
+// 색 카펫(v84)이 쓴 수법을 그대로 쓴다 — 양털 색 + 유리 무늬를 겹친다.
+export var STAINED0 = 81, STAINED_COUNT = 16;
+export function isStained(b) { return b >= STAINED0 && b < STAINED0 + STAINED_COUNT; }
+// 무채색 석재 둘 (v112) — 사암(사막의 재료)과 돌벽돌(성벽·바닥).
+export var SANDSTONE = 97, STONEBRICK = 98;
 export function isSapling(b) {
   return b === SAPLING || b === SAPLING_BIRCH || b === SAPLING_SPRUCE;
 }
@@ -58,6 +66,8 @@ TILES[LOG]    = [6, 5, 6];
 TILES[LEAVES] = [7, 7, 7];
 TILES[PLANKS] = [8, 8, 8];
 TILES[GLASS]  = [9, 9, 9];
+TILES[SANDSTONE] = [104, 103, 104];      // 윗면은 매끈, 옆면은 결 (v112)
+TILES[STONEBRICK] = [105, 105, 105];
 TILES[BRICK]  = [10, 10, 10];
 TILES[WATER]  = [11, 11, 11];
 TILES[COBBLE] = [12, 12, 12];
@@ -132,6 +142,9 @@ nm(GOLD, "금 광석", "GOLD"); nm(DIAMOND, "다이아 광석", "DIAMOND");
 nm(TNT, "TNT", "TNT"); nm(FIRE, "불", "FIRE"); nm(FLINT, "부싯돌", "FLINT");
 nm(FENCE, "울타리", "FENCE"); nm(GATE, "울타리 문", "GATE"); nm(DOOR, "문", "DOOR");
 nm(PANE, "유리판", "GLASS PANE"); nm(LADDER, "사다리", "LADDER");
+// 영어 이름은 **한 낱말**로 둔다 (v112) — "STONE BRICK" 으로 적었더니
+// findBlock 의 낱말 맞추기가 `/give brick` 을 돌벽돌(98)로 읽어 벽돌(9)을 못 꺼냈다
+nm(SANDSTONE, "사암", "SANDSTONE"); nm(STONEBRICK, "돌벽돌", "STONEBRICK");
 
 // 캐는 데 걸리는 시간(초)
 export var HARDNESS = {};
@@ -148,6 +161,7 @@ HARDNESS[SAPLING] = 0.05;
 HARDNESS[SAPLING_BIRCH] = 0.05;
 HARDNESS[SAPLING_SPRUCE] = 0.05;
 HARDNESS[BOOKSHELF] = 0.62; HARDNESS[CARPET] = 0.06;
+HARDNESS[SANDSTONE] = 0.85; HARDNESS[STONEBRICK] = 1.25;   // 사암은 무르고 돌벽돌은 돌과 같다
 HARDNESS[POT] = 0.10; HARDNESS[FRAME] = 0.10; HARDNESS[BUCKET] = 0.20;
 HARDNESS[GOLD] = 2.35; HARDNESS[DIAMOND] = 2.9;
 HARDNESS[TNT] = 0.30; HARDNESS[FIRE] = 0.02; HARDNESS[FLINT] = 0.20;
@@ -192,7 +206,7 @@ export function needsFloor(b) { return isCross(b) || b === DOOR || isCarpet(b) |
 // 벽에 붙는 것 — 벽이 사라지면 같이 떨어진다 (사다리와 같은 규칙)
 export function needsWall(b) { return b === FRAME; }
 
-export var ALL_BLOCKS = [GRASS, DIRT, STONE, COBBLE, SAND, GRAVEL, SNOW, LOG,
+export var ALL_BLOCKS = [GRASS, DIRT, STONE, COBBLE, SAND, SANDSTONE, STONEBRICK, GRAVEL, SNOW, LOG,
                   LEAVES, PLANKS, GLASS, BRICK, LAMP, TORCH, COAL, IRON, ICE,
                   WATER, LAVA, CACTUS, TALLGRASS, FLOWER_R, FLOWER_Y,
                   DEADBUSH, DRYGRASS, SAPLING,
@@ -213,6 +227,14 @@ for (var ck = 0; ck < CARPET_COUNT; ck++) {
   HARDNESS[CARPET0 + ck] = 0.06;
   ALL_BLOCKS.push(CARPET0 + ck);
 }
+// 색 유리 — 양털과 같은 색 이름. 아틀라스 타일 87~102 (v112)
+for (var gk = 0; gk < STAINED_COUNT; gk++) {
+  TILES[STAINED0 + gk] = [87 + gk, 87 + gk, 87 + gk];
+  NAMES[STAINED0 + gk] = WOOL_COLORS[gk][0] + " 색유리";
+  NAMES_EN[STAINED0 + gk] = "STAINED GLASS " + WOOL_COLORS[gk][0];
+  HARDNESS[STAINED0 + gk] = 0.22;          // 유리와 같다
+  ALL_BLOCKS.push(STAINED0 + gk);
+}
 
 // ── 이웃에 따라 모양이 바뀌는 블록 (울타리 · 유리판)
 export function isConnecting(b) { return b === FENCE || b === PANE; }
@@ -231,7 +253,7 @@ export function isFlammable(b) {
 // 울타리·유리판이 이어 붙는 상대인가
 export function connectsTo(self, other) {
   if (other === AIR || isLiquid(other) || isCross(other)) return false;
-  if (self === PANE) return other === PANE || other === GLASS || isSolid(other);
+  if (self === PANE) return other === PANE || other === GLASS || isStained(other) || isSolid(other);
   return other === FENCE || other === GATE || isSolid(other);
 }
 
@@ -313,7 +335,7 @@ export function faceKindFor(sh, f, base) {
 export function isAxisShape(sh) { return sh === SH_AXIS_X || sh === SH_AXIS_Z; }
 
 export function isLiquid(b) { return b === WATER || b === LAVA; }
-export function isTransparent(b) { return b === GLASS || b === WATER || b === ICE || b === PANE; }
+export function isTransparent(b) { return b === GLASS || b === WATER || b === ICE || b === PANE || isStained(b); }
 export function isSolid(b) { return b !== AIR && !isLiquid(b) && !isCross(b) && b !== LADDER; }
 // 얇아서 이웃 면을 가리지 못하는 블록 — 카펫은 딛고 설 수 있지만 통짜가 아니다
 export function isThin(b) { return isCarpet(b); }
@@ -321,7 +343,7 @@ export function blocksLight(b) {
   return b !== AIR && !isTransparent(b) && !isCross(b) && !isCarpet(b) && b !== POT && b !== FRAME;
 }
 export function lightPass(b) {
-  return b === AIR || b === WATER || b === GLASS || b === ICE || b === PANE ||
+  return b === AIR || b === WATER || b === GLASS || b === ICE || b === PANE || isStained(b) ||
          b === FENCE || b === GATE || b === DOOR || b === LADDER || isCarpet(b) || isCross(b) ||
          b === POT || b === FRAME;
 }
@@ -342,6 +364,7 @@ export function categoryOf(b) {
   if (b === WATER || b === LAVA || b === LAMP || b === TORCH || b === FIRE ||
       b === ICE || b === FLINT || b === BUCKET) return "light";
   if (b >= CARPET0 && b < CARPET0 + CARPET_COUNT) return "color";   // 색 카펫은 양털 옆에
+  if (isStained(b)) return "color";                                 // 색 유리도 색 갈래다 (v112)
   if (b === BOOKSHELF || b === CARPET || b === POT || b === FRAME) return "build";
   if (b === GRASS || b === DIRT || b === STONE || b === SAND || b === GRAVEL || b === SNOW ||
       b === LOG || b === BIRCH_LOG || b === SPRUCE_LOG || b === LEAVES || b === BIRCH_LEAVES || b === SPRUCE_LEAVES ||

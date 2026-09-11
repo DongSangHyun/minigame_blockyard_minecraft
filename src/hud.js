@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { BUILD } from "./version.js";
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
-import { AIR, ALL_BLOCKS, BUCKET, BUCKET_TILE, FENCE, LOG, PLANKS, BOOKSHELF, LAMP, COBBLE, TORCH, GLASS, ITEMS, isItem, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross, isLeaf } from "./blocks.js";
+import { AIR, ALL_BLOCKS, isStained, BUCKET, BUCKET_TILE, FENCE, LOG, PLANKS, BOOKSHELF, LAMP, COBBLE, TORCH, GLASS, ITEMS, isItem, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross, isLeaf } from "./blocks.js";
 import { AVG_TOP, TILE, atlas, tileOrigin } from "./atlas.js";
 import { SEEN_TOP, SEEN_UNDER_ALL, UNDER_BANDS, underBand, isTouched, heightMap, markX, markY, markZ, markName, seenMap, markSeen, topMap, world } from "./world.js";
 import { player } from "./player.js";
@@ -38,7 +38,8 @@ export function drawIcon(cv, blockId, tileOverride) {
     c.lineTo(O[0] + V[0], O[1] + V[1]);
     c.closePath();
     c.clip();
-    if (blockId === GLASS || blockId === WATER) { c.fillStyle = "#2a3a40"; c.fill(); }
+    // 유리·색 유리·물은 밑에 어두운 판을 깔아야 아이콘이 보인다 (알파가 살아 있다)
+    if (blockId === GLASS || blockId === WATER || isStained(blockId)) { c.fillStyle = "#2a3a40"; c.fill(); }
     c.setTransform(U[0] / TILE, U[1] / TILE, V[0] / TILE, V[1] / TILE, O[0], O[1]);
     c.drawImage(atlas, o[0], o[1], TILE, TILE, 0, 0, TILE, TILE);
     c.setTransform(1, 0, 0, 1, 0, 0);
