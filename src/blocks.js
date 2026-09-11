@@ -33,6 +33,9 @@ export var BUCKET = 77;
 // 나무는 못 고르는 것이 어긋나 보였다. 마크도 묘목은 종마다 다른 물건이다.
 // 56(SAPLING)은 참나무로 굳는다 — 옛 저장에 심어 둔 묘목이 그대로 자란다.
 export var SAPLING_BIRCH = 78, SAPLING_SPRUCE = 79;
+// 가문비 원목 (v96) — v92 가 묘목 세 종을 넣으며 "가문비 산장" 을 명분으로 삼았는데,
+// 정작 가문비는 **잎만 다르고 줄기는 참나무**였다. 산장 벽에 쓸 나무가 안 나왔다.
+export var SPRUCE_LOG = 80;
 export function isSapling(b) {
   return b === SAPLING || b === SAPLING_BIRCH || b === SAPLING_SPRUCE;
 }
@@ -88,6 +91,7 @@ TILES[DRYGRASS]  = [29, 29, 29];
 TILES[BIRCH_LOG]    = [31, 30, 31];
 TILES[BIRCH_LEAVES] = [32, 32, 32];
 TILES[SPRUCE_LEAVES]= [33, 33, 33];
+TILES[SPRUCE_LOG]   = [86, 85, 86];   // 아틀라스 85 옆면 · 86 윗면
 TILES[GOLD]      = [34, 34, 34];
 TILES[DIAMOND]   = [35, 35, 35];
 TILES[FENCE]     = [8, 8, 8];      // 나무판자 결을 그대로 쓴다
@@ -123,6 +127,7 @@ nm(BUCKET, "양동이", "BUCKET");
 nm(DRYGRASS, "마른 풀", "DRY GRASS");
 nm(BIRCH_LOG, "자작나무 원목", "BIRCH"); nm(BIRCH_LEAVES, "자작나무 잎", "BIRCH LEAVES");
 nm(SPRUCE_LEAVES, "가문비 잎", "SPRUCE LEAVES");
+nm(SPRUCE_LOG, "가문비 원목", "SPRUCE LOG");
 nm(GOLD, "금 광석", "GOLD"); nm(DIAMOND, "다이아 광석", "DIAMOND");
 nm(TNT, "TNT", "TNT"); nm(FIRE, "불", "FIRE"); nm(FLINT, "부싯돌", "FLINT");
 nm(FENCE, "울타리", "FENCE"); nm(GATE, "울타리 문", "GATE"); nm(DOOR, "문", "DOOR");
@@ -149,6 +154,7 @@ HARDNESS[TNT] = 0.30; HARDNESS[FIRE] = 0.02; HARDNESS[FLINT] = 0.20;
 HARDNESS[FENCE] = 0.55; HARDNESS[GATE] = 0.55; HARDNESS[DOOR] = 0.62;
 HARDNESS[PANE] = 0.20; HARDNESS[LADDER] = 0.24;
 HARDNESS[BIRCH_LOG] = 0.78; HARDNESS[BIRCH_LEAVES] = 0.18; HARDNESS[SPRUCE_LEAVES] = 0.18;
+HARDNESS[SPRUCE_LOG] = 0.78;
 // 양털 16색을 표·이름·굳기에 한꺼번에 등록한다
 for (var wi = 0; wi < WOOL_COUNT; wi++) {
   TILES[WOOL0 + wi] = [37 + wi, 37 + wi, 37 + wi];
@@ -190,7 +196,7 @@ export var ALL_BLOCKS = [GRASS, DIRT, STONE, COBBLE, SAND, GRAVEL, SNOW, LOG,
                   LEAVES, PLANKS, GLASS, BRICK, LAMP, TORCH, COAL, IRON, ICE,
                   WATER, LAVA, CACTUS, TALLGRASS, FLOWER_R, FLOWER_Y,
                   DEADBUSH, DRYGRASS, SAPLING,
-                  BOOKSHELF, CARPET, POT, FRAME, BIRCH_LOG, BIRCH_LEAVES, SPRUCE_LEAVES,
+                  BOOKSHELF, CARPET, POT, FRAME, BIRCH_LOG, BIRCH_LEAVES, SPRUCE_LOG, SPRUCE_LEAVES,
                   SAPLING_BIRCH, SAPLING_SPRUCE,
                   GOLD, DIAMOND, FENCE, GATE, DOOR, PANE, LADDER, TNT];
 
@@ -216,7 +222,7 @@ export function isClimbable(b) { return b === LADDER; }
 export function isOpenable(b) { return b === GATE || b === DOOR; }
 // 불에 타는 것들 — 불이 옮겨 붙는다
 export function isFlammable(b) {
-  return b === LOG || b === BIRCH_LOG || b === PLANKS || b === LEAVES ||
+  return b === LOG || b === BIRCH_LOG || b === SPRUCE_LOG || b === PLANKS || b === LEAVES ||
          b === BIRCH_LEAVES || b === SPRUCE_LEAVES || b === TALLGRASS ||
          b === DRYGRASS || b === DEADBUSH || isSapling(b) || b === BOOKSHELF || isCarpet(b) ||
          b === POT || b === FRAME ||
@@ -230,7 +236,7 @@ export function connectsTo(self, other) {
 }
 
 // 원목·잎으로 묶어 두면 잎 부패와 축 회전이 종류를 안 가린다
-export function isLog(b) { return b === LOG || b === BIRCH_LOG; }
+export function isLog(b) { return b === LOG || b === BIRCH_LOG || b === SPRUCE_LOG; }
 export function isLeaf(b) { return b === LEAVES || b === BIRCH_LEAVES || b === SPRUCE_LEAVES; }
 export var DEFAULT_BAR = [GRASS, DIRT, STONE, COBBLE, SAND, LOG, PLANKS, GLASS, TORCH, LAMP];
 // 2쪽 — 건축 부품과 도구
@@ -338,7 +344,7 @@ export function categoryOf(b) {
   if (b >= CARPET0 && b < CARPET0 + CARPET_COUNT) return "color";   // 색 카펫은 양털 옆에
   if (b === BOOKSHELF || b === CARPET || b === POT || b === FRAME) return "build";
   if (b === GRASS || b === DIRT || b === STONE || b === SAND || b === GRAVEL || b === SNOW ||
-      b === LOG || b === BIRCH_LOG || b === LEAVES || b === BIRCH_LEAVES || b === SPRUCE_LEAVES ||
+      b === LOG || b === BIRCH_LOG || b === SPRUCE_LOG || b === LEAVES || b === BIRCH_LEAVES || b === SPRUCE_LEAVES ||
       b === COAL || b === IRON || b === GOLD || b === DIAMOND || b === CACTUS ||
       isCross(b)) return "nature";
   return "build";

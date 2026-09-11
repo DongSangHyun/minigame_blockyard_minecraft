@@ -2584,9 +2584,12 @@ test("v14 설정: 화면 표시 크기가 CSS 에 반영된다", async (page) =>
     B.opts.ui = 100; B.applyOpts();
     const one = getComputedStyle(document.documentElement).getPropertyValue("--ui").trim();
     B.opts.ui = keep; B.applyOpts();
-    return { big, one };
+    // v96 부터 배율은 화면 높이로 잘린다 — 끝까지 올리면 미니맵이 조준선을 삼켰다
+    const cap = Math.max(1, window.innerHeight / B.UI_MIN_H);
+    return { big, one, cap, h: window.innerHeight };
   });
-  eq(r.big, "1.50", "UI 배율이 안 커진다");
+  eq(r.big, Math.min(1.5, r.cap).toFixed(2),
+     "UI 배율이 화면 높이(" + r.h + ")에 맞게 안 잘렸다: " + r.big);
   eq(r.one, "1.00", "UI 배율이 안 돌아온다");
 });
 
@@ -4047,6 +4050,10 @@ test("v22 우클릭: 한 번 누르면 하나만, 홀드는 천천히 반복된�
       B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
     B.refreshAllTops(); B.relightAll(false);
     B.setPaused(true); B.beginPlay();
+    // 앞 시험이 눈을 남겨 두면 시험장 위에 쌓여 셈에 들어간다 (10회 중 1회 실패의 정체) —
+    // 세는 시험은 **세지 말아야 할 것이 안 생기는지**부터 못 박는다
+    const keepW = B.S.weather, keepLock = B.S.weatherLock;
+    B.S.weather = 0; B.S.weatherLock = true; B.applyWeather();
     B.player.pos.set(X + 0.5, Y + 4, Z + 0.5);   // 발밑이 아니라 아래를 내려다본다
     B.player.vel.set(0, 0, 0);
     B.player.flying = true;              // 지형에 흔들리지 않게
@@ -4078,6 +4085,7 @@ test("v22 우클릭: 한 번 누르면 하나만, 홀드는 천천히 반복된�
     }
     B.S.mouseDown[2] = false;
     const held = count() - tap;
+    B.S.weather = keepW; B.S.weatherLock = keepLock; B.applyWeather();
 
     B.S.lockMode = false;
     B.endPlay(); B.setPaused(false);
@@ -6202,15 +6210,21 @@ test("v62 묘목: 심어 두면 나무가 되고, 되돌리기 한 번에 사라
     // 자란 나무는 한 번에 되돌아온다 (묶음 한 개)
     const hist = B.S.history.length;
     B.undo();
+    // v96 부터 되돌리면 **묘목이 돌아온다** — 심은 것을 잃지 않는다.
+    // 그 한 칸 말고 남은 것이 있으면 나무가 반쯤 지워진 것이다
+    const backSapling = B.get(X, Y, Z) === B.B.SAPLING;
     let leftover = 0;
     for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
       for (let dy = 0; dy <= 12; dy++) {
         const b = B.get(X + dx, Y + dy, Z + dz);
-        if (b !== B.B.AIR) leftover++;
+        if (b === B.B.AIR) continue;
+        if (dx === 0 && dz === 0 && dy === 0 && b === B.B.SAPLING) continue;
+        leftover++;
       }
 
     // 자란 순간에 잎조각이 튄다 — 옆에 서 있다가 소리 없이 솟으면 무슨 일인지 모른다
     const puffed = B.pCount() > puffBefore;
+    // (backSapling 은 아래 return 에 실린다)
 
     // (2) 돌 위에서는 자라지 않는다 (마크와 같다)
     const SX = X + 4;
@@ -6291,13 +6305,14 @@ test("v62 묘목: 심어 두면 나무가 되고, 되돌리기 한 번에 사라
 
     B.S.history.length = 0; B.S.future.length = 0;
     B.endPlay(); B.setPaused(false);
-    return { planted, grew, leaves, hist, leftover, onStone, inDark, regrew, ticks, darkLv, lowLv, underRoof, puffed, onPlayer, afterStepAside, clock, emptied, loaded, signalled };
+    return { planted, grew, leaves, hist, leftover, onStone, inDark, regrew, ticks, darkLv, lowLv, underRoof, puffed, onPlayer, afterStepAside, clock, emptied, loaded, signalled, backSapling};
   });
   assert(r.planted, "묘목이 안 놓인다 — 블록 등록이 빠졌다");
   assert(r.grew, `묘목이 ${r.ticks}초를 기다려도 안 자란다`);
   assert(r.leaves > 8, "자란 나무에 잎이 " + r.leaves + "장뿐이다");
   eq(r.hist, 1, "나무 한 그루가 되돌리기 " + r.hist + "개를 먹었다 — Ctrl+Z 한 번이어야 한다");
   eq(r.leftover, 0, "되돌렸는데 " + r.leftover + "칸이 남았다 — 나무가 반쯤 지워졌다");
+  eq(r.backSapling, true, "되돌렸는데 묘목이 안 돌아왔다 — 심은 것을 잃는다");
   assert(r.onStone, "돌 위의 묘목이 자랐다 — 마크에서는 안 자란다");
   assert(r.darkLv < 9, "시험대가 안 어둡다 — 빛이 " + r.darkLv + " 이다");
   assert(r.inDark, "어두운 방인데 묘목이 자랐다 — 빛 조건이 안 걸린다");
@@ -11083,7 +11098,7 @@ test("v92 묘목: 세 종을 골라 심고, 심은 대로 자란다", async (pag
   assert(oakT.oak > 0 && oakT.birch === 0 && oakT.spruce === 0,
      "참나무 묘목이 낸 잎: 참" + oakT.oak + " 자작" + oakT.birch + " 가문비" + oakT.spruce);
   assert(birchT.log === 27, "자작나무 묘목이 자작으로 안 자랐다 — 줄기가 " + birchT.log + " 다");
-  assert(spruceT.log === 5, "가문비 묘목의 줄기가 " + spruceT.log + " 다 — 가문비도 참나무 원목을 쓴다");
+  assert(spruceT.log === 80, "가문비 묘목의 줄기가 " + spruceT.log + " 다 — v96 부터 가문비 원목(80)이다");
   assert(birchT.birch > 0 && birchT.oak === 0 && birchT.spruce === 0,
      "자작 묘목이 낸 잎: 참" + birchT.oak + " 자작" + birchT.birch + " 가문비" + birchT.spruce);
   assert(spruceT.spruce > 0 && spruceT.oak === 0 && spruceT.birch === 0,
@@ -11131,7 +11146,7 @@ test("v92 새 블록: 타일이 남의 그림을 안 덮고, 이름이 원목을
   });
   eq(r.unpainted.length, 0, "그려지지 않은 타일을 쓰는 블록: " + r.unpainted.join(", "));
   eq(r.found[0], 27, "'자작나무' 가 자작 원목(27)이 아니라 " + r.found[0] + " 을 준다");
-  eq(r.found[1], 29, "'가문비' 가 가문비 잎(29)이 아니라 " + r.found[1] + " 을 준다");
+  eq(r.found[1], 80, "'가문비' 가 가문비 원목(80)이 아니라 " + r.found[1] + " 을 준다 — 참나무·자작과 같은 규칙이라야 한다");
   eq(r.found[2], 5, "'참나무' 가 참나무 원목(5)이 아니라 " + r.found[2] + " 을 준다");
   eq(r.found[3], 78, "'자작나무 묘목' 이 " + r.found[3] + " 을 준다");
   eq(r.found[4], 79, "'가문비 묘목' 이 " + r.found[4] + " 을 준다");
@@ -11461,6 +11476,129 @@ test("v95 명령·화면: /tp 가 돌에 안 묻고, /give 가 핫바까지 닿�
   eq(r.gotBucket, 77, "/give 양동이 가 안 먹는다 — " + r.bucketMsg);
   eq(r.toastOnInPhoto, false, "사진 모드인데 토스트가 떴다 — 구도를 가린다");
   eq(r.toastOnNormal, true, "평소에 토스트가 안 뜬다 — 너무 많이 삼켰다");
+});
+
+phoneTest("화면 표시 크기를 끝까지 올려도 조준선이 안 가린다 (v96)", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keep = B.opts.ui;
+    const rows = [];
+    for (const want of [100, 120, 140, 160, 180]) {
+      B.opts.ui = want; B.applyOpts();
+      const ret = document.getElementById("reticle").getBoundingClientRect();
+      const cx = (ret.left + ret.right) / 2, cy = (ret.top + ret.bottom) / 2;
+      const over = [];
+      for (const id of ["minimap", "hotbar", "telemetry", "hint"]) {
+        const el = document.getElementById(id);
+        if (!el || el.hidden) continue;
+        const b = el.getBoundingClientRect();
+        if (!b.width || !b.height) continue;
+        if (cx >= b.left && cx <= b.right && cy >= b.top && cy <= b.bottom) over.push(id);
+      }
+      // 힌트 띠가 핫바를 덮나
+      const hint = document.getElementById("hint"), bar = document.getElementById("hotbar");
+      let hintOverBar = false;
+      if (hint && !hint.hidden && bar && !bar.hidden) {
+        const hb = hint.getBoundingClientRect(), bb = bar.getBoundingClientRect();
+        if (hb.width && hb.height && hb.bottom > bb.top && hb.top < bb.bottom &&
+            hb.right > bb.left && hb.left < bb.right) hintOverBar = true;
+      }
+      rows.push({ want, over, hintOverBar });
+    }
+    B.opts.ui = keep; B.applyOpts();
+    B.endPlay(); B.setPaused(false);
+    return { rows };
+  });
+  for (const row of r.rows) {
+    eq(row.over.length, 0,
+       "화면 표시 " + row.want + "% — 조준선을 덮는 것: " + row.over.join(","));
+    eq(row.hintOverBar, false, "화면 표시 " + row.want + "% — 힌트 띠가 핫바를 덮는다");
+  }
+});
+
+test("v96 시점·사진: 키보드 없이도 3인칭과 사진 모드에 닿는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.thirdPerson = 0; B.S.photoMode = false;
+
+    // 설정의 「시점」 알약 — 폰에는 F5 가 없다
+    const row = document.getElementById("row-view");
+    const pills = row ? row.querySelectorAll("button[data-view]") : [];
+    const picked = [];
+    for (const p of pills) { p.click(); picked.push(B.S.thirdPerson); }
+
+    // 「사진 모드」 단추 — 폰에는 F6 도 없다
+    B.S.thirdPerson = 1;
+    document.getElementById("btn-photo").click();
+    const inPhoto = B.S.photoMode;
+    const keptThird = B.S.thirdPerson;          // 사진 모드가 3인칭을 끄면 안 된다 (v92)
+    const hudOff = document.getElementById("hotbar").hidden;
+
+    // 사진 모드 미니 바 — 저장할 길과 나갈 길
+    B.S.wantShot = false;
+    document.getElementById("pb-shot").click();
+    const wantShot = B.S.wantShot;
+    B.S.wantShot = false;
+    document.getElementById("pb-view").click();
+    const afterViewBtn = B.S.thirdPerson;
+    document.getElementById("pb-exit").click();
+    const outPhoto = B.S.photoMode;
+    const hudBack = !document.getElementById("hotbar").hidden;
+
+    B.S.thirdPerson = 0;
+    B.endPlay(); B.setPaused(false);
+    return { picked, inPhoto, keptThird, hudOff, wantShot, afterViewBtn, outPhoto, hudBack };
+  });
+  eq(r.picked.join(), "0,1,2", "설정의 시점 알약이 안 먹는다: " + r.picked.join());
+  eq(r.inPhoto, true, "「사진 모드」 단추가 안 먹는다 — 폰에는 F6 이 없다");
+  eq(r.keptThird, 1, "사진 모드가 3인칭을 껐다 — 찍을 주인공이 사라진다");
+  eq(r.hudOff, true, "사진 모드인데 핫바가 그대로다");
+  eq(r.wantShot, true, "사진 저장 단추가 안 먹는다 — 「사진사」 과제가 폰에서 안 열린다");
+  eq(r.afterViewBtn, 2, "사진 모드의 시점 단추가 안 먹는다: " + r.afterViewBtn);
+  eq(r.outPhoto, false, "나가기 단추가 안 먹는다 — 사진 모드에 갇힌다");
+  eq(r.hudBack, true, "나왔는데 핫바가 안 돌아왔다");
+});
+
+test("v96 가문비 원목 · 담긴 양동이가 세계를 안 따라온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    // (1) 가문비 원목이 목록·이름·그림까지 닿나
+    const SL = B.B.SPRUCE_LOG;
+    const inList = B.ALL_BLOCKS.indexOf(SL) >= 0;
+    const name = B.NAMES[SL];
+    const tiles = B.TILES[SL].slice();
+    const painted = tiles.every((t) => !!B.painted[t]);
+    const isLogToo = B.isLog ? B.isLog(SL) : null;
+    // 세 원목의 옆면 그림이 서로 다른가 — 한눈에 갈라져야 한다
+    const inks = [B.B.LOG, B.B.BIRCH_LOG, SL].map((b) => {
+      const t = B.TILES[b][1];
+      const cv = document.createElement("canvas");
+      cv.width = cv.height = 16;
+      const c = cv.getContext("2d");
+      c.drawImage(B.atlas, (t % 16) * 16, Math.floor(t / 16) * 16, 16, 16, 0, 0, 16, 16);
+      const d = c.getImageData(0, 0, 16, 16).data;
+      let sum = 0;
+      for (let i = 0; i < d.length; i += 4) sum += d[i] * 7 + d[i + 1] * 11 + d[i + 2] * 13;
+      return sum;
+    });
+
+    // (2) 담긴 양동이가 슬롯을 갈아타도 따라오나
+    B.S.fillBar[0] = B.B.LAVA;
+    B.afterWorldSwap("시험", true);
+    const carried = B.S.fillBar[0];
+
+    B.endPlay(); B.setPaused(false);
+    return { inList, name, tiles, painted, isLogToo, inks, carried };
+  });
+  eq(r.inList, true, "가문비 원목이 블록 목록에 없다");
+  eq(r.name, "가문비 원목", "가문비 원목 이름이 '" + r.name + "' 이다");
+  eq(r.painted, true, "가문비 원목이 안 그려진 타일을 쓴다: " + r.tiles.join(","));
+  eq(r.isLogToo, true, "isLog 가 가문비 원목을 안 잡는다 — 잎 부패·축 회전이 안 먹는다");
+  assert(new Set(r.inks).size === 3, "원목 셋의 옆면 그림이 겹친다: " + r.inks.join(","));
+  eq(r.carried, 0, "슬롯을 갈아탔는데 담긴 양동이가 따라왔다 — 세계 A 의 용암이 B 로 온다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

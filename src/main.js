@@ -5,14 +5,14 @@ import { breedTick, MOB_MAX, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish,
 import { atlasSample, SWATCH_SIDE, animateLiquids, atlas, painted } from "./atlas.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, GEN, setGen, seaLift, WX, WY, WZ, idx, inside } from "./dims.js";
-import { isThin, needsFloor, needsWall, POT, FRAME, BUCKET, BOOKSHELF, CARPET, CARPET0, CARPET_COUNT, isCarpet, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SAPLING, SAPLING_BIRCH, SAPLING_SPRUCE, isSapling, doorOpen, doorFacing, doorShapeFor, DOOR, AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DEFAULT_BAR2, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLINT, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, ITEMS, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, categoryOf, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isItem, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
+import { isThin, needsFloor, needsWall, POT, FRAME, BUCKET, BOOKSHELF, CARPET, CARPET0, CARPET_COUNT, isCarpet, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SAPLING, SAPLING_BIRCH, SAPLING_SPRUCE, isSapling, doorOpen, doorFacing, doorShapeFor, DOOR, AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, SPRUCE_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DEFAULT_BAR2, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLINT, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, ITEMS, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, categoryOf, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isItem, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
 import { markX, markY, markZ, markName, SEEN_TOP, SEEN_UNDER, SEEN_UNDER_ALL, UNDER_BANDS, underBand, expandLegacySeen, seenMap, seenRatio, markSeen, biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBoxes, heightMap, isTouched, markTouched, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, touched, waterLvl, world , oreCeil, lavaTop} from "./world.js";
 import { WATER_DIM, lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
 import { growTick, enqueueGrow, lavaFlowTick, lavaDryTick, LAVA_FLOW, grassTick, primeTNT, primeTick, TNT_FUSE, lavaTick, BLAST_R, FIRE_REACH, MAXFLOW, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueFreeze, enqueueWaterAround, explode, fallTick, fireTick, freezeTick, ignite, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
 import { markDirty, FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll, setBuildFocus } from "./mesh.js";
 import { selBox, selMat, SEL_DONE, SEL_ANCHOR, pasteBox, updatePasteBox, outerSea, updateOuterSea, outerSeaY, pCol, pCount, FREE_DIST, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, edgeMat, highlight, skyUniforms, updateChunkVisibility, chunkBuried, BURIED_KEEP, UNDER_SPAN, DEEP_UNDER, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
 import { applyTime, clockText, dayLight } from "./daynight.js";
-import { OPT_KEY, applyOpts, applyFov, applyTbtn, fovForAspect, FOV_BASE_ASPECT, calmMotion, opts } from "./settings.js";
+import { OPT_KEY, applyOpts, applyFov, applyTbtn, applyUi, UI_MIN_H, fovForAspect, FOV_BASE_ASPECT, calmMotion, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, playerOccupies, pointSolid, rayBox, raycast, spawn, stats, unstick } from "./player.js";
 import { startAmbient, updateAmbient, ac, at, tone, crunch, breakSound, caveSound, lavaHiss, lavaPop, listenAt, miningSound, moodChord, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
 import { prevKey, pushPrev, renameSlot, curKey, OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
@@ -90,6 +90,7 @@ window.__blockyard = {
        BIRCH_LOG: BIRCH_LOG, BIRCH_LEAVES: BIRCH_LEAVES, SPRUCE_LEAVES: SPRUCE_LEAVES,
        GOLD: GOLD, DIAMOND: DIAMOND, FENCE: FENCE, GATE: GATE, DOOR: DOOR,
        PANE: PANE, LADDER: LADDER, TNT: TNT, FIRE: FIRE, FLINT: FLINT,
+       BUCKET: BUCKET, SPRUCE_LOG: SPRUCE_LOG,
        SAPLING: SAPLING, SAPLING_BIRCH: SAPLING_BIRCH, SAPLING_SPRUCE: SAPLING_SPRUCE,
        BOOKSHELF: BOOKSHELF, CARPET: CARPET },
   CARPET0: CARPET0, CARPET_COUNT: CARPET_COUNT, isCarpet: isCarpet,
@@ -156,7 +157,7 @@ window.__blockyard = {
   applyTime: applyTime,
   seed: function () { return S.worldSeed; },
   opts: opts, applyOpts: applyOpts, calmMotion: calmMotion, voxUniforms: voxUniforms,
-  applyFov: applyFov, applyTbtn: applyTbtn, fovForAspect: fovForAspect, FOV_BASE_ASPECT: FOV_BASE_ASPECT,
+  applyFov: applyFov, applyTbtn: applyTbtn, applyUi: applyUi, UI_MIN_H: UI_MIN_H, fovForAspect: fovForAspect, FOV_BASE_ASPECT: FOV_BASE_ASPECT,
 
   // ── 개선 v5 에서 추가된 것들
   isUnbreakable: isUnbreakable, columnTop: columnTop, facingText: facingText,

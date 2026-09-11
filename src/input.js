@@ -10,7 +10,7 @@ import { IS_TOUCH } from "./boot.js";
 import { SH_SLAB, SH_SLAB_UP, isStairShape, NAMES } from "./blocks.js";
 import { camera, crackMesh, renderer } from "./scene.js";
 import { applyTime } from "./daynight.js";
-import { applyOpts, applyFov, applyTbtn, opts, saveOpts } from "./settings.js";
+import { applyOpts, applyFov, applyTbtn, applyUi, opts, saveOpts } from "./settings.js";
 import { EYE, player, raycast, spawn, stats } from "./player.js";
 import { ac, setAudioAwake, startAmbient, tone } from "./audio.js";
 import { renameSlot, clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo } from "./save.js";
@@ -224,6 +224,11 @@ export function afterWorldSwap(msg, loaded) {
   S.walked = 0; S.achPrevX = null; S.achPrevZ = null;   // 걸은 거리도 이 세계 것부터 다시 센다
   S.growDirty = true;                                   // 불러온 세계의 묘목을 큐에 다시 담는다
   S.weatherLock = false;                                // 날씨 잠금도 이 세계 것이 아니다
+  // 담긴 양동이도 이 세계 것이 아니다 (v96) — newWorld 경로에만 있어서,
+  // 세계 A 에서 뜬 용암이 슬롯을 갈아타면 세계 B 로 따라왔다
+  if (S.fillBar) { for (var fq = 0; fq < S.fillBar.length; fq++) S.fillBar[fq] = 0; }
+  if (S.fillBarAlt) { for (var fq2 = 0; fq2 < S.fillBarAlt.length; fq2++) S.fillBarAlt[fq2] = 0; }
+  S.mobSwatHinted = false;                              // 새 세계에서는 안내를 한 번 더 한다
   resetQueues();
 
   relightAll(false); markAllDirty(); buildBudget(70);
@@ -799,7 +804,53 @@ export var refreshWorldPills = function () {};
     markWeather();
     S.worldDirty = true;
   });
-  refreshWorldPills = function () { markTime(); markWeather(); };
+  // 시점 (v96) — F5·F6 이 keydown 안에만 있어서, **v92 가 만든 몸을 폰 사용자는
+  // 한 번도 못 봤다.** 과제 「사진사」도 F2 뿐이라 폰에서는 39/40 이 상한이었다.
+  var vRow = document.getElementById("row-view");
+  function markView() {
+    if (!vRow) return;
+    for (var k = 0; k < vRow.children.length; k++) {
+      var vb = vRow.children[k];
+      var dv = vb.getAttribute("data-view");
+      if (dv === null) { vb.setAttribute("aria-current", S.photoMode ? "true" : "false"); continue; }
+      vb.setAttribute("aria-current",
+        (parseInt(dv, 10) === S.thirdPerson && !S.photoMode) ? "true" : "false");
+    }
+  }
+  if (vRow) vRow.addEventListener("click", function (e) {
+    var b3 = e.target.closest ? e.target.closest("button") : null;
+    if (!b3) return;
+    if (b3.id === "btn-photo") { setPhotoMode(!S.photoMode); markView(); return; }
+    S.thirdPerson = parseInt(b3.getAttribute("data-view"), 10) || 0;
+    markView();
+  });
+  refreshWorldPills = function () { markTime(); markWeather(); markView(); };
+})();
+
+// 사진 모드를 한 곳에서 켜고 끈다 (v96) — F6 도, 설정의 단추도, 미니 바도 이 길을 탄다
+export function setPhotoMode(on) {
+  S.photoMode = !!on;
+  showHud(!S.photoMode && !S.hudHidden);
+  if (S.photoMode) {
+    player.flying = true;
+    if (S.uiOpen) closePicker(true);
+    if (helpOpen()) toggleHelp(false);
+  }
+  toast(S.photoMode ? "사진 모드 — F2 저장 · F5 3인칭 · F6 나가기" : "사진 모드 끔");
+}
+
+// 사진 모드 미니 바 — 저장 · 시점 · 나가기
+(function bindPhotoBar() {
+  var shot = document.getElementById("pb-shot");
+  var view = document.getElementById("pb-view");
+  var exit = document.getElementById("pb-exit");
+  if (shot) shot.addEventListener("click", function (e) { e.stopPropagation(); S.wantShot = true; });
+  if (view) view.addEventListener("click", function (e) {
+    e.stopPropagation();
+    S.thirdPerson = (S.thirdPerson + 1) % 3;
+    toast(["1인칭", "3인칭 (뒤)", "3인칭 (앞)"][S.thirdPerson]);
+  });
+  if (exit) exit.addEventListener("click", function (e) { e.stopPropagation(); setPhotoMode(false); });
 })();
 
 // 모양을 바꾼다 — **지금 칸에 기억시킨다** (v82).
@@ -1127,11 +1178,8 @@ window.addEventListener("keydown", function (e) {
   }
   if (e.code === "F6") {
     e.preventDefault();
-    S.photoMode = !S.photoMode;
-    showHud(!S.photoMode && !S.hudHidden);
     // 3인칭을 끄지 않는다 — 사진 모드는 주인공을 찍는 자리이기도 하다 (v92)
-    if (S.photoMode) player.flying = true;
-    toast(S.photoMode ? "사진 모드 — F2 저장 · F5 3인칭 · F6 나가기" : "사진 모드 끔");
+    setPhotoMode(!S.photoMode);
   }
   if (e.code === "F5") {
     e.preventDefault();
@@ -1398,7 +1446,22 @@ bindHold("tb-place", function () { S.touchPlace = true; S.placeCooldown = 0; S.l
 bindHold("tb-jump", function () { S.keys.Space = true; }, function () { S.keys.Space = false; });
 // 폰에는 픽블록이 없었다 — 이미 놓은 블록을 하나 더 놓으려면 55칸짜리 목록을 열어
 // 찾아 누르는 길밖에 없었다. 크리에이티브 건축에서 가장 자주 쓰는 조작이다 (자문 12차 #5).
-bindHold("tb-pick", function () { pickBlock(); });
+// 짧게 = 픽블록, **길게 = 시점 전환** (v96). 폰에는 F5 가 없어
+// v92 가 만든 3인칭 몸을 볼 길이 아예 없었다
+var pickHold = 0, pickLong = false;
+bindHold("tb-pick", function () {
+  pickLong = false;
+  clearTimeout(pickHold);
+  pickHold = setTimeout(function () {
+    pickLong = true;
+    S.thirdPerson = (S.thirdPerson + 1) % 3;
+    toast(["1인칭", "3인칭 (뒤)", "3인칭 (앞)"][S.thirdPerson]);
+  }, 450);
+}, function () {
+  clearTimeout(pickHold);
+  if (pickLong) { pickLong = false; return; }
+  pickBlock();
+});
 // 목록을 **길게 누르면** 핫바 2쪽 — 울타리·문·사다리·유리판·TNT·부싯돌 열 종이
 // 폰에서는 아예 핫바로 못 나왔다. 짧게 누르면 예전처럼 목록이 열린다.
 var listHold = 0, listHeld = false;
@@ -1530,6 +1593,7 @@ window.addEventListener("resize", function () {
   handCam.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
   applyTbtn();                      // 단추가 화면 밖으로 자라지 않게 다시 잰다 (v93)
+  applyUi();                        // HUD 도 화면에 맞춰 다시 잰다 (v96)
   // 화면 배율이 다른 모니터로 옮겨 갔을 수 있다 — 부팅 때 한 번 잡고 마는 값이었다
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 });

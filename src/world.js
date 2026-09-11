@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { growTree } from "./tree.js";
 import { resetQueues } from "./queues.js";
 import { DIRS, N, PLANE, SEA, GEN_LATEST, setGen, seaLift, WX, WY, WZ, idx, inside } from "./dims.js";
-import { DOOR, doorFacing, doorOpen, AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, CACTUS, COAL, COBBLE, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAMP, LAVA, LEAVES, LOG, PANE, PLANKS, SAND, BRICK, BOOKSHELF, CARPET, isCarpet, POT, FRAME, SH_SLAB, SHAPE_BOXES, SH_FULL, SH_STAIR_N, SH_STAIR_E, SH_STAIR_S, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TORCH, WALL_DIR, WATER, connectsTo, isCross, isSolid } from "./blocks.js";
+import { DOOR, doorFacing, doorOpen, AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, SPRUCE_LOG, CACTUS, COAL, COBBLE, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAMP, LAVA, LEAVES, LOG, PANE, PLANKS, SAND, BRICK, BOOKSHELF, CARPET, isCarpet, POT, FRAME, SH_SLAB, SHAPE_BOXES, SH_FULL, SH_STAIR_N, SH_STAIR_E, SH_STAIR_S, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TORCH, WALL_DIR, WATER, connectsTo, isCross, isSolid } from "./blocks.js";
 import { makeRng } from "./atlas.js";
 
 export var world = new Uint8Array(N);
@@ -587,7 +587,7 @@ export function generate(seed, gen) {
       // 나무 모양은 tree.js 한 곳에만 둔다 — 묘목이 들어와도 같은 그림을 심는다.
       // rng 부르는 차례가 곧 시드다. 순서를 바꾸면 같은 시드가 다른 세계가 된다.
       growTree(tx, th, tz, spruce ? 2 : (birch ? 1 : 0),
-               birch ? BIRCH_LOG : LOG,
+               spruce ? SPRUCE_LOG : (birch ? BIRCH_LOG : LOG),
                spruce ? SPRUCE_LEAVES : (birch ? BIRCH_LEAVES : LEAVES),
                rng, get, set, AIR, WY);
     }

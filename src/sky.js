@@ -244,9 +244,17 @@ export function strikeBolt(fx, fz) {
     cx += (Math.random() - 0.5) * 2.6;
     cz += (Math.random() - 0.5) * 2.6;
   }
+  // 가닥 어긋남을 **카메라까지 거리에 비례**시킨다 (v96).
+  // 0.22·0.16 블록 고정이었더니 낙뢰 거리 18.7~55.5칸에서 셋이 겹쳐
+  // **1px 짜리 실 한 줄**로 보였다 — 볼트를 넣은 이유("어디 떨어졌는지 알게")가 반만 섰다.
+  // 화면에서 늘 비슷한 굵기로 보이도록 거리에 따라 벌린다
+  var dcx = fx - camera.position.x, dcz = fz - camera.position.z;
+  var dcy = y0 - camera.position.y;
+  var camD = Math.sqrt(dcx * dcx + dcy * dcy + dcz * dcz);
+  var spread = Math.max(0.22, camD * 0.022);
   var w = 0;
   for (var sd = 0; sd < BOLT_STRANDS; sd++) {
-    var ox = (sd - 1) * 0.22, oz = (sd - 1) * 0.16;
+    var ox = (sd - 1) * spread, oz = (sd - 1) * spread * 0.72;
     for (var k = 0; k < BOLT_SEG; k++) {
       boltArr[w++] = px[k] + ox;     boltArr[w++] = py[k];     boltArr[w++] = pz[k] + oz;
       boltArr[w++] = px[k + 1] + ox; boltArr[w++] = py[k + 1]; boltArr[w++] = pz[k + 1] + oz;

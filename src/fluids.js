@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { opts } from "./settings.js";
 import { Q } from "./queues.js";
 import { DIRS, N, PLANE, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { BIRCH_LEAVES, BIRCH_LOG, LEAVES, LOG, SAPLING, SAPLING_BIRCH, SAPLING_SPRUCE, isSapling, SNOW, SPRUCE_LEAVES, DIRT, GRASS, blocksLight, AIR, COBBLE, FIRE, GRAVEL, ICE, LAVA, SAND, SH_FULL, STONE, TNT, WATER, isCross, isFlammable, isLeaf, isLiquid, isLog, isSolid, isUnbreakable } from "./blocks.js";
+import { BIRCH_LEAVES, BIRCH_LOG, SPRUCE_LOG, LEAVES, LOG, SAPLING, SAPLING_BIRCH, SAPLING_SPRUCE, isSapling, SNOW, SPRUCE_LEAVES, DIRT, GRASS, blocksLight, AIR, COBBLE, FIRE, GRAVEL, ICE, LAVA, SAND, SH_FULL, STONE, TNT, WATER, isCross, isFlammable, isLeaf, isLiquid, isLog, isSolid, isUnbreakable } from "./blocks.js";
 import { topMap, isTouched, biomeMap, get, refreshTop, shape, waterLvl, world } from "./world.js";
 import { growTree } from "./tree.js";
 import { lightSky, lightBlk, relightLocal } from "./light.js";
@@ -755,12 +755,16 @@ export function growTick(dt) {
     if (busy) { keep.push(i); continue; }
     if (Math.random() > GROW_CHANCE) { keep.push(i); continue; }
     var kind = saplingKind(sap);
-    var logB = (kind === 1) ? BIRCH_LOG : LOG;
+    // 가문비도 제 원목을 쓴다 (v96) — 예전에는 잎만 다르고 줄기가 참나무였다
+    var logB = (kind === 2) ? SPRUCE_LOG : (kind === 1 ? BIRCH_LOG : LOG);
     var leafB = (kind === 2) ? SPRUCE_LEAVES : (kind === 1 ? BIRCH_LEAVES : LEAVES);
     // 묘목 자리를 먼저 비운다 — 줄기 첫 칸이 여기 서야 한다
-    applyEdit(x, y, z, AIR, false, SH_FULL);
-    // 한 그루가 한 번에 되돌려지도록 묶는다 (Ctrl+Z 한 번에 나무 하나)
+    // 묘목 자리를 비우는 것도 **묶음 안에서** 기록한다 (v96).
+    // 예전에는 이 한 줄이 묶음 밖에 있어(기록 false), 자란 나무를 Ctrl+Z 하면
+    // 나무는 사라지는데 **묘목도 같이 사라졌다** — 심은 것을 잃는다.
+    // "되돌릴 수 없는 것은 없습니다"(v72)가 묘목 한 칸만큼 새고 있었다.
     beginBatch(64);
+    applyEdit(x, y, z, AIR, true, SH_FULL);
     var ok = growTree(x, y - 1, z, kind, logB, leafB, Math.random,
                       get, function (bx, by, bz, b) { applyEdit(bx, by, bz, b, true, SH_FULL); },
                       AIR, WY);

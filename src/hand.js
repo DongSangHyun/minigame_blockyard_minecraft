@@ -1,7 +1,7 @@
 // hand.js — 1인칭 손과 들고 있는 블록
 import { S } from "./state.js";
 import { calmMotion } from "./settings.js";
-import { isStairShape, CROSS, SHAPE_BOXES, SH_FULL, TILES, faceKindFor, isCross } from "./blocks.js";
+import { isStairShape, BUCKET, BUCKET_TILE, CROSS, SHAPE_BOXES, SH_FULL, TILES, faceKindFor, isCross, isItem } from "./blocks.js";
 import { TILE, atlas, atlasTex, tileOrigin } from "./atlas.js";
 import { boxesAt, set } from "./world.js";
 import { CROSS_PLANES, FACES, FACE_UV } from "./mesh.js";
@@ -18,8 +18,38 @@ export var handCam = new THREE.PerspectiveCamera(
 export var handGroup = new THREE.Group();
 handScene.add(handGroup);
 
-export function makeBlockGeometry(b, sh, only) {
+export function makeBlockGeometry(b, sh, only, tileOverride) {
   var pos = [], uv = [], col = [], ind = [];
+  // 도구(양동이·부싯돌)는 블록이 아니다 (v96) — 통짜 큐브로 그리면 **회색 상자**를 든 꼴이다.
+  // 마크처럼 **납작한 카드 한 장**으로 든다 (아이콘과 같은 그림, 양면).
+  // tileOverride 는 담긴 양동이용 — 아이콘 층(hud.js drawIcon)이 쓰는 것과 같은 값이다
+  if (isItem(b)) {
+    var ito = tileOrigin(tileOverride !== undefined ? tileOverride : TILES[b][0]);
+    var iu0 = ito[0] / atlas.width, iv0 = 1 - (ito[1] + TILE) / atlas.height;
+    var ius = TILE / atlas.width;
+    var hw = 0.42, hh = 0.46, ht = 0.045;
+    // 앞뒤 두 면 — 두께를 살짝 줘서 옆에서 봐도 종잇장이 아니다
+    for (var face2 = 0; face2 < 2; face2++) {
+      var zz = face2 === 0 ? ht : -ht;
+      var ib = pos.length / 3;
+      var sgn2 = face2 === 0 ? 1 : -1;
+      var xs2 = [-hw * sgn2, hw * sgn2, hw * sgn2, -hw * sgn2];
+      var ys2 = [-hh, -hh, hh, hh];
+      var uus2 = [0, 1, 1, 0], vvs2 = [0, 0, 1, 1];
+      for (var iv = 0; iv < 4; iv++) {
+        pos.push(xs2[iv], ys2[iv], zz);
+        uv.push(iu0 + uus2[iv] * ius, iv0 + vvs2[iv] * ius);
+        col.push(1, 1, 1);
+      }
+      ind.push(ib, ib + 1, ib + 2, ib, ib + 2, ib + 3);
+    }
+    var igeo = new THREE.BufferGeometry();
+    igeo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
+    igeo.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(uv), 2));
+    igeo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(col), 3));
+    igeo.setIndex(ind);
+    return igeo;
+  }
   if (isCross(b)) {
     var cg = CROSS[b];
     var cto = tileOrigin(TILES[b][0]);
@@ -100,11 +130,13 @@ handGroup.add(arm);
 export function updateHandBlock() {
   var b = S.bar[S.selected];
   var sh = currentShape(false);
-  var key = b * 16 + sh;
+  // 담긴 양동이는 아이콘만 다르다 — 손에도 같은 그림을 들려 준다 (v96)
+  var fill = (b === BUCKET && S.fillBar) ? (S.fillBar[S.selected] | 0) : 0;
+  var key = b * 1024 + sh * 64 + fill;
   if (key === S.heldKey) return;
   S.heldKey = key;
   heldMesh.geometry.dispose();
-  heldMesh.geometry = makeBlockGeometry(b, sh);
+  heldMesh.geometry = makeBlockGeometry(b, sh, null, fill ? BUCKET_TILE[fill] : undefined);
 }
 
 // ── 놓을 자리 미리보기

@@ -227,9 +227,13 @@ export var mmCap = document.getElementById("mm-cap");
 export var touchEl = document.getElementById("touch");
 export var hudEls = [document.getElementById("reticle"), document.getElementById("telemetry"),
               minimapEl, hotbarEl, document.getElementById("hint")];
+export var photoBar = document.getElementById("photobar");
 export function showHud(on) {
   hudEls.forEach(function (el) { el.hidden = !on; });
   touchEl.hidden = !(on && isTouch);
+  // 사진 모드에서는 미니 바만 남긴다 (v96) — HUD 를 끄면 터치 단추가 통째로 사라져
+  // **폰에서는 사진을 저장할 길도 나올 길도 없었다** (과제 「사진사」가 영영 안 열렸다)
+  if (photoBar) photoBar.hidden = !(S.photoMode && isTouch);
 }
 
 export var toastEl = document.getElementById("toast");

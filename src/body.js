@@ -5,7 +5,7 @@ import { scene } from "./scene.js";
 import { player } from "./player.js";
 import { atlasTex } from "./atlas.js";
 import { makeBlockGeometry } from "./hand.js";
-import { AIR, SH_FULL } from "./blocks.js";
+import { AIR, BUCKET, BUCKET_TILE, SH_FULL } from "./blocks.js";
 
 // 마크 스티브의 비율을 이 게임의 키 1.78 에 맞춰 줄인 값이다.
 // 다리 0.68 + 몸통 0.66 + 머리 0.44 = 1.78 — 눈높이 EYE(1.62)가 머리 안에 든다.
@@ -186,10 +186,13 @@ export function updateBody(dt) {
   if (b === AIR) heldBlock.visible = false;
   else {
     heldBlock.visible = true;
-    if (b !== heldKey) {
-      heldKey = b;
+    var fill = (b === BUCKET && S.fillBar) ? (S.fillBar[S.selected] | 0) : 0;
+    var hk = b * 64 + fill;
+    if (hk !== heldKey) {
+      heldKey = hk;
       heldBlock.geometry.dispose();
-      heldBlock.geometry = makeBlockGeometry(b, SH_FULL);
+      heldBlock.geometry = makeBlockGeometry(b, SH_FULL, null,
+                                             fill ? BUCKET_TILE[fill] : undefined);
     }
     heldMat.color.setScalar(Math.max(0.2, S.handLight));
   }

@@ -35,8 +35,7 @@ export function applyOpts() {
   S.contour = !!opts.mmcontour;
   // 밝기 — 값이 클수록 어두운 곳이 밝아진다 (감마 지수는 반대로 간다)
   voxUniforms.uGamma.value = 1 / (0.7 + opts.bright / 100);
-  // 화면 표시 크기 — 폰에서 HUD 가 작다는 불평을 설정으로 푼다
-  document.documentElement.style.setProperty("--ui", (opts.ui / 100).toFixed(2));
+  applyUi();
   S.farNow = opts.far;      // 슬라이더를 움직이면 자동 조절도 거기서 다시 시작한다
   // 고대비 — UI 테두리와 글자를 또렷하게 (밝은 곳·색약 배려)
   document.documentElement.classList.toggle("hc", !!opts.contrast);
@@ -46,6 +45,20 @@ export function applyOpts() {
   voxUniforms.uFogFar.value = opts.far;
   voxUniforms.uFogNear.value = Math.max(8, opts.far * 0.35);
   if (S.masterGain) S.masterGain.gain.value = opts.vol / 100;
+}
+
+// 화면 표시 크기 — 폰에서 HUD 가 작다는 불평을 설정으로 푼다.
+// v96 부터 **화면에 맞춰 자른다**: 힌트 띠가 핫바를 덮는 것이 데스크톱 110%·폰 120% 부터고,
+// 폰 160% 부터는 **미니맵이 조준선을 삼켰다**(844×390 에서 지도가 화면 정중앙으로 내려온다).
+// 「화면 표시 크기」는 글자가 작다는 사람이 먼저 만지는 손잡이인데, 끝까지 올리면
+// 조준을 못 하게 됐다 — v93 이 터치 단추에서 고친 것과 같은 모양이다.
+export var UI_MIN_H = 470;      // 이 높이(px)면 100% 가 겨우 들어간다
+export function applyUi() {
+  var want = (opts.ui || 100) / 100;
+  var h = window.innerHeight || 800;
+  // 화면이 낮을수록 상한을 죈다 — 844×390 가로 폰에서 1.2, 800px 창에서 1.7
+  var cap = Math.max(1, h / UI_MIN_H);
+  document.documentElement.style.setProperty("--ui", Math.min(want, cap).toFixed(2));
 }
 
 // 터치 단추 크기 — 슬라이더(80~160%)를 화면 높이로 **잘라서** 먹인다 (v93).

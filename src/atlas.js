@@ -330,6 +330,28 @@ paint(83, function (p, r) {  // 자작나무 묘목 — 흰 줄기에 연둣빛 
   p(4, 9, pick(r, leaf)); p(11, 10, pick(r, leaf));
 });
 
+// 가문비 원목 (v96) — 참나무보다 붉고 어두운 껍질에 세로 결이 굵다.
+// 참나무·자작과 **한눈에 갈라져야** 한다: 참나무는 갈색, 자작은 흰색, 가문비는 짙은 적갈색
+paint(85, function (p, r) {  // 가문비 옆면 — 짙은 적갈색 세로 결
+  var bark = ["#4a2f22", "#553728", "#3f281d", "#5e3d2c"];
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) p(x, y, pick(r, bark));
+  for (var c = 0; c < 5; c++) {
+    var cx = Math.floor(r() * 16);
+    var len = 6 + Math.floor(r() * 10), top = Math.floor(r() * 6);
+    for (var i = 0; i < len && top + i < 16; i++) p(cx, top + i, r() < 0.6 ? "#33200f" : "#2b1b0d");
+  }
+});
+
+paint(86, function (p, r) {  // 가문비 윗면 — 붉은 나이테
+  var base = ["#8a5c3e", "#7d5236", "#946546"];
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) p(x, y, pick(r, base));
+  for (var y2 = 0; y2 < 16; y2++) for (var x2 = 0; x2 < 16; x2++) {
+    var d = Math.max(Math.abs(x2 - 7.5), Math.abs(y2 - 7.5));
+    if (Math.floor(d) % 3 === 0) p(x2, y2, "#653f28");
+  }
+  p(7, 7, "#4a2c18"); p(8, 7, "#4a2c18"); p(7, 8, "#4a2c18"); p(8, 8, "#4a2c18");
+});
+
 paint(84, function (p, r) {  // 가문비 묘목 — 뾰족한 청록 원뿔
   var stem = ["#4a3a26", "#56442d"];
   var leaf = ["#2f5f45", "#376b4e", "#27523a"];
