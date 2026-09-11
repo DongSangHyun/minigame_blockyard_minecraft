@@ -12440,6 +12440,61 @@ test("v106 소리: 재질 표가 갈리고, 헛스윙에도 팔이 움직인다"
   assert(r.swings >= 10, "조준을 훑는 동안 팔이 " + r.swings + "번밖에 안 움직였다");
 });
 
+test("v107 멈춤: 동물은 ESC 에 서고, 시작 화면에서는 움직인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const X = 66, Y = 40, Z = 66;
+    for (let dx = -8; dx <= 8; dx++) for (let dz = -8; dz <= 8; dz++) {
+      for (let dy = 0; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 1, Z + dz, B.B.GRASS);
+    }
+    B.refreshAllTops(); B.relightAll(false);
+    function placeOne() {
+      while (B.mobs.length) B.disposeMob(B.mobs.pop());
+      B.loadMobs([[Math.round((X + 0.5) * 4), Y * 4, Math.round((Z + 0.5) * 4), 0, 0, 0]]);
+      const m = B.mobs[0];
+      m.x = X + 0.5; m.y = Y; m.z = Z + 0.5; m.walk = 1; m.turn = 9; m.follow = 0;
+      return m;
+    }
+    function ran(frames) {
+      const m = B.mobs[0];
+      const x0 = m.x, z0 = m.z;
+      for (let k = 0; k < frames; k++) B.step(1 / 60);
+      return Math.abs(m.x - x0) + Math.abs(m.z - z0);
+    }
+
+    // (1) 플레이 중에는 걷는다
+    B.beginPlay();
+    B.player.pos.set(X + 5.5, Y, Z + 5.5);
+    placeOne();
+    const playMove = ran(60 * 6);
+
+    // (2) ESC 로 나가면 선다
+    B.endPlay();
+    placeOne();
+    const pausedMove = ran(60 * 6);
+
+    // (3) 시작 화면(아직 플레이를 시작하지 않은 상태)에서는 움직인다 —
+    // 그 화면 뒤에서 세계가 살아 도는 것이 배경이다 (v107)
+    const keepStarted = B.S.started;
+    B.S.started = false;
+    placeOne();
+    const introMove = ran(60 * 6);
+    B.S.started = keepStarted;
+
+    while (B.mobs.length) B.disposeMob(B.mobs.pop());
+    B.seedMobs();
+    B.setPaused(false);
+    return { playMove, pausedMove, introMove };
+  });
+  assert(r.playMove > 0.5, "플레이 중인데 동물이 " + r.playMove.toFixed(2) + "칸만 움직였다");
+  assert(r.pausedMove < 0.01,
+     "메뉴를 열어 둔 6초에 동물이 " + r.pausedMove.toFixed(2) + "칸 걸었다 — 세계가 안 멈춘다");
+  assert(r.introMove > 0.5,
+     "시작 화면에서 동물이 " + r.introMove.toFixed(2) + "칸만 움직였다 — 뒤 풍경이 정지화면이 된다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

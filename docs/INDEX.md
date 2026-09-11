@@ -39,7 +39,7 @@ docs/HANDOFF.md    마지막 세션이 남긴 것 — 상태·진행 중·다음
 | `src/*.js` | 게임 코드 (모듈 29개 — `docs/CODEMAP.md` 참고) |
 | `manifest.webmanifest` · `icon-*.png` · `sw.js` | 홈 화면 추가 · 오프라인 플레이 |
 | `tests/harness.mjs` | 헤드리스 브라우저 · 정적 서버 · 단언 헬퍼 |
-| `tests/run.mjs` | 회귀 테스트 351항목(+폰 16 +오류 2 = 러너 369) |
+| `tests/run.mjs` | 회귀 테스트 352항목(+폰 16 +오류 2 = 러너 370) |
 | `tools/codemap.mjs` | `docs/CODEMAP.md` 생성 |
 | `tools/tidy-imports.mjs` | 안 쓰는 import 정리 |
 | `tools/make-icons.mjs` | PWA 아이콘 생성 |
@@ -63,6 +63,6 @@ loop · main             매 프레임과 조립
 
 ## 현재 상태 한 줄
 
-**v106 — 귀와 손 — 자문 24차 아홉 건 · 회귀 테스트 351항목 전부 통과.**
+**v107 — WY 96 을 미리 조사해 백로그에 적었다 · 회귀 테스트 352항목 전부 통과.**
 숫자가 이 줄과 `docs/HANDOFF.md` 상태표에서 어긋나면 **상태표를 믿으십시오** (도구가 씁니다).
 공개 주소 https://dongsanghyun.github.io/minigame_blockyard_minecraft/
