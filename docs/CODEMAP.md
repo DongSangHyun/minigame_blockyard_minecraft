@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-11 · 모듈 29개 · 합계 12,537줄
+생성일 2026-09-11 · 모듈 29개 · 합계 12,670줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -20,8 +20,8 @@
 | [`world.js`](../src/world.js) | 월드 데이터 · 지형 생성 | 1083 | state · tree · queues · dims · blocks · atlas |
 | [`light.js`](../src/light.js) | 광원 — 햇빛과 블록광 BFS | 182 | state · dims · blocks · world · mesh · player |
 | [`fluids.js`](../src/fluids.js) | 물 흐름 · 낙하 블록 · 잎 부패 | 798 | state · atlas · settings · queues · dims · blocks · world · tree · light · mesh · scene · audio · player · edit |
-| [`mesh.js`](../src/mesh.js) | 면 데이터 + 청크 메싱 | 279 | dims · blocks · atlas · world · light |
-| [`scene.js`](../src/scene.js) | three.js 씬 · 셰이더 · 파티클 | 594 | dims · boot · blocks · atlas · world · mesh |
+| [`mesh.js`](../src/mesh.js) | 면 데이터 + 청크 메싱 | 396 | dims · blocks · atlas · world · light |
+| [`scene.js`](../src/scene.js) | three.js 씬 · 셰이더 · 파티클 | 610 | dims · boot · blocks · atlas · world · mesh |
 | [`daynight.js`](../src/daynight.js) | 낮과 밤 | 84 | state · world · scene |
 | [`settings.js`](../src/settings.js) | 설정 | 106 | state · boot · scene |
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 361 | state · dims · blocks · world · scene |
@@ -234,33 +234,34 @@
 | `chunkCX(id)` | 51 |
 | `chunkCZ(id)` | 52 |
 | `chunkCY(id)` | 53 |
-| `buildChunk(cx, cy, cz)` | 55 |
-| `emitCross(P, U, C, L, I, x, y, z, b, ci)` | 176 |
-| `applyGeo(mesh, pos, uv, col, lit, ind)` | 210 |
-| `markDirty(x, y, z)` | 231 |
-| `touch(x, y, z)` | 237 |
-| `rebuildAll()` | 241 |
-| `markAllDirty()` | 246 |
-| `setBuildFocus(v)` | 251 |
-| `buildBudget(ms)` | 253 |
+| `mergeSlot(f, slice, i, j)` | 79 |
+| `buildChunk(cx, cy, cz)` | 86 |
+| `emitCross(P, U, C, L, I, x, y, z, b, ci, T)` | 292 |
+| `applyGeo(mesh, pos, uv, col, lit, ind, tile)` | 326 |
+| `markDirty(x, y, z)` | 348 |
+| `touch(x, y, z)` | 354 |
+| `rebuildAll()` | 358 |
+| `markAllDirty()` | 363 |
+| `setBuildFocus(v)` | 368 |
+| `buildBudget(ms)` | 370 |
 
-내보내는 값 — `FACES` · `FACE_UV` · `AO_LEVELS` · `opaqueMeshes` · `chunkFilled` · `chunkCenters` · `CROSS_PLANES` · `dirty` · `buildFocus`
+내보내는 값 — `FACES` · `FACE_UV` · `AO_LEVELS` · `opaqueMeshes` · `chunkFilled` · `chunkCenters` · `MERGE_IAXIS` · `MERGE_JAXIS` · `MERGE_LIGHT_STEPS` · `CROSS_PLANES` · `dirty` · `buildFocus`
 
 ### `scene.js` — three.js 씬 · 셰이더 · 파티클
 
 | 함수 | 줄 |
 |---|---:|
-| `voxMaterial(extra)` | 101 |
-| `outerSeaY()` | 152 |
-| `updateOuterSea(camY)` | 218 |
-| `updateChunkVisibility(farDist, floor, aboveGround, deepUnder)` | 260 |
-| `boxesToEdges(boxes)` | 335 |
-| `dynamicHighlight(boxes)` | 357 |
-| `burst(x, y, z, blockId, count)` | 464 |
-| `updateParticles(dt)` | 485 |
-| `updateEdge(px, pz)` | 542 |
-| `updatePasteBox(c, p)` | 570 |
-| `updateSelectionBox(b, anchor)` | 580 |
+| `voxMaterial(extra)` | 117 |
+| `outerSeaY()` | 168 |
+| `updateOuterSea(camY)` | 234 |
+| `updateChunkVisibility(farDist, floor, aboveGround, deepUnder)` | 276 |
+| `boxesToEdges(boxes)` | 351 |
+| `dynamicHighlight(boxes)` | 373 |
+| `burst(x, y, z, blockId, count)` | 480 |
+| `updateParticles(dt)` | 501 |
+| `updateEdge(px, pz)` | 558 |
+| `updatePasteBox(c, p)` | 586 |
+| `updateSelectionBox(b, anchor)` | 596 |
 
 내보내는 값 — `matOpaque` · `scene` · `stage` · `VOX_VS` · `VOX_FS` · `voxUniforms` · `skyUniforms` · `sky` · `outerSea` · `FREE_DIST` · `chunkFreed` · `BURIED_KEEP` · `UNDER_SPAN` · `chunkBuried` · `DEEP_UNDER` · `cloudMat` · `cloudMatHigh` · `cloudGroup` · `cloudGroupHigh` · `HL_EDGES` · `HL_GEO` · `HL_CROSS` · `SHAPE_BOUNDS` · `PRIMED_MAX` · `primedMat` · `primedBoxes` · `highlight` · `crackMat` · `crackMesh` · `PMAX` · `pPos` · `pVel` · `pCount` · `pGeo` · `pMat` · `particles` · `edgeMat` · `edgeGroup` · `SEL_DONE` · `selMat` · `selBox` · `pasteMat` · `pasteBox`
 

@@ -2,7 +2,7 @@
 import { SEA, seaLift, CH, CX, CY, CZ, WX, WY, WZ } from "./dims.js";
 import { IS_TOUCH, bail } from "./boot.js";
 import { CROSS, SHAPE_BOXES, isSolid } from "./blocks.js";
-import { SWATCH_SIDE, AVG_SIDE, atlasTex, crackTex, makeRng } from "./atlas.js";
+import { SWATCH_SIDE, AVG_SIDE, atlasTex, crackTex, makeRng , TILE, atlas} from "./atlas.js";
 import { get, set } from "./world.js";
 import { chunkCX, chunkCY, chunkCZ, chunkCenters, dirty, glassMeshes, opaqueMeshes } from "./mesh.js";
 
@@ -29,18 +29,26 @@ scene = new THREE.Scene();
 camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.08, 600);
 camera.rotation.order = "YXZ";
 
+// uv 는 **타일 안 좌표**다 (v102) — 병합된 면에서는 0..w, 0..h 로 넘어오고
+// 프래그먼트가 fract 로 타일 하나를 되풀이한다. 아틀라스라 UV 를 그냥 늘리면
+// 옆 타일이 새어 나오기 때문이다. atile 이 그 타일의 원점(아틀라스 UV)이다.
 export var VOX_VS = [
   "attribute vec3 acol;",
   "attribute vec3 alight;",
+  "attribute vec2 atile;",
   "uniform float uTime;",
   "varying vec3 vCol;",
   "varying vec3 vLight;",
   "varying vec2 vUvv;",
+  "varying vec2 vTile;",
+  "varying vec3 vWorld;",
   "varying float vFogDepth;",
   "void main() {",
   "  vCol = acol;",
   "  vLight = alight;",
   "  vUvv = uv;",
+  "  vTile = atile;",
+  "  vWorld = position;",
   "  vec3 wp = position;",
   "  wp.y += alight.z * sin(uTime * 1.7 + position.x * 0.8 + position.z * 0.6) * 0.045;",
   "  vec4 mv = modelViewMatrix * vec4(wp, 1.0);",
@@ -58,12 +66,18 @@ export var VOX_FS = [
   "uniform float uFogFar;",
   "uniform float uGamma;",
   "uniform float uTime;",
+  "uniform vec2 uTileSpan;",
+  "uniform float uTileInset;",
   "varying vec3 vCol;",
   "varying vec3 vLight;",
   "varying vec2 vUvv;",
+  "varying vec2 vTile;",
+  "varying vec3 vWorld;",
   "varying float vFogDepth;",
   "void main() {",
-  "  vec4 t = texture2D(map, vUvv);",
+  // 타일 하나를 되풀이한다 — 가장자리 텍셀 안쪽으로 가둬 옆 타일이 안 새게 (v102)
+  "  vec2 tf = clamp(fract(vUvv), uTileInset, 1.0 - uTileInset);",
+  "  vec4 t = texture2D(map, vTile + tf * uTileSpan);",
   "  if (t.a < 0.02) discard;",
   "  float sky = vLight.x * uDay;",
   "  float blk = vLight.y;",
@@ -79,7 +93,7 @@ export var VOX_FS = [
   "  vec3 c = t.rgb * vCol * litness * tint;",
   "  c += t.rgb * vCol * blk * blk * vec3(0.20, 0.11, 0.02);",
   "  if (vLight.z > 0.5) {",
-  "    float sp = sin(vUvv.x * 90.0 + uTime * 1.6) * sin(vUvv.y * 74.0 - uTime * 1.1);",
+  "    float sp = sin(vWorld.x * 5.6 + uTime * 1.6) * sin(vWorld.z * 4.6 - uTime * 1.1);",
   "    c += vec3(0.10, 0.14, 0.16) * max(0.0, sp - 0.72) * 3.0 * sky;",
   "  }",
   "  float f = smoothstep(uFogNear, uFogFar, vFogDepth);",
@@ -96,7 +110,9 @@ export var voxUniforms = {
   uFogColor: { value: new THREE.Color(0x9fbecd) },
   uFogNear: { value: 42 },
   uFogFar: { value: 120 },
-  uGamma: { value: 1 }
+  uGamma: { value: 1 },
+  uTileSpan: { value: new THREE.Vector2(TILE / atlas.width, TILE / atlas.height) },
+  uTileInset: { value: 0.25 / TILE }
 };
 export function voxMaterial(extra) {
   var opts = {

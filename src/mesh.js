@@ -52,9 +52,40 @@ export function chunkCX(id) { return id % CX; }
 export function chunkCZ(id) { return ((id / CX) | 0) % CZ; }
 export function chunkCY(id) { return (id / (CX * CZ)) | 0; }
 
+
+// ── 면 병합 (greedy meshing · v102)
+// 평평한 바닥·벽은 같은 면 수백 장이 나란히 선다. 네 정점의 빛·AO·타일이 **전부 같을 때만**
+// 이어 붙여 큰 쿼드 하나로 만든다 (다르면 그림이 달라지므로 붙이면 안 된다).
+// 붙일 수 있는 것은 **전체 큐브·불투명·모양 없음**뿐이다 — 반블록·계단·유리·물·풀은
+// 기존 길로 간다. 아틀라스를 늘려 쓸 수 없어서 UV 를 타일 안 0..w 로 넘기고
+// 셰이더가 fract 로 되풀이한다 (VOX_FS).
+// 평면 매핑 — f 0,1 은 x 축(i=z · j=y) · 2,3 은 y 축(i=x · j=z) · 4,5 는 z 축(i=x · j=y)
+export var MERGE_IAXIS = [2, 2, 0, 0, 0, 0];
+export var MERGE_JAXIS = [1, 1, 2, 2, 1, 1];
+var PLANES = 6 * CH;
+var mHas = new Uint8Array(PLANES * CH * CH);
+var mTile = new Float32Array(PLANES * CH * CH * 2);
+var mLum = new Float32Array(PLANES * CH * CH * 4);
+var mSky = new Float32Array(PLANES * CH * CH * 4);
+var mBlk = new Float32Array(PLANES * CH * CH * 4);
+// 서명 둘로 줄여 비교한다 — 열두 개를 낱낱이 견주면 병합이 메싱보다 비싸진다.
+// sigA = AO 네 개(8비트) + 하늘빛 네 개(24비트) · sigB = 타일(8비트) + 블록광 네 개(24비트)
+var mSigA = new Int32Array(PLANES * CH * CH);
+var mSigB = new Int32Array(PLANES * CH * CH);
+// 빛은 32단계로 잰다 — 15단계 값을 네 칸 평균한 것이라 종류가 많고,
+// 소수점 끝자리가 다르다는 이유로 안 붙으면 평평한 벽이 통째로 낱장으로 남는다.
+// 원래 광원 단계(15)의 **절반 눈금**이라 눈으로는 차이를 못 본다
+export var MERGE_LIGHT_STEPS = 31;
+export function mergeSlot(f, slice, i, j) {
+  return ((f * CH + slice) * CH + j) * CH + i;
+}
+function sameFace(a, b) {
+  return mHas[b] === 1 && mSigA[a] === mSigA[b] && mSigB[a] === mSigB[b];
+}
+
 export function buildChunk(cx, cy, cz) {
-  var pos = [], uv = [], col = [], lit = [], ind = [];
-  var tpos = [], tuv = [], tcol = [], tlit = [], tind = [];
+  var pos = [], uv = [], col = [], lit = [], ind = [], tl = [];
+  var tpos = [], tuv = [], tcol = [], tlit = [], tind = [], ttl = [];
   var x0 = cx * CH, y0 = cy * CH, z0 = cz * CH;
 
   for (var x = x0; x < x0 + CH; x++) {
@@ -66,16 +97,19 @@ export function buildChunk(cx, cy, cz) {
 
         // 풀·꽃·횃불 — 두 장의 판이 X 자로 교차한다 (양면 모두 그린다)
         if (isCross(b)) {
-          emitCross(pos, uv, col, lit, ind, x, y, z, b, ci);
+          emitCross(pos, uv, col, lit, ind, x, y, z, b, ci, tl);
           continue;
         }
 
         var sh = shape[ci];
         var boxes = boxesAt(b, sh, x, y, z);
 
+        // 붙일 수 있는 면인가 — 전체 큐브 · 불투명 · 이웃을 안 타는 모양 (v102)
+        var mergeable = (sh === SH_FULL) && !isTransparent(b) && !hasDynamicBoxes(b);
         var trans = isTransparent(b);
         var P = trans ? tpos : pos, U = trans ? tuv : uv,
-            C = trans ? tcol : col, L = trans ? tlit : lit, I = trans ? tind : ind;
+            C = trans ? tcol : col, L = trans ? tlit : lit, I = trans ? tind : ind,
+            T = trans ? ttl : tl;
         var waterTop = (b === WATER && get(x, y + 1, z) !== WATER) ? 1 : 0;
 
         for (var bi = 0; bi < boxes.length; bi++) {
@@ -100,8 +134,18 @@ export function buildChunk(cx, cy, cz) {
 
             var to = tileOrigin(TILES[b][faceKindFor(sh, f, face.kind)]);
             var u0 = to[0] / atlas.width, v0 = 1 - (to[1] + TILE) / atlas.height;
-            var us = TILE / atlas.width;
 
+            // 붙일 수 있으면 지금 그리지 않고 평면 마스크에 담아 둔다 (v102)
+            var slot = -1;
+            if (mergeable) {
+              var sliceIdx = na === 0 ? (x - x0) : (na === 1 ? (y - y0) : (z - z0));
+              var mi = MERGE_IAXIS[f] === 0 ? (x - x0) : (MERGE_IAXIS[f] === 1 ? (y - y0) : (z - z0));
+              var mj = MERGE_JAXIS[f] === 0 ? (x - x0) : (MERGE_JAXIS[f] === 1 ? (y - y0) : (z - z0));
+              slot = mergeSlot(f, sliceIdx, mi, mj);
+              mHas[slot] = 1;
+              mTile[slot * 2] = u0; mTile[slot * 2 + 1] = v0;
+              mSigA[slot] = 0; mSigB[slot] = TILES[b][faceKindFor(sh, f, face.kind)] & 255;
+            }
             var base = P.length / 3;
             var ta = (na + 1) % 3, tb = (na + 2) % 3;
 
@@ -114,12 +158,12 @@ export function buildChunk(cx, cy, cz) {
               var local = [lx, ly, lz];
 
               var isTopVert = waterTop && ly === 1;
-              P.push(x + lx, y + ly - (isTopVert ? 0.12 : 0), z + lz);
+              if (slot < 0) P.push(x + lx, y + ly - (isTopVert ? 0.12 : 0), z + lz);
 
               var uu = local[uvi.uAxis], vv = local[uvi.vAxis];
               if (uvi.uFlip) uu = 1 - uu;
               if (uvi.vFlip) vv = 1 - vv;
-              U.push(u0 + uu * us, v0 + vv * us);
+              if (slot < 0) { U.push(uu, vv); T.push(u0, v0); }
 
               var off = [0, 0, 0];
               off[na] = face.dir[na];
@@ -132,7 +176,11 @@ export function buildChunk(cx, cy, cz) {
               var s2 = blocksLight(get(x + o2[0], y + o2[1], z + o2[2])) ? 1 : 0;
               var sc = blocksLight(get(x + oc[0], y + oc[1], z + oc[2])) ? 1 : 0;
               var lum = face.shade * AO_LEVELS[aoValue(s1, s2, sc)];
-              C.push(lum, lum, lum);
+              if (slot < 0) C.push(lum, lum, lum);
+              else {
+                mLum[slot * 4 + v] = lum;
+                mSigA[slot] |= (aoValue(s1, s2, sc) & 3) << (24 + v * 2);
+              }
 
               var skySum = 0, blkSum = 0, cnt = 0;
               var cells = [[ax, ay, az],
@@ -156,28 +204,95 @@ export function buildChunk(cx, cy, cz) {
                 } else if (ay >= WY) { skySum = 15; blkSum = 0; }
                 cnt = 1;
               }
-              L.push(skySum / cnt / 15, blkSum / cnt / 15, isTopVert ? 1 : 0);
+              if (slot < 0) L.push(skySum / cnt / 15, blkSum / cnt / 15, isTopVert ? 1 : 0);
+              else {
+                var qsky = Math.round(skySum / cnt / 15 * MERGE_LIGHT_STEPS);
+                var qblk = Math.round(blkSum / cnt / 15 * MERGE_LIGHT_STEPS);
+                mSky[slot * 4 + v] = qsky / MERGE_LIGHT_STEPS;
+                mBlk[slot * 4 + v] = qblk / MERGE_LIGHT_STEPS;
+                mSigA[slot] |= (qsky & 63) << (v * 6);
+                mSigB[slot] |= (qblk & 63) << (8 + v * 6);
+              }
             }
-            I.push(base, base + 1, base + 2, base + 2, base + 1, base + 3);
+            if (slot < 0) I.push(base, base + 1, base + 2, base + 2, base + 1, base + 3);
           }
         }
       }
     }
   }
 
+  // ── 모아 둔 면을 이어 붙여 큰 쿼드로 낸다 (v102)
+  for (var mf = 0; mf < 6; mf++) {
+    var mface = FACES[mf], muvi = FACE_UV[mf];
+    var mna = muvi.na;
+    var iAx = MERGE_IAXIS[mf], jAx = MERGE_JAXIS[mf];
+    for (var msl = 0; msl < CH; msl++) {
+      for (var mjj = 0; mjj < CH; mjj++) {
+        for (var mii = 0; mii < CH; mii++) {
+          var a0 = mergeSlot(mf, msl, mii, mjj);
+          if (!mHas[a0]) continue;
+          // 가로로 늘린다
+          var w = 1;
+          while (mii + w < CH && sameFace(a0, mergeSlot(mf, msl, mii + w, mjj))) w++;
+          // 세로로 늘린다 — 한 줄이 통째로 같아야 한다
+          var h = 1, canGrow = true;
+          while (mjj + h < CH && canGrow) {
+            for (var kk = 0; kk < w; kk++) {
+              if (!sameFace(a0, mergeSlot(mf, msl, mii + kk, mjj + h))) { canGrow = false; break; }
+            }
+            if (canGrow) h++;
+          }
+          // 쓴 자리를 지운다
+          for (var cj = 0; cj < h; cj++)
+            for (var cw = 0; cw < w; cw++) mHas[mergeSlot(mf, msl, mii + cw, mjj + cj)] = 0;
+
+          // 기준 칸의 월드 좌표
+          var bcoord = [0, 0, 0];
+          bcoord[mna] = (mna === 0 ? x0 : (mna === 1 ? y0 : z0)) + msl;
+          bcoord[iAx] = (iAx === 0 ? x0 : (iAx === 1 ? y0 : z0)) + mii;
+          bcoord[jAx] = (jAx === 0 ? x0 : (jAx === 1 ? y0 : z0)) + mjj;
+
+          var mbase = pos.length / 3;
+          for (var mv = 0; mv < 4; mv++) {
+            var mcd = mface.c[mv];
+            var vx = bcoord[0], vy = bcoord[1], vz = bcoord[2];
+            var vv3 = [vx, vy, vz];
+            vv3[mna] += mcd[mna];
+            vv3[iAx] += mcd[iAx] ? w : 0;
+            vv3[jAx] += mcd[jAx] ? h : 0;
+            pos.push(vv3[0], vv3[1], vv3[2]);
+
+            var uSpan = muvi.uAxis === iAx ? w : h;
+            var vSpan = muvi.vAxis === iAx ? w : h;
+            var muu = mcd[muvi.uAxis] ? uSpan : 0;
+            var mvv = mcd[muvi.vAxis] ? vSpan : 0;
+            if (muvi.uFlip) muu = uSpan - muu;
+            if (muvi.vFlip) mvv = vSpan - mvv;
+            uv.push(muu, mvv);
+            tl.push(mTile[a0 * 2], mTile[a0 * 2 + 1]);
+
+            var ml = mLum[a0 * 4 + mv];
+            col.push(ml, ml, ml);
+            lit.push(mSky[a0 * 4 + mv], mBlk[a0 * 4 + mv], 0);
+          }
+          ind.push(mbase, mbase + 1, mbase + 2, mbase + 2, mbase + 1, mbase + 3);
+        }
+      }
+    }
+  }
+
   var id = chunkId(cx, cy, cz);
-  applyGeo(opaqueMeshes[id], pos, uv, col, lit, ind);
-  applyGeo(glassMeshes[id], tpos, tuv, tcol, tlit, tind);
+  applyGeo(opaqueMeshes[id], pos, uv, col, lit, ind, tl);
+  applyGeo(glassMeshes[id], tpos, tuv, tcol, tlit, tind, ttl);
   chunkFilled[id] = ind.length > 0 || tind.length > 0;
 }
 
 // X 자 두 판 × 앞뒷면 = 쿼드 4장. 빛은 자기 칸의 값을 그대로 쓴다.
 export var CROSS_PLANES = [[1, 1], [1, -1]];
-export function emitCross(P, U, C, L, I, x, y, z, b, ci) {
+export function emitCross(P, U, C, L, I, x, y, z, b, ci, T) {
   var cfg = CROSS[b];
   var to = tileOrigin(TILES[b][0]);
   var u0 = to[0] / atlas.width, v0 = 1 - (to[1] + TILE) / atlas.height;
-  var us = TILE / atlas.width;
   var sky = lightSky[ci] / 15, blk = lightBlk[ci] / 15;
   var cxw = x + 0.5, czw = z + 0.5;
   var off = crossOffset(shape[ci]);
@@ -198,7 +313,8 @@ export function emitCross(P, U, C, L, I, x, y, z, b, ci) {
       var vvs = [0, 0, 1, 1];
       for (var v = 0; v < 4; v++) {
         P.push(xs[v], ys[v], zs[v]);
-        U.push(u0 + uus[v] * us, v0 + vvs[v] * us);
+        U.push(uus[v], vvs[v]);
+        if (T) T.push(u0, v0);
         C.push(1, 1, 1);
         L.push(sky, blk, vvs[v] === 1 ? cfg.sway : 0);
       }
@@ -207,7 +323,7 @@ export function emitCross(P, U, C, L, I, x, y, z, b, ci) {
   }
 }
 
-export function applyGeo(mesh, pos, uv, col, lit, ind) {
+export function applyGeo(mesh, pos, uv, col, lit, ind, tile) {
   var g = mesh.geometry;
   // 갈아 끼우기 전에 예전 버퍼를 놓아 준다 (v93).
   // three r128 은 attribute 객체를 키로 하는 WeakMap 으로 WebGLBuffer 를 잡는다 —
@@ -220,6 +336,7 @@ export function applyGeo(mesh, pos, uv, col, lit, ind) {
   g.setAttribute("uv", new THREE.BufferAttribute(new Float32Array(uv), 2));
   g.setAttribute("acol", new THREE.BufferAttribute(new Float32Array(col), 3));
   g.setAttribute("alight", new THREE.BufferAttribute(new Float32Array(lit), 3));
+  g.setAttribute("atile", new THREE.BufferAttribute(new Float32Array(tile || []), 2));
   g.setIndex(ind.length > 65000 ? new THREE.BufferAttribute(new Uint32Array(ind), 1)
                                 : new THREE.BufferAttribute(new Uint16Array(ind), 1));
   g.computeBoundingSphere();

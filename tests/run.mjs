@@ -12027,6 +12027,68 @@ test("v101 탭 잠금: 다른 탭이 쥔 슬롯을 알아챈다", async (page) =
   eq(r.afterRelease, null, "탭을 닫았는데 잠금이 남았다");
 });
 
+test("v102 면 병합: 평평한 바닥이 한 장으로 붙고, 그림은 그대로다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    // 청크 하나를 통째로 비우고 바닥 한 겹만 깐다 (하늘 아래 · 빛이 고르다)
+    const CX = 2, CY = 2, CZ = 2, CH = B.CH;
+    const x0 = CX * CH, y0 = CY * CH, z0 = CZ * CH;
+    for (let x = x0 - 1; x < x0 + CH + 1; x++)
+      for (let z = z0 - 1; z < z0 + CH + 1; z++)
+        for (let y = y0; y < B.WY; y++) B.set(x, y, z, 0);
+    for (let x = x0 - 1; x < x0 + CH + 1; x++)
+      for (let z = z0 - 1; z < z0 + CH + 1; z++) B.set(x, y0, z, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false);
+    B.buildChunk(CX, CY, CZ);
+    const id = B.chunkId(CX, CY, CZ);
+    const g = B.opaqueMeshes[id].geometry;
+    const tris = g.getIndex().count / 3;
+    const pos = g.getAttribute("position");
+    const uvA = g.getAttribute("uv");
+    const tileA = g.getAttribute("atile");
+
+    // 윗면(y0+1 높이)의 정점 수 — 16×16 이 한 장으로 붙으면 **넷**이다
+    let topVerts = 0, topMinX = 1e9, topMaxX = -1e9, topMinZ = 1e9, topMaxZ = -1e9;
+    for (let i = 0; i < pos.count; i++) {
+      if (Math.abs(pos.getY(i) - (y0 + 1)) > 1e-6) continue;
+      topVerts++;
+      const px = pos.getX(i), pz = pos.getZ(i);
+      if (px < topMinX) topMinX = px;
+      if (px > topMaxX) topMaxX = px;
+      if (pz < topMinZ) topMinZ = pz;
+      if (pz > topMaxZ) topMaxZ = pz;
+    }
+    // 병합된 쿼드의 UV 가 0..16 까지 늘어나 있어야 한다 (셰이더가 fract 로 되풀이한다)
+    let maxU = 0, maxV = 0;
+    for (let i = 0; i < uvA.count; i++) {
+      if (uvA.getX(i) > maxU) maxU = uvA.getX(i);
+      if (uvA.getY(i) > maxV) maxV = uvA.getY(i);
+    }
+    // 지오메트리가 그 바닥을 실제로 덮나 (정점 좌표가 어긋나면 여기서 드러난다)
+    g.computeBoundingBox();
+    const bb = g.boundingBox;
+    // 타일 원점은 아틀라스 안이어야 한다
+    let tileOk = tileA && tileA.count === pos.count;
+    for (let i = 0; tileOk && i < tileA.count; i++) {
+      const u = tileA.getX(i), v = tileA.getY(i);
+      if (!(u >= 0 && u <= 1 && v >= 0 && v <= 1)) tileOk = false;
+    }
+    return { tris, maxU, maxV, tileOk, topVerts, topMinX, topMaxX, topMinZ, topMaxZ,
+             maxY: bb.max.y, x0, y0, z0, CH };
+  });
+  eq(r.topVerts, 4,
+     "16×16 바닥의 윗면이 정점 " + r.topVerts + "개다 — 한 장(4개)으로 안 붙었다");
+  assert(r.maxU >= 8 || r.maxV >= 8,
+     "병합된 쿼드의 UV 가 " + r.maxU + "×" + r.maxV + " 밖에 안 늘었다 — 타일이 안 되풀이된다");
+  eq(r.tileOk, true, "타일 원점(atile)이 아틀라스 밖이거나 정점 수와 안 맞는다");
+  eq(r.topMinX, r.x0, "병합된 윗면이 청크 왼쪽 끝에서 시작하지 않는다: " + r.topMinX);
+  eq(r.topMaxX, r.x0 + r.CH, "병합된 윗면이 청크 오른쪽 끝까지 안 간다: " + r.topMaxX);
+  eq(r.topMinZ, r.z0, "병합된 윗면의 z 시작이 어긋났다: " + r.topMinZ);
+  eq(r.topMaxZ, r.z0 + r.CH, "병합된 윗면의 z 끝이 어긋났다: " + r.topMaxZ);
+  eq(r.maxY, r.y0 + 1, "바닥 윗면의 높이가 어긋났다: " + r.maxY);
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
