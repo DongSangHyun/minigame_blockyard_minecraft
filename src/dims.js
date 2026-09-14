@@ -1,5 +1,10 @@
 // dims.js — 세계 치수와 좌표 계산 (의존성 없음)
 export var WX = 96, WY = 64, WZ = 96, CH = 16;
+// 미니맵 표식 상한 — **여기 둔다.** v111 이 input.js 에서 12 → 24 로 올렸는데
+// save.js 의 불러오기가 `slice(0, 12)` 로 남아, 24개를 찍어 저장하고 다시 열면
+// **13번부터가 영영 사라졌다** (저장에는 스물넷이 다 실려 있었다).
+// save.js 가 input.js 를 import 하면 순환이라, 두 곳이 같은 값을 보게 뿌리에 둔다
+export var MARK_MAX = 24;
 export var LEGACY_WY = 48;                     // 저장 포맷 v4 까지의 세계 높이
 export var CX = WX / CH, CY = WY / CH, CZ = WZ / CH;
 export var N = WX * WY * WZ, PLANE = WX * WZ;

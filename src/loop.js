@@ -1,6 +1,6 @@
 // loop.js — 게임 루프
 import { S } from "./state.js";
-import { padState, pollGamepad, pollGamepadMenu , selectionText} from "./input.js";
+import { padState, pollGamepad, pollGamepadMenu, arrowLookTick, tutDone, TUT_LEN, selectionText} from "./input.js";
 import { breedTick, MOB_KINDS, aimedMob, removeMob, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, CX, CZ, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
@@ -67,7 +67,12 @@ export function newWorld(seed) {
   refreshBar();
   S.history.length = 0; S.future.length = 0;
   resetQueues();
-  S.earned = {}; S.placedKinds = {}; S.lampsPlaced = 0; S.playSeconds = 0; S.tut = 0;
+  S.earned = {}; S.placedKinds = {}; S.lampsPlaced = 0; S.playSeconds = 0;
+  // **튜토리얼은 다시 돌지 않는다** (v114) — 100시간을 논 사람의 두 번째 세계가
+  // 「먼저 좌클릭으로 블록을 캐보세요」로 시작했다. 조작을 배웠는지는 **기기의 일**이지
+  // 세계의 일이 아니다 (첫 진입 토스트는 이미 `blockyard.seen` 으로 기기 단위였다).
+  // 세계 저장의 `tut` 은 예전 세계를 위해 그대로 읽는다
+  S.tut = tutDone() ? TUT_LEN : 0;
   // 횃불 카운터도 함께 지운다 (v93) — 램프만 지우고 있어서, 지난 세계에서 횃불을 꽂아 봤다면
   // **새 세계에 횃불 하나만 꽂아도 「횃불 10개」 과제가 그 자리에서 열렸다.**
   // 저장은 lamps·torches 를 한 쌍으로 싣고 내린다 — 어긋난 곳은 여기 한 군데였다.
@@ -142,8 +147,14 @@ export function step(dt) {
     fwd.set(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
     right.set(Math.cos(player.yaw), 0, -Math.sin(player.yaw));
 
-    var ix = ((S.keys.KeyD || S.keys.ArrowRight) ? 1 : 0) - ((S.keys.KeyA || S.keys.ArrowLeft) ? 1 : 0);
-    var iz = ((S.keys.KeyW || S.keys.ArrowUp) ? 1 : 0) - ((S.keys.KeyS || S.keys.ArrowDown) ? 1 : 0);
+    // 「방향키로 둘러보기」를 켜면 방향키는 **시선**으로 간다 (v114) —
+    // 그동안 방향키는 WASD 의 완전한 중복이라 놀고 있었다
+    var arrows = !opts.arrowlook;
+    var ix = ((S.keys.KeyD || (arrows && S.keys.ArrowRight)) ? 1 : 0) -
+             ((S.keys.KeyA || (arrows && S.keys.ArrowLeft)) ? 1 : 0);
+    var iz = ((S.keys.KeyW || (arrows && S.keys.ArrowUp)) ? 1 : 0) -
+             ((S.keys.KeyS || (arrows && S.keys.ArrowDown)) ? 1 : 0);
+    arrowLookTick(dt);
     if (S.stick.x || S.stick.z) { ix = S.stick.x; iz = S.stick.z; }
     if (padOn && (padState.lx || padState.ly)) { ix = padState.lx; iz = -padState.ly; }
     // Shift 는 웅크리기(마크식) · 달리기는 Ctrl 또는 W 더블탭
@@ -275,7 +286,7 @@ export function step(dt) {
     // 예전에는 조준한 칸이 바뀌면 쿨다운을 건너뛰었는데, 클릭하며 손이 조금만 떨려도
     // 한 번 누른 것이 여러 개로 놓였다. 간격은 항상 지킨다.
     S.placeCooldown -= dt;
-    if ((S.lockMode && S.mouseDown[2]) || S.touchPlace) {
+    if ((S.lockMode && S.mouseDown[2]) || S.touchPlace || S.keyPlace) {
       if (S.placeCooldown <= 0) {
         var firstTap = S.lastPlaceCell === -1;
         // 홀드로 반복될 때는 문 여닫기·점화·먹이 주기를 하지 않는다.
@@ -454,7 +465,9 @@ export function step(dt) {
     return h;
   }
 
-  var wantBreak = playing && (S.touchBreak || (S.lockMode ? S.mouseDown[0]
+  // 키로 건 캐기는 **마우스 모드와 무관하다** (v114) — 드래그 모드에서는 이 판정이
+  // `S.dragging` 을 보므로, 키를 눌러도 아무 일이 안 일어났다
+  var wantBreak = playing && (S.touchBreak || S.keyMine || (S.lockMode ? S.mouseDown[0]
                               : (S.dragging && S.dragBtn === 0 && S.dragDist < 7)));
   // 좌클릭이 동물을 향하면 동물이 먼저다 (v95) — 마크 크리에이티브와 같다.
   // 누른 채로 있으면 근처 동물이 줄줄이 사라지므로 **한 번 누르면 한 마리**다

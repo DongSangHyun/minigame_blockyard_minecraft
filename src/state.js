@@ -62,6 +62,7 @@ export const S = {
   aimFace: null,
   aimHit: null,     // 겨눈 칸의 좌표 (계기판 「조준」· v93)
   decayOwner: null,      // 지금 지는 잎을 실을 되돌리기 묶음 (v110)
+  lastExport: "",        // 클립보드가 막혔을 때 꺼낼 청사진 문자열 (v114)
   uiScale: 1,            // 화면에 맞춰 **잘린 뒤**의 실제 배율 (v113)
   tbtnScale: 1,
   swingBeat: 0,          // 좌클릭 스윙 박자 — 조준 칸이 바뀌어도 안 흔들린다 (v106)
@@ -97,6 +98,11 @@ export const S = {
   grassTimer: 0,
   handLight: 1,
   touchPlace: false,
+  // 키로 거는 캐기·놓기 (v114) — 마우스 채널과 **따로** 둔다.
+  // `S.mouseDown[0]` 에 얹었더니 드래그 모드(`S.lockMode === false`)에서는
+  // 캐기 판정이 `S.dragging` 을 보기 때문에 **아무 일도 안 일어났다** —
+  // 마우스를 못 쓰는 사람을 위해 만든 기능이 마우스 상태에 매여 있었다
+  keyMine: false, keyPlace: false,
   padFlyTap: 0,
   delArm: 0,
   delArmAt: 0,      // 불을 붙인 자리들 — 번짐 상한을 불마다 따로 잰다
@@ -197,7 +203,9 @@ export const S = {
   recent: [],
   cmdHist: [],
   cmdAt: 0,
-  binds: { fly: "KeyF", shape: "KeyG", pick: "KeyQ", help: "KeyH" },
+  // 캐기·놓기도 키에 걸 수 있다 (v114) — 기본은 비어 있다(마우스가 한다).
+  // 마우스를 못 쓰는 사람에게는 이 둘이 없으면 게임이 **켜지지도 않는다**
+  binds: { fly: "KeyF", shape: "KeyG", pick: "KeyQ", help: "KeyH", mine: "", place: "" },
   future: [],
   stick: { x: 0, z: 0 },
   mouseDown: [false, false, false],

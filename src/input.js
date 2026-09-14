@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { markX, markY, markName, markZ } from "./world.js";
 import { resetQueues } from "./queues.js";
 import { seedMobs } from "./mobs.js";
-import { WX, WY, WZ } from "./dims.js";
+import { WX, WY, WZ, MARK_MAX } from "./dims.js";
 import { markAllDirty, buildBudget } from "./mesh.js";
 import { relightAll } from "./light.js";
 import { IS_TOUCH } from "./boot.js";
@@ -88,7 +88,16 @@ export function advanceTut(step) {
   if (S.tut !== step) return;
   S.tut = step + 1;
   S.worldDirty = true;
+  // 다 배웠으면 **기기에 적어 둔다** (v114) — 두 번째 세계에서 일곱 줄이 처음부터
+  // 다시 돌았다. 조작을 배웠는지는 세계가 아니라 사람의 일이다.
+  // (첫 진입 토스트는 이미 `blockyard.seen` 으로 기기 단위였다 — 기준이 둘로 갈려 있었다)
+  if (S.tut >= TUT_LEN) { try { localStorage.setItem(TUT_KEY, "1"); } catch (e) {} }
   refreshHint();
+}
+export var TUT_KEY = "blockyard.tutdone";
+export var TUT_LEN = TUT.length;
+export function tutDone() {
+  try { return localStorage.getItem(TUT_KEY) === "1"; } catch (e) { return false; }
 }
 
 
@@ -426,11 +435,13 @@ if (terrainEl) terrainEl.addEventListener("click", function (e) {
 });
 
 // ── 조작키 재배치 — 손이 다른 사람들을 위해 핵심 몇 개만 바꿀 수 있게
-export var KEY_LABEL = { fly: "비행", shape: "모양", pick: "복사", help: "도움말" };
+export var KEY_LABEL = { fly: "비행", shape: "모양", pick: "복사", help: "도움말",
+                          mine: "캐기", place: "놓기" };
 export var keysEl = document.getElementById("keys");
 var waitingFor = null;
 
 function keyName(code) {
+  if (!code) return "없음";            // 캐기·놓기는 기본이 비어 있다 (v114)
   return String(code).replace(/^Key|^Digit/, "").replace("Bracket", "").toUpperCase();
 }
 // 재배치한 키를 화면 곳곳(도움말·조작 목록·힌트 줄)에 반영한다.
@@ -769,6 +780,19 @@ document.addEventListener("pointerlockchange", function () {
   }
 });
 
+// 방향키로 돌아본다 (v114) — 설정 「방향키로 둘러보기」를 켜면 방향키가
+// 이동(WASD 의 완전한 중복이었다)에서 **시선**으로 옮겨 간다.
+// 마우스를 못 쓰는 사람에게 이 게임은 그동안 걷기만 됐다 —
+// `applyLook` 을 부르는 곳이 마우스·터치·패드 셋뿐이었다.
+export function arrowLookTick(dt) {
+  if (!opts.arrowlook || !S.active || S.uiOpen) return;
+  var lx = (S.keys.ArrowRight ? 1 : 0) - (S.keys.ArrowLeft ? 1 : 0);
+  var ly = (S.keys.ArrowDown ? 1 : 0) - (S.keys.ArrowUp ? 1 : 0);
+  if (!lx && !ly) return;
+  // 게임패드 오른쪽 스틱과 같은 속도 — 감도 설정을 그대로 탄다
+  applyLook(lx * 620 * dt, ly * 480 * dt);
+}
+
 export function applyLook(dx, dy) {
   var s = 0.0022 * (opts.sens / 100);
   player.yaw -= dx * s;
@@ -941,7 +965,6 @@ export function renameMarkHere() {
   return true;
 }
 
-export var MARK_MAX = 24;
 export function toggleMark(named) {
   var mx = Math.round(player.pos.x), my = Math.round(player.pos.y), mz = Math.round(player.pos.z);
   var near = markHere();
@@ -1086,6 +1109,18 @@ window.addEventListener("keydown", function (e) {
       tone(player.flying ? 660 : 330, 0.09, "square", 0.05);
       toast(player.flying ? "비행 모드" : "걷기 모드");
     } else S.lastSpaceTap = nowSp;
+  }
+
+  // **키로도 캐고 놓는다** (v114) — 예전에는 캐기·놓기가 `S.mouseDown[0]`·`S.touchPlace`
+  // 로만 들어와서, 마우스를 못 쓰는 사람에게 이 게임은 **걷기만 되는 것**이었다.
+  // 마우스·터치·패드와 같은 길을 탄다 (놓기는 누르고 있으면 반복된다)
+  if (S.active && !S.uiOpen) {
+    if (S.binds.mine && e.code === S.binds.mine) { e.preventDefault(); S.keyMine = true; }
+    if (S.binds.place && e.code === S.binds.place) {
+      e.preventDefault();
+      if (!held) { S.placeCooldown = 0; S.lastPlaceCell = -1; }
+      S.keyPlace = true;
+    }
   }
 
   // 마크식 달리기 — W 를 두 번 톡톡
@@ -1321,6 +1356,8 @@ window.addEventListener("keydown", function (e) {
 window.addEventListener("keyup", function (e) {
   S.keys[e.code] = false;
   if (e.code === "KeyW" || e.code === "ArrowUp") S.sprintTap = false;
+  if (S.binds.mine && e.code === S.binds.mine) S.keyMine = false;
+  if (S.binds.place && e.code === S.binds.place) S.keyPlace = false;
 });
 
 window.addEventListener("wheel", function (e) {
@@ -1820,6 +1857,8 @@ bindCheck("s-hc", "o-hc", "contrast", true);
 bindCheck("s-steady", "o-steady", "steady", false);
 // 손목 배려 — Shift 를 붙들지 않고 눌러서 켜고 끈다
 bindCheck("s-sneaktog", "o-sneaktog", "sneaktog", false);
+bindCheck("s-arrowlook", "o-arrowlook", "arrowlook", false);
+bindCheck("s-pickrecent", "o-pickrecent", "pickrecent", false);
 // 불 번짐 — 끄면 붙인 불이 그 자리에서만 탄다 (마크의 doFireTick).
 // 번진 불은 되돌리기가 못 잡으므로, 짓는 사람은 대개 꺼 두고 싶어 한다.
 bindCheck("s-fire", "o-fire", "firespread", false);

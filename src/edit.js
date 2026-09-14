@@ -918,7 +918,7 @@ export var CMD_HELP =
   "marks · marks del <번호> · fill <블록|공기> [바꿀블록] · hollow · walls <블록> · " +
   "cyl <블록> <반지름> [높이] [속빔] · sphere <블록> <반지름> [속빔] · shell <블록> · " +
   "paste [공기] · mirror · rotate · " +
-  "expand/contract <±dx> <±dy> <±dz> · shift <dx> <dy> <dz> · clone <dx> <dy> <dz> [횟수] · give <블록> · count · bp <save|use|list|del> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
+  "expand/contract <±dx> <±dy> <±dz> · shift <dx> <dy> <dz> · clone <dx> <dy> <dz> [횟수] · give <블록> · count · bp <save|use|list|del|export|import> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
 
 // 한국어 이름과 영어 이름을 둘 다 알아듣는다 — "조약돌" 도 "cobble" 도 된다
 function findBlock(name) {
@@ -1161,7 +1161,23 @@ export function runCommand(line) {
     if (sub === "use") { var e2 = useBlueprint(nm); return e2 || ("청사진 준비됨: " + nm + " — Ctrl+V 로 붙여넣기"); }
     if (sub === "list") { var ns = blueprintNames(); return ns.length ? ns.join(", ") : "저장된 청사진이 없습니다"; }
     if (sub === "del") { var e3 = deleteBlueprint(nm); return e3 || ("청사진 지움: " + nm); }
-    return "bp <save|use|list|del> <이름>";
+    if (sub === "export") {
+      var ex = exportBlueprint(nm);
+      if (ex.err) return ex.err;
+      var copied = false;
+      try { if (navigator.clipboard) { navigator.clipboard.writeText(ex.text); copied = true; } } catch (e4) {}
+      S.lastExport = ex.text;               // 클립보드가 막혀도 꺼낼 데가 있어야 한다
+      return (copied ? "청사진을 복사했습니다" : "청사진 문자열") + " (" +
+             ex.cells.toLocaleString("ko-KR") + "칸 · " + ex.text.length + "자)" +
+             (copied ? " — 친구에게 붙여넣어 보내세요" : ": " + ex.text.slice(0, 60) + "…");
+    }
+    if (sub === "import") {
+      var im = importBlueprint(parts.slice(2).join(" "));
+      if (im.err) return im.err;
+      return "청사진 받음: " + im.name + " (" + im.cells.toLocaleString("ko-KR") +
+             "칸) — Ctrl+V 로 붙여넣기";
+    }
+    return "bp <save|use|list|del|export|import> <이름>";
   }
 
   if (cmd === "count") {
@@ -1326,6 +1342,50 @@ export function useBlueprint(name) {
   S.clip = { w: bp.w, h: bp.h, d: bp.d, blocks: blocks, shapes: shapes, levels: levels };
   return "";
 }
+// 청사진을 **기기 밖으로** (v114) — 「내가 지은 집 한 채」가 자랑하기에 가장 알맞은
+// 단위인데, `localStorage` 밖으로 나갈 길이 아예 없었다. 세계 내보내기는 세계 통째라
+// 집 한 채만 주고받을 수가 없다. 저장에 쓰는 RLE+Base64 를 그대로 한 줄로 잇는다.
+export var BP_TAG = "BYBP1";
+export function exportBlueprint(name) {
+  var all = loadBlueprints();
+  var bp = all[name];
+  if (!bp) return { err: "그런 청사진이 없습니다" };
+  if (bp.v !== 2) {                       // 예전 숫자 배열 청사진은 지금 형식으로 옮겨 담는다
+    var n0 = (bp.w | 0) * (bp.h | 0) * (bp.d | 0);
+    var b0 = new Uint8Array(n0), s0 = new Uint8Array(n0);
+    b0.set((bp.b || []).slice(0, n0)); s0.set((bp.s || []).slice(0, n0));
+    bp = { v: 2, w: bp.w, h: bp.h, d: bp.d, be: encodeArrB64(b0), se: encodeArrB64(s0),
+           le: encodeArrB64(new Uint8Array(n0)) };
+  }
+  // 이름에 마침표가 있어도 깨지지 않게 이름을 마지막에 둔다
+  var txt = [BP_TAG, bp.w, bp.h, bp.d, bp.be, bp.se, bp.le || "", name].join(".");
+  return { text: txt, cells: (bp.w | 0) * (bp.h | 0) * (bp.d | 0) };
+}
+export function importBlueprint(text) {
+  var t = String(text || "").trim();
+  var parts2 = t.split(".");
+  if (parts2.length < 8 || parts2[0] !== BP_TAG) return { err: "청사진 문자열이 아닙니다" };
+  var w = parseInt(parts2[1], 10), h = parseInt(parts2[2], 10), d = parseInt(parts2[3], 10);
+  if (!(w > 0 && h > 0 && d > 0) || w * h * d > REGION_MAX) return { err: "청사진 크기가 이상합니다" };
+  var name = parts2.slice(7).join(".").slice(0, 24) || "받은청사진";
+  var n = w * h * d;
+  var blocks = new Uint8Array(n), shapes = new Uint8Array(n), levels = new Uint8Array(n);
+  if (!decodeArrB64(parts2[4], blocks) || !decodeArrB64(parts2[5], shapes)) {
+    return { err: "청사진을 읽지 못했습니다" };
+  }
+  if (parts2[6]) decodeArrB64(parts2[6], levels);
+  var all = loadBlueprints();
+  // 같은 이름이 있으면 **덮지 않고 번호를 붙인다** — 받은 것이 내 것을 지우면 안 된다
+  var base = name, k = 2;
+  while (all[name]) { name = base + "-" + k; k++; }
+  all[name] = { v: 2, w: w, h: h, d: d,
+                be: encodeArrB64(blocks), se: encodeArrB64(shapes), le: encodeArrB64(levels) };
+  try { localStorage.setItem(BP_KEY, JSON.stringify(all)); }
+  catch (e) { return { err: "저장 공간이 부족합니다" }; }
+  S.clip = { w: w, h: h, d: d, blocks: blocks, shapes: shapes, levels: levels };
+  return { name: name, cells: n };
+}
+
 export function blueprintNames() { return Object.keys(loadBlueprints()); }
 
 // 메뉴 목록용 — 이름만으로는 어느 게 어느 건물인지 모른다. 크기를 같이 준다.

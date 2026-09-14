@@ -6988,6 +6988,11 @@ test("v65 캐기 속도: 설정대로 빨라진다", async (page) => {
     B.setPaused(true); B.beginPlay();
     const keep = B.opts.dig, keepYaw = B.player.yaw, keepPitch = B.player.pitch;
     const X = 50, Y = 44, Z = 62;
+    // **동물을 치운다** (v114) — 조준선에 동물이 걸리면 좌클릭이 **동물을 먼저** 잡고
+    // `S.mobSwatted` 가 서서 그 누름 동안 캐기가 통째로 막힌다(v95). 10회 중 한 번
+    // "조준이 안 맞아 캐지를 못했다" 로 깨지던 자리다 — 재려는 것은 캐기 **속도**다
+    while (B.mobs.length) B.disposeMob(B.mobs.pop());
+    B.S.mobSwatted = false;
     function trial(mode) {
       B.opts.dig = mode;
       for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
@@ -7018,6 +7023,7 @@ test("v65 캐기 속도: 설정대로 빨라진다", async (page) => {
       return B.get(X, Y, Z) === B.B.STONE ? -1 : f;
     }
     const normal = trial(0), fast = trial(1), instant = trial(2);
+    B.seedMobs();                       // 시험이 치운 동물은 시험이 되살린다
     B.opts.dig = keep; B.player.yaw = keepYaw; B.player.pitch = keepPitch;
     B.S.mouseDown[0] = false;
     B.S.history.length = 0; B.S.future.length = 0;
@@ -13411,6 +13417,275 @@ test("v113 한 손: 세 키 조합에 명령 대안이 있다", async (page) => 
     assert(r.help.indexOf(c) >= 0, "/help 가 " + c + " 을 안 알려 준다");
     assert(r.list.indexOf(c) >= 0, "CMD_LIST 에 " + c + " 이 없다 — 자동완성이 안 된다");
   });
+});
+
+test("v114 마우스 없이: 방향키로 돌아보고, 키로 캐고 놓는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 44, Y = 34, Z = 44;
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++)
+      for (let dy = -1; dy <= 5; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++)
+      B.set(X + dx, Y - 1, Z + dz, B.B.STONE);
+    B.set(X, Y, Z, B.B.STONE); B.set(X, Y + 1, Z, B.B.STONE);   // 겨눌 벽 (눈높이까지)
+    B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    // **동물을 치운다** — `canPlaceAt` 은 동물이 선 칸을 거부한다(v94, 산 채로 묻기 방지).
+    // 양 한 마리가 놓을 자리에 서 있으면 놓기가 **아무 말 없이** 실패해서,
+    // 시험이 10회 중 몇 번만 깨지는 모양이 된다 (실제로 여기서 겪었다)
+    while (B.mobs.length) B.disposeMob(B.mobs.pop());
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.player.pos.set(X + 0.5, Y, Z - 2.5);
+    B.player.yaw = Math.PI; B.player.pitch = 0;
+    B.player.flying = false;
+    const keepArrow = B.opts.arrowlook, keepDig = B.opts.dig;
+    B.opts.dig = 2;                       // 즉시 — 시험이 캐기 시간에 안 걸리게
+
+    // 실패했을 때 읽을 것 — 조준한 칸·놓을 칸·동물 수 (이 셋이 놓기를 조용히 막는다)
+    const trace = [];
+    function press(code, frames) {
+      window.dispatchEvent(new KeyboardEvent("keydown", { code, bubbles: true }));
+      for (let k = 0; k < frames; k++) B.step(1 / 60);
+      trace.push([code, B.S.keyPlace, B.S.keyMine,
+                  B.S.aimHit ? B.S.aimHit.join(",") + "=" + B.get(B.S.aimHit[0], B.S.aimHit[1], B.S.aimHit[2]) : null,
+                  B.S.aimFace ? B.S.aimFace.join(",") + "=" + B.get(B.S.aimFace[0], B.S.aimFace[1], B.S.aimFace[2]) : null,
+                  "mobs" + B.mobs.length]);
+      window.dispatchEvent(new KeyboardEvent("keyup", { code, bubbles: true }));
+      B.step(1 / 60);
+    }
+
+    // (1) 끄면 방향키는 걷기다 (예전 그대로)
+    B.opts.arrowlook = 0; B.applyOpts();
+    const yaw0 = B.player.yaw, z0 = B.player.pos.z;
+    press("ArrowUp", 30);
+    const walked = Math.abs(B.player.pos.z - z0), yawMoved0 = Math.abs(B.player.yaw - yaw0);
+
+    // (2) 켜면 방향키가 시선이다
+    B.player.pos.set(X + 0.5, Y, Z - 2.5); B.player.vel.set(0, 0, 0);
+    B.player.yaw = Math.PI; B.player.pitch = 0;
+    B.opts.arrowlook = 1; B.applyOpts();
+    const z1 = B.player.pos.z, yaw1 = B.player.yaw;
+    press("ArrowLeft", 30);
+    const turned = Math.abs(B.player.yaw - yaw1), slid = Math.abs(B.player.pos.z - z1);
+
+    // (3) 캐기·놓기를 키에 걸면 마우스와 같은 길을 탄다.
+    // **동물을 여기서 한 번 더 치운다** — 앞선 60프레임 사이에 다시 스폰된다.
+    // `canPlaceAt` 은 동물이 선 칸을 거부하고(v94) 그때 **토스트도 소리도 없어서**,
+    // 놓기가 조용히 실패한다
+    while (B.mobs.length) B.disposeMob(B.mobs.pop());
+    B.player.pos.set(X + 0.5, Y, Z - 2.5); B.player.vel.set(0, 0, 0);
+    B.player.yaw = Math.PI; B.player.pitch = 0;
+    // **한 프레임 돌리고 누른다** — `raycast` 는 카메라를 쓰는데 카메라는 step() 의
+    // 뒷부분에서 player.yaw 를 따라간다. 시선을 손으로 돌린 그 프레임에 바로 누르면
+    // **한 프레임 낡은 방향**으로 쏴서 엉뚱한 칸을 겨눈다 (사람이 놀 때는 16ms 라 안 보인다)
+    B.step(1 / 60); B.step(1 / 60);
+    B.S.binds.mine = "KeyJ"; B.S.binds.place = "KeyL";
+    // **놓기를 먼저 잰다** — 캐기부터 하면 겨누던 벽이 사라져 놓을 면이 없어진다
+    B.selectSlot(0); B.S.bar[0] = B.B.PLANKS;
+    function planks() {
+      let n = 0;
+      for (let dy = 0; dy <= 3; dy++) for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++)
+        if (B.get(X + dx, Y + dy, Z + dz) === B.B.PLANKS) n++;
+      return n;
+    }
+    press("KeyL", 20);
+    const placed = planks();
+    // 캐기는 **몇 칸이 줄었는지**로 잰다 — 놓기를 20프레임 누르면 판자가 한 장일 수도
+    // 두 장일 수도 있고(PLACE_REPEAT), 캐기는 조준선에 가장 가까운 것부터 40프레임 동안
+    // 여러 칸을 먹는다. 재려는 것은 「키가 캐기로 이어지는가」지 어느 칸이 캐지는가가 아니다
+    const before = placed;
+    press("KeyJ", 40);
+    const mined = planks();
+
+    // **드래그 모드에서도 듣는가** — 마우스를 못 쓰는 사람을 위해 만든 키를
+    // `S.mouseDown[0]` 에 얹었더니, 캐기 판정이 `S.dragging` 을 보는 드래그 모드에서는
+    // 아무 일도 안 일어났다 (v114 에서 실제로 그랬다 — 그래서 S.keyMine/keyPlace 를 뒀다)
+    const keepLock = B.S.lockMode;
+    B.S.lockMode = false;
+    // 벽을 다시 세운다 — 앞 단계의 캐기가 겨누던 것을 통째로 먹었다(즉시 캐기 40프레임).
+    // 겨눌 것이 없으면 놓기는 **아무 일도 안 하는 것이 맞다**
+    for (let dy = 0; dy <= 3; dy++) for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++)
+      if (B.get(X + dx, Y + dy, Z + dz) === B.B.PLANKS) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.set(X, Y, Z, B.B.STONE); B.set(X, Y + 1, Z, B.B.STONE);
+    B.refreshAllTops(); B.relightAll(false);
+    B.player.pos.set(X + 0.5, Y, Z - 2.5); B.player.vel.set(0, 0, 0);
+    B.player.yaw = Math.PI; B.player.pitch = 0;
+    B.step(1 / 60); B.step(1 / 60);
+    press("KeyL", 20);
+    const dragPlaced = planks();      // 벽을 다시 세웠으니 0 에서 늘어야 한다
+    press("KeyJ", 40);
+    const dragMined = planks();
+    B.S.lockMode = keepLock;
+
+    B.S.binds.mine = ""; B.S.binds.place = "";
+    B.opts.arrowlook = keepArrow; B.opts.dig = keepDig; B.applyOpts();
+    B.S.keyMine = false; B.S.keyPlace = false;
+    B.seedMobs();                       // 시험이 치운 동물은 시험이 되살린다
+    for (let dx = -4; dx <= 4; dx++) for (let dz = -4; dz <= 4; dz++)
+      for (let dy = -1; dy <= 5; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { walked, yawMoved0, turned, slid, before, mined, placed, dragPlaced, dragMined,
+             trace: trace,
+             dbg: { touchPlace: B.S.touchPlace, cool: +B.S.placeCooldown.toFixed(2),
+                    bar: B.S.bar[B.S.selected], sel: B.S.selected,
+                    pos: [+B.player.pos.x.toFixed(1), +B.player.pos.y.toFixed(1), +B.player.pos.z.toFixed(1)],
+                    yaw: +B.player.yaw.toFixed(2), aim: B.S.aimFace } };
+  });
+  assert(r.walked > 0.5, "끈 상태에서 방향키로 안 걸었다 (" + r.walked.toFixed(2) + ") — 예전 동작이 깨졌다");
+  assert(r.yawMoved0 < 0.001, "끈 상태인데 방향키가 시선을 돌렸다");
+  assert(r.turned > 0.5, "「방향키로 둘러보기」를 켰는데 안 돌아본다 (" + r.turned.toFixed(2) + ")");
+  assert(r.slid < 0.5, "시선으로 돌린다면서 걷기도 했다 (" + r.slid.toFixed(2) + ")");
+  assert(r.placed > 0, "놓기 키를 눌렀는데 한 칸도 안 놓였다 — " + JSON.stringify(r.trace));
+  assert(r.before > 0, "캘 것이 없다 — 시험대가 안 섰다");
+  assert(r.mined < r.before,
+     "캐기 키를 눌렀는데 판자가 " + r.before + " → " + r.mined + " 로 그대로다 — " + JSON.stringify(r.trace));
+  assert(r.dragPlaced > 0,
+     "드래그 모드에서 놓기 키가 안 듣는다 (판자 " + r.dragPlaced + "장)");
+  assert(r.dragMined < r.dragPlaced,
+     "드래그 모드에서 캐기 키가 안 듣는다 (" + r.dragPlaced + " → " + r.dragMined + ")");
+});
+
+test("v114 청사진: 글자 한 줄로 내보내고 받아 온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const X = 24, Y = 34, Z = 48;
+    for (let dx = -1; dx <= 4; dx++) for (let dz = -1; dz <= 4; dz++)
+      for (let dy = -1; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    B.S.history.length = 0; B.S.future.length = 0;
+
+    // 작은 조각 하나를 만들어 청사진으로 저장
+    B.applyEdit(X, Y, Z, B.B.BRICK, false, 0);
+    B.applyEdit(X + 1, Y, Z, B.B.GLASS, false, 0);
+    B.applyEdit(X, Y + 1, Z, B.B.PLANKS, false, 1);      // 반블록 — 모양도 실려야 한다
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 1, Y + 1, Z];
+    B.copySelection();
+    const saveErr = B.runCommand("bp save 오두막");
+
+    const ex = B.exportBlueprint("오두막");
+    const missing = B.exportBlueprint("없는것");
+
+    // 클립보드를 거치지 않고 문자열로 바로 받아 본다
+    B.S.clip = null;
+    const im = B.importBlueprint(ex.text);
+    const clip = B.S.clip ? { w: B.S.clip.w, h: B.S.clip.h, d: B.S.clip.d,
+                              b0: B.S.clip.blocks[0], sh: Array.prototype.slice.call(B.S.clip.shapes) } : null;
+    // 같은 이름이 이미 있으니 덮지 않고 번호가 붙어야 한다
+    const names = B.blueprintNames ? B.blueprintNames() : [];
+    const bad = B.importBlueprint("이건 청사진이 아니다");
+
+    B.deleteBlueprint("오두막");
+    if (im.name) B.deleteBlueprint(im.name);
+    for (let dx = -1; dx <= 4; dx++) for (let dz = -1; dz <= 4; dz++)
+      for (let dy = -1; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    B.S.selA = null; B.S.selB = null; B.S.clip = null;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { saveErr, text: ex.text, cells: ex.cells, missing: missing.err,
+             im, clip, names, bad: bad.err, BRICK: B.B.BRICK };
+  });
+  eq(r.saveErr, "청사진 저장: 오두막", "청사진 저장이 안 됐다 — " + r.saveErr);
+  assert(/^BYBP1\./.test(r.text || ""), "내보낸 문자열이 BYBP1 로 시작하지 않는다");
+  assert((r.text || "").length < 400, "2×2×1 청사진 문자열이 " + (r.text || "").length + "자다 — 너무 길다");
+  eq(r.cells, 4, "내보낸 칸 수가 " + r.cells + " 다 (2×2×1 = 4)");
+  assert(/없습니다/.test(r.missing), "없는 청사진을 내보냈다");
+  assert(!r.im.err, "가져오기가 실패했다 — " + r.im.err);
+  assert(r.clip !== null, "가져온 뒤 붙여넣을 것이 없다");
+  eq(r.clip.b0, r.BRICK, "가져온 청사진의 첫 칸이 벽돌이 아니다");
+  assert(r.clip.sh.indexOf(1) >= 0, "반블록 모양이 안 실렸다");
+  // 같은 이름을 덮지 않는다 — 받은 것이 내 것을 지우면 안 된다
+  assert(r.im.name !== "오두막", "받은 청사진이 같은 이름을 덮었다 (" + r.im.name + ")");
+  assert(/청사진 문자열이 아닙니다|읽지 못했습니다/.test(r.bad), "아무 글자나 청사진으로 받았다");
+});
+
+test("v114 고대비: 지도 안쪽까지 바뀐다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keep = B.opts.contrast;
+    const mm = document.getElementById("mm");
+    // **지도를 통째로 밝혀 둔다** — 안 그러면 색 있는 픽셀 587개 중 대부분이
+    // 굴 어귀·표식 **기호**라, 바닥색을 재려던 시험이 기호를 재게 된다
+    B.markSeen(B.WX / 2, B.WZ / 2, B.WX, 1);
+    B.mouthDots.length = 0;                 // 기호는 빼고 바닥만 본다
+    B.S.marks.length = 0;
+    B.S.spawnPoint = null;
+    function snap() {
+      B.drawMinimap();
+      const d = mm.getContext("2d").getImageData(0, 0, B.WX, B.WZ).data;
+      let sat = 0, n = 0;
+      for (let i = 0; i < d.length; i += 4) {
+        const mx = Math.max(d[i], d[i + 1], d[i + 2]), mn = Math.min(d[i], d[i + 1], d[i + 2]);
+        if (mx > 40) { sat += mx - mn; n++; }      // 배경·흐린 회색은 뺀다
+      }
+      return n ? sat / n : 0;
+    }
+    B.opts.contrast = 0; B.applyOpts();
+    const plain = snap();
+    B.opts.contrast = 1; B.applyOpts();
+    const hc = snap();
+    const cls = document.documentElement.classList.contains("hc");
+    B.opts.contrast = keep; B.applyOpts();
+    B.refreshMouthDots();                   // 시험이 지운 기호를 되살린다
+    B.endPlay(); B.setPaused(false);
+    return { plain, hc, cls };
+  });
+  eq(r.cls, true, "고대비를 켰는데 hc 클래스가 안 붙었다");
+  assert(r.plain > 4, "평소 지도 채도가 " + r.plain.toFixed(1) + " 뿐이다 — 시험대가 안 섰다");
+  // 고대비는 **지도 안쪽까지** 간다 — v113 까지는 opts.contrast 를 읽는 JS 가 한 줄도 없었다
+  assert(r.hc < r.plain * 0.75,
+     "고대비를 켜도 지도 바닥이 그대로다 (채도 " + r.plain.toFixed(1) + " → " + r.hc.toFixed(1) + ")");
+});
+
+test("v114 두 번째 세계: 표식 스물넷이 살아 돌아오고, 튜토리얼은 다시 안 돈다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keepSlot = B.S.slot;
+    // (1) 표식 24개를 찍고 저장했다가 다시 불러온다
+    B.S.marks.length = 0;
+    for (let i = 0; i < 24; i++) B.S.marks.push([10 + i, 34, 10, "표식" + (i + 1)]);
+    const saved = B.S.marks.length;
+    B.saveGame();
+    B.S.marks.length = 0;
+    B.loadGame();
+    const loaded = B.S.marks.length;
+    const last = loaded ? B.S.marks[loaded - 1][3] : "";
+
+    // (2) 다 배운 사람의 두 번째 세계 — 튜토리얼이 처음부터 다시 돌면 안 된다
+    B.S.tut = B.TUT_LEN;
+    B.advanceTut(B.TUT_LEN);            // 마지막 단계를 지나며 기기에 적힌다
+    try { localStorage.setItem(B.TUT_KEY, "1"); } catch (e) {}
+    const doneFlag = B.tutDone();
+    B.newWorld(4242);
+    const tutAfterNew = B.S.tut;
+    const hintText = document.getElementById("hint") ? document.getElementById("hint").textContent : "";
+
+    // 아직 안 배운 사람은 그대로 처음부터
+    try { localStorage.removeItem(B.TUT_KEY); } catch (e) {}
+    B.newWorld(4243);
+    const tutFresh = B.S.tut;
+    try { localStorage.setItem(B.TUT_KEY, "1"); } catch (e) {}
+
+    B.S.marks.length = 0;
+    B.S.slot = keepSlot;
+    B.endPlay(); B.setPaused(false);
+    return { saved, loaded, last, doneFlag, tutAfterNew, tutFresh, TUT_LEN: B.TUT_LEN, hintText };
+  });
+  eq(r.saved, 24, "표식 24개를 못 찍었다 — 시험대가 안 섰다 (" + r.saved + ")");
+  // v111 이 상한을 12 → 24 로 올렸는데 save.js 의 불러오기가 12 에 남아 있었다
+  eq(r.loaded, 24, "저장하고 다시 열었더니 표식이 " + r.loaded + "개만 남았다");
+  eq(r.last, "표식24", "마지막 표식이 '" + r.last + "' 다 — 뒤쪽이 잘렸다");
+  eq(r.doneFlag, true, "튜토리얼을 다 봤는데 기기에 안 적혔다");
+  eq(r.tutAfterNew, r.TUT_LEN,
+     "두 번째 세계에서 튜토리얼이 " + r.tutAfterNew + "단계로 되돌아갔다 — 다 배운 사람에게 또 가르친다");
+  assert(!/좌클릭으로 블록을 캐|캐기.{0,4}버튼으로 블록을 캐/.test(r.hintText),
+     "새 세계 힌트가 '" + r.hintText + "' 다 — 첫 줄로 되돌아갔다");
+  eq(r.tutFresh, 0, "아직 안 배운 사람의 새 세계가 " + r.tutFresh + "단계에서 시작한다 — 0 이라야 한다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

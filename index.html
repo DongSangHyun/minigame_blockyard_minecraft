@@ -50,6 +50,11 @@
   .hc #telemetry, .hc #minimap, .hc #hotbar, .hc #toast, .hc #perf, .hc #hint {
     background: rgba(9, 12, 14, .94);
   }
+  /* 카드도 불투명하게 (v114) — 고대비를 켜도 시작 화면·설정·도움말·목록 카드는
+     반투명이라 그 뒤로 세계가 비쳐 글자가 노이즈 위에 놓였다 */
+  .hc .card, .hc .help-card, .hc .pick-card, .hc #cmd, .hc #achpop, .hc #bigmap-card {
+    background: rgba(9, 12, 14, .97);
+  }
   .hc #reticle { opacity: 1; }
   .hc #reticle::before, .hc #reticle::after { box-shadow: 0 0 0 2px rgba(0, 0, 0, .95); }
 
@@ -786,17 +791,26 @@
     padding-right: 4px;
   }
   .pick {
-    position: relative; width: 56px; height: 56px;
+    position: relative; width: 64px; height: 64px;
     display: grid; place-items: center;
     background: var(--soil); border: 2px solid var(--line);
     cursor: pointer; padding: 0;
   }
-  .pick canvas { width: 44px; height: 44px; image-rendering: pixelated; }
+  .pick canvas { width: 46px; height: 46px; image-rendering: pixelated; margin-bottom: 8px; }
   .pick:hover, .pick:focus-visible { border-color: var(--moss); outline: none; }
+  /* 이름을 읽을 수 있게 (v114) — 6.5px 픽셀 폰트였다. 목록 96칸 가운데 **48칸이
+     색만 다른 블록**(양털·카펫·색 유리)이라 이름표가 유일한 단서인데, 픽셀 폰트에는
+     한글이 없어 폴백으로 떨어진 6.5px 글자가 그 48칸을 갈라야 했다. */
   .pick figcaption {
     position: absolute; bottom: -1px; left: 0; right: 0;
-    font-family: var(--pixel); font-size: 6.5px; text-align: center;
-    color: var(--stone); background: rgba(10,14,16,.72);
+    font-family: var(--sans); font-size: 9px; line-height: 1.35; text-align: center;
+    color: var(--bone); background: rgba(10,14,16,.82);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  /* 올려놓거나 탭으로 짚으면 **큰 이름**이 뜬다 — 잘린 이름을 끝까지 보여 준다 */
+  .pick:hover figcaption, .pick:focus-visible figcaption {
+    font-size: 11px; overflow: visible; white-space: normal;
+    background: rgba(10,14,16,.95); z-index: 2;
   }
 
   /* ---------- 터치 조작 ---------- */
@@ -879,7 +893,7 @@
     #hint { font-size: 9px; line-height: 1.3; max-width: 70vw;
             bottom: calc(56px * var(--ui, 1) + var(--safe-b)); }
     #pick-grid { grid-template-columns: repeat(5, 52px); }
-    .pick { width: 52px; height: 52px; }
+    .pick { width: 58px; height: 58px; }
   }
   /* 게임 안 체크박스도 같이 듣게 한다 (v113) — 예전에는 이 블록이 **OS 설정에만**
      걸려서, 설정의 「화면 흔들림 줄이기」를 켠 사람은 CSS 쪽 감속을 못 받았다.
@@ -1007,6 +1021,11 @@
         <dd><kbd>ESC</kbd> 메뉴의 슬롯 옆 <b>✎</b> 로 세계에 이름을 붙입니다</dd>
         <dt>화면</dt><dd><kbd>F1</kbd> HUD 숨기기 · <kbd>F2</kbd> 화면 저장 · <kbd>F3</kbd> 성능 · <kbd>F5</kbd> 3인칭 · <kbd>F6</kbd> 사진 모드</dd>
         <dt>도움말</dt><dd><kbd data-bind="help">H</kbd> 로 열고 닫습니다 · <kbd>ESC</kbd> 메뉴</dd>
+        <dt>마우스 없이</dt>
+        <dd>설정 › <b>방향키로 둘러보기</b> 를 켜면 <kbd>↑↓←→</kbd> 가 <b>시선</b>이 됩니다
+            (걷기는 <kbd>WASD</kbd>)</dd>
+        <dd>설정 › <b>조작키</b> 에서 <b>캐기</b>와 <b>놓기</b>를 아무 키에나 걸 수 있습니다 —
+            마우스 없이도 짓습니다</dd>
         <dt>영역 도구</dt>
         <dd><kbd>Alt</kbd>+좌클릭 시작 모서리 · <kbd>Alt</kbd>+우클릭 끝 모서리</dd>
         <dd><kbd>Ctrl</kbd>+<kbd>F</kbd> 채우기 · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> 비우기 · <kbd>Ctrl</kbd>+<kbd>C</kbd> 복사 · <kbd>Ctrl</kbd>+<kbd>V</kbd> 붙여넣기 · <kbd>Ctrl</kbd>+<kbd>R</kbd> 90° 회전 · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> 거울</dd>
@@ -1021,6 +1040,8 @@
         <dd><kbd>/</kbd><b>clone 0 0 -4 12</b> — 같은 조각을 4칸 간격으로 12번 (기둥·난간)</dd>
         <dd><kbd>Alt</kbd>+클릭 영역 모서리는 <b>보이는 데까지</b> 찍힙니다</dd>
         <dd>복사한 것은 <kbd>/</kbd><b>bp save 이름</b> 으로 남깁니다 — <kbd>ESC</kbd> 메뉴의 <b>청사진</b> 에서 다시 꺼냅니다</dd>
+        <dd><b>남에게 보내려면</b> <kbd>/</kbd><b>bp export 이름</b> — 글자 한 줄로 복사됩니다.
+            받은 사람은 <kbd>/</kbd><b>bp import 붙여넣기</b> 로 엽니다 (세계 통째가 아니라 <b>집 한 채</b>만 갑니다)</dd>
         <dd><kbd>Ctrl</kbd>+<kbd>D</kbd> 선택 해제 — 대량 편집도 한 번에 되돌립니다</dd>
         <!-- 한 손으로 치는 사람을 위한 대안 (v113) — Ctrl+Shift+V 와 Ctrl+Shift+R 은
              수식키 둘을 붙든 채 글자키까지 눌러야 해서, 한 손으로는 불가능하다 -->
@@ -1199,6 +1220,10 @@
         <label class="opt check"><span>Y축 반전</span><input type="checkbox" id="s-inv"><output id="o-inv"></output></label>
         <label class="opt check"><span>왼손잡이 배치</span><input type="checkbox" id="s-lefty"><output id="o-lefty"></output></label>
         <label class="opt check"><span>웅크리기 전환식</span><input type="checkbox" id="s-sneaktog"><output id="o-sneaktog"></output></label>
+        <!-- 마우스 없이도 놀 수 있게 (v114) — 방향키는 그동안 WASD 의 완전한 중복이라
+             놀고 있었다. 켜면 시선으로 간다. 캐기·놓기는 아래 「조작키」에서 배정한다 -->
+        <label class="opt check"><span>방향키로 둘러보기 (마우스 없이)</span><input type="checkbox" id="s-arrowlook"><output id="o-arrowlook"></output></label>
+        <label class="opt check"><span>블록 목록을 최근순으로</span><input type="checkbox" id="s-pickrecent"><output id="o-pickrecent"></output></label>
         <label class="opt"><span>캐기 속도 (크리에이티브 기본은 빠름)</span><input type="range" id="s-dig" min="0" max="2" step="1"><output id="o-dig"></output></label>
         <label class="opt check"><span>불 번짐 (붙인 자리에서 9칸까지)</span><input type="checkbox" id="s-fire"><output id="o-fire"></output></label>
         <label class="opt"><span>터치 버튼 크기</span><input type="range" id="s-tbtn" min="80" max="160" step="10"><output id="o-tbtn"></output></label>
@@ -1294,6 +1319,8 @@
           <button type="button" data-act="shape">모양</button>
           <button type="button" data-act="pick">복사</button>
           <button type="button" data-act="help">도움말</button>
+          <button type="button" data-act="mine">캐기</button>
+          <button type="button" data-act="place">놓기</button>
         </div>
       </div>
       <div class="slotrow">

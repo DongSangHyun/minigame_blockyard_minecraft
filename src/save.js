@@ -1,6 +1,6 @@
 // save.js — 저장 · 불러오기
 import { S } from "./state.js";
-import { LEGACY_WY, GEN, setGen, WX, WZ, idx } from "./dims.js";
+import { LEGACY_WY, GEN, setGen, MARK_MAX, WX, WZ, idx } from "./dims.js";
 import { DEFAULT_BAR, SH_FULL } from "./blocks.js";
 import { seenMap, expandLegacySeen, touched, refreshAllTops, snapshotSeaCol, set, shape, world, waterLvl } from "./world.js";
 
@@ -272,7 +272,10 @@ export function loadGame() {
     S.playSeconds = d.secs || 0;
     S.tut = typeof d.tut === "number" ? d.tut : 0;
     S.spawnPoint = Array.isArray(d.sp) && d.sp.length === 3 ? d.sp.slice() : null;
-    S.marks = Array.isArray(d.marks) ? d.marks.slice(0, 12) : [];
+    // 상한을 **한 곳에서** 본다 (v114) — v111 이 24 로 올렸는데 여기가 12 에 남아
+    // 저장에는 스물넷이 실린 채 불러올 때 절반이 잘려 나갔다.
+    // 표식은 "3일 만에 다시 켠 사람" 을 위한 기능인데 다시 켤 때 반이 사라졌다
+    S.marks = Array.isArray(d.marks) ? d.marks.slice(0, MARK_MAX) : [];
     if (Array.isArray(d.bar2) && d.bar2.length === DEFAULT_BAR.length) S.barAlt = d.bar2.slice();
     S.flySpeed = typeof d.fly === "number" ? Math.max(0.5, Math.min(4, d.fly)) : 1;
     S.terrain = (d.tt | 0) || 0;

@@ -6,6 +6,7 @@ import { AIR, ALL_BLOCKS, isStained, BUCKET, BUCKET_TILE, FENCE, LOG, PLANKS, BO
 import { AVG_TOP, TILE, atlas, tileOrigin } from "./atlas.js";
 import { SEEN_TOP, SEEN_UNDER_ALL, UNDER_BANDS, underBand, isTouched, heightMap, markX, markY, markZ, markName, seenMap, markSeen, topMap, world } from "./world.js";
 import { player } from "./player.js";
+import { opts } from "./settings.js";
 import { updateHandBlock } from "./hand.js";
 import { advanceTut, canvas, isTouch } from "./input.js";
 
@@ -167,8 +168,11 @@ export function openPicker() {
   S.uiOpen = true;
   pickerEl.hidden = false;
   if (document.pointerLockElement === canvas) document.exitPointerLock();
-  var first = pickGrid.querySelector(".pick");
-  if (first && first.focus) first.focus();
+  // **검색칸에 커서를 준다** (v114) — 예전에는 첫 블록 칸을 짚었고, 목록이 열린 동안
+  // 키 처리는 Digit 과 Tab 만 살아 있어서 **글자를 쳐도 아무 일이 안 일어났다.**
+  // 검색칸에 가려면 Shift+Tab 을 여섯 번 눌러야 했다. 마크의 검색 탭도 열자마자 커서가 간다
+  if (pickFind && pickFind.focus) { pickFind.focus(); pickFind.select(); }
+  else { var first = pickGrid.querySelector(".pick"); if (first && first.focus) first.focus(); }
 }
 export function closePicker(resume) {
   if (!S.uiOpen) return;
@@ -488,9 +492,19 @@ export function drawMinimapTo(ctx, scale, full) {
         continue;
       }
       var c = AVG_TOP[b] || [120, 120, 120];
-      d[o] = Math.min(255, c[0] * shade * dim);
-      d[o + 1] = Math.min(255, c[1] * shade * dim);
-      d[o + 2] = Math.min(255, c[2] * shade * dim);
+      var cr = c[0] * shade * dim, cg = c[1] * shade * dim, cb = c[2] * shade * dim;
+      // 고대비 — **지도 안쪽까지 간다** (v114). 예전에는 `opts.contrast` 를 읽는 JS 가
+      // 한 줄도 없어서, 「색 구분이 어려울 때」라고 적힌 설정이 **색이 뜻을 나르는
+      // 유일한 화면**을 한 픽셀도 안 건드렸다. 바닥은 채도를 죽여 회색에 가깝게 깔고
+      // (기호가 뜨게), 밝고 어두움은 더 벌린다
+      if (opts.contrast) {
+        var lum = cr * 0.299 + cg * 0.587 + cb * 0.114;
+        var flat = lum < 128 ? lum * 0.72 : 60 + lum * 0.62;
+        cr = cr * 0.35 + flat * 0.65; cg = cg * 0.35 + flat * 0.65; cb = cb * 0.35 + flat * 0.65;
+      }
+      d[o] = Math.min(255, cr);
+      d[o + 1] = Math.min(255, cg);
+      d[o + 2] = Math.min(255, cb);
     }
   }
   if (scale === 1) ctx.putImageData(mmImage, 0, 0);
@@ -527,7 +541,8 @@ export function drawMinimapTo(ctx, scale, full) {
     // **속 빈 동그라미** (v113) — 지도의 기호 셋이 전부 같은 원이었고,
     // 굴 어귀(주황)와 표식(금색)은 색약 변환에서 색차 ΔE 10.2 까지 붙는다.
     // 색을 못 가르는 사람에게는 같은 점 두 개였다. 마크의 지도 표식은 **모양**이 다르다
-    var mr = (md[2] >= 24 ? 3.0 : (md[2] >= 8 ? 2.4 : 1.9)) * Math.sqrt(scale);
+    var hcBoost = opts.contrast ? 1.35 : 1;      // 고대비에서는 기호도 한 겹 크게 (v114)
+    var mr = (md[2] >= 24 ? 3.0 : (md[2] >= 8 ? 2.4 : 1.9)) * Math.sqrt(scale) * hcBoost;
     ctx.beginPath();
     ctx.arc(mdx, mdz, mr, 0, Math.PI * 2);
     ctx.lineWidth = 2.4 * Math.sqrt(scale);
@@ -546,7 +561,7 @@ export function drawMinimapTo(ctx, scale, full) {
     mxp = Math.max(2, Math.min(MW - 2, mxp));
     mzp = Math.max(2, Math.min(MH - 2, mzp));
     // **마름모** (v113) — 굴 어귀(빈 동그라미)와 모양으로 갈린다
-    var mkr = (edge ? 2.0 : 3.0) * Math.sqrt(scale);
+    var mkr = (edge ? 2.0 : 3.0) * Math.sqrt(scale) * (opts.contrast ? 1.35 : 1);
     ctx.beginPath();
     ctx.moveTo(mxp, mzp - mkr);
     ctx.lineTo(mxp + mkr, mzp);
@@ -586,7 +601,7 @@ export function drawMinimapTo(ctx, scale, full) {
     if (hx > -2 && hz > -2 && hx < MW + 2 && hz < MH + 2) {
       // **집 모양** (v113) — 세 기호가 색이 아니라 모양으로 갈린다
       var sxp = Math.max(2, Math.min(MW - 2, hx)), szp = Math.max(2, Math.min(MH - 2, hz));
-      var hr = 3.0 * Math.sqrt(scale);
+      var hr = 3.0 * Math.sqrt(scale) * (opts.contrast ? 1.35 : 1);
       ctx.beginPath();
       ctx.moveTo(sxp, szp - hr);                       // 지붕 꼭대기
       ctx.lineTo(sxp + hr, szp - hr * 0.1);
@@ -691,7 +706,11 @@ export function noteBlockUse(b) {
   S.recent.unshift(b);
   if (S.recent.length > 12) S.recent.length = 12;
 }
+// 최근 쓴 것을 앞으로 — **설정으로 끌 수 있다** (v114).
+// 열 때마다 격자가 재배열되면 "파란 양털은 셋째 줄 끝" 처럼 **자리로 외울 수가 없다.**
+// 색만 다른 48칸에서는 자리 기억이 이름표만큼 큰 단서다 (마크의 격자는 절대 안 바뀐다)
 export function sortPickByRecent() {
+  if (!opts.pickrecent) return;
   var order = pickBtns.slice().sort(function (a, b) {
     var ai = S.recent.indexOf(a.block), bi = S.recent.indexOf(b.block);
     if (ai < 0) ai = 999;

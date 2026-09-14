@@ -17,11 +17,11 @@ import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, move
 import { SOFT, WOOD, CLOTH, GLASSY, startAmbient, updateAmbient, ac, at, tone, crunch, breakSound, caveSound, lavaHiss, lavaPop, listenAt, miningSound, moodChord, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
 import { lastSlot, lockHeldByOther, touchLock, releaseLock, prevKey, pushPrev, renameSlot, curKey, OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName, baseRev, setBaseRev, ensureGist, req } from "./cloud.js";
-import { checkFoundAchievements, FOUND_IDS, undoEmptyWhy, HISTORY_CELLS_MAX, editLabel, blueprintList, deleteBlueprint, settleWorld, mirrorClip, rotateClip, BATCH_RELIGHT_ALL, checkBuildAchievements, ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, shellSelection, roundSelection, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
+import { checkFoundAchievements, FOUND_IDS, undoEmptyWhy, HISTORY_CELLS_MAX, editLabel, blueprintList, deleteBlueprint, settleWorld, mirrorClip, rotateClip, BATCH_RELIGHT_ALL, checkBuildAchievements, ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, shellSelection, roundSelection, exportBlueprint, importBlueprint, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
 import { refreshMouthDots, mouthDots, naturalRoof, roofDepth, ROOF_R, UNDER_ROOF, refreshMinimapCap, openPicker, closePicker, pickBtns, airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawMinimapTo, drawBigMap, toggleBigMap, bigMapOpen, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp , setHelpTab, toast} from "./hud.js";
 import { updateGhost, ghostMesh, ghostMat, updateHandLight, handMat, makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
 import { bodyRoot, updateBody, armL, armR, legL, legR, neck, upper } from "./body.js";
-import { toggleRegionBar, refreshResume, advanceTut, setStick, advanceTutTouch, HINT_TOUCH, refreshBlueprints, afterWorldSwap, aimCell, setPhotoMode, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink , swapBarPage, setShapeMode, cycleMinimapZoom, toggleMark, markHere, renameMarkHere} from "./input.js";
+import { toggleRegionBar, refreshResume, advanceTut, tutDone, TUT_LEN, TUT_KEY, setStick, advanceTutTouch, HINT_TOUCH, refreshBlueprints, afterWorldSwap, aimCell, setPhotoMode, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink , swapBarPage, setShapeMode, cycleMinimapZoom, toggleMark, markHere, renameMarkHere} from "./input.js";
 import { canPlaceAt, mineAt, place, tryInteract, upperFromHit } from "./mine.js";
 import { weatherPoints, applyWeather, HIDE_Y, starMat, sunMat, stars, sunSprite, cPos, placeCreature, MOON_PHASES, boltAt, boltMesh, strikeBolt, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
 import { newWorld, PLACE_DELAY, PLACE_REPEAT, SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, farNow, refreshPerf, step , chunkFloor, refreshChunkFloor} from "./loop.js";
@@ -176,7 +176,8 @@ window.__blockyard = {
   applyFov: applyFov, applyTbtn: applyTbtn, applyUi: applyUi, UI_MIN_H: UI_MIN_H, fovForAspect: fovForAspect, FOV_BASE_ASPECT: FOV_BASE_ASPECT,
 
   // ── 개선 v5 에서 추가된 것들
-  isUnbreakable: isUnbreakable, isStained: isStained, columnTop: columnTop, facingText: facingText,
+  isUnbreakable: isUnbreakable, isStained: isStained,
+  tutDone: tutDone, TUT_LEN: TUT_LEN, TUT_KEY: TUT_KEY, advanceTut: advanceTut, columnTop: columnTop, facingText: facingText,
   isCross: isCross, isLiquid: isLiquid, isTransparent: isTransparent,
   atlas: atlas, painted: painted, crossBase: crossBase, surfaceTop: surfaceTop, needsFloor: needsFloor,
   cloud: { checkToken: checkToken, isLinked: isLinked, listWorlds: listWorlds,
@@ -217,7 +218,8 @@ window.__blockyard = {
   pushOutOfMobs: pushOutOfMobs, exportWorld: exportWorld, importWorldText: importWorldText,
   hasBackup: hasBackup, restoreBackup: restoreBackup, pushBackup: pushBackup, backupKey: backupKey,
   cloudGroupHigh: cloudGroupHigh, FREE_DIST: FREE_DIST,
-  fillSelection: fillSelection, clearSelection: clearSelection, shellSelection: shellSelection, roundSelection: roundSelection, rotateClip: rotateClip, mirrorClip: mirrorClip,
+  fillSelection: fillSelection, clearSelection: clearSelection, shellSelection: shellSelection, roundSelection: roundSelection,
+  exportBlueprint: exportBlueprint, importBlueprint: importBlueprint, rotateClip: rotateClip, mirrorClip: mirrorClip,
   SH_SLAB: SH_SLAB, SH_SLAB_UP: SH_SLAB_UP, SH_STAIR_E: SH_STAIR_E, SH_STAIR_N: SH_STAIR_N, SH_STAIR_W: SH_STAIR_W, SH_STAIR_S: SH_STAIR_S,
   SH_STAIR_NU: SH_STAIR_NU, SH_STAIR_EU: SH_STAIR_EU, SH_STAIR_SU: SH_STAIR_SU, SH_STAIR_WU: SH_STAIR_WU,
   isStairShape: isStairShape, copySelection: copySelection, pasteClip: pasteClip,
