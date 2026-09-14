@@ -1,9 +1,9 @@
 // mine.js — 캐기 · 놓기
 import { S } from "./state.js";
-import { MOB_MAX, aimingAtMob, feedNearbyMob, mobOccupies } from "./mobs.js";
+import { MOB_MAX, aimedMob, aimingAtMob, feedNearbyMob, isTrader, mobOccupies } from "./mobs.js";
 import { primeTNT, ignite } from "./fluids.js";
 import { WY, idx, inside } from "./dims.js";
-import { BUCKET, FRAME, FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
+import { BOOKSHELF, CARPET0, LAMP, PLANKS, POT, SAPLING, STAINED0, WOOL0, NAMES, BUCKET, FRAME, FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
 import { get, shape } from "./world.js";
 import { lightSky } from "./light.js";
 import { burst } from "./scene.js";
@@ -68,8 +68,43 @@ export function canPlaceAt(px, py, pz) {
 }
 
 // 우클릭이 "쓰기" 인가 "놓기" 인가 — 마크와 같이 웅크리면 언제나 놓기다
+// 상인이 파는 것 (v115) — 크리에이티브라 "산다" 는 말은 안 쓴다. **선물**이다.
+// 아이가 우클릭 한 번으로 새 재료를 손에 넣고, 그 재료가 뭘 짓게 만든다.
+export var TRADER_GIFTS = [
+  STAINED0 + 11, STAINED0 + 4, STAINED0 + 6, STAINED0 + 8,   // 색 유리 넉 장
+  LAMP, BOOKSHELF, POT, CARPET0 + 12, WOOL0 + 14, SAPLING, PLANKS
+];
+export var TRADER_LINES = [
+  "어서 오세요! 이건 선물이에요",
+  "오늘은 이게 잘 나가요",
+  "집 짓는 데 쓰세요",
+  "저기 광산도 가 보셨어요?",
+  "묘목을 심으면 나무가 자란답니다"
+];
+// 상인과 이야기한다 — 선물은 **0번 칸**에 넣는다.
+// 지금 든 것을 덮으면 짓던 것이 끊긴다 (아이가 손에 든 블록이 갑자기 바뀌면 놀란다)
+export function tradeWith() {
+  var n = (S.tradeCount || 0);
+  S.tradeCount = n + 1;
+  var gift = TRADER_GIFTS[n % TRADER_GIFTS.length];
+  var line = TRADER_LINES[n % TRADER_LINES.length];
+  S.bar[9] = gift;
+  refreshSlot(9);
+  noteBlockUse(gift);
+  toast("상인: \u201c" + line + "\u201d — 0번 칸에 " + NAMES[gift]);
+  tone(720, 0.08, "triangle", 0.05);
+  tone(960, 0.09, "triangle", 0.045);
+  triggerSwing();
+  unlock("trade");
+  return true;
+}
+
 export function tryInteract(hit) {
   if (!hit || S.sneaking) return false;
+  // 상인이 먼저다 (v115) — 가판 앞에서 블록을 놓으려다 상인을 가리면
+  // 말을 걸 수가 없다. 마크의 주민도 우클릭이 거래다
+  var am0 = aimedMob();
+  if (am0 && isTrader(am0.mob)) return tradeWith();
   // 꽃을 들고 동물에게 우클릭하면 잠시 따라온다
   // 조준선이 실제로 동물을 향할 때만 — 그러지 않으면 양 옆에서 꽃을 아예 못 심는다
   if ((S.bar[S.selected] === FLOWER_R || S.bar[S.selected] === FLOWER_Y ||

@@ -39,6 +39,28 @@ export function spawn() {
     player.flying = false;
     return;
   }
+  // 시작 마을이 있으면 **우물 앞**에서 시작한다 (v115) — 돌아서면 집,
+  // 두 걸음이면 상인, 길 끝에 광산 입구다. 첫 화면이 곧 할 일 목록이 된다
+  if (S.village && S.village.spawn) {
+    var vs = S.village.spawn;
+    // **마을이 정해 준 높이를 믿는다** — topMap 을 보면 곁의 나뭇잎이 기둥의 top 이라
+    // 나무 꼭대기(y=43)에 서는 일이 생긴다. 광장은 이미 평탄화돼 있다.
+    // 그래도 막혀 있으면 세 칸까지만 올려 본다
+    var vx = Math.floor(vs[0]), vz = Math.floor(vs[2]);
+    var vy = vs[1];
+    for (var lift = 0; lift < 3; lift++) {
+      if (!isSolid(get(vx, vy, vz)) && !isSolid(get(vx, vy + 1, vz))) break;
+      vy++;
+    }
+    player.pos.set(vs[0], vy, vs[2]);
+    player.vel.set(0, 0, 0);
+    player.flying = false;
+    // yaw 0 이 −z 다 (fwd = −sin, 0, −cos) — 우물·집·광산 입구가 그쪽에 있다.
+    // π 로 두면 등지고 서서 첫 화면이 시장 차양뿐이었다
+    player.yaw = 0;
+    player.pitch = -0.06;                 // 살짝 내려다본다 — 발밑 길이 보인다
+    return;
+  }
   // 24시드 중 7개가 나무 꼭대기·오두막 지붕·바다 위에서 시작했다 (자문 3차).
   // 마크처럼 "스폰 가능 블록"(잔디·흙·모래·눈) 위, 물 밖인 기둥을 가운데에서 나선으로 찾는다.
   var cx0 = Math.floor(WX / 2), cz0 = Math.floor(WZ / 2);

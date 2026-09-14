@@ -20,8 +20,14 @@ export var BIRD_COUNT = 10;
 export var MOB_KINDS = [
   { name: "양",   body: 0xe6e4dc, head: 0xd9c6ae, w: 0.62, h: 0.56, cry: 520 },
   { name: "돼지", body: 0xd98a92, head: 0xe0a0a6, w: 0.58, h: 0.50, cry: 300 },
-  { name: "소",   body: 0x40352b, head: 0xe8e4dc, w: 0.70, h: 0.62, cry: 190 }
+  { name: "소",   body: 0x40352b, head: 0xe8e4dc, w: 0.70, h: 0.62, cry: 190 },
+  // 상인 (v115) — 마을 가판을 지킨다. **동물이 아니다**:
+  // 돌아다니지 않고(가판 둘레 두 칸), 번식하지 않고, 좌클릭으로 사라지지 않는다.
+  // 마크의 주민처럼 우클릭하면 말을 걸고 블록을 준다
+  { name: "상인", body: 0x6b4f8f, head: 0xd8b48c, w: 0.46, h: 1.42, cry: 640,
+    trader: true, tall: true }
 ];
+export function isTrader(m) { return !!(m && MOB_KINDS[m.kind] && MOB_KINDS[m.kind].trader); }
 
 export var mobs = [];
 export var mobGroup = new THREE.Group();
@@ -51,10 +57,12 @@ function makeMob(kind) {
     litMat(k.body));
   body.position.y = k.h * 0.5 + 0.28;
   g.add(body);
-  var head = new THREE.Mesh(
-    new THREE.BoxGeometry(k.w * 0.62, k.h * 0.62, k.w * 0.62),
-    litMat(k.head));
-  head.position.set(0, k.h * 0.72 + 0.28, -k.w * 0.86);
+  // 사람은 머리가 **몸 위**에 있다 (v115) — 네발짐승 공식(앞으로 튀어나온 주둥이)을
+  // 그대로 쓰면 상인의 얼굴이 가슴에 박힌다
+  var hs = k.tall ? k.w * 0.78 : k.w * 0.62;
+  var head = new THREE.Mesh(new THREE.BoxGeometry(hs, hs, hs), litMat(k.head));
+  if (k.tall) head.position.set(0, k.h + 0.28 + hs * 0.5, 0);
+  else head.position.set(0, k.h * 0.72 + 0.28, -k.w * 0.86);
   g.add(head);
   // 발밑 그림자 — 땅에 붙어 있다는 느낌을 만든다
   var shadow = new THREE.Mesh(
@@ -122,8 +130,15 @@ export function loadMobs(arr) {
 
 // 한 무리 마릿수 — 마크의 패시브 몹도 같은 종 서너 마리가 한 덩어리로 나온다
 export var HERD = 4;
+// 무작위로 뿌릴 종류 수 — **상인은 뺀다** (v115). 상인은 마을 가판에만 선다:
+// 들판에 상인이 걸어 다니면 "마을에 가면 있는 사람" 이라는 뜻이 사라진다
+export function wildKinds() {
+  var n = 0;
+  for (var i = 0; i < MOB_KINDS.length; i++) if (!MOB_KINDS[i].trader) n++;
+  return n;
+}
 export function seedMobs() {
-  while (mobs.length < MOB_COUNT) mobs.push(makeMob((Math.random() * MOB_KINDS.length) | 0));
+  while (mobs.length < MOB_COUNT) mobs.push(makeMob((Math.random() * wildKinds()) | 0));
   // 낱개로 흩뿌리면 같은 종 최근접 거리의 중앙값이 8~18칸이라(자문 12차 #8),
   // 번식 조건(같은 종 · 3칸 안)에 영영 못 닿는다 — 우리를 지어도 채울 방법이 없었다.
   // 같은 종끼리 서너 마리를 한 덩어리로 놓는다. **총 마릿수는 그대로다.**
@@ -142,6 +157,54 @@ export function seedMobs() {
       }
     }
   }
+}
+
+// 마을을 채운다 (v115) — 우리 안에 동물 넷, 가판 뒤에 상인 하나.
+// `seedMobs` 뒤에 부른다: 무작위로 뿌린 뒤 **마을 몫만 자리를 옮긴다**
+export function seedVillage(v) {
+  if (!v) return null;
+  // 우리 안 — 같은 종 둘 + 다른 종 둘. 같은 종 둘이라야 번식을 배울 수 있다
+  var want = [0, 0, 2, 1];                 // 양 둘(번식을 배울 짝) · 소 · 돼지
+  var box = v.penBox;
+  // **우리 한가운데**에 모은다 — 울타리 줄에 붙여 놓으면 첫 걸음에 밖으로 밀려난다
+  var mx = (box[0] + box[2]) / 2, mz = (box[1] + box[3]) / 2;
+  var slot = [[-0.9, -0.9], [0.9, -0.9], [-0.9, 0.9], [0.9, 0.9]];
+  var put = 0;
+  for (var i = 0; i < mobs.length && put < want.length; i++) {
+    var m = mobs[i];
+    if (isTrader(m)) continue;
+    if (m.kind !== want[put]) m = swapKind(m, want[put]);
+    m.x = mx + slot[put][0];
+    m.z = mz + slot[put][1];
+    m.y = groundAt(m.x, m.z);
+    m.pennedAt = 12;                       // 가둔 동물로 친다 — 좌초 재배치가 멀리 안 보낸다
+    m.g.position.set(m.x, m.y, m.z);
+    put++;
+  }
+  // 상인 — 가판 뒤. 이미 있으면 다시 세우지 않는다
+  var t = null;
+  for (var j = 0; j < mobs.length; j++) if (isTrader(mobs[j])) { t = mobs[j]; break; }
+  if (!t) { t = makeMob(MOB_KINDS.length - 1); mobs.push(t); }
+  t.x = v.stall[0]; t.z = v.stall[2];
+  // **가판이 정해 준 높이**를 쓴다 — `groundAt` 은 topMap 을 보는데 가판에는 차양이 있어서
+  // 지붕 위(h+4)를 땅으로 읽었다. 상인이 차양 위에 서 있었다
+  t.y = v.stall[1];
+  t.home = [t.x, t.y, t.z];
+  t.yaw = Math.PI;                       // 길 쪽(−z)을 본다
+  t.g.position.set(t.x, t.y, t.z);
+  return t;
+}
+// 종류를 갈아 끼운다 — 메시를 다시 만든다 (몸 색·크기가 종마다 다르다)
+function swapKind(m, kind) {
+  var i = mobs.indexOf(m);
+  if (i < 0) return m;
+  var nx = m.x, ny = m.y, nz = m.z;
+  disposeMob(m);
+  var n = makeMob(kind);
+  n.x = nx; n.y = ny; n.z = nz;
+  n.g.position.set(nx, ny, nz);
+  mobs[i] = n;
+  return n;
 }
 
 function placeMob(m, far) {
@@ -257,6 +320,19 @@ export function updateMobs(dt) {
   var px = player.pos.x, pz = player.pos.z;
   for (var i = 0; i < mobs.length; i++) {
     var m = mobs[i], k = MOB_KINDS[m.kind];
+
+    // 상인은 가판을 지킨다 (v115) — 돌아다니지 않고, 사람이 오면 그쪽을 본다.
+    // 동물과 같은 배회를 시키면 마을을 떠나 버려서 "가면 있는 사람" 이 아니게 된다
+    if (k.trader) {
+      if (m.home) { m.x = m.home[0]; m.y = m.home[1]; m.z = m.home[2]; }
+      var tdx = px - m.x, tdz = pz - m.z;
+      var td2 = tdx * tdx + tdz * tdz;
+      if (td2 < 100) m.yaw = Math.atan2(-tdx, -tdz);      // 열 칸 안이면 마주 본다
+      m.bob = (m.bob || 0) + dt * 1.6;
+      m.g.position.set(m.x, m.y + Math.sin(m.bob) * 0.02, m.z);
+      m.g.rotation.y = m.yaw;
+      continue;
+    }
 
     // 물속·해저·얼음 위에 서 있으면 마른 땅으로 다시 놓는다 (0.5초마다 한 번만 본다)
     m.dryCheck = (m.dryCheck || 0) - dt;
@@ -470,6 +546,9 @@ export function aimingAtMob() { return !!aimedMob(); }
 export function removeMob(m) {
   var i = mobs.indexOf(m);
   if (i < 0) return false;
+  // **상인은 안 사라진다** (v115) — 아이가 실수로 마을 사람을 지우면 되돌릴 길이 없다
+  // (동물 없애기는 되돌리기 밖이다 · v95). 마크의 주민도 크리에이티브 좌클릭에 안 죽는다
+  if (isTrader(m)) return false;
   burst(m.x, m.y + 0.4, m.z, WOOL0, 14);
   var voice = at(m.x, m.y + 0.4, m.z);
   crunch(0.16, 0.10, 900, voice);
@@ -487,6 +566,7 @@ export function feedNearbyMob(pos) {
   var best = -1, bestD = 25, refeed = null, refeedD = 1e9;
   for (var i = 0; i < mobs.length; i++) {
     var m = mobs[i];
+    if (isTrader(m)) continue;                         // 상인에게는 꽃을 줘도 안 따라온다 (v115)
     var dx = m.x - pos.x, dy = m.y - pos.y, dz = m.z - pos.z;
     if (Math.abs(dy) > 3) continue;                    // 위아래 층은 세지 않는다
     var d = dx * dx + dz * dz;

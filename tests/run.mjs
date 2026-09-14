@@ -6289,6 +6289,13 @@ test("v62 묘목: 심어 두면 나무가 되고, 되돌리기 한 번에 사라
     const B = window.__blockyard;
     B.setPaused(true); B.beginPlay();
     const X = 84, Y = 46, Z = 20;
+    // **세계에 남은 다른 묘목을 먼저 치운다** (v115) — 시작 마을이 심어 둔 묘목이
+    // 같은 틱에 자라면 되돌리기 묶음이 하나 더 생겨, "나무 한 그루가 Ctrl+Z 두 번"
+    // 으로 읽힌다. 재려는 것은 **내가 심은** 묘목 하나다
+    for (let i = 0; i < B.world.length; i++) {
+      const b = B.world[i];
+      if (b === B.B.SAPLING || b === B.B.SAPLING_BIRCH || b === B.B.SAPLING_SPRUCE) B.world[i] = 0;
+    }
     for (let dx = -5; dx <= 5; dx++) for (let dz = -5; dz <= 5; dz++)
       for (let dy = -1; dy <= 16; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
     for (let dx = -5; dx <= 5; dx++) for (let dz = -5; dz <= 5; dz++)
@@ -8117,6 +8124,7 @@ test("v75 바다: 장식을 얹어도 뭍은 한 비트도 안 달라진다", as
     // 안 그러면 새로 생긴 바위섬만큼 더 훑어 "달라졌다" 가 나온다.
     function snap(seed, decor, bound) {
       B.S.noSeaDecor = !decor;
+      B.S.noVillage = true;      // 마을이 바다 장식·오두막을 덮어 비교가 안 된다 (v115)
       B.generate(seed);
       const hm = new Int16Array(B.WX * B.WZ);
       hm.set(B.heightMap);
@@ -8150,7 +8158,7 @@ test("v75 바다: 장식을 얹어도 뭍은 한 비트도 안 달라진다", as
       out.push({ seed, landSame, landCols, raised, gravel,
                  deepSame: plain.hash === decorated.hash });
     }
-    B.S.noSeaDecor = false;
+    B.S.noSeaDecor = false; B.S.noVillage = false;
     B.setPaused(false);
     return out;
   });
@@ -8174,6 +8182,7 @@ test("v76 오두막: 채마다 다르고, 난수 줄기가 안 밀린다", async
     B.S.terrain = 0;
     function surface(seed, huts) {
       B.S.noHuts = !huts;
+      B.S.noVillage = true;      // 마을 광장이 오두막을 덮으면 '오두막이 안 지어졌다' 로 읽힌다
       B.generate(seed);
       // 지표 한 겹만 찍어 둔다 — 난수 줄기가 밀리면 **온 세계의 풀꽃**이 달라진다
       const top = new Uint8Array(B.WX * B.WZ);
@@ -8210,7 +8219,7 @@ test("v76 오두막: 채마다 다르고, 난수 줄기가 안 밀린다", async
         }
       out.push({ seed, diff, seen, cols: plain.top.length });
     }
-    B.S.noHuts = false; B.S.terrain = keepTerrain;
+    B.S.noHuts = false; B.S.noVillage = false; B.S.terrain = keepTerrain;
     B.setPaused(false);
     return out;
   });
@@ -9192,7 +9201,10 @@ test("v81 갱도: 지하에 사람이 지나간 흔적이 있고, 물·용암을
     B.S.terrain = 0;
     function survey(seed, gen) {
       // 조명을 새로 켠다 — 안 그러면 아래 lightSky 단언이 **앞 세계의 낡은 값**을 읽는다
-      B.generate(seed, gen); B.refreshAllTops(); B.relightAll(false);
+      // 마을은 끈다 (v115) — 마을 광산 입구도 조약돌 바닥에 원목 버팀목을 세우므로,
+    // "판 1 에는 갱도가 없다" 를 재는 이 시험이 마을 입구를 갱도로 셌다
+    B.S.noVillage = true;
+    B.generate(seed, gen); B.refreshAllTops(); B.relightAll(false);
       let fence = 0, beam = 0, torch = 0, floor = 0, room = 0;
       let wet = 0, sky = 0, walk = 0;
       for (let y = 1; y < B.WY; y++) for (let z = 1; z < B.WZ - 1; z++) for (let x = 1; x < B.WX - 1; x++) {
@@ -9237,6 +9249,7 @@ test("v81 갱도: 지하에 사람이 지나간 흔적이 있고, 물·용암을
       }
       return h >>> 0;
     }
+    B.S.noVillage = true;
     B.S.noMines = true;  B.generate(4242, 2); B.refreshAllTops(); const off = hash();
     B.S.noMines = false; B.generate(4242, 2); B.refreshAllTops(); const on = hash();
     // 갱도만 빼고 견주려면 갱도 블록을 지운 뒤 견줘야 한다 — 지형만 따로 잰다
@@ -9250,7 +9263,7 @@ test("v81 갱도: 지하에 사람이 지나간 흔적이 있고, 물·용암을
     }
     B.S.noMines = true;  B.generate(4242, 2); B.refreshAllTops(); const tOff = terrainHash();
     B.S.noMines = false; B.generate(4242, 2); B.refreshAllTops(); const tOn = terrainHash();
-    B.S.noMines = false;
+    B.S.noMines = false; B.S.noVillage = false;
     B.setPaused(false);
     return { deep, shallow, off, on, tOff, tOn };
   });
@@ -9485,6 +9498,7 @@ test("v82 굴 어귀: 굴이 지표로 이어지고, 물·용암을 안 뚫는�
     B.S.terrain = 0;
     function survey(seed, gen, off) {
       B.S.noMouths = !!off;
+      B.S.noVillage = true;
       B.generate(seed, gen); B.refreshAllTops();
       let land = 0, mouths = 0, wet = 0;
       for (let z = 1; z < B.WZ - 1; z++) for (let x = 1; x < B.WX - 1; x++) {
@@ -9504,7 +9518,7 @@ test("v82 굴 어귀: 굴이 지표로 이어지고, 물·용암을 안 뚫는�
         hh ^= B.heightMap[i]; hh = Math.imul(hh, 16777619);
         hh ^= B.biomeMap[i]; hh = Math.imul(hh, 16777619);
       }
-      B.S.noMouths = false;
+      B.S.noMouths = false; B.S.noVillage = false;
       return { land, mouths, wet, pct: 100 * mouths / land, terrain: hh >>> 0 };
     }
     const rows = [];
@@ -10516,10 +10530,14 @@ test("v86 어귀: 굴 입구를 걸어서 드나들 수 있다", async (page) =>
     const rows = [];
     for (const seed of [333, 777, 4242]) {
       // 어귀만 떼어 본다 — 달라진 기둥이 v82·v86 이 뚫은 자리다
+      // 마을은 끈다 (v115) — 광장 평탄화가 어귀 하나를 덮으면
+      // "어귀의 67%만 걸어 나올 수 있다" 로 읽힌다. 재려는 것은 어귀의 모양이다
+      B.S.noVillage = true;
       B.S.noMouths = true;
       B.generate(seed, 2); B.refreshAllTops();
       const offTop = Int16Array.from(B.topMap);
       B.S.noMouths = false;
+      B.S.noVillage = false;      // 뒤 시험을 위해 되돌린다 — 두 번째 판은 마을과 함께 잰다
       // 조명을 새로 켠다 — 아래에서 lightSky 로 "하늘이 보이나" 를 재는데,
       // 안 켜면 **앞 세계의 낡은 값**을 읽는다 (v81 에서 이미 한 번 데인 자리)
       B.generate(seed, 2); B.refreshAllTops(); B.relightAll(false);
@@ -10644,7 +10662,7 @@ phoneTest("지도·핫바·단추 위에서 쓸어도 시점이 돈다", async (
   eq(r.onButton, 0,
      "터치 단추를 누른 채 손이 흔들렸는데 시점이 돌았다 (" + r.onButton.toFixed(4) + ")");
   eq(r.onLeft, 0, "왼쪽(스틱 자리)에서 쓸었는데 시점이 돌았다: " + r.onLeft);
-});
+  });
 
 test("v89 양동이: 문은 열리고, 누른 채 푼 것은 한 번에 되돌아간다", async (page) => {
   const r = await page.evaluate(() => {
@@ -12194,8 +12212,11 @@ test("v102 면 병합: 평평한 바닥이 한 장으로 붙고, 그림은 그�
   const r = await page.evaluate(() => {
     const B = window.__blockyard;
     B.setPaused(true);
-    // 청크 하나를 통째로 비우고 바닥 한 겹만 깐다 (하늘 아래 · 빛이 고르다)
-    const CX = 2, CY = 2, CZ = 2, CH = B.CH;
+    // 청크 하나를 통째로 비우고 바닥 한 겹만 깐다 (하늘 아래 · 빛이 고르다).
+    // **마을에서 멀리** 잡는다 (v115) — 청크 (2,2,2)는 시작 마을 한복판이라
+    // 치운 상자 **밖**의 나무가 바닥 가장자리에 그늘을 드리웠고, 밝기가 갈리면
+    // 면이 안 붙는다(v102 의 병합 조건). 시험대는 남의 그림자를 안 받는 자리라야 한다
+    const CX = 0, CY = 2, CZ = 0, CH = B.CH;
     const x0 = CX * CH, y0 = CY * CH, z0 = CZ * CH;
     for (let x = x0 - 1; x < x0 + CH + 1; x++)
       for (let z = z0 - 1; z < z0 + CH + 1; z++)
@@ -12491,6 +12512,9 @@ test("v105 바위 노두: 섬에 세로가 생기고, 지형은 한 칸도 안 �
     }
     for (const seed of [1, 7, 42, 100, 333, 777, 2024]) {
       // (1) 노두 없이 한 번 — 지형을 기억해 둔다
+      // 마을은 **두 판 모두** 끈다 (v115) — 한쪽만 끄면 마을이 만든/치운 뜬 돌이
+      // 노두 탓으로 잡힌다. 이 시험이 재려는 것은 노두다
+      B.S.noVillage = true;
       B.S.noBoulders = true;
       B.generate(seed, 2); B.refreshAllTops();
       const hm = Float32Array.from(B.heightMap);
@@ -12513,7 +12537,7 @@ test("v105 바위 노두: 섬에 세로가 생기고, 지형은 한 칸도 안 �
       // 오두막 지붕처럼 원래 떠 있는 것이 있으니 차이를 본다
       floats.push(countFloating() - floatBefore);
     }
-    B.S.noBoulders = false;
+    B.S.noBoulders = false; B.S.noVillage = false;   // 다음 시험을 위해 되돌린다
     return { peaks, floats, sameHeight, sameBiome };
   });
   eq(r.sameHeight, true,
@@ -12771,7 +12795,10 @@ test("v110 물: 지하로 샌 물이 멎고, 되돌리면 걷힌다", async (pag
         if (B.get(x, B.SEA, z) === B.B.WATER && B.get(x, B.SEA - 1, z) === B.B.WATER) {
           seaY = B.SEA; B.applyEdit(x, B.SEA, z, B.B.AIR, false, 0);
           for (let k = 0; k < 60 * 5; k++) B.step(1 / 60);
-          var refilled = B.get(x, B.SEA, z) === B.B.WATER;
+          // **얼음도 바다다** — 설원 바닷가에서는 다시 찬 물이 그 자리에서 언다.
+          // 재려는 것은 "물이 돌아왔는가" 지 "물로 남아 있는가" 가 아니다 (v115)
+          var back = B.get(x, B.SEA, z);
+          var refilled = back === B.B.WATER || back === B.B.ICE;
           break;
         }
 
@@ -13686,6 +13713,103 @@ test("v114 두 번째 세계: 표식 스물넷이 살아 돌아오고, 튜토리
   assert(!/좌클릭으로 블록을 캐|캐기.{0,4}버튼으로 블록을 캐/.test(r.hintText),
      "새 세계 힌트가 '" + r.hintText + "' 다 — 첫 줄로 되돌아갔다");
   eq(r.tutFresh, 0, "아직 안 배운 사람의 새 세계가 " + r.tutFresh + "단계에서 시작한다 — 0 이라야 한다");
+});
+
+test("v115 첫 마을: 켜자마자 집·상인·동물·광산·개울이 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const seeds = [11, 222, 3333, 44444, 555];
+    const out = [];
+    for (const seed of seeds) {
+      B.generate(seed, 2); B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+      const v = B.S.village;
+      if (!v) { out.push({ seed, none: true }); continue; }
+      function count(block, r, y0, y1) {
+        let n = 0;
+        for (let dy = y0; dy <= y1; dy++) for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++)
+          if (B.get(v.x + dx, v.h + dy, v.z + dz) === block) n++;
+        return n;
+      }
+      B.S.spawnPoint = null; B.spawn();
+      const sx = Math.floor(B.player.pos.x), sy = Math.floor(B.player.pos.y), sz = Math.floor(B.player.pos.z);
+      out.push({
+        seed,
+        h: v.h, sea: B.SEA,
+        door: count(B.B.DOOR, 15, 0, 6),
+        glass: count(B.B.GLASS, 15, 0, 6) + (() => {
+          let n = 0;
+          for (let dy = 0; dy <= 6; dy++) for (let dz = -15; dz <= 15; dz++) for (let dx = -15; dx <= 15; dx++) {
+            const b = B.get(v.x + dx, v.h + dy, v.z + dz);
+            if (b >= B.B.STAINED0 && b < B.B.STAINED0 + 16) n++;
+          }
+          return n;
+        })(),
+        fence: count(B.B.FENCE, 15, 0, 3),
+        ladder: count(B.B.LADDER, 15, -16, 2),
+        well: B.get(v.x, v.h, v.z),
+        torch: count(B.B.TORCH, 15, 0, 4),
+        leaves: count(B.B.LEAVES, 15, 0, 9),
+        // 스폰 — 마을 안, 밟고 선 것은 자연 블록
+        spawnIn: Math.abs(sx - v.x) <= 14 && Math.abs(sz - v.z) <= 14,
+        under: B.NAMES[B.get(sx, sy - 1, sz)],
+        // 광산 — 사다리를 타고 내려간 바닥이 뚫려 있는가
+        mineOpen: B.get(v.mine[0], v.mine[1], v.mine[2]) === 0 &&
+                  B.get(v.mine[0], v.mine[1] + 1, v.mine[2]) === 0
+      });
+    }
+    // 마지막 세계로 살아 있는 것들을 잰다
+    B.seedMobs(); B.seedVillage(B.S.village);
+    const v2 = B.S.village;
+    const traders = B.mobs.filter((m) => B.MOB_KINDS[m.kind].trader);
+    const box = v2.penBox;
+    const inPen = B.mobs.filter((m) => m.x > box[0] && m.x < box[2] && m.z > box[1] && m.z < box[3]).length;
+    // 개울 — 60초를 돌려도 마르지 않는다 (마을 물은 해수면 아래 바닥이라 바다다)
+    function water() { let n = 0; for (let i = 0; i < B.world.length; i++) if (B.world[i] === B.B.WATER) n++; return n; }
+    const w0 = water();
+    for (let k = 0; k < 60 * 60; k++) B.step(1 / 60);
+    const w1 = water();
+    // 상인 — 좌클릭으로 안 사라지고, 우클릭이면 선물을 준다
+    const t = traders[0];
+    let kept = null, gift = null, tradedName = null;
+    if (t) {
+      kept = B.removeMob(t) === false && B.mobs.indexOf(t) >= 0;
+      B.player.pos.set(t.x, t.y, t.z + 2.2);
+      B.player.yaw = 0; B.player.pitch = 0.18;
+      B.S.bar[9] = 0;
+      const aim = B.aimedMob();
+      tradedName = aim ? B.MOB_KINDS[aim.mob.kind].name : "none";
+      B.place(false);
+      gift = B.S.bar[9];
+    }
+    B.S.village = null;
+    B.endPlay(); B.setPaused(false);
+    return { out, traders: traders.length, inPen, w0, w1, kept, gift, tradedName,
+             marks: B.villageMarks(v2).map((m) => m[3]) };
+  });
+  r.out.forEach((o) => {
+    assert(!o.none, "시드 " + o.seed + " 에 마을이 안 생겼다");
+    assert(o.h >= o.sea + 3 && o.h <= o.sea + 5,
+       "시드 " + o.seed + " 광장이 해발 " + (o.h - o.sea) + "칸이다 — 개울이 협곡이 된다");
+    eq(o.door, 4, "시드 " + o.seed + " 에 문이 " + o.door + "짝이다 (집 둘 × 두 칸)");
+    assert(o.glass >= 6, "시드 " + o.seed + " 창문이 " + o.glass + "장뿐이다");
+    assert(o.fence >= 30, "시드 " + o.seed + " 울타리가 " + o.fence + "개뿐이다 — 밭·우리·가판이 빠졌다");
+    assert(o.ladder >= 8, "시드 " + o.seed + " 광산 사다리가 " + o.ladder + "칸뿐이다 — 내려갈 길이 없다");
+    eq(o.well, 10, "시드 " + o.seed + " 우물에 물이 없다");
+    assert(o.torch >= 6, "시드 " + o.seed + " 횃불이 " + o.torch + "개뿐이다 — 밤에 마을이 안 보인다");
+    assert(o.leaves >= 40, "시드 " + o.seed + " 마을 나무가 없다 (잎 " + o.leaves + ")");
+    eq(o.spawnIn, true, "시드 " + o.seed + " 스폰이 마을 밖이다");
+    assert(["잔디", "흙", "모래", "눈"].indexOf(o.under) >= 0,
+       "시드 " + o.seed + " 스폰 발밑이 " + o.under + " 다 — 자연 블록 위라야 한다 (v33 규칙)");
+    eq(o.mineOpen, true, "시드 " + o.seed + " 광산 바닥이 막혀 있다");
+  });
+  eq(r.traders, 1, "상인이 " + r.traders + "명이다 — 마을 가판에 하나라야 한다");
+  assert(r.inPen >= 2, "60초 뒤 우리 안에 동물이 " + r.inPen + "마리뿐이다");
+  eq(r.w1, r.w0, "60초 사이에 마을 물이 " + (r.w0 - r.w1) + "칸 말랐다 — 개울 바닥이 해수면 위다");
+  eq(r.kept, true, "좌클릭에 상인이 사라졌다 — 아이가 실수로 지우면 되돌릴 길이 없다");
+  eq(r.tradedName, "상인", "가판 앞에서 조준선이 상인을 못 잡는다 (" + r.tradedName + ")");
+  assert(r.gift > 0, "상인에게 말을 걸었는데 0번 칸이 비어 있다");
+  eq(r.marks.join(","), "시장,광산,우리", "지도 표식이 " + r.marks.join(",") + " 다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

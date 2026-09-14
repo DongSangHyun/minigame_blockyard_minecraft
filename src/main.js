@@ -1,7 +1,8 @@
 // main.js — 조립과 시작
 import { S } from "./state.js";
+import { villageMarks } from "./village.js";
 import { growTree } from "./tree.js";
-import { breedTick, MOB_MAX, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, loadMobs, disposeMob, mobOccupies, aimedMob, removeMob, mobs, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
+import { breedTick, isTrader, MOB_MAX, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, loadMobs, disposeMob, mobOccupies, aimedMob, removeMob, mobs, pushOutOfMobs, seedFlocks, seedMobs, seedVillage, updateFlocks, updateMobs } from "./mobs.js";
 import { atlasSample, SWATCH_SIDE, animateLiquids, atlas, painted, AVG_TOP } from "./atlas.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, GEN, setGen, seaLift, WX, WY, WZ, idx, inside } from "./dims.js";
@@ -80,6 +81,10 @@ S.savedPos = player.pos.clone(); S.savedYaw = player.yaw; S.savedPitch = player.
 // (시점을 시작 화면으로 옮기기 전에 — placeMob 이 플레이어 주변에 놓기 때문)
 // 저장에서 되살아났으면 새로 뿌리지 않는다 — 그러면 목장이 매번 흩어진다
 if (!S.mobsRestored) seedMobs();
+if (!S.mobsRestored) {
+  seedVillage(S.village);                         // 마을 우리와 가판을 채운다 (v115)
+  if (!S.marks || !S.marks.length) S.marks = villageMarks(S.village);
+}
 seedFlocks();
 seedCreatures();
 
@@ -226,6 +231,7 @@ window.__blockyard = {
   selectionBounds: selectionBounds, selectionSize: selectionSize, REGION_MAX: REGION_MAX,
   beginBatch: beginBatch, endBatch: endBatch, updateSelectionBox: updateSelectionBox,
   mobs: mobs, updateMobs: updateMobs, seedMobs: seedMobs, MOB_KINDS: MOB_KINDS,
+  seedVillage: seedVillage, villageMarks: villageMarks, isTrader: isTrader,
   loadMobs: loadMobs, disposeMob: disposeMob, mobOccupies: mobOccupies,
   aimedMob: aimedMob, removeMob: removeMob,
   breedTick: breedTick, MOB_MAX: MOB_MAX,

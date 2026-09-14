@@ -1,13 +1,14 @@
 // loop.js — 게임 루프
 import { S } from "./state.js";
 import { padState, pollGamepad, pollGamepadMenu, arrowLookTick, tutDone, TUT_LEN, selectionText} from "./input.js";
-import { breedTick, MOB_KINDS, aimedMob, removeMob, pushOutOfMobs, seedFlocks, seedMobs, updateFlocks, updateMobs } from "./mobs.js";
+import { breedTick, MOB_KINDS, aimedMob, removeMob, pushOutOfMobs, seedFlocks, seedMobs, seedVillage, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, CX, CZ, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
 import { FIRE, isStairShape, SH_FULL, SH_SLAB, AIR, DEFAULT_BAR, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isItem, isSolid, isUnbreakable } from "./blocks.js";
 import { animateLiquids, crackTex } from "./atlas.js";
 import { boxesAt, seenRatio, BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, set, shape, topMap, world } from "./world.js";
 import { lightAtPlayer, lightBlk, lightSky, relightAll } from "./light.js";
+import { villageMarks } from "./village.js";
 import { growTick, lavaFlowTick, lavaDryTick, grassTick, lavaTick, primeTick, TNT_FUSE, decayTick, dryTick, fallTick, fireTick, freezeTick, waterTick } from "./fluids.js";
 import { buildBudget, dirty, markAllDirty, opaqueMeshes, setBuildFocus } from "./mesh.js";
 import { DEEP_UNDER, dynamicHighlight, updatePasteBox, updateOuterSea, primedBoxes, HL_CROSS, HL_GEO, SHAPE_BOUNDS, burst, camera, cloudGroup, cloudGroupHigh, crackMat, crackMesh, highlight, renderer, scene, sky, updateChunkVisibility, updateEdge, updateParticles, updateSelectionBox, voxUniforms } from "./scene.js";
@@ -93,6 +94,8 @@ export function newWorld(seed) {
   S.selA = S.selB = null;
   S.clip = null;
   seedMobs();
+  seedVillage(S.village);        // 우리에 동물 넷, 가판에 상인 하나 (v115)
+  S.marks = villageMarks(S.village);   // 지도에 「시장 · 광산 · 우리」
   seedFlocks();
   refreshAchList(); refreshStats();
   S.timeOfDay = 0.25;      // 06:00 — 첫 노을까지 10분(하루 20분 기준). 07:12 시작은 튜토리얼 도중 밤이 왔다

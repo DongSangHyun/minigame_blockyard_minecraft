@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { markX, markY, markName, markZ } from "./world.js";
 import { resetQueues } from "./queues.js";
-import { seedMobs } from "./mobs.js";
+import { seedMobs, seedVillage } from "./mobs.js";
 import { WX, WY, WZ, MARK_MAX } from "./dims.js";
 import { markAllDirty, buildBudget } from "./mesh.js";
 import { relightAll } from "./light.js";
@@ -257,7 +257,7 @@ export function afterWorldSwap(msg, loaded) {
 
   relightAll(false); markAllDirty(); buildBudget(70);
   // 예전 저장에는 동물이 없다 — 그때만 새로 뿌린다
-  if (!S.mobsRestored) seedMobs();
+  if (!S.mobsRestored) { seedMobs(); seedVillage(S.village); }
   // 저장에서 불러왔으면 그 자리를 지킨다 — 짓던 탑 꼭대기에 있었든 갱도 바닥이었든
   // 섬 한가운데 지표로 떨어뜨리면 집을 매번 다시 찾아야 한다
   if (!loaded) spawn();
@@ -672,6 +672,14 @@ export function beginPlay() {
           toast(isTouch ? "캐고 · 놓고 · 지어 보세요 · 버튼을 길게 누르면 계속됩니다"
                         : "캐고 · 놓고 · 지어 보세요 · H 로 조작 전체");
         }, 600);
+        // 마을에서 시작하면 **거기에 있는 것**을 한 줄로 알려 준다 (v115).
+        // 처음 켠 아이에게 "무엇을 해도 되는가" 를 말해 주는 유일한 자리다
+        if (S.village) {
+          setTimeout(function () {
+            toast(isTouch ? "마을입니다 — 상인을 탭하면 선물을 줍니다 · 지도에 광산이 있습니다"
+                          : "마을입니다 — 상인에게 우클릭하면 선물을 줍니다 · 지도에 광산 표식");
+          }, 6200);
+        }
       }
     } catch (e) {}
   }

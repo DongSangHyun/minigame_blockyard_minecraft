@@ -427,6 +427,7 @@ export var ACHIEVEMENTS = [
   { id: "explorer", name: "탐험가", desc: "미니맵 표식을 5개 찍는다" },
   { id: "feed", name: "친구", desc: "동물에게 꽃을 준다" },
   { id: "photo", name: "사진사", desc: "사진 모드로 화면을 저장한다" },
+  { id: "trade", name: "첫 인사", desc: "마을 상인에게 말을 건다" },
   { id: "gold", name: "금맥", desc: "금 광석을 캔다" },
   { id: "diamond", name: "다이아몬드!", desc: "다이아몬드 광석을 캔다" },
   { id: "breed", name: "목장주", desc: "동물 둘에게 꽃을 주어 새끼를 얻는다" },
@@ -598,7 +599,10 @@ function checkRoom(x0, x1, z0, z1) {
   for (var x = x0; x <= x1; x++)
     for (var z = z0; z <= z1; z++)
       for (var y = 1; y < WY - 2; y++) {
-        if (world[idx(x, y, z)] !== DOOR) continue;
+        // **사람이 단 문만 센다** (v115) — 시작 마을의 집에도 문이 달려 있어서,
+        // 세계를 켜는 순간 「내 집」이 저절로 열렸다. 지은 것을 보는 과제는
+        // 전부 touched 를 보는데(BUILD_IDS 주석) 이 한 줄만 예외였다
+        if (world[idx(x, y, z)] !== DOOR || !isTouched(x, y, z)) continue;
         // DIRS 는 앞 4개에 수직이 섞여 있다 — 6개를 다 훑고 수직만 건너뛴다.
         // 4개만 돌면 문의 ±z 이웃을 아예 못 봐서 방을 영영 못 찾는다.
         for (var d = 0; d < 6; d++) {

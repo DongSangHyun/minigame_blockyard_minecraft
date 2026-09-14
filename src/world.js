@@ -1,6 +1,7 @@
 // world.js — 월드 데이터 · 지형 생성
 import { S } from "./state.js";
 import { growTree } from "./tree.js";
+import { buildVillage } from "./village.js";
 import { resetQueues } from "./queues.js";
 import { DIRS, N, PLANE, SEA, GEN_LATEST, setGen, seaLift, WX, WY, WZ, idx, inside } from "./dims.js";
 import { DOOR, doorFacing, doorOpen, isLog, AIR, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, SPRUCE_LOG, CACTUS, COAL, COBBLE, DEADBUSH, DIAMOND, DIRT, DRYGRASS, FENCE, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, LADDER, LAMP, LAVA, LEAVES, LOG, PANE, PLANKS, SAND, BRICK, BOOKSHELF, CARPET, isCarpet, POT, FRAME, SH_SLAB, SHAPE_BOXES, SH_FULL, SH_STAIR_N, SH_STAIR_E, SH_STAIR_S, SH_STAIR_W, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TORCH, WALL_DIR, WATER, connectsTo, isCross, isSolid } from "./blocks.js";
@@ -751,6 +752,15 @@ export function generate(seed, gen) {
     }
     boulderCells.length = 0;
   }
+
+  // ── 시작 마을 (v115) — 켜자마자 **누가 살고 있는 자리**에서 시작한다.
+  // 갱도·어귀·노두 **뒤**에 짓는다: 앞에 두면 나중에 판 굴이 광장 밑을 뚫고
+  // 노두가 지붕을 덮는다 (v105 가 어귀에서 겪은 것과 같은 차례 문제다).
+  // **별도 난수 줄기** — 껐다 켜도 땅·동굴·나무는 한 비트도 안 달라진다.
+  // **끄면 흔적도 지운다** — S.village 를 남겨 두면 다음 세계에서 스폰이
+  // 있지도 않은 마을 자리로 날아간다 (시험 전체 실행에서 그렇게 깨졌다)
+  if (!S.noVillage) buildVillage(makeRng(S.worldSeed + 61805));
+  else S.village = null;
 
   // ── 받침을 잃은 풀·꽃·덤불·횃불을 걷어낸다. **생성기의 맨 마지막이어야 한다.**
   // 앞에 두면 그 뒤에 오는 것이 받침을 도로 빼 간다 —

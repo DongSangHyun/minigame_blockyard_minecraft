@@ -103,6 +103,8 @@ export const S = {
   // 캐기 판정이 `S.dragging` 을 보기 때문에 **아무 일도 안 일어났다** —
   // 마우스를 못 쓰는 사람을 위해 만든 기능이 마우스 상태에 매여 있었다
   keyMine: false, keyPlace: false,
+  village: null,         // 시작 마을이 놓인 자리 (v115 · 생성기가 채운다)
+  tradeCount: 0,         // 상인에게 몇 번 말을 걸었나 — 선물이 돌아가며 나온다
   padFlyTap: 0,
   delArm: 0,
   delArmAt: 0,      // 불을 붙인 자리들 — 번짐 상한을 불마다 따로 잰다
