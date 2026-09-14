@@ -1,6 +1,6 @@
 // mine.js — 캐기 · 놓기
 import { S } from "./state.js";
-import { MOB_MAX, aimedMob, aimingAtMob, feedNearbyMob, isTrader, mobOccupies } from "./mobs.js";
+import { MOB_MAX, aimedMob, feedNearbyMob, isTrader, mobOccupies } from "./mobs.js";
 import { primeTNT, ignite } from "./fluids.js";
 import { WY, idx, inside } from "./dims.js";
 import { BOOKSHELF, CARPET0, LAMP, PLANKS, POT, SAPLING, STAINED0, WOOL0, NAMES, BUCKET, FRAME, FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
@@ -12,7 +12,7 @@ import { breakSound, crunch, placeSound, tone } from "./audio.js";
 import { notePlaced, applyEdit, beginBatch, endBatch, unlock } from "./edit.js";
 import { noteBlockUse, refreshSlot, toast } from "./hud.js";
 import { triggerSwing, updateHandBlock } from "./hand.js";
-import { advanceTut, advanceTutTouch } from "./input.js";
+import { advanceTut } from "./input.js";
 
 export function mineAt(hit) {
   // 얼음을 깨면 물이 남는다 (마크) — 언 호수를 뚫고 들어가는 그림이 나온다
@@ -92,6 +92,7 @@ export function tradeWith() {
   refreshSlot(9);
   noteBlockUse(gift);
   toast("상인: \u201c" + line + "\u201d — 0번 칸에 " + NAMES[gift]);
+  advanceTut(3);                       // 튜토리얼 4번째 줄은 **상인에게 말을 거는 것**이다 (v118)
   tone(720, 0.08, "triangle", 0.05);
   tone(960, 0.09, "triangle", 0.045);
   triggerSwing();
@@ -99,25 +100,35 @@ export function tradeWith() {
   return true;
 }
 
-export function tryInteract(hit) {
-  if (!hit || S.sneaking) return false;
-  // 상인이 먼저다 (v115) — 가판 앞에서 블록을 놓으려다 상인을 가리면
-  // 말을 걸 수가 없다. 마크의 주민도 우클릭이 거래다
-  var am0 = aimedMob();
-  if (am0 && isTrader(am0.mob)) return tradeWith();
+// 조준선이 향한 **살아 있는 것**과의 상호작용 — 상인·먹이 주기.
+// **블록이 없어도 된다** (v118): `place()` 가 `raycast` 로 블록을 못 찾으면 그냥 돌아가서,
+// 들판 한가운데 선 양에게는 꽃을 줄 수도, 상인에게 말을 걸 수도 없었다.
+// 마을 가판에서만 되던 이유가 상인 **뒤에 가판 판자**가 있었기 때문이다
+export function tryInteractMob(repeating) {
+  if (repeating || S.sneaking) return false;
+  var am = aimedMob();
+  if (!am) return false;
+  // 상인이 먼저다 (v115) — 가판 앞에서 블록을 놓으려다 상인을 가리면 말을 걸 수가 없다
+  if (isTrader(am.mob)) return tradeWith();
   // 꽃을 들고 동물에게 우클릭하면 잠시 따라온다
-  // 조준선이 실제로 동물을 향할 때만 — 그러지 않으면 양 옆에서 꽃을 아예 못 심는다
-  if ((S.bar[S.selected] === FLOWER_R || S.bar[S.selected] === FLOWER_Y ||
-       S.bar[S.selected] === TALLGRASS) && aimingAtMob()) {
+  if (S.bar[S.selected] === FLOWER_R || S.bar[S.selected] === FLOWER_Y ||
+      S.bar[S.selected] === TALLGRASS) {
     var fed = feedNearbyMob(player.pos);
     // -1 은 "상한이라 못 받는다" — JS 에서 -1 은 참이라 그냥 두면 과제까지 뜬다
     if (fed === -1) { toast("동물이 " + MOB_MAX + "마리로 꽉 찼습니다"); return true; }
     if (fed) {
       triggerSwing();
       unlock("feed");
+      advanceTut(4);                   // 5번째 줄 — 꽃을 들고 동물에게 (v118)
       return true;
     }
   }
+  return false;
+}
+
+export function tryInteract(hit) {
+  if (!hit || S.sneaking) return false;
+  if (tryInteractMob(false)) return true;
   // 여닫는 블록이 먼저다 — 횃불을 들었다고 문에 불을 붙이면 문을 쓸 수가 없다
   if (isOpenable(hit.block)) return tryInteractGate(hit);
   // 횃불을 들고 TNT 를 우클릭하면 터진다 (마크의 부싯돌 자리)
@@ -231,11 +242,13 @@ export function place(repeating) {
     return;
   }
   var hit = raycast(6);
+  // **블록보다 살아 있는 것이 먼저** (v118) — 상인·동물은 조준선이 닿으면 잡는다.
+  // 예전에는 `if (!hit) return;` 이 먼저라, 뒤에 벽이 없는 자리에서는
+  // 상인에게 말을 걸 수도 동물에게 꽃을 줄 수도 없었다
+  if (!repeating && tryInteractMob(false)) return;
   if (!hit) return;
   if (!repeating && tryInteract(hit)) return;
-  // 튜토리얼 4번째 줄(폰) — "놓기를 누른 채 화면을 끌면 줄이 그어집니다".
-  // 반복 호출이 곧 그 동작이다. 예전엔 G 키에만 걸려 있어 폰에서는 도달할 방법이 없었다.
-  if (repeating) advanceTutTouch(3);
+  // (v118 에서 폰 4번째 줄도 「상인」으로 바뀌었다 — 줄 긋기는 도움말에 남아 있다)
   var b = S.bar[S.selected];
 
   // 반블록 두 장을 겹치면 온전한 블록이 된다 — 건축가가 제일 먼저 시도하는 것
@@ -307,9 +320,7 @@ export function place(repeating) {
   advanceTut(1);
   // 4단계는 **어두운 곳에** 꽂았을 때만 (v110) — 06:00 대낮 잔디밭에서 통과하면
   // 시작 화면이 자랑한 "빛이 닿지 않는 곳은 정말로 캄캄합니다" 를 볼 일이 없다
-  if (b === TORCH && lightSky[idx(px, py, pz)] < 8) advanceTut(4);
-  // 3단계는 **그 모양으로 놓았을 때** — G 를 누른 것만으로는 한 칸도 안 지었다
-  if (sh !== SH_FULL) advanceTut(3);
+  if (b === TORCH && lightSky[idx(px, py, pz)] < 8) advanceTut(5);
   noteBlockUse(b);
   burst(px, py, pz, b, 5);
   placeSound(b);

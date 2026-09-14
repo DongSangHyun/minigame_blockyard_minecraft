@@ -3060,7 +3060,10 @@ test("v16 튜토리얼: 새 기능까지 안내한다", async (page) => {
     return { steps: B.TUT.length, text: B.TUT.map(function (t) { return B.hintText(t); }).join(" ") };
   });
   assert(r.steps >= 6, "튜토리얼 단계: " + r.steps);
-  assert(r.text.indexOf("영역") >= 0, "영역 도구 안내가 없다");
+  // 튜토리얼이 가리키는 것은 **그 판의 알맹이**다 (v118) — 영역 도구는 어른의 도구라
+  // 아이 손에 닿지 않았고(Alt+Ctrl+F), 정작 마을이 준 상인·동물은 한 줄도 없었다
+  assert(r.text.indexOf("상인") >= 0, "튜토리얼이 상인을 안 가리킨다");
+  assert(r.text.indexOf("동물") >= 0, "튜토리얼이 동물을 안 가리킨다");
   assert(r.text.indexOf("H") >= 0, "도움말 안내가 없다");
 });
 
@@ -3880,11 +3883,13 @@ test("v19 조경: 동물이 옆에 있어도 꽃을 심을 수 있다", async (p
 test("v19 튜토리얼: 안내와 실제 동작이 맞는다", async (page) => {
   const r = await page.evaluate(() => {
     const B = window.__blockyard;
-    return { steps: B.TUT.length, t4: B.hintText(B.TUT[4]), t5: B.hintText(B.TUT[5]), t6: B.hintText(B.TUT[6]) };
+    return { steps: B.TUT.length, t3: B.hintText(B.TUT[3]), t4: B.hintText(B.TUT[4]),
+             t5: B.hintText(B.TUT[5]), t6: B.hintText(B.TUT[6]) };
   });
   eq(r.steps, 7, "튜토리얼 단계 수");
-  assert(r.t4.indexOf("횃불") >= 0, "5단계가 횃불이 아니다: " + r.t4);
-  assert(r.t5.indexOf("영역") >= 0, "6단계가 영역이 아니다: " + r.t5);
+  assert(r.t3.indexOf("상인") >= 0, "4단계가 상인이 아니다: " + r.t3);
+  assert(r.t4.indexOf("동물") >= 0, "5단계가 동물이 아니다: " + r.t4);
+  assert(r.t5.indexOf("횃불") >= 0, "6단계가 횃불이 아니다: " + r.t5);
   assert(r.t6.indexOf("H") >= 0, "7단계가 도움말이 아니다: " + r.t6);
 });
 
@@ -4277,11 +4282,12 @@ test("v23 조작키: 재배치하면 화면 안내도 따라 바뀐다", async (
     B.refreshBindLabels();
     const shown = el ? el.textContent : "";
     const hint = (document.getElementById("hint") || {}).innerHTML || "";
-    // 튜토리얼 문장도 따라가야 한다 — 3단계(모양 키)를 띄운 채 shape 를 K 로 바꿔 본다
-    const tutWas = B.S.tut, shapeWas = B.S.binds.shape;
-    B.S.tut = 3; B.S.binds.shape = "KeyK"; B.refreshBindLabels();
+    // 튜토리얼 문장도 따라가야 한다 — 마지막 단계(도움말 키)를 띄운 채 help 를 K 로 바꾼다.
+    // (v118 에서 튜토리얼이 아이 순서로 바뀌며 「모양」 줄이 빠졌다 — 자리표시자가 남은 줄로 잰다)
+    const tutWas = B.S.tut, helpWas = B.S.binds.help;
+    B.S.tut = B.TUT.length - 1; B.S.binds.help = "KeyK"; B.refreshBindLabels();
     const tutHint = (document.getElementById("hint") || {}).innerHTML || "";
-    B.S.tut = tutWas; B.S.binds.shape = shapeWas;
+    B.S.tut = tutWas; B.S.binds.help = helpWas;
     B.S.binds.fly = was;
     B.refreshBindLabels();
     const back = el ? el.textContent : "";
@@ -4291,7 +4297,7 @@ test("v23 조작키: 재배치하면 화면 안내도 따라 바뀐다", async (
   assert(r.count >= 6, "재배치를 반영할 자리가 표시돼 있지 않다");
   eq(r.shown, "J", "재배치해도 도움말이 옛 키를 보여 준다");
   eq(r.back, "F", "되돌렸을 때 원래 키로 안 돌아온다");
-  assert(r.tutHasK && !r.tutHasG, "튜토리얼 문장이 재배치한 모양 키를 보여 주지 않는다");
+  assert(r.tutHasK && !r.tutHasG, "튜토리얼 문장이 재배치한 도움말 키를 보여 주지 않는다");
 });
 
 test("v23 명령: undo/redo 를 여러 단계 한 번에", async (page) => {
@@ -4986,7 +4992,7 @@ test("v33 튜토리얼: 폰 문구가 따로 있고, 작은 화면에서도 힌�
   const r = await page.evaluate(() => {
     const B = window.__blockyard;
     return { same: B.TUT_TOUCH.length === B.TUT.length,
-             touchWords: B.TUT_TOUCH.every(t => /버튼|스틱|화면|핫바/.test(t)),
+             touchWords: B.TUT_TOUCH.every(t => /버튼|스틱|화면|핫바|놓기|캐기|목록/.test(t)),
              noMouse: !B.TUT_TOUCH.some(t => /클릭|Alt|Ctrl|<b>E<\/b>|<b>G<\/b>|<b>H<\/b>/.test(t)) };
   });
   assert(r.same, "터치 튜토리얼 단계 수가 다르다 — advanceTut 인덱스가 어긋난다");
@@ -7219,24 +7225,55 @@ phoneTest("튜토리얼 일곱 줄을 터치만으로 끝까지 간다", async (
     B.closePicker(false);
     note("목록");
 
-    // 4번째 — 놓기를 누른 채 끌기 (place(repeating))
-    B.S.bar[B.S.selected] = B.B.BRICK;
-    B.player.pos.set(X + 0.5, Y + 1, Z + 2.5);
-    // raycast 는 카메라를 본다 — 각도를 훑어 그 칸을 집을 때까지 맞춘다
-    B.player.yaw = 0;
-    let aimHit = null;
-    for (let pi = 0; pi <= 25 && !aimHit; pi++) {
-      B.player.pitch = -pi * 0.05;
-      B.camera.rotation.order = "YXZ";
-      B.camera.rotation.y = 0; B.camera.rotation.x = B.player.pitch;
-      B.camera.position.set(B.player.pos.x, B.player.pos.y + B.EYE, B.player.pos.z);
-      B.camera.updateMatrixWorld(true);
-      const h = B.raycast(6);
-      if (h && h.x === X && h.y === Y && h.z === Z) aimHit = h;
+    // 4번째 — **상인에게 말 걸기** (v118). 마을 가판의 상인을 시험장 앞으로 부른다
+    // 살아 있는 것을 겨눈다 — **눈높이(1.62)가 양(0.56)보다 훨씬 높아** 각도를 훑어야 한다.
+    // 그리고 `aimedMob` 은 **가장 가까운 아무 동물**을 집으므로, 겨눈 것이 그것인지 확인한다
+    function faceMob(m) {
+      B.player.pos.set(m.x, m.y, m.z + 2.0);
+      B.player.yaw = 0;
+      for (let pi = 0; pi <= 24; pi++) {
+        B.player.pitch = pi * 0.05;
+        B.camera.rotation.order = "YXZ";
+        B.camera.rotation.y = 0; B.camera.rotation.x = -B.player.pitch;
+        B.camera.position.set(B.player.pos.x, B.player.pos.y + B.EYE, B.player.pos.z);
+        B.camera.updateMatrixWorld(true);
+        const a = B.aimedMob();
+        if (a && a.mob === m) return true;
+      }
+      return false;
     }
-    B.place(true);
-    note("줄 긋기");
-    const diag = { isTouch: B.isTouch, aim: aimHit ? [aimHit.x, aimHit.y, aimHit.z] : null };
+    // 상인을 멀리 보낸다 — 같은 자리에 두면 다음 단계(먹이)에서 조준선이 상인을 먼저 잡는다
+    function parkAway(m) {
+      if (!m) return;
+      m.x = X + 20.5; m.z = Z + 20.5;
+      if (m.home) m.home = [m.x, m.y, m.z];
+      m.g.position.set(m.x, m.y, m.z);
+    }
+    const trader = B.mobs.filter((m) => B.MOB_KINDS[m.kind].trader)[0];
+    let sawTrader = false;
+    if (trader) {
+      trader.x = X + 0.5; trader.y = Y; trader.z = Z - 1.5;
+      trader.home = [trader.x, trader.y, trader.z];
+      trader.g.position.set(trader.x, trader.y, trader.z);
+      sawTrader = faceMob(trader);
+      B.place();                          // 놓기 단추 = 우클릭과 같은 길
+    }
+    note("상인");
+
+    // 5번째 — **꽃을 들고 동물에게**. 우리 밖의 동물 하나를 옆에 세운다
+    parkAway(trader);
+    const beast = B.mobs.filter((m) => !B.MOB_KINDS[m.kind].trader)[0];
+    let sawBeast = false;
+    if (beast) {
+      beast.x = X + 0.5; beast.y = Y; beast.z = Z - 1.5;
+      beast.follow = 0; beast.love = 0;
+      beast.g.position.set(beast.x, beast.y, beast.z);
+      B.S.bar[B.S.selected] = B.B.FLOWER_R;
+      sawBeast = faceMob(beast);
+      B.place();
+    }
+    note("먹이");
+    const diag = { isTouch: B.isTouch, sawTrader, sawBeast };
 
     // 5번째 — 횃불을 **어두운 곳에** 꽂는다 (v110). 지하에 방을 파고 그 안에서.
     // 대낮 잔디밭에서 통과하면 "빛이 닿지 않는 곳" 을 첫 5분에 볼 일이 없다
@@ -7251,18 +7288,12 @@ phoneTest("튜토리얼 일곱 줄을 터치만으로 끝까지 간다", async (
     B.place();
     note("횃불");
 
-    // 6번째 — 되돌리기 단추 (v110 에서 "스틱으로 걷기" 를 갈아 끼웠다:
+    // 7번째 — 되돌리기 단추 (v110 에서 "스틱으로 걷기" 를 갈아 끼웠다:
     // 첫 3초에 이미 한 일을 3분 뒤에 가르치는 줄이었다)
     const undoBtn = document.getElementById("tb-undo");
     undoBtn.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
     undoBtn.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true }));
     note("되돌리기");
-
-    // 7번째 — 웅크림 단추
-    const sneak = document.getElementById("tb-sneak");
-    sneak.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
-    sneak.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true }));
-    note("웅크림");
 
     const done = B.S.tut >= 7;
     const hint = document.getElementById("hint").textContent;

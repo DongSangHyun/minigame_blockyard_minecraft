@@ -41,13 +41,18 @@ export var HINT_DRAG = '드래그 <b>둘러보기</b> · 제자리 좌클릭 길
 export var HINT_TOUCH = '왼쪽 <b>스틱</b> 걷기 · 오른쪽 화면 끌어 <b>둘러보기</b> · <b>캐기</b>/<b>놓기</b> 길게 누르면 계속 · <b>목록</b> 재료 고르기 · <b>되돌리기</b> · <b>메뉴</b>';
 export var hintEl = document.getElementById("hint");
 
+// 일곱 줄을 **아이 순서**로 다시 짰다 (v118) — 예전 네 번째가 `G` 반블록, 여섯 번째가
+// `Alt`+클릭 + `Ctrl`+`F`(**실제로 채워야** 넘어간다)였다. 여덟 살에게 세 키 조합은
+// 도달 불가능한 벽이고, 그 벽 뒤에 마지막 줄이 갇혀 있었다(폰판은 같은 이유로 v110 에서
+// 이미 고쳤는데 키보드판이 그대로였다). 반대로 마을이 준 것 셋 —
+// **상인·동물 먹이·묘목** — 은 일곱 줄에 한 줄도 없었다. 지금은 그 셋이 가운데에 있다
 export var TUT = [
   '먼저 <b>좌클릭</b>으로 블록을 캐보세요 — 단단한 것은 <b>누르고 있어야</b> 합니다',
   '이번엔 <b>우클릭</b>으로 블록을 놓아보세요',
   '<b>E</b> 를 눌러 블록 목록에서 다른 재료를 골라보세요',
-  '<b>{shape}</b> 로 반블록·계단으로 바꿔 지어보세요',
-  '<b>9</b> 번 <b>횃불</b>로 어두운 굴을 밝혀보세요',
-  '<b>Alt</b>+클릭으로 영역을 고르고 <b>Ctrl</b>+<b>F</b> 로 한 번에 채워보세요',
+  '마을 <b>시장</b>의 <b>상인</b>에게 <b>우클릭</b> — 선물을 줍니다 (<b>0</b> 번 칸을 보세요)',
+  '<b>꽃</b>을 들고 <b>동물</b>에게 <b>우클릭</b> — 잠시 따라옵니다',
+  '<b>9</b> 번 <b>횃불</b>로 어두운 곳을 밝혀보세요',
   '<b>{help}</b> 를 누르면 나머지 조작이 전부 나옵니다'
 ];
 // 터치용 튜토리얼 — 단계 번호는 TUT 와 같게 맞춘다 (advanceTut 이 같은 인덱스를 쓴다).
@@ -56,10 +61,10 @@ export var TUT_TOUCH = [
   '먼저 <b>캐기</b> 버튼으로 블록을 캐보세요 — 단단한 것은 <b>누른 채로</b> 두세요',
   '이번엔 <b>놓기</b> 버튼으로 블록을 놓아보세요',
   '<b>목록</b> 버튼으로 다른 재료를 골라보세요',
-  '<b>놓기</b>를 누른 채 화면을 끌면 줄이 그어집니다',
+  '마을 <b>시장</b>의 <b>상인</b>을 보고 <b>놓기</b> — 선물을 줍니다 (<b>0</b> 번 칸을 보세요)',
+  '<b>꽃</b>을 들고 <b>동물</b>을 보고 <b>놓기</b> — 잠시 따라옵니다',
   '핫바의 <b>횃불</b>을 골라 어두운 곳을 밝혀보세요',
-  '<b>되돌리기</b> 버튼으로 방금 한 것을 지워 보세요 (길게 누르면 다시하기)',
-  '<b>웅크림</b> 버튼을 누른 채면 모서리에서 떨어지지 않습니다'
+  '<b>되돌리기</b> 버튼으로 방금 한 것을 지워 보세요 (길게 누르면 다시하기)'
 ];
 export function tutLine(i) { return (isTouch ? TUT_TOUCH : TUT)[i]; }
 var hintFade = 0;
@@ -1229,9 +1234,8 @@ window.addEventListener("keydown", function (e) {
       if (!wipe && isItem(blockPick)) { toast("도구는 채울 수 없습니다 — 블록을 고르세요"); return; }
       function doFill() {
         var n = wipe ? clearSelection() : fillSelection(blockPick, shapePick);
-        // 5단계는 **채웠을 때** 넘어간다 (v110) — Alt+우클릭 한 번(1칸)으로 통과해서,
-        // 이 게임이 자랑하는 영역 도구를 한 번도 안 써 보고 튜토리얼이 끝났다
-        if (n > 0) advanceTut(5);
+        // (v118 — 영역 도구는 더 이상 튜토리얼에 없다. 여덟 살에게 Alt+Ctrl+F 는
+        //  도달 불가능한 벽이었고, 그 벽 뒤에 마지막 줄이 갇혀 있었다)
         toast(n < 0 ? ("영역이 너무 큽니다 (최대 " + REGION_MAX.toLocaleString("ko-KR") + "칸)")
                     : (n ? n.toLocaleString("ko-KR") + "칸을 " + (wipe ? "비웠습니다" : "채웠습니다")
                          : "먼저 영역을 고르세요"));
@@ -1467,8 +1471,7 @@ export function setStick(dx, dy) {
   stickKnob.style.transform = "translate(" + dx + "px," + dy + "px)";
   S.stick.x = dx / STICK_R;
   S.stick.z = -dy / STICK_R;
-  // 튜토리얼 6번째 줄("스틱으로 걷고 화면을 끌어 둘러보세요") — 실제로 스틱을 밀면 넘어간다
-  if (Math.abs(S.stick.x) + Math.abs(S.stick.z) > 0.4) advanceTutTouch(5);
+  // (v118 — 스틱으로 넘기던 줄은 「횃불」로 바뀌었다. 걷기는 첫 3초에 이미 배운다)
 }
 
 stickZone.addEventListener("touchstart", function (e) {
@@ -1648,8 +1651,7 @@ bindHold("tb-list", function () {
   if (S.uiOpen) closePicker(true); else openPicker();
 });
 bindHold("tb-sneak", function () {
-  S.keys.ShiftLeft = true;
-  advanceTutTouch(6);            // 마지막 줄("웅크림 버튼을 누른 채면 안 떨어집니다")
+  S.keys.ShiftLeft = true;       // (v118 — 마지막 줄은 되돌리기다)
 }, function () { S.keys.ShiftLeft = false; });
 bindHold("tb-fly", function () {
   player.flying = !player.flying; player.vel.y = 0;
@@ -1696,8 +1698,7 @@ bindHold("tb-shape", function () {
   if (shapeLong) { shapeLong = false; return; }
   setShapeMode(S.shapeMode + 1);
   toast(["전체 블록", "반블록", "계단"][S.shapeMode]);
-  updateHandBlock();
-  advanceTutTouch(3);
+  updateHandBlock();       // (v118 — 4번째 줄은 상인이다)
 });
 
 export function toggleRegionBar(on) {
@@ -1758,7 +1759,7 @@ bindHold("tb-undo", function () {
   clearTimeout(undoHold);
   if (undoLong) { undoLong = false; return; }
   var ok = undo();
-  if (ok) advanceTutTouch(5);        // 폰 6번째 줄 — 되돌리기를 실제로 써 본다 (v110)
+  if (ok) advanceTutTouch(6);        // 폰 마지막 줄 — 되돌리기를 실제로 써 본다 (v110·v118)
   toast(ok ? ("되돌리기" + (lastEditLabel ? " — " + lastEditLabel : ""))
            : (undoEmptyWhy || "더 없음"));
 });
