@@ -2666,6 +2666,10 @@ test("v15 불: 탈 것에만 붙고, 옆으로 번지다 꺼진다", async (page
     const B = window.__blockyard;
     const x = 60, y = 40, z = 60;
     B.S.weather = 0;          // 비가 오면 하늘 뚫린 불은 꺼진다(v27) — 이 시험은 날씨와 무관해야 한다
+    // **마을 밖에서 잰다** (v119) — 마을 반경(±18) 안에서는 불이 안 번진다.
+    // 시험대는 세계 한가운데라 마을과 겹친다. 재려는 것은 불의 규칙이다
+    const vilWas = B.S.village;
+    B.S.village = null;
     for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++)
       for (let dy = -1; dy <= 4; dy++) B.set(x + dx, y + dy, z + dz, 0);
     B.set(x, y - 1, z, B.B.STONE);
@@ -2685,6 +2689,7 @@ test("v15 불: 탈 것에만 붙고, 옆으로 번지다 꺼진다", async (page
     for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++)
       for (let dy = -1; dy <= 4; dy++)
         if (B.world[B.idx(x + dx, y + dy, z + dz)] === B.B.FIRE) fireLeft++;
+    B.S.village = vilWas;
     return { onStone, onWood, spread, fireLeft, flam: B.isFlammable(B.B.PLANKS),
              notFlam: B.isFlammable(B.B.STONE) };
   });
@@ -13967,6 +13972,68 @@ test("v117 아이의 첫 30분: 광산에서 걸어 나오고, 안내가 읽을 
   eq(r.btn, true, "「처음부터 다시 배우기」 단추가 없다 — 부모 기기에서는 아이에게 안내가 안 뜬다");
   eq(r.relearned, true, "「처음부터 다시 배우기」를 눌러도 표시가 안 지워진다");
   eq(r.hasSpawnMark, true, "새 세계에 시작 지점이 안 찍혔다 — 지도의 집 모양이 영영 안 뜬다");
+});
+
+test("v119 마을은 안 탄다: 불이 번지지 않고, 밤은 예고된다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.generate(4242, 2); B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    const v = B.S.village;
+    const keepW = B.S.weather;
+    B.S.weather = 0;                       // 비가 불을 끄면 시험이 아무것도 안 잰다
+
+    function planks(cx, cz) {
+      let n = 0;
+      for (let dy = 0; dy <= 6; dy++) for (let dz = -6; dz <= 6; dz++) for (let dx = -6; dx <= 6; dx++)
+        if (B.get(cx + dx, v.h + dy, cz + dz) === B.B.PLANKS) n++;
+      return n;
+    }
+    // (1) 마을 한가운데 판자 벽을 세우고 불을 붙인다 — 번지면 안 된다
+    const hx = v.x + 6, hz = v.z - 6;
+    for (let dx = 0; dx < 6; dx++) for (let dy = 0; dy < 3; dy++)
+      B.applyEdit(hx + dx, v.h + 1 + dy, hz, B.B.PLANKS, false, 0);
+    B.refreshAllTops(); B.relightAll(false);
+    const before = planks(hx, hz);
+    B.ignite(hx, v.h + 1, hz + 1);
+    for (let k = 0; k < 60 * 90; k++) B.step(1 / 60);
+    const after = planks(hx, hz);
+
+    // (2) 마을 밖(30칸 밖)에서는 예전처럼 번진다 — 규칙을 통째로 끄면 안 된다
+    const ox = Math.min(B.WX - 10, v.x + 30) , oz = Math.min(B.WZ - 10, v.z + 30);
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = 0; dy <= 6; dy++) B.set(ox + dx, v.h + dy, oz + dz, 0);
+    for (let dx = 0; dx < 6; dx++) for (let dy = 0; dy < 3; dy++)
+      B.applyEdit(ox + dx, v.h + 1 + dy, oz, B.B.PLANKS, false, 0);
+    B.refreshAllTops(); B.relightAll(false);
+    const outBefore = planks(ox, oz);
+    B.ignite(ox, v.h + 1, oz + 1);
+    for (let k = 0; k < 60 * 90; k++) B.step(1 / 60);
+    const outAfter = planks(ox, oz);
+
+    // (3) 밤 예고 — 0.72 를 넘는 순간 한 줄 뜬다 (첫 30분에만)
+    B.S.playSeconds = 100;
+    B.S.timeOfDay = 0.70; B.opts.day = 20;
+    const toastEl = document.getElementById("toast");
+    toastEl.textContent = "";
+    for (let k = 0; k < 60 * 60; k++) B.step(1 / 60);   // 1분 — 0.72 를 지난다
+    const warned = /밤/.test(toastEl.textContent);
+    const at = B.S.timeOfDay;
+
+    B.S.weather = keepW;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { before, after, outBefore, outAfter, warned, at,
+             bar3: B.S.bar ? B.DEFAULT_BAR[3] : -1, WOOL0: B.WOOL0 };
+  });
+  assert(r.before >= 15, "마을 안 시험대가 안 섰다 (판자 " + r.before + ")");
+  eq(r.after, r.before,
+     "마을 안에서 불이 번져 판자가 " + r.before + " → " + r.after + " 로 줄었다");
+  assert(r.outBefore >= 15, "마을 밖 시험대가 안 섰다 (판자 " + r.outBefore + ")");
+  assert(r.outAfter < r.outBefore,
+     "마을 밖에서도 불이 안 번진다 (" + r.outBefore + " → " + r.outAfter + ") — 규칙을 통째로 껐다");
+  eq(r.warned, true, "0.72 를 지났는데(지금 " + r.at.toFixed(2) + ") 밤 예고가 없다");
+  eq(r.bar3, r.WOOL0 + 4, "기본 핫바 4번 칸이 색이 아니다 — 스무 칸이 전부 갈색·회색이었다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

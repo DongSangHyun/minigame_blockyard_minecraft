@@ -137,6 +137,12 @@ export function step(dt) {
     var prevDay = S.timeOfDay;
     S.timeOfDay = (S.timeOfDay + dt / (opts.day * 60)) % 1;
     if (S.timeOfDay < prevDay) S.moonDay++;      // 자정을 넘기면 달 위상이 바뀐다
+    // **밤을 예고한다** (v119) — 하루 20분 중 9.6분이 밤이고, 마을 밖은 블록광 0 이다.
+    // 처음 노는 사람에게 어둠은 "사고" 였다. 한 줄 먼저 말해 주면 "예고된 놀이" 가 된다.
+    // 첫 30분에만 — 아는 사람에게 매일 밤 잔소리를 하지 않는다
+    if (S.playSeconds < 1800 && prevDay < 0.72 && S.timeOfDay >= 0.72) {
+      toast("곧 밤이 옵니다 — 9번 칸의 횃불을 놓아 보세요");
+    }
   }
   applyTime(dt);
   voxUniforms.uTime.value += dt;

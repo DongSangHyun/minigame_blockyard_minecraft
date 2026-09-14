@@ -668,6 +668,11 @@ export function fireTick(budget) {
   // (번짐은 record=false 라 기록에 안 남는다. 폭발은 묶음으로 잡아 주는데 불만 못 잡는다).
   // 마크의 /gamerule doFireTick false 자리 — 끄면 붙인 불은 그 자리에서만 탄다.
   var spread = !!opts.firespread;
+  // **마을은 안 탄다** (v119) — 집이 판자·원목이고, 불은 번지며 편집을 쌓아
+  // `Ctrl+Z` 로도 못 되돌린다(번짐은 record=false 다). 아이가 부싯돌 한 번으로
+  // 자기 마을이 타는 것을 보고만 있는 30분은 회복이 안 된다.
+  // 마을 안에서도 **붙인 불은 그 자리에서 탄다** — 번지지만 않는다
+  var vil = S.village;
   // 비가 오면 하늘이 뚫린 자리의 불은 꺼지고 새로 붙지도 않는다 —
   // 방화 실수를 하늘이 수습해 준다. 지하 굴의 불은 그대로 산다 (마크와 같다).
   var raining = S.weather === 1;
@@ -678,9 +683,13 @@ export function fireTick(budget) {
     var y = (i / PLANE) | 0, rem = i - y * PLANE;
     var z = (rem / WX) | 0, x = rem - z * WX;
 
+    // 마을 울타리 안(중심에서 ±18칸)이면 번지지 않는다
+    var inVillage = vil && Math.abs(x - vil.x) <= 18 && Math.abs(z - vil.z) <= 18;
+
     // 태울 것을 하나 고른다
     var burned = false;
     for (var d = 0; d < 6; d++) {
+      if (inVillage) break;
       var nx = x + DIRS[d][0], ny = y + DIRS[d][1], nz = z + DIRS[d][2];
       if (!inside(nx, ny, nz)) continue;
       if (!isFlammable(get(nx, ny, nz))) continue;

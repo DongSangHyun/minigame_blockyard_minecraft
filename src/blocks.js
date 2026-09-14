@@ -260,7 +260,10 @@ export function connectsTo(self, other) {
 // 원목·잎으로 묶어 두면 잎 부패와 축 회전이 종류를 안 가린다
 export function isLog(b) { return b === LOG || b === BIRCH_LOG || b === SPRUCE_LOG; }
 export function isLeaf(b) { return b === LEAVES || b === BIRCH_LEAVES || b === SPRUCE_LEAVES; }
-export var DEFAULT_BAR = [GRASS, DIRT, STONE, COBBLE, SAND, LOG, PLANKS, GLASS, TORCH, LAMP];
+// 4번 칸은 **색**이다 (v119) — 스무 칸이 전부 갈색·회색·흰색이라, 목록(E)의 「색」 탭을
+// 모르는 사람은 30분 동안 흙집만 짓는다. 아이에게는 색이 있어야 「내 집」이 「빨간 집」이 된다.
+// 조약돌은 돌과 겹치므로 그 자리를 내준다
+export var DEFAULT_BAR = [GRASS, DIRT, STONE, WOOL0 + 4, SAND, LOG, PLANKS, GLASS, TORCH, LAMP];
 // 2쪽 — 건축 부품과 도구
 export var DEFAULT_BAR2 = [BRICK, SNOW, ICE, FENCE, GATE, DOOR, PANE, LADDER, FLINT, BUCKET];
 
