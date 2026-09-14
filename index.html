@@ -730,6 +730,14 @@
   @media (max-width: 640px) { #help-achlist { grid-template-columns: 1fr; } }
 
   .help-card h2 { font-family: var(--pixel); font-size: 14px; margin: 0 0 16px; color: var(--moss); }
+  /* 첫 화면에서 가장 먼저 읽히는 다섯 줄 — 나머지 45줄보다 크게 (v120) */
+  .help-first {
+    margin: 0 0 10px; padding: 8px 10px 8px 28px;
+    background: color-mix(in srgb, var(--panel-2) 70%, transparent);
+    border-left: 3px solid var(--moss);
+    font-size: 13px; line-height: 1.55; color: var(--bone);
+  }
+  .help-first b { color: var(--ember); }
   .help-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
   .help-cols dl { margin: 0; }
   .help-cols dt {
@@ -991,6 +999,16 @@
       <h2>조작</h2>
       <button type="button" id="help-ach">도전 과제 보기</button>
     </div>
+    <!-- **처음 해 볼 것 다섯** (v120) — 도움말은 2,293자 · 45줄이고 한 화면에 35%만 들어간다.
+         튜토리얼 마지막 줄이 여기로 보내는데, 아이는 3초 보고 닫는다.
+         새로 쓴 글이 아니라 **자리만 바꾼 것**이다 — 아래 표에 다 있던 것들이다 -->
+    <ol class="help-first">
+      <li><b>캐기</b> — 좌클릭을 <b>누르고 있기</b></li>
+      <li><b>놓기</b> — 우클릭 (끌면 줄이 그어집니다)</li>
+      <li><b>재료 고르기</b> — <kbd>E</kbd> (위쪽 <b>색</b> 탭에 양털·색 유리가 있습니다)</li>
+      <li><b>상인에게 우클릭</b> — 말을 걸면 <b>0번 칸</b>에 선물을 줍니다</li>
+      <li><b>꽃을 들고 동물에게 우클릭</b> — 잠시 따라옵니다</li>
+    </ol>
     <div class="help-cols" id="help-keys">
       <dl>
         <dt>이동</dt><dd><kbd>WASD</kbd> 걷기 · <kbd>Space</kbd> 점프 · <kbd>Shift</kbd> 웅크리기</dd>
@@ -1030,6 +1048,8 @@
             (말을 걸 때마다 다른 것을 줍니다)</dd>
         <dd>미니맵에 <b>시장 · 광산 · 우리</b> 표식이 찍혀 있습니다 —
             <kbd>/</kbd><b>tp 광산</b> 으로 바로 갑니다</dd>
+        <dd><b>길을 잃으면</b> <kbd>/</kbd><b>tp 마을</b> · 또는 <kbd>ESC</kbd> 설정의
+            <b>「길을 잃었을 때 → 마을로」</b> (폰에서도 됩니다)</dd>
         <dt>마우스 없이</dt>
         <dd>설정 › <b>방향키로 둘러보기</b> 를 켜면 <kbd>↑↓←→</kbd> 가 <b>시선</b>이 됩니다
             (걷기는 <kbd>WASD</kbd>)</dd>
@@ -1073,6 +1093,13 @@
     <!-- 터치 기기용 — 폰에서 도움말을 열면 있지도 않은 키 이야기가 1,155자 나왔다.
          30분 뒤 "영역 채우기가 있다던데" 하고 열면 Alt+좌클릭만 나오고,
          그게 폰에서 도달할 수 없는 기능이라는 사실조차 안 알려 줬다. (자문 12차 #6) -->
+    <ol class="help-first">
+      <li><b>캐기</b> 버튼을 <b>누른 채로</b></li>
+      <li><b>놓기</b> 버튼 (누른 채 끌면 줄이 그어집니다)</li>
+      <li><b>목록</b> 버튼 — 위쪽 <b>색</b> 탭에 양털·색 유리가 있습니다</li>
+      <li><b>상인</b>을 보고 <b>놓기</b> — <b>0번 칸</b>에 선물을 줍니다</li>
+      <li><b>꽃</b>을 들고 <b>동물</b>을 보고 <b>놓기</b> — 잠시 따라옵니다</li>
+    </ol>
     <div class="help-cols" id="help-touch">
       <dl>
         <dt>이동</dt>
@@ -1261,6 +1288,12 @@
                  0 으로 끄는 것뿐이었는데, 라벨이 「하루 길이」라 그게 낮 고정이라는 걸
                  아무도 못 읽는다. 마크 건축자는 거의 항상 doDaylightCycle false 로 시작한다 -->
             <button type="button" data-hold="1" id="pill-dayhold">멈춤</button>
+          </div></div>
+        <!-- 마을로 (v120) — 지도에 표식은 찍히는데 `/tp 광산` 은 키보드 전용이라,
+             태블릿에서는 길을 잃으면 돌아갈 길이 하나도 없었다 -->
+        <div class="opt"><span>길을 잃었을 때</span>
+          <div class="pillrow" id="row-goto">
+            <button type="button" data-goto="village">마을로</button>
           </div></div>
         <div class="opt"><span>날씨</span>
           <div class="pillrow" id="row-weather">

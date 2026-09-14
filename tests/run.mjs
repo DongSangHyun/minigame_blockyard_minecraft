@@ -8039,10 +8039,15 @@ test("v73 소리: 바다·불·낮이 더는 무음이 아니다", async (page) 
     B.S.cricketTimer = 0;
     const night = measure((dt) => B.updateAmbient(dt), 20);
 
-    // ⑤ 불 타일이 실제로 움직이는가
+    // ⑤ 불 타일이 실제로 움직이는가 — **여러 번 밀어 본다**.
+    // 한 번만 밀면 애니메이션 위상이 우연히 같은 칸으로 돌아오는 판이 있어
+    // 10회 중 한 번 "정지 화면" 으로 읽혔다
     const t0 = B.atlasSample(55);
-    B.animateLiquids(1.7);
-    const t1 = B.atlasSample(55);
+    let t1 = t0;
+    for (let a = 0; a < 6 && t1 === t0; a++) {
+      B.animateLiquids(1.7);
+      t1 = B.atlasSample(55);
+    }
 
     B.player.flying = false;
     ac.createOscillator = osc; ac.createBufferSource = buf; window.setTimeout = st;
@@ -13813,6 +13818,12 @@ test("v115 첫 마을: 켜자마자 집·상인·동물·광산·개울이 있�
     const t = traders[0];
     let kept = null, gift = null, tradedName = null;
     if (t) {
+      // **동물을 멀리 보낸다** — `aimedMob` 은 조준선에 걸린 **아무** 동물을 집는다.
+      // 가판 앞을 소가 지나가면 "상인을 못 잡는다" 로 읽힌다 (10회 중 1회)
+      B.mobs.forEach((m) => {
+        if (B.MOB_KINDS[m.kind].trader) return;
+        m.x = 4.5; m.z = 4.5; m.g.position.set(m.x, m.y, m.z);
+      });
       kept = B.removeMob(t) === false && B.mobs.indexOf(t) >= 0;
       B.player.pos.set(t.x, t.y, t.z + 2.2);
       B.player.yaw = 0; B.player.pitch = 0.18;
@@ -13980,8 +13991,9 @@ test("v119 마을은 안 탄다: 불이 번지지 않고, 밤은 예고된다", 
     B.setPaused(true); B.beginPlay();
     B.generate(4242, 2); B.refreshAllTops(); B.relightAll(false); B.resetQueues();
     const v = B.S.village;
-    const keepW = B.S.weather;
-    B.S.weather = 0;                       // 비가 불을 끄면 시험이 아무것도 안 잰다
+    const keepW = B.S.weather, keepLock = B.S.weatherLock;
+    // 비가 불을 끈다 — **잠가 둔다**. 2분을 돌리면 그 사이에 날씨가 바뀐다 (10회 중 2회 실패)
+    B.S.weather = 0; B.S.weatherLock = true;
 
     function planks(cx, cz) {
       let n = 0;
@@ -14000,15 +14012,33 @@ test("v119 마을은 안 탄다: 불이 번지지 않고, 밤은 예고된다", 
     const after = planks(hx, hz);
 
     // (2) 마을 밖(30칸 밖)에서는 예전처럼 번진다 — 규칙을 통째로 끄면 안 된다
-    const ox = Math.min(B.WX - 10, v.x + 30) , oz = Math.min(B.WZ - 10, v.z + 30);
-    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+    // **마을에서 확실히 벗어난 자리** — `min(WX-10, v.x+30)` 으로 잡았더니 마을이
+    // 세계 동쪽에 서는 시드에서 16칸까지 당겨져 보호 반경(±18) 안에 들었다 (10회 중 2회 실패)
+    const ox = v.x > B.WX / 2 ? Math.max(6, v.x - 30) : Math.min(B.WX - 8, v.x + 30);
+    const oz = v.z > B.WZ / 2 ? Math.max(6, v.z - 30) : Math.min(B.WZ - 8, v.z + 30);
+    for (let dx = -3; dx <= 8; dx++) for (let dz = -3; dz <= 3; dz++)
       for (let dy = 0; dy <= 6; dy++) B.set(ox + dx, v.h + dy, oz + dz, 0);
+    // **바닥을 깐다** — 치우기가 v.h 까지 걷어내면 불이 허공에 뜨고, 붙지도 번지지도 않는다
+    for (let dx = -3; dx <= 8; dx++) for (let dz = -3; dz <= 3; dz++)
+      B.set(ox + dx, v.h, oz + dz, B.B.STONE);
     for (let dx = 0; dx < 6; dx++) for (let dy = 0; dy < 3; dy++)
       B.applyEdit(ox + dx, v.h + 1 + dy, oz, B.B.PLANKS, false, 0);
     B.refreshAllTops(); B.relightAll(false);
     const outBefore = planks(ox, oz);
-    B.ignite(ox, v.h + 1, oz + 1);
-    for (let k = 0; k < 60 * 90; k++) B.step(1 / 60);
+    B.S.fireOrigins.length = 0;            // 마을에서 붙인 불의 원점이 남아 있으면 사거리 판정이 엉킨다
+    const lit = B.ignite(ox, v.h + 1, oz + 1);
+    // 불은 **확률로 번진다**(이웃당 30%) — 판자가 줄었는지만 보면 10회 중 한두 번 흔들린다.
+    // 「판자가 줄었거나 **불 칸이 둘 이상**」 으로 본다 (v99 에서 배운 것)
+    let fires = 0;
+    for (let k = 0; k < 60 * 120; k++) {
+      B.step(1 / 60);
+      if (k % 12 === 0) {                 // 0.2초마다 — 1초 간격이면 금방 꺼진 불을 놓친다
+        let f = 0;
+        for (let dy = 0; dy <= 6; dy++) for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 8; dx++)
+          if (B.get(ox + dx, v.h + dy, oz + dz) === B.B.FIRE) f++;
+        if (f > fires) fires = f;
+      }
+    }
     const outAfter = planks(ox, oz);
 
     // (3) 밤 예고 — 0.72 를 넘는 순간 한 줄 뜬다 (첫 30분에만)
@@ -14020,20 +14050,62 @@ test("v119 마을은 안 탄다: 불이 번지지 않고, 밤은 예고된다", 
     const warned = /밤/.test(toastEl.textContent);
     const at = B.S.timeOfDay;
 
-    B.S.weather = keepW;
+    B.S.weather = keepW; B.S.weatherLock = keepLock;
     B.S.history.length = 0; B.S.future.length = 0;
     B.endPlay(); B.setPaused(false);
-    return { before, after, outBefore, outAfter, warned, at,
+    return { before, after, outBefore, outAfter, warned, at, lit, fires,
              bar3: B.S.bar ? B.DEFAULT_BAR[3] : -1, WOOL0: B.WOOL0 };
   });
   assert(r.before >= 15, "마을 안 시험대가 안 섰다 (판자 " + r.before + ")");
   eq(r.after, r.before,
      "마을 안에서 불이 번져 판자가 " + r.before + " → " + r.after + " 로 줄었다");
   assert(r.outBefore >= 15, "마을 밖 시험대가 안 섰다 (판자 " + r.outBefore + ")");
-  assert(r.outAfter < r.outBefore,
-     "마을 밖에서도 불이 안 번진다 (" + r.outBefore + " → " + r.outAfter + ") — 규칙을 통째로 껐다");
+  eq(r.lit, true, "마을 밖에서 불이 안 붙었다 — 시험대가 안 섰다 (바닥이 없으면 안 붙는다)");
+  assert(r.outAfter < r.outBefore || r.fires > 1,
+     "마을 밖에서도 불이 안 번진다 (판자 " + r.outBefore + " → " + r.outAfter +
+     " · 불 칸 최대 " + r.fires + ") — 규칙을 통째로 껐다");
   eq(r.warned, true, "0.72 를 지났는데(지금 " + r.at.toFixed(2) + ") 밤 예고가 없다");
   eq(r.bar3, r.WOOL0 + 4, "기본 핫바 4번 칸이 색이 아니다 — 스무 칸이 전부 갈색·회색이었다");
+});
+
+test("v120 길을 잃었을 때: 마을로 돌아오고, 도움말이 다섯 줄로 맞아 준다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.generate(777, 2); B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    const v = B.S.village;
+    // 섬 반대편으로 걸어간 셈 치고
+    B.player.pos.set(8.5, 40, 8.5);
+    const far = Math.abs(B.player.pos.x - v.x) + Math.abs(B.player.pos.z - v.z);
+    const msg = B.runCommand("tp 마을");
+    const back = Math.abs(B.player.pos.x - v.spawn[0]) + Math.abs(B.player.pos.z - v.spawn[2]);
+    // 단추로도 (폰에는 명령창이 없다)
+    B.player.pos.set(8.5, 40, 8.5);
+    const btn = document.querySelector('#row-goto button[data-goto="village"]');
+    if (btn) btn.click();
+    const back2 = Math.abs(B.player.pos.x - v.spawn[0]) + Math.abs(B.player.pos.z - v.spawn[2]);
+
+    // 도움말 첫 블록 — 처음 해 볼 것 다섯
+    B.toggleHelp(true); B.setHelpTab(false);
+    const first = document.querySelector(".help-first");
+    const items = first ? first.querySelectorAll("li").length : 0;
+    const text = first ? first.textContent : "";
+    const size = first ? parseFloat(getComputedStyle(first).fontSize) : 0;
+    B.toggleHelp(false);
+    B.S.village = null;
+    B.endPlay(); B.setPaused(false);
+    return { far, msg, back, back2, items, text, size, btn: !!btn };
+  });
+  assert(r.far > 20, "시험대가 안 섰다 — 마을에서 " + r.far + "칸밖에 안 떨어졌다");
+  assert(/마을로 돌아왔습니다/.test(r.msg), "/tp 마을 이 안 먹는다 — " + r.msg);
+  assert(r.back < 2, "/tp 마을 뒤에도 마을에서 " + r.back.toFixed(1) + "칸 떨어져 있다");
+  eq(r.btn, true, "설정에 「마을로」 단추가 없다 — 폰에는 명령창이 없다");
+  assert(r.back2 < 2, "단추로는 마을에 안 온다 (" + r.back2.toFixed(1) + "칸)");
+  eq(r.items, 5, "도움말 첫 블록이 " + r.items + "줄이다 — 다섯이라야 한다");
+  ["캐기", "놓기", "상인", "꽃"].forEach((w) => {
+    assert(r.text.indexOf(w) >= 0, "도움말 첫 블록에 「" + w + "」 가 없다");
+  });
+  assert(r.size >= 13, "도움말 첫 블록 글자가 " + r.size + "px 다 — 45줄 표보다 커야 한다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

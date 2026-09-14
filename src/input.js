@@ -930,6 +930,22 @@ export var refreshWorldPills = function () {};
     markWeather();
     S.worldDirty = true;
   });
+  // 「마을로」 (v120) — 터치에는 명령창이 없어(`/tp 마을`) 돌아갈 길이 없었다.
+  // 96칸 섬이라 물리적으로는 20초 거리인데 방향을 못 잡는다
+  var gRow = document.getElementById("row-goto");
+  if (gRow) gRow.addEventListener("click", function (e) {
+    var gb = e.target.closest ? e.target.closest("button") : null;
+    if (!gb) return;
+    e.stopPropagation();
+    if (!S.village) { toast("이 세계에는 마을이 없습니다"); return; }
+    var sp = S.village.spawn;
+    player.pos.set(sp[0], sp[1] + 0.2, sp[2]);
+    player.vel.set(0, 0, 0);
+    S.worldDirty = true;
+    toast("마을로 돌아왔습니다");
+    tone(520, 0.09, "triangle", 0.05);
+  });
+
   // 시점 (v96) — F5·F6 이 keydown 안에만 있어서, **v92 가 만든 몸을 폰 사용자는
   // 한 번도 못 봤다.** 과제 「사진사」도 F2 뿐이라 폰에서는 39/40 이 상한이었다.
   var vRow = document.getElementById("row-view");

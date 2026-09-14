@@ -918,7 +918,7 @@ export function pasteClip(px, py, pz, withAir) {
 
 // ── 명령 처리 — 짧은 이름 하나로 알아듣게
 export var CMD_HELP =
-  "tp <x y z | 표식 번호|이름> · time <아침|정오|노을|밤|0~1> · weather <맑음|비|눈> · " +
+  "tp <x y z | 마을 | 표식 번호·이름> · time <아침|정오|노을|밤|0~1> · weather <맑음|비|눈> · " +
   "marks · marks del <번호> · fill <블록|공기> [바꿀블록] · hollow · walls <블록> · " +
   "cyl <블록> <반지름> [높이] [속빔] · sphere <블록> <반지름> [속빔] · shell <블록> · " +
   "paste [공기] · mirror · rotate · " +
@@ -998,6 +998,15 @@ export function runCommand(line) {
     var x = parseFloat(parts[1]), y = parseFloat(parts[2]), z = parseFloat(parts[3]);
     // 좌표 대신 표식 번호나 이름 하나만 줘도 된다 — 지도에 점만 찍어 놓고
     // 거기로 돌아갈 방법이 없으면 표식을 찍을 이유가 없다 (자문 9차)
+    // `/tp 마을` — 표식을 지웠어도 마을로는 돌아갈 수 있다 (v120)
+    if (parts.length === 2 && /^(마을|village|집)$/i.test(parts[1] || "")) {
+      if (!S.village) return "이 세계에는 마을이 없습니다";
+      var vsp = S.village.spawn;
+      player.pos.set(vsp[0], vsp[1] + 0.2, vsp[2]);
+      player.vel.set(0, 0, 0);
+      S.worldDirty = true;
+      return "마을로 돌아왔습니다";
+    }
     if (parts.length === 2 && parts[1]) {
       var q = parts[1].toLowerCase(), pick = -1;
       var byNum = parseInt(parts[1], 10);

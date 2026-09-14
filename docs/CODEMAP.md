@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-14 · 모듈 30개 · 합계 14,489줄
+생성일 2026-09-14 · 모듈 30개 · 합계 14,514줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -28,11 +28,11 @@
 | [`audio.js`](../src/audio.js) | 소리 | 356 | state · blocks · daynight · settings |
 | [`save.js`](../src/save.js) | 저장 · 불러오기 | 435 | state · dims · blocks · world · player · mobs · hud · sky |
 | [`village.js`](../src/village.js) | 시작 마을. 세계를 켜면 **이미 누가 살고 있는 자리**에서 시작한다. | 415 | dims · state · blocks · world |
-| [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 1433 | state · queues · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
+| [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 1442 | state · queues · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
 | [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 804 | state · version · dims · blocks · atlas · world · player · settings · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 201 | state · settings · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
 | [`body.js`](../src/body.js) | 3인칭에서 보이는 플레이어 몸 | 200 | state · settings · scene · player · atlas · hand · blocks |
-| [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 2018 | state · world · queues · mobs · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
+| [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 2034 | state · world · queues · mobs · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
 | [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 329 | state · mobs · fluids · dims · blocks · world · light · scene · player · audio · edit · hud · hand · input |
 | [`mobs.js`](../src/mobs.js) | 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다. | 723 | dims · world · blocks · scene · player · audio · light · daynight · state |
 | [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 500 | state · audio · dims · atlas · blocks · world · scene · daynight · settings · player |
@@ -428,15 +428,15 @@
 | `pasteClip(px, py, pz, withAir)` | 897 |
 | `completeCommand(prefix)` | 955 |
 | `runCommand(line)` | 962 |
-| `loadBlueprints()` | 1304 |
-| `saveBlueprint(name)` | 1307 |
-| `useBlueprint(name)` | 1333 |
-| `exportBlueprint(name)` | 1353 |
-| `importBlueprint(text)` | 1368 |
-| `blueprintNames()` | 1393 |
-| `blueprintList()` | 1396 |
-| `deleteBlueprint(name)` | 1406 |
-| `selectionCounts()` | 1416 |
+| `loadBlueprints()` | 1313 |
+| `saveBlueprint(name)` | 1316 |
+| `useBlueprint(name)` | 1342 |
+| `exportBlueprint(name)` | 1362 |
+| `importBlueprint(text)` | 1377 |
+| `blueprintNames()` | 1402 |
+| `blueprintList()` | 1405 |
+| `deleteBlueprint(name)` | 1415 |
+| `selectionCounts()` | 1425 |
 
 내보내는 값 — `HISTORY_MAX` · `FIRE_UNDO_MAX` · `FLUID_UNDO_MAX` · `BATCH_RELIGHT_ALL` · `HISTORY_CELLS_MAX` · `lastEditLabel` · `undoEmptyWhy` · `ACHIEVEMENTS` · `achGrid` · `BUILD_R` · `BUILD_IDS` · `FOUND_IDS` · `FOUND_R` · `ROOM_MAX` · `statGrid` · `REGION_MAX` · `CMD_HELP` · `CMD_LIST` · `BP_KEY` · `BP_TAG`
 
@@ -535,21 +535,21 @@
 | `arrowLookTick(dt)` | 836 |
 | `applyLook(dx, dy)` | 845 |
 | `cycleTime()` | 865 |
-| `setPhotoMode(on)` | 957 |
-| `setShapeMode(m)` | 984 |
-| `markHere()` | 996 |
-| `renameMarkHere()` | 1004 |
-| `toggleMark(named)` | 1017 |
-| `cycleMinimapZoom(dir)` | 1042 |
-| `swapBarPage()` | 1057 |
-| `pickBlock()` | 1081 |
-| `setStick(dx, dy)` | 1468 |
-| `bindHold(id, onDown, onUp)` | 1612 |
-| `toggleRegionBar(on)` | 1704 |
-| `bindOpt(inputId, outId, key, fmt)` | 1845 |
-| `refreshScaleLabels()` | 1875 |
-| `pollGamepadMenu()` | 1920 |
-| `pollGamepad(dt)` | 1930 |
+| `setPhotoMode(on)` | 973 |
+| `setShapeMode(m)` | 1000 |
+| `markHere()` | 1012 |
+| `renameMarkHere()` | 1020 |
+| `toggleMark(named)` | 1033 |
+| `cycleMinimapZoom(dir)` | 1058 |
+| `swapBarPage()` | 1073 |
+| `pickBlock()` | 1097 |
+| `setStick(dx, dy)` | 1484 |
+| `bindHold(id, onDown, onUp)` | 1628 |
+| `toggleRegionBar(on)` | 1720 |
+| `bindOpt(inputId, outId, key, fmt)` | 1861 |
+| `refreshScaleLabels()` | 1891 |
+| `pollGamepadMenu()` | 1936 |
+| `pollGamepad(dt)` | 1946 |
 
 내보내는 값 — `overlay` · `goBtn` · `altBtn` · `seedIn` · `canvas` · `isTouch` · `HINT_LOCK` · `HINT_DRAG` · `HINT_TOUCH` · `hintEl` · `TUT` · `TUT_TOUCH` · `TUT_KEY` · `TUT_LEN` · `slotsEl` · `copySeedBtn` · `expBtn` · `impBtn` · `resBtn` · `fileIn` · `relearnBtn` · `terrainEl` · `KEY_LABEL` · `keysEl` · `RESERVED` · `copyLinkBtn` · `refreshWorldPills` · `MM_ZOOMS` · `lookLast` · `stickZone` · `stickBase` · `stickKnob` · `STICK_R` · `padState`
 
