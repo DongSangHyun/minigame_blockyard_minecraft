@@ -104,6 +104,7 @@ export const S = {
   // 마우스를 못 쓰는 사람을 위해 만든 기능이 마우스 상태에 매여 있었다
   keyMine: false, keyPlace: false,
   village: null,         // 시작 마을이 놓인 자리 (v115 · 생성기가 채운다)
+  noSave: false,         // 링크로 받은 세계 — 남의 슬롯을 안 덮는다 (v116)
   tradeCount: 0,         // 상인에게 몇 번 말을 걸었나 — 선물이 돌아가며 나온다
   padFlyTap: 0,
   delArm: 0,

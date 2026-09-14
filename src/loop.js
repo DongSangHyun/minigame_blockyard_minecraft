@@ -96,6 +96,10 @@ export function newWorld(seed) {
   seedMobs();
   seedVillage(S.village);        // 우리에 동물 넷, 가판에 상인 하나 (v115)
   S.marks = villageMarks(S.village);   // 지도에 「시장 · 광산 · 우리」
+  // 시작 지점을 마을로 못 박는다 (v117) — 지도의 **집 모양**이 그때까지 한 번도 안 떴다.
+  // 도움말은 「집 모양 = 시작 지점」이라고 적어 두고 있었다 (§5.5 의 말-코드 어긋남).
+  // 길을 잃은 아이가 지도에서 마을을 찾는 유일한 표시다
+  if (S.village) S.spawnPoint = [S.village.spawn[0], S.village.spawn[1], S.village.spawn[2]];
   seedFlocks();
   refreshAchList(); refreshStats();
   S.timeOfDay = 0.25;      // 06:00 — 첫 노을까지 10분(하루 20분 기준). 07:12 시작은 튜토리얼 도중 밤이 왔다

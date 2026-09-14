@@ -5052,6 +5052,10 @@ test("v35 슬롯: 저장 시각이 실리고, 빈 슬롯이 SEED 를 따르고, 
     B.generate(4321); B.relightAll(false);
     B.saveGame();
     const info = B.slotInfo(3);
+    // **다른 슬롯에서 지운다** (v116) — 놀고 있는 슬롯은 이제 못 지운다.
+    // `clearSave` 는 저장 키만 지우고 메모리의 세계는 그대로라,
+    // 지운 자리가 다음 자동 저장에 이름까지 되살아났기 때문이다
+    B.S.slot = 1;
     const ago = B.agoText(Date.now() - 3 * 3600 * 1000);
     // 지우기 — 첫 클릭은 무장만, 두 번째에 지워진다
     B.refreshSlots();
@@ -13810,6 +13814,128 @@ test("v115 첫 마을: 켜자마자 집·상인·동물·광산·개울이 있�
   eq(r.tradedName, "상인", "가판 앞에서 조준선이 상인을 못 잡는다 (" + r.tradedName + ")");
   assert(r.gift > 0, "상인에게 말을 걸었는데 0번 칸이 비어 있다");
   eq(r.marks.join(","), "시장,광산,우리", "지도 표식이 " + r.marks.join(",") + " 다");
+});
+
+test("v116 안전망: 링크가 슬롯을 안 덮고, 지운 슬롯이 안 되살아나고, 되돌리기가 새것을 고른다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keepSlot = B.S.slot, keepNoSave = B.S.noSave;
+    const out = {};
+
+    // (1) 링크로 받은 세계는 저장하지 않는다 — S.noSave 가 서면 슬롯이 안 바뀐다
+    B.S.slot = 1;
+    B.S.worldSeed = 12345;
+    B.saveGame();
+    const mine = localStorage.getItem(B.slotKey(1));
+    B.S.noSave = true;
+    B.S.worldSeed = 99999;
+    const saved = B.saveGame();
+    out.noSaveBlocked = saved === false && localStorage.getItem(B.slotKey(1)) === mine;
+    B.S.noSave = false;
+
+    // (2) 되돌리기가 고르는 것 — **「갈아타기 직전」이 지금과 다른 세계면 그것**이다.
+    // 그게 사람이 방금 잃은 세계다. 시각만 보고 새것을 고르면, 새 세계를 만든 20초 뒤
+    // `.bak` 이 지금 세계가 되어 **지금 놀고 있는 것으로 되돌리는** 헛일을 한다 (v69)
+    const now = Date.now();
+    function fake(seed, at, nm) {
+      const d = JSON.parse(mine);
+      d.seed = seed; d.at = at; d.nm = nm;
+      return JSON.stringify(d);
+    }
+    B.S.worldSeed = 12345;
+    B.saveGame();                                  // 지금 세계 = 12345
+    localStorage.setItem(B.slotKey(1) + ".prev", fake(1111, now - 3600000, "갈아타기전"));
+    localStorage.setItem(B.slotKey(1) + ".bak", fake(12345, now - 1000, "내가덮어쓴것"));
+    out.pickSwitched = (B.backupCandidates()[0] || {}).name;
+    out.label = B.backupLabel();
+    const before = localStorage.getItem(B.slotKey(1));
+    B.restoreBackup();
+    out.seedAfter = B.S.worldSeed;
+    // 지금 것이 .prev 로 밀렸는가 — 한 번 더 누르면 돌아올 수 있어야 한다
+    out.prevKept = localStorage.getItem(B.slotKey(1) + ".prev") === before;
+
+    // (3) 「갈아타기 직전」이 **지금과 같은 세계**면 (내 세계를 내가 덮어썼다) `.bak` 이 답이다
+    B.S.worldSeed = 777;
+    B.saveGame();
+    localStorage.setItem(B.slotKey(1) + ".prev", fake(777, now - 3600000, "같은세계옛판"));
+    localStorage.setItem(B.slotKey(1) + ".bak", fake(777, now - 1000, "저장직전"));
+    out.pickSame = (B.backupCandidates()[0] || {}).name;
+
+    localStorage.removeItem(B.slotKey(1) + ".prev");
+    localStorage.removeItem(B.slotKey(1) + ".bak");
+    B.S.slot = keepSlot; B.S.noSave = keepNoSave;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  eq(r.noSaveBlocked, true, "링크로 받은 세계가 슬롯을 덮었다 — 20초 뒤 남의 세계가 사라진다");
+  eq(r.pickSwitched, "갈아타기전",
+     "되돌리기가 '" + r.pickSwitched + "' 를 고른다 — 갈아타기 직전의 **다른 세계**라야 한다");
+  assert(/갈아타기전/.test(r.label), "되돌리기 단추가 무엇을 되살리는지 안 말한다 (" + r.label + ")");
+  eq(r.seedAfter, 1111, "되돌렸는데 seed 가 " + r.seedAfter + " 다");
+  eq(r.pickSame, "저장직전",
+     "내 세계를 내가 덮어썼을 때 '" + r.pickSame + "' 를 고른다 — 저장 직전 판이라야 한다");
+  eq(r.prevKept, true, "되돌리기 전 세계를 안 남겼다 — 잘못 누르면 지금 것이 사라진다");
+});
+
+test("v117 아이의 첫 30분: 광산에서 걸어 나오고, 안내가 읽을 만큼 뜬다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const out = { climbs: [], lava: 0, gaps: 0 };
+    for (const seed of [11, 222, 3333]) {
+      B.generate(seed, 2); B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+      const v = B.S.village;
+      const mx = v.mine[0], my = v.mine[1], mz = v.mine[2];
+      // 사다리가 바닥부터 지상까지 이어지는가
+      for (let y = my; y <= v.h; y++) if (B.get(mx, y, mz - 1) !== B.B.LADDER) out.gaps++;
+      // 광산 방 밑 두 겹에 용암이 없는가 (파면 바로 올라온다)
+      for (let dy = -3; dy <= -2; dy++) for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++)
+        if (B.get(mx + dx, my + dy, mz + dz) === B.B.LAVA) out.lava++;
+      // **실제로 올라가 본다** — 블록을 세는 것으로는 "갇혔다" 를 못 잡는다.
+      // v115 는 사다리를 깔고 나서 바닥 방을 파며 밑 세 칸을 지웠고,
+      // 떨어져 들어간 아이는 점프로 +1.4칸밖에 못 올라왔다
+      B.player.pos.set(mx + 0.5, my, mz - 0.4);
+      B.player.vel.set(0, 0, 0); B.player.flying = false;
+      B.player.yaw = 0; B.player.pitch = 0;
+      B.setKey("Space", true); B.setKey("KeyW", true);
+      let top = B.player.pos.y;
+      for (let k = 0; k < 60 * 30; k++) { B.step(1 / 60); if (B.player.pos.y > top) top = B.player.pos.y; }
+      B.setKey("Space", false); B.setKey("KeyW", false);
+      out.climbs.push({ seed, from: my, to: +top.toFixed(1), plaza: v.h });
+    }
+    // 토스트는 글자 수에 맞춰 뜬다 — 36자짜리 안내가 1.6초면 20%만 읽힌다
+    B.toast("짧게");
+    const short = B.S.toastTimer;
+    B.toast("마을입니다 — 상인에게 우클릭하면 선물을 줍니다 · 지도에 광산 표식");
+    const long = B.S.toastTimer;
+    const size = parseFloat(getComputedStyle(document.getElementById("toast")).fontSize);
+    // 「처음부터 다시 배우기」 — 기기에 박힌 표시를 지운다
+    try { localStorage.setItem("blockyard.tutdone", "1"); localStorage.setItem("blockyard.seen", "1"); } catch (e) {}
+    B.S.tut = 9;
+    const btn = document.getElementById("w-relearn");
+    if (btn) btn.click();
+    const relearned = B.S.tut === 0 && !B.tutDone();
+    // 지도의 「집 모양」 — 시작 지점이 마을에 찍혀 있는가
+    B.newWorld(4242);
+    const hasSpawnMark = !!B.S.spawnPoint;
+    B.S.village = null;
+    B.endPlay(); B.setPaused(false);
+    return Object.assign(out, { short, long, size, relearned, hasSpawnMark, btn: !!btn });
+  });
+  eq(r.gaps, 0, "광산 사다리가 " + r.gaps + "칸 끊겼다 — 떨어진 아이가 못 올라온다");
+  eq(r.lava, 0, "광산 바닥 밑 두 겹에 용암이 " + r.lava + "칸 있다 — 파면 바로 올라온다");
+  r.climbs.forEach((c) => {
+    assert(c.to >= c.plaza,
+       "시드 " + c.seed + ": 광산 바닥(" + c.from + ")에서 " + c.to + "까지만 올라왔다 (지상 " + c.plaza + ")");
+  });
+  assert(r.long > r.short + 1.5,
+     "긴 안내가 짧은 것과 같은 시간(" + r.long + "초) 떠 있다 — 아이는 20%만 읽는다");
+  assert(r.long >= 5, "36자 안내가 " + r.long + "초뿐이다");
+  assert(r.size >= 12, "토스트 글자가 " + r.size + "px 다 — 12px 이상이라야 한다");
+  eq(r.btn, true, "「처음부터 다시 배우기」 단추가 없다 — 부모 기기에서는 아이에게 안내가 안 뜬다");
+  eq(r.relearned, true, "「처음부터 다시 배우기」를 눌러도 표시가 안 지워진다");
+  eq(r.hasSpawnMark, true, "새 세계에 시작 지점이 안 찍혔다 — 지도의 집 모양이 영영 안 뜬다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

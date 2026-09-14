@@ -177,6 +177,10 @@ export function liftLegacy(src, dst, asRuns) {
 }
 
 export function saveGame() {
+  // **링크로 받은 세계는 남의 슬롯을 안 덮는다** (v116) — `?seed=` 로 열면 슬롯은
+  // 기본 1 인 채 세계만 갈리고, 자동 저장(기본 20초) 한 번에 슬롯 1 의 세계가 사라졌다.
+  // 화면은 그때까지 옛 세계 이름으로 「이어하기」라고 말한다. 사람이 잘못한 것이 하나도 없는 사고다
+  if (S.noSave) return false;
   rememberSlot(S.slot);
   touchLock();
   try {
@@ -339,13 +343,61 @@ export function hasBackup() {
     return !!(localStorage.getItem(prevKey(S.slot)) || localStorage.getItem(backupKey(S.slot)));
   } catch (e) { return false; }
 }
+// 되살릴 후보 — `.prev`(갈아타기 직전)와 `.bak`(저장마다 밀리는 것) 두 벌.
+// **저장 시각이 새 쪽**을 고른다 (v116). 예전에는 언제나 `.prev` 를 먼저 봐서,
+// A → 새 세계 B → 사고 C 일 때 복구 단추가 **B 가 아니라 A** 를 되살렸고,
+// 그 A 가 다음 자동 저장에서 `.bak`(B)을 덮어 **20초 뒤 B 를 완전히 없앴다.**
+export function backupCandidates() {
+  var out = [];
+  var keys = [[prevKey(S.slot), "갈아타기 직전"], [backupKey(S.slot), "저장 직전"]];
+  for (var i = 0; i < keys.length; i++) {
+    try {
+      var raw = localStorage.getItem(keys[i][0]);
+      if (!raw) continue;
+      var d = JSON.parse(raw);
+      out.push({ key: keys[i][0], why: keys[i][1], raw: raw,
+                 seed: d.seed >>> 0, at: d.at || 0,
+                 name: typeof d.nm === "string" ? d.nm : "",
+                 mins: Math.round((d.secs || 0) / 60) });
+    } catch (e) {}
+  }
+  // **고르는 순서** — 「갈아타기 직전(.prev)」이 지금 세계와 **다른 세계**면 그것이 먼저다.
+  // 그게 "사람이 방금 잃은 그 세계" 이기 때문이다 (새 세계·가져오기·내려받기가 여기로 민다).
+  // 같은 세계(내 세계를 내가 덮어썼다)면 `.bak`(저장 직전)이 답이다.
+  // 시각만 보고 새것을 고르면, 새 세계를 만든 20초 뒤 `.bak` 이 새 세계가 되어
+  // **지금 놀고 있는 세계로 "되돌리는"** 헛일을 한다 (v69 가 막아 둔 자리다)
+  // **지금 놀고 있는 세계**와 견준다 — 저장된 것과 견주면, 아직 저장하지 않은
+  // 새 세계에서 옛 저장을 "지금 세계" 로 착각한다 (v14 시험이 그렇게 깨졌다)
+  var mine = S.worldSeed >>> 0;
+  // **지금 놀고 있는 세계가 아닌 것 중에서 새것**을 고른다.
+  // ① 같은 세계를 되살리는 것은 헛일이다 — 새 세계를 만든 20초 뒤에는 `.bak` 이
+  //    새 세계가 되어 있다(v69 가 `.prev` 를 만든 이유).
+  // ② 그다음은 시각이 새 쪽 — 한 시간 전에 갈아탄 것보다 1분 전에 덮어쓴 것이 급하다(v14).
+  out.sort(function (a, b) {
+    var am = (a.seed !== mine) ? 1 : 0, bm = (b.seed !== mine) ? 1 : 0;
+    if (am !== bm) return bm - am;
+    return b.at - a.at;
+  });
+  return out;
+}
+// 무엇을 되살릴지 한 줄로 — 눌러 보기 전에 알 수 있어야 한다
+export function backupLabel() {
+  var c = backupCandidates();
+  if (!c.length) return "";
+  var top = c[0];
+  return (top.name || ("SEED " + top.seed)) + " · " + top.mins + "분 · " + top.why;
+}
 export function restoreBackup() {
   try {
-    // 갈아타기 직전 판을 먼저 본다 — 그것이 사람이 잃은 바로 그 세계다
-    var bak = localStorage.getItem(prevKey(S.slot)) || localStorage.getItem(backupKey(S.slot));
-    if (!bak) return false;
-    localStorage.setItem(curKey(), bak);
-    return loadGame();
+    var c = backupCandidates();
+    if (!c.length) return false;
+    // **되돌리기의 되돌리기** — 지금 세계를 `.prev` 로 밀어 두고 바꾼다.
+    // 안 그러면 잘못 눌렀을 때 지금 것이 그 자리에서 사라진다
+    var cur = localStorage.getItem(curKey());
+    localStorage.setItem(curKey(), c[0].raw);
+    var ok = loadGame();
+    if (ok && cur) localStorage.setItem(prevKey(S.slot), cur);
+    return ok;
   } catch (e) { return false; }
 }
 
@@ -367,6 +419,9 @@ export function exportWorld() {
 
 // 파일에서 가져오기 — 형태를 확인한 뒤에만 덮어쓴다
 export function importWorldText(text) {
+  // 가져오기도 **갈아타기**다 (v116) — 예전에는 pushPrev 를 안 지나서
+  // 지금 세계의 마지막 사본이 20초짜리 `.bak` 뿐이었다
+  pushPrev();
   var d;
   try { d = JSON.parse(text); } catch (e) { return "형식이 올바르지 않습니다"; }
   if (!d || !d.w || typeof d.seed !== "number") return "블록야드 세계 파일이 아닙니다";

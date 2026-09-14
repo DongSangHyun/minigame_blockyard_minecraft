@@ -13,7 +13,7 @@ import { applyTime } from "./daynight.js";
 import { applyOpts, applyFov, applyTbtn, applyUi, opts, saveOpts } from "./settings.js";
 import { EYE, currentShape, player, raycast, spawn } from "./player.js";
 import { ac, setAudioAwake, startAmbient, tone } from "./audio.js";
-import { renameSlot, clearSave, SLOTS, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo , rememberSlot, releaseLock, lockHeldByOther} from "./save.js";
+import { renameSlot, clearSave, SLOTS, backupLabel, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo , rememberSlot, releaseLock, lockHeldByOther} from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
 import { undoEmptyWhy, lastEditLabel, blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
 import { helpOpen, bigMapOpen, toggleBigMap, closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
@@ -155,6 +155,14 @@ if (slotsEl) {
     if (del) {
       e.stopPropagation();
       var dn = parseInt(del.getAttribute("data-del"), 10);
+      // **놀고 있는 슬롯은 못 지운다** (v116) — `clearSave` 는 저장 키만 지우는데
+      // 메모리의 세계는 그대로라, 목록에서 사라졌다가 **다음 자동 저장에 이름까지 되살아났다**
+      // (20초). 마크도 열려 있는 월드는 못 지운다. 다른 슬롯으로 옮긴 뒤에 지운다
+      if (dn === S.slot) {
+        S.delArm = 0;
+        toast("지금 놀고 있는 슬롯입니다 — 다른 슬롯으로 옮긴 뒤 지우세요");
+        return;
+      }
       if (S.delArm === dn && Date.now() - S.delArmAt < 4000) {
         var keep = S.slot;
         S.slot = dn; clearSave(); S.slot = keep;
@@ -162,8 +170,13 @@ if (slotsEl) {
         toast("슬롯 " + dn + " 을 지웠습니다");
         refreshSlots(); refreshMenu();
       } else {
+        // **무엇을 잃는지 부른다** (v116) — "슬롯 3 을 지우려면" 만으로는
+        // 그 슬롯에 무엇이 들었는지 모른 채 두 번 누르게 된다.
+        // (모달 대신 이름 + 4초 무장으로 간다 — 규칙 8 의 확인은 이미 여기 있다)
+        var di = slotInfo(dn);
+        var dname = di ? ((di.name || ("SEED " + di.seed)) + " · " + di.mins + "분") : "빈 슬롯";
         S.delArm = dn; S.delArmAt = Date.now();
-        toast("슬롯 " + dn + " 을 지우려면 4초 안에 한 번 더");
+        toast("슬롯 " + dn + " 「" + dname + "」 을 지우려면 4초 안에 한 번 더");
       }
       return;
     }
@@ -287,8 +300,31 @@ if (fileIn) fileIn.addEventListener("change", function () {
 if (resBtn) resBtn.addEventListener("click", function (e) {
   e.stopPropagation();
   if (!hasBackup()) { toast("되돌릴 백업이 없습니다"); return; }
-  if (restoreBackup()) afterWorldSwap("직전 저장으로 되돌렸습니다", true);
+  // **무엇으로 되돌아가는지 먼저 말한다** (v116) — 이 단추는 지금 세계를 바꾼다.
+  // 예전에는 눌러 보기 전에는 알 길이 없었고, 되살아난 것이 사고 직전 판이 아니라
+  // 훨씬 옛 세계인 일도 있었다. 지금 것은 `.prev` 로 밀어 두므로 한 번 더 누르면 되돌아온다
+  var lab = backupLabel();
+  var goRes = true;
+  try { goRes = window.confirm("「" + lab + "」 로 되돌립니다.\n지금 세계는 따로 보관되어 한 번 더 누르면 돌아옵니다."); }
+  catch (e2) { goRes = true; }
+  if (!goRes) { toast("그대로 두었습니다"); return; }
+  if (restoreBackup()) afterWorldSwap("되살렸습니다 — " + lab, true);
   else toast("백업을 읽지 못했습니다");
+});
+
+// 「처음부터 다시 배우기」 (v117) — 튜토리얼·첫 안내 토스트는 **기기** 단위로 기억된다
+// (`blockyard.tutdone` · `blockyard.seen`). 부모가 먼저 켜 본 기기를 아이에게 넘기면
+// 일곱 줄도 마을 안내도 한 줄도 안 뜬다. 넘기기 전에 누르는 자리를 하나 만든다
+export var relearnBtn = document.getElementById("w-relearn");
+if (relearnBtn) relearnBtn.addEventListener("click", function (e) {
+  e.stopPropagation();
+  try {
+    localStorage.removeItem(TUT_KEY);
+    localStorage.removeItem("blockyard.seen");
+  } catch (err) {}
+  S.tut = 0;
+  refreshHint();
+  toast("처음부터 다시 배웁니다 — 안내가 다시 나옵니다");
 });
 
 // ── 클라우드 이어하기 — 기기가 달라도 같은 세계를 잇는다

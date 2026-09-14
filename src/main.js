@@ -16,7 +16,7 @@ import { applyTime, clockText, dayLight } from "./daynight.js";
 import { OPT_KEY, applyOpts, applyFov, applyTbtn, applyUi, UI_MIN_H, fovForAspect, FOV_BASE_ASPECT, calmMotion, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, playerOccupies, pointSolid, rayBox, raycast, spawn, stats, unstick } from "./player.js";
 import { SOFT, WOOD, CLOTH, GLASSY, startAmbient, updateAmbient, ac, at, tone, crunch, breakSound, caveSound, lavaHiss, lavaPop, listenAt, miningSound, moodChord, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
-import { lastSlot, lockHeldByOther, touchLock, releaseLock, prevKey, pushPrev, renameSlot, curKey, OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
+import { lastSlot, lockHeldByOther, touchLock, releaseLock, prevKey, pushPrev, backupCandidates, backupLabel, renameSlot, curKey, OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName, baseRev, setBaseRev, ensureGist, req } from "./cloud.js";
 import { checkFoundAchievements, FOUND_IDS, undoEmptyWhy, HISTORY_CELLS_MAX, editLabel, blueprintList, deleteBlueprint, settleWorld, mirrorClip, rotateClip, BATCH_RELIGHT_ALL, checkBuildAchievements, ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, shellSelection, roundSelection, exportBlueprint, importBlueprint, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
 import { refreshMouthDots, mouthDots, naturalRoof, roofDepth, ROOF_R, UNDER_ROOF, refreshMinimapCap, openPicker, closePicker, pickBtns, airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawMinimapTo, drawBigMap, toggleBigMap, bigMapOpen, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp , setHelpTab, toast} from "./hud.js";
@@ -54,11 +54,28 @@ if (S.urlSeed === null) S.slot = lastSlot();
 // 둘이 같이 열면 나중에 저장한 쪽이 조용히 이긴다
 S.otherTab = lockHeldByOther(S.slot);
 touchLock();
+// 링크로 받은 시드는 **빈 슬롯**을 찾아 앉는다 (v116) — 빈 슬롯이 없으면
+// 저장을 아예 멈춘다(`S.noSave`). 예전에는 슬롯 1 에 그대로 앉아, 20초 뒤
+// 자동 저장이 그 슬롯의 세계를 지웠다. 링크를 누른 사람은 아무 잘못이 없다
+if (S.urlSeed !== null) {
+  var free = 0;
+  for (var sl = 1; sl <= SLOTS; sl++) if (!slotInfo(sl)) { free = sl; break; }
+  if (free) S.slot = free;
+  else { S.slot = lastSlot(); S.noSave = true; }
+}
 S.loadedFromSave = S.urlSeed === null && hasSave() && loadGame();
 if (!S.loadedFromSave && S.slot !== 1) { S.slot = 1; S.loadedFromSave = hasSave() && loadGame(); }
 if (!S.loadedFromSave) {
   bootProgress("세계를 만드는 중…", 0.20);
   generate(S.urlSeed !== null ? S.urlSeed : ((Math.random() * 100000) | 0));
+}
+// 링크로 받은 세계라고 **말해 준다** (v116) — 시작 화면 카드는 슬롯의 이름·시간을
+// 읽어 「이어하기」라고 하는데, 실제로 열려 있는 것은 링크가 준 다른 세계다
+if (S.urlSeed !== null) {
+  setTimeout(function () {
+    toast(S.noSave ? "링크로 받은 세계입니다 — 슬롯이 다 차서 저장되지 않습니다"
+                   : "링크로 받은 세계입니다 — 슬롯 " + S.slot + " 에 저장됩니다");
+  }, 900);
 }
 bootProgress("빛을 계산하는 중…", 0.45);
 relightAll(false);
@@ -84,6 +101,7 @@ if (!S.mobsRestored) seedMobs();
 if (!S.mobsRestored) {
   seedVillage(S.village);                         // 마을 우리와 가판을 채운다 (v115)
   if (!S.marks || !S.marks.length) S.marks = villageMarks(S.village);
+  if (S.village && !S.spawnPoint) S.spawnPoint = S.village.spawn.slice();
 }
 seedFlocks();
 seedCreatures();
@@ -222,6 +240,7 @@ window.__blockyard = {
   isWool: isWool, WOOL0: WOOL0, WOOL_COUNT: WOOL_COUNT, WOOL_COLORS: WOOL_COLORS,
   pushOutOfMobs: pushOutOfMobs, exportWorld: exportWorld, importWorldText: importWorldText,
   hasBackup: hasBackup, restoreBackup: restoreBackup, pushBackup: pushBackup, backupKey: backupKey,
+  backupCandidates: backupCandidates, backupLabel: backupLabel,
   cloudGroupHigh: cloudGroupHigh, FREE_DIST: FREE_DIST,
   fillSelection: fillSelection, clearSelection: clearSelection, shellSelection: shellSelection, roundSelection: roundSelection,
   exportBlueprint: exportBlueprint, importBlueprint: importBlueprint, rotateClip: rotateClip, mirrorClip: mirrorClip,

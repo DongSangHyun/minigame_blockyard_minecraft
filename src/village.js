@@ -11,7 +11,7 @@
 //  3. 생성기 안에서만 돈다 — `set()` 으로 직접 쓰고, 끝나면 생성기가 톱맵을 다시 잰다.
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
 import { S } from "./state.js";
-import { AIR, BOOKSHELF, BRICK, CARPET0, COBBLE, DIRT, DOOR, FENCE, FLOWER_R, FLOWER_Y, FRAME, GATE, GLASS, GRASS, GRAVEL, LADDER, LAMP, LEAVES, LOG, PLANKS, POT, SAND, SAPLING, SH_FULL, SH_SLAB, STAINED0, STONEBRICK, TALLGRASS, TORCH, WATER, WOOL0, doorShapeFor, isSolid, wallShapeFor } from "./blocks.js";
+import { AIR, BOOKSHELF, BRICK, CARPET0, COBBLE, DIRT, DOOR, FENCE, FLOWER_R, FLOWER_Y, LAVA, FRAME, GATE, GLASS, GRASS, GRAVEL, LADDER, LAMP, LEAVES, LOG, PLANKS, POT, SAND, SAPLING, SH_FULL, SH_SLAB, STAINED0, STONEBRICK, TALLGRASS, TORCH, WATER, WOOL0, doorShapeFor, isSolid, wallShapeFor } from "./blocks.js";
 import { heightMap, set, world } from "./world.js";
 
 // 마을이 놓인 자리 — 스폰·동물·상인이 이 값을 본다 (생성기가 채운다)
@@ -170,7 +170,9 @@ function buildPen(x, z, w, d, h) {
       if (edge) set(x + px, h + 1, z + pz, FENCE);
       set(x + px, h, z + pz, GRASS);
     }
-  set(x + (w >> 1), h + 1, z, GATE);
+  // 문은 **스폰 쪽(남쪽)** 에 단다 (v117) — 북쪽에 달아 두니 아이가 우리를 빙 돌아야 했고,
+  // 눈앞의 울타리를 좌클릭으로 뚫는 것이 첫 동작이 됐다
+  set(x + (w >> 1), h + 1, z + d - 1, GATE);
   set(x + 1, h + 1, z + 1, TALLGRASS);
   set(x + w - 2, h + 1, z + d - 2, TALLGRASS);
 }
@@ -219,13 +221,30 @@ function buildMineEntrance(x, z, h) {
   // 밑바닥 방과 갱도 한 줄기 — 조약돌 바닥에 원목 들보
   fill(x - 3, by, z - 3, x + 3, by + 2, z + 3, AIR);
   fill(x - 3, by - 1, z - 3, x + 3, by - 1, z + 3, COBBLE);
+  // **사다리 밑 세 칸을 다시 깐다** — 바로 위의 방 파기가 `by`~`by+2` 의 사다리와
+  // 그것이 붙을 벽을 지웠다. 열 시드 모두 밑에서 세 칸이 비어, 떨어져 들어간 아이가
+  // 점프로는 못 올라오고(최고 y +1.4) **어두운 돌방에 갇혔다.**
+  // 되돌리기도 비행도 안 배운 첫 30분에 일어나는 가장 나쁜 결말이다
+  for (var ry = by; ry <= by + 2; ry++) {
+    set(x, ry, z - 2, COBBLE);
+    set(x, ry, z - 1, LADDER, wallShapeFor(0, 1));
+  }
   set(x - 3, by + 1, z, TORCH, wallShapeFor(1, 0));
   set(x + 3, by + 1, z, TORCH, wallShapeFor(-1, 0));
+  // 용암 위에 방을 파지 않는다 (자문 30차 실측: 열 시드 중 넷에서 바닥 밑 3칸에 용암) —
+  // 아이가 바닥을 파면 용암이 올라온다. 바닥 두 겹을 조약돌로 막는다
+  for (var lz = -3; lz <= 3; lz++)
+    for (var lx = -3; lx <= 3; lx++) {
+      if (world[idx(x + lx, by - 2, z + lz)] === LAVA) set(x + lx, by - 2, z + lz, COBBLE);
+      if (world[idx(x + lx, by - 3, z + lz)] === LAVA) set(x + lx, by - 3, z + lz, COBBLE);
+    }
   for (var t = 1; t <= 14; t++) {                      // 옆으로 뻗는 갱도
     var tx = x + 3 + t;
     if (tx >= WX - 2) break;
     fill(tx, by, z - 1, tx, by + 2, z + 1, AIR);
     fill(tx, by - 1, z - 1, tx, by - 1, z + 1, COBBLE);
+    for (var tz = -1; tz <= 1; tz++)
+      if (world[idx(tx, by - 2, z + tz)] === LAVA) set(tx, by - 2, z + tz, COBBLE);
     if (t % 5 === 0) {                                 // 버팀목
       set(tx, by, z - 1, FENCE); set(tx, by + 1, z - 1, FENCE);
       set(tx, by, z + 1, FENCE); set(tx, by + 1, z + 1, FENCE);
@@ -377,7 +396,11 @@ export function buildVillage(rng) {
   // 우물 코앞에 세웠더니 첫 화면이 우물 지붕 한 장이었다 (실제로 그렇게 나왔다)
   // 길 **옆** 잔디에 선다 — 자갈길 한가운데면 "스폰은 잔디·흙·모래·눈 위" 라는
   // 규칙(v33)을 깬다. 두 걸음 오른쪽일 뿐 보이는 것은 같다
-  var spawn = [cx + 2.5, h + 1, cz + 9.5];
+  // 울타리에서 한 칸 더 물린다 (v117) — 조준선이 첫 화면에서 **울타리**를 겨눠서,
+  // 튜토리얼 첫 줄("좌클릭으로 캐보세요")이 곧 우리를 뚫는 일이 됐다
+  // 길 서쪽 잔디 — 우리(동쪽) 울타리에서 멀고, 다리(개울)와도 안 겹친다.
+  // cz+11.5 로 물렸더니 개울 다리 판자 위에 섰다 (v33 규칙: 스폰은 자연 블록 위)
+  var spawn = [cx - 1.5, h + 1, cz + 9.5];   // cx-2.5 는 가판 기둥이 정면 5.5칸에 섰다
   village = {
     x: cx, z: cz, h: h,
     spawn: spawn,

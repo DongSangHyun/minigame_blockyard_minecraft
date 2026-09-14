@@ -249,7 +249,11 @@ export function toast(msg) {
   // 구도를 잡는 동안 화면에서 가장 큰 글자가 토스트였다.
   // (첫 세계에서는 beginPlay 가 0.6초 뒤 띄우는 안내가 HUD 를 껐는데도 한가운데 남았다)
   if (S.photoMode || S.hudHidden) return;
-  toastEl.textContent = msg; toastEl.classList.add("on"); S.toastTimer = 1.6;
+  toastEl.textContent = msg; toastEl.classList.add("on");
+  // **글자 수에 맞춰 띄운다** (v117) — 1.6초 고정이었다. 마을 안내는 36자인데
+  // 초등 저학년의 묵독으로 8~12초 걸린다: 만들어 둔 안내의 20%만 읽히고 닫혔다.
+  // 짧은 것("되돌리기")은 그대로 1.6초, 긴 것은 최대 6초
+  S.toastTimer = Math.min(6, 1.6 + String(msg).length * 0.09);
 }
 
 // ── 미니맵
