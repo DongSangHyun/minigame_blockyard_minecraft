@@ -14411,6 +14411,47 @@ test("v125 오래 켜 둔 세계: 불이 큐와 저장을 안 불리고, 다시 
   assert(r.melted >= 3, "맑은 날 4분 동안 눈 " + r.snowCount + "칸 중 " + r.melted + "칸만 녹았다");
 });
 
+test("v126 저장 공간: 한도에 닿으면 사본을 비우고 본 저장을 지킨다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keepSlot = B.S.slot;
+    B.S.slot = 2; B.clearSave();
+    B.newWorld(16180);
+    B.saveGame();
+    // 다른 슬롯에 사본을 깔아 둔다 (지워져도 되는 것)
+    const junk = "x".repeat(2000);
+    localStorage.setItem(B.backupKey(3), junk);
+    localStorage.setItem(B.prevKey(1), junk);
+
+    // localStorage 한도를 흉내 낸다 — 본 저장 키는 **사본 두 벌이 지워진 뒤에야** 들어간다
+    const real = Storage.prototype.setItem;
+    const mainKey = B.slotKey(2);
+    Storage.prototype.setItem = function (k, v) {
+      if (k === mainKey && (this.getItem(B.backupKey(3)) !== null || this.getItem(B.prevKey(1)) !== null)) {
+        const err = new Error("QuotaExceededError"); err.name = "QuotaExceededError"; throw err;
+      }
+      return real.call(this, k, v);
+    };
+    B.S.worldSeed = 16181;
+    let ok = false;
+    try { ok = B.saveGame(); } finally { Storage.prototype.setItem = real; }
+    const savedSeed = JSON.parse(localStorage.getItem(mainKey)).seed;
+    const otherCopiesGone = localStorage.getItem(B.backupKey(3)) === null &&
+                            localStorage.getItem(B.prevKey(1)) === null;
+
+    B.S.slot = 2; B.clearSave();
+    localStorage.removeItem(B.backupKey(2)); localStorage.removeItem(B.prevKey(2));
+    B.S.slot = keepSlot; B.S.village = null;
+    B.endPlay(); B.setPaused(false);
+    return { ok, savedSeed, otherCopiesGone, failed: B.S.saveFailed };
+  });
+  eq(r.ok, true, "공간이 모자란데 본 저장을 포기했다 — 사본이 본 저장보다 먼저 자리를 먹었다");
+  eq(r.savedSeed, 16181, "본 저장이 옛 내용으로 남았다 (" + r.savedSeed + ")");
+  eq(r.otherCopiesGone, true, "사본을 비우지 않고 본 저장을 했다 — 시험대가 안 섰다");
+  eq(r.failed, false, "저장에 성공했는데 실패 표시가 남았다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

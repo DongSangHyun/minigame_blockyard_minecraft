@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-16 · 모듈 30개 · 합계 14,834줄
+생성일 2026-09-16 · 모듈 30개 · 합계 14,854줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -26,7 +26,7 @@
 | [`settings.js`](../src/settings.js) | 설정 | 115 | state · boot · scene |
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 383 | state · dims · blocks · world · scene |
 | [`audio.js`](../src/audio.js) | 소리 | 356 | state · blocks · daynight · settings |
-| [`save.js`](../src/save.js) | 저장 · 불러오기 | 540 | state · dims · blocks · world · player · mobs · village · hud · sky |
+| [`save.js`](../src/save.js) | 저장 · 불러오기 | 560 | state · dims · blocks · world · player · mobs · village · hud · sky |
 | [`village.js`](../src/village.js) | 시작 마을. 세계를 켜면 **이미 누가 살고 있는 자리**에서 시작한다. | 427 | dims · state · blocks · world |
 | [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 1460 | state · queues · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · sky |
 | [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 811 | state · version · dims · blocks · atlas · world · player · settings · hand · input |
@@ -369,26 +369,26 @@
 | `encodeWorld()` | 141 |
 | `decodeWorld(runs, dst, len)` | 150 |
 | `liftLegacy(src, dst, asRuns)` | 165 |
-| `saveGame()` | 180 |
-| `loadGame()` | 241 |
-| `clearSave()` | 356 |
-| `backupKey(n)` | 363 |
-| `pushBackup()` | 366 |
-| `prevKey(n)` | 376 |
-| `dayKey(n)` | 381 |
-| `askPersist()` | 387 |
-| `needsHomeScreenHint()` | 397 |
-| `pushDay()` | 407 |
-| `resetDayMark()` | 417 |
-| `dayLabel()` | 419 |
-| `restoreDay()` | 428 |
-| `pushPrev()` | 439 |
-| `hasBackup()` | 446 |
-| `backupCandidates()` | 455 |
-| `backupLabel()` | 489 |
-| `restoreBackup()` | 495 |
-| `exportWorld()` | 510 |
-| `importWorldText(text)` | 526 |
+| `saveGame()` | 200 |
+| `loadGame()` | 261 |
+| `clearSave()` | 376 |
+| `backupKey(n)` | 383 |
+| `pushBackup()` | 386 |
+| `prevKey(n)` | 396 |
+| `dayKey(n)` | 401 |
+| `askPersist()` | 407 |
+| `needsHomeScreenHint()` | 417 |
+| `pushDay()` | 427 |
+| `resetDayMark()` | 437 |
+| `dayLabel()` | 439 |
+| `restoreDay()` | 448 |
+| `pushPrev()` | 459 |
+| `hasBackup()` | 466 |
+| `backupCandidates()` | 475 |
+| `backupLabel()` | 509 |
+| `restoreBackup()` | 515 |
+| `exportWorld()` | 530 |
+| `importWorldText(text)` | 546 |
 
 내보내는 값 — `SAVE_KEY` · `OLD_KEY` · `SLOTS` · `LAST_SLOT_KEY` · `LOCK_PREFIX` · `LOCK_STALE` · `sessionId`
 

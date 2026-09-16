@@ -177,6 +177,26 @@ export function liftLegacy(src, dst, asRuns) {
   return true;
 }
 
+// 본 저장을 쓴다 — **공간이 모자라면 사본부터 비우고 한 번 더** (v125 자문 32차 #6).
+// 세이브는 슬롯마다 본·.bak·.prev·.day 네 벌이라 세 슬롯이면 열두 벌이고, 쓰는 순서가
+// 사본 → 본이라 한도에 가까우면 **사본이 먼저 자리를 먹고 본 저장이 실패**했다.
+// 본 저장이 사본보다 먼저다: 다른 슬롯의 사본 → 이 슬롯의 .bak → 이 슬롯의 .day·.prev 순으로 비운다
+function writeMain(text) {
+  try { localStorage.setItem(curKey(), text); return; } catch (e) {}
+  var order = [];
+  for (var n = 1; n <= SLOTS; n++) {
+    if (n === S.slot) continue;
+    order.push(backupKey(n), prevKey(n), dayKey(n));
+  }
+  order.push(backupKey(S.slot), dayKey(S.slot), prevKey(S.slot));
+  for (var i = 0; i < order.length; i++) {
+    try { localStorage.removeItem(order[i]); } catch (e2) {}
+    try { localStorage.setItem(curKey(), text); S.copiesTrimmed = (S.copiesTrimmed | 0) + 1; return; }
+    catch (e3) {}
+  }
+  localStorage.setItem(curKey(), text);          // 그래도 안 되면 바깥 catch 가 알린다
+}
+
 export function saveGame() {
   // **링크로 받은 세계는 남의 슬롯을 안 덮는다** (v116) — `?seed=` 로 열면 슬롯은
   // 기본 1 인 채 세계만 갈리고, 자동 저장(기본 20초) 한 번에 슬롯 1 의 세계가 사라졌다.
@@ -188,7 +208,7 @@ export function saveGame() {
   try {
     pushDay();
     pushBackup();
-    localStorage.setItem(curKey(), JSON.stringify({
+    writeMain(JSON.stringify({
       v: 5, seed: S.worldSeed, w: encodeWorldB64(), sh: encodeArrB64(shape),
       wl: encodeArrB64(waterLvl),
       p: [player.pos.x, player.pos.y, player.pos.z],
