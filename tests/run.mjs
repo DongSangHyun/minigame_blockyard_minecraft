@@ -14216,6 +14216,53 @@ test("v122 둘째 날: 다시 켜도 마을이 살아 있다 (옛 저장도)", a
   assert(Math.abs(r.kept - 0.85) < 0.01, "방금 끈 세계까지 아침으로 돌렸다 (" + r.kept + ")");
 });
 
+test("v123 어제의 사고: 지난번에 끝낸 모습으로 돌아가고, 오늘 할 일이 보인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keepSlot = B.S.slot;
+    B.S.slot = 2; B.clearSave();
+    localStorage.removeItem(B.dayKey(2));
+    B.newWorld(27182);
+    const v = B.S.village;
+    const X = v.x - 10, Y = v.h + 1, Z = v.z + 12;
+    // 어제 — 벽돌 20칸을 짓고 저장한 뒤 끈다
+    for (let i = 0; i < 20; i++) B.applyEdit(X + (i % 5), Y + ((i / 5) | 0), Z, B.B.BRICK, true, 0);
+    B.saveGame();
+    function bricks() {
+      let n = 0;
+      for (let i = 0; i < 20; i++) if (B.get(X + (i % 5), Y + ((i / 5) | 0), Z) === B.B.BRICK) n++;
+      return n;
+    }
+    // 오늘 — 다시 켠다 (새 세션)
+    B.resetDayMark();
+    B.loadGame();
+    const yesterday = bricks();
+    // 동생이 부순다 · 자동 저장이 두 번 돈다
+    for (let i = 0; i < 20; i++) B.applyEdit(X + (i % 5), Y + ((i / 5) | 0), Z, 0, true, 0);
+    B.saveGame(); B.saveGame();
+    const broken = bricks();
+    const label = B.dayLabel();
+    B.restoreDay();
+    const back = bricks();
+
+    // 오늘 해 볼 것 — 아이 순서
+    B.S.earned = { firstMine: true, firstPlace: true };
+    const todo = B.nextToTry(3).map((a) => a.id);
+
+    B.S.slot = 2; B.clearSave(); localStorage.removeItem(B.dayKey(2));
+    B.S.slot = keepSlot; B.S.village = null; B.S.earned = {};
+    B.endPlay(); B.setPaused(false);
+    return { yesterday, broken, back, label, todo };
+  });
+  eq(r.yesterday, 20, "시험대가 안 섰다 — 어제 지은 벽돌이 " + r.yesterday + "칸");
+  eq(r.broken, 0, "시험대가 안 섰다 — 부쉈는데 " + r.broken + "칸 남았다");
+  assert(r.label.length > 0, "「지난번에 끝낸 모습」이 없다");
+  eq(r.back, 20, "지난번 모습으로 돌아갔는데 벽돌이 " + r.back + "/20 — 어제의 사고를 못 되돌린다");
+  eq(r.todo[0], "trade", "오늘 해 볼 것 첫째가 '" + r.todo[0] + "' 다 — 마을 상인이 먼저라야 한다");
+  assert(r.todo.indexOf("mine100") < 0, "오늘 해 볼 것에 숫자 과제(광부)가 앞에 섰다: " + r.todo.join(","));
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

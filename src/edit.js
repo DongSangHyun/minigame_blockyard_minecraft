@@ -464,13 +464,31 @@ export function achProgress(a) {
   return "";
 }
 
+// **아이 순서**로 먼저 권한다 (v123) — 배열 순서대로 뽑으면 「첫 삽」 다음에
+// 「광부(100개 캐기)」 같은 숫자 과제가 앞에 섰다. 마을이 준 것(상인·동물·묘목)과
+// 손에 잡히는 목표(방 한 칸·다이아)를 먼저 가리킨다. 나머지는 배열 순서 그대로
+export var TRY_ORDER = ["firstMine", "firstPlace", "trade", "feed", "sapling", "breed",
+                        "coal", "room", "findHut", "flower", "stair", "lamp10", "diamond"];
+export function nextToTry(n) {
+  var out = [], seen = {};
+  function take(a) {
+    if (!a || seen[a.id] || S.earned[a.id] || out.length >= n) return;
+    seen[a.id] = true;
+    out.push(a);
+  }
+  for (var i = 0; i < TRY_ORDER.length; i++) {
+    for (var j = 0; j < ACHIEVEMENTS.length; j++)
+      if (ACHIEVEMENTS[j].id === TRY_ORDER[i]) take(ACHIEVEMENTS[j]);
+  }
+  for (var k = 0; k < ACHIEVEMENTS.length; k++) take(ACHIEVEMENTS[k]);
+  return out;
+}
+
 export function refreshAchList() {
   var html = "";
   // 아직 안 딴 것 셋을 맨 위에 "다음에 해 볼 것" 으로 보여 준다 —
   // 30개를 거의 다 딴 사람이 화면에서 목표를 잃지 않게
-  var todo = [];
-  for (var t = 0; t < ACHIEVEMENTS.length && todo.length < 3; t++)
-    if (!S.earned[ACHIEVEMENTS[t].id]) todo.push(ACHIEVEMENTS[t]);
+  var todo = nextToTry(3);
   if (todo.length) {
     html += '<div class="ach next"><b>\u25b8</b><span>다음에 해 볼 것 — ' +
             todo.map(function (a) { return a.name; }).join(" · ") + '</span></div>';

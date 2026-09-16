@@ -16,9 +16,9 @@ import { applyTime, clockText, dayLight } from "./daynight.js";
 import { OPT_KEY, applyOpts, applyFov, applyTbtn, applyUi, UI_MIN_H, fovForAspect, FOV_BASE_ASPECT, calmMotion, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, playerOccupies, pointSolid, rayBox, raycast, spawn, stats, unstick } from "./player.js";
 import { SOFT, WOOD, CLOTH, GLASSY, startAmbient, updateAmbient, ac, at, tone, crunch, breakSound, caveSound, lavaHiss, lavaPop, listenAt, miningSound, moodChord, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
-import { lastSlot, lockHeldByOther, touchLock, releaseLock, prevKey, pushPrev, backupCandidates, backupLabel, renameSlot, curKey, OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
+import { lastSlot, lockHeldByOther, touchLock, releaseLock, prevKey, pushPrev, backupCandidates, backupLabel, dayLabel, restoreDay, resetDayMark, dayKey, renameSlot, curKey, OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName, baseRev, setBaseRev, ensureGist, req } from "./cloud.js";
-import { checkFoundAchievements, FOUND_IDS, undoEmptyWhy, HISTORY_CELLS_MAX, editLabel, blueprintList, deleteBlueprint, settleWorld, mirrorClip, rotateClip, BATCH_RELIGHT_ALL, checkBuildAchievements, ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, shellSelection, roundSelection, exportBlueprint, importBlueprint, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
+import { checkFoundAchievements, nextToTry, FOUND_IDS, undoEmptyWhy, HISTORY_CELLS_MAX, editLabel, blueprintList, deleteBlueprint, settleWorld, mirrorClip, rotateClip, BATCH_RELIGHT_ALL, checkBuildAchievements, ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, shellSelection, roundSelection, exportBlueprint, importBlueprint, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
 import { refreshMouthDots, mouthDots, naturalRoof, roofDepth, ROOF_R, UNDER_ROOF, refreshMinimapCap, openPicker, closePicker, pickBtns, airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawMinimapTo, drawBigMap, toggleBigMap, bigMapOpen, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp , setHelpTab, toast} from "./hud.js";
 import { updateGhost, ghostMesh, ghostMat, updateHandLight, handMat, makeBlockGeometry, triggerSwing, updateHand } from "./hand.js";
 import { bodyRoot, updateBody, armL, armR, legL, legR, neck, upper } from "./body.js";
@@ -230,7 +230,7 @@ window.__blockyard = {
   saveBlueprint: saveBlueprint, useBlueprint: useBlueprint, blueprintNames: blueprintNames,
   selectionCounts: selectionCounts, feedNearbyMob: feedNearbyMob, shareLink: shareLink,
   drawPreview: drawPreview, showAchPop: showAchPop, cmdIn: cmdIn, cmdEl: cmdEl,
-  refreshStats: refreshStats, categoryOf: categoryOf, noteBlockUse: noteBlockUse,
+  refreshStats: refreshStats, nextToTry: nextToTry, categoryOf: categoryOf, noteBlockUse: noteBlockUse,
   sortPickByRecent: sortPickByRecent, refreshPickFilter: refreshPickFilter, pickBtns: pickBtns,
   refreshKeyButtons: refreshKeyButtons, bindConflict: bindConflict, hintText: hintText, refreshBindLabels: refreshBindLabels, RESERVED: RESERVED, TUT: TUT, TUT_TOUCH: TUT_TOUCH, refreshHint: refreshHint, chunkCX: chunkCX, chunkCZ: chunkCZ,
   explode: explode, ignite: ignite, fireTick: fireTick, BLAST_R: BLAST_R,
@@ -241,6 +241,7 @@ window.__blockyard = {
   pushOutOfMobs: pushOutOfMobs, exportWorld: exportWorld, importWorldText: importWorldText,
   hasBackup: hasBackup, restoreBackup: restoreBackup, pushBackup: pushBackup, backupKey: backupKey,
   backupCandidates: backupCandidates, backupLabel: backupLabel,
+  dayLabel: dayLabel, restoreDay: restoreDay, resetDayMark: resetDayMark, dayKey: dayKey,
   cloudGroupHigh: cloudGroupHigh, FREE_DIST: FREE_DIST,
   fillSelection: fillSelection, clearSelection: clearSelection, shellSelection: shellSelection, roundSelection: roundSelection,
   exportBlueprint: exportBlueprint, importBlueprint: importBlueprint, rotateClip: rotateClip, mirrorClip: mirrorClip,

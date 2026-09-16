@@ -184,7 +184,9 @@ export function saveGame() {
   if (S.noSave) return false;
   rememberSlot(S.slot);
   touchLock();
+  askPersist();
   try {
+    pushDay();
     pushBackup();
     localStorage.setItem(curKey(), JSON.stringify({
       v: 5, seed: S.worldSeed, w: encodeWorldB64(), sh: encodeArrB64(shape),
@@ -365,6 +367,68 @@ export function pushBackup() {
 // 예전에는 백업이 saveGame 마다 밀려, 새 세계를 만들면 자동 저장(기본 20초) 한 번에
 // 옛 세계가 사라졌다. "직전으로 되돌리기" 를 누르러 설정을 펼치는 사이에 이미 늦는다.
 export function prevKey(n) { return slotKey(n) + ".prev"; }
+// **지난번에 끝낸 모습** (v123) — 이번에 켜고 나서 **처음 저장하기 직전**의 한 벌.
+// 되돌리기는 세션을 안 넘고 `.bak` 은 저장마다 밀려서, "어제 지은 집을 오늘 동생이 부쉈다" 를
+// 되돌릴 길이 0 이었다(자문 31차 실측: 벽돌 20칸 → 자동 저장 두 번 → 복구 0/20).
+// 세션마다 한 번만 민다 — 오늘 여러 번 저장해도 **어제의 끝**이 그대로 남는다
+export function dayKey(n) { return slotKey(n) + ".day"; }
+// **지워지지 않게 해 달라고 한 번 부탁한다** (v123) — 사파리는 일주일 동안 안 연
+// 사이트의 저장소를 지울 수 있고(홈 화면에 둔 웹앱은 예외), 세이브는 localStorage 한 벌뿐이다.
+// 주말에만 하는 아이의 세계가 다음 주말에 통째로 사라질 수 있는데, 어떤 복구 단추도 못 살린다.
+// 크롬·파이어폭스는 이 부탁을 들어준다. 결과는 기다리지 않는다
+var persistAsked = false;
+export function askPersist() {
+  if (persistAsked) return;
+  persistAsked = true;
+  try {
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().then(function (ok) { S.storagePersisted = !!ok; }, function () {});
+    }
+  } catch (e) {}
+}
+// 아이패드·아이폰 사파리에서 **홈 화면에 안 둔** 채 쓰고 있나
+export function needsHomeScreenHint() {
+  try {
+    var ua = navigator.userAgent || "";
+    var ios = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    var standalone = navigator.standalone === true ||
+      (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+    return ios && !standalone;
+  } catch (e) { return false; }
+}
+var dayPushed = {};
+export function pushDay() {
+  if (dayPushed[S.slot]) return false;
+  dayPushed[S.slot] = true;
+  try {
+    var cur = localStorage.getItem(curKey());
+    if (cur) localStorage.setItem(dayKey(S.slot), cur);
+    return !!cur;
+  } catch (e) { return false; }
+}
+// 시험·슬롯 전환이 "새 세션" 을 흉내 낼 때 쓴다
+export function resetDayMark() { dayPushed = {}; }
+// 「지난번에 끝낸 모습」 한 줄 — 없으면 빈 문자열 (단추를 숨긴다)
+export function dayLabel() {
+  try {
+    var raw = localStorage.getItem(dayKey(S.slot));
+    if (!raw) return "";
+    var d = JSON.parse(raw);
+    return (d.nm || ("SEED " + (d.seed >>> 0))) + " · " + Math.round((d.secs || 0) / 60) + "분";
+  } catch (e) { return ""; }
+}
+// 그 모습으로 돌아간다 — 지금 것은 `.prev` 로 밀어 두어 한 번 더 돌아올 수 있다
+export function restoreDay() {
+  try {
+    var raw = localStorage.getItem(dayKey(S.slot));
+    if (!raw) return false;
+    var cur = localStorage.getItem(curKey());
+    localStorage.setItem(curKey(), raw);
+    var ok = loadGame();
+    if (ok && cur) localStorage.setItem(prevKey(S.slot), cur);
+    return ok;
+  } catch (e) { return false; }
+}
 export function pushPrev() {
   try {
     var cur = localStorage.getItem(curKey());

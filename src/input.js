@@ -13,9 +13,9 @@ import { applyTime } from "./daynight.js";
 import { applyOpts, applyFov, applyTbtn, applyUi, opts, saveOpts } from "./settings.js";
 import { EYE, currentShape, player, raycast, spawn } from "./player.js";
 import { ac, setAudioAwake, startAmbient, tone } from "./audio.js";
-import { renameSlot, clearSave, SLOTS, backupLabel, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo , rememberSlot, releaseLock, lockHeldByOther} from "./save.js";
+import { renameSlot, clearSave, SLOTS, backupLabel, dayLabel, restoreDay, needsHomeScreenHint, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo , rememberSlot, releaseLock, lockHeldByOther} from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
-import { undoEmptyWhy, lastEditLabel, blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
+import { undoEmptyWhy, nextToTry, lastEditLabel, blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
 import { helpOpen, bigMapOpen, toggleBigMap, closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
 import { place } from "./mine.js";
@@ -315,6 +315,21 @@ if (resBtn) resBtn.addEventListener("click", function (e) {
   if (!goRes) { toast("그대로 두었습니다"); return; }
   if (restoreBackup()) afterWorldSwap("되살렸습니다 — " + lab, true);
   else toast("백업을 읽지 못했습니다");
+});
+
+// 「지난번에 끝낸 모습으로」 (v123) — 이번에 켜고 처음 저장하기 직전의 한 벌로 돌아간다.
+// "어제 지은 집을 오늘 동생이 부쉈다" 를 되돌리는 유일한 길이다
+var dayBtn = document.getElementById("w-restore-day");
+if (dayBtn) dayBtn.addEventListener("click", function (e) {
+  e.stopPropagation();
+  var lab = dayLabel();
+  if (!lab) { toast("아직 지난번 모습이 없습니다 — 한 번 저장한 뒤부터 생깁니다"); return; }
+  var go = true;
+  try { go = window.confirm("「" + lab + "」 — 이번에 켰을 때의 모습으로 돌아갑니다.\n지금 세계는 따로 보관됩니다."); }
+  catch (e2) { go = true; }
+  if (!go) { toast("그대로 두었습니다"); return; }
+  if (restoreDay()) afterWorldSwap("지난번에 끝낸 모습으로 돌아왔습니다 — " + lab, true);
+  else toast("지난번 모습을 읽지 못했습니다");
 });
 
 // 「처음부터 다시 배우기」 (v117) — 튜토리얼·첫 안내 토스트는 **기기** 단위로 기억된다
@@ -683,6 +698,20 @@ export function refreshResume() {
       ? ("표식 " + S.marks.length + "개" + (names.length ? " — " + names.join(" · ") : ""))
       : "";
     mk.hidden = !S.marks.length;
+  }
+  // 아이패드 사파리 — 홈 화면에 두지 않으면 일주일 뒤 세계가 지워질 수 있다 (v123)
+  if (mk && needsHomeScreenHint()) {
+    mk.textContent = (mk.textContent ? mk.textContent + " · " : "") +
+      "아이패드는 일주일 안 열면 지워질 수 있어요 — 공유 › 홈 화면에 추가";
+    mk.hidden = false;
+  }
+  // 오늘 해 볼 것 (v123) — 아이 순서로 셋
+  var td = document.getElementById("resume-todo");
+  if (td) {
+    var tl = nextToTry(3);
+    td.innerHTML = tl.length ? ("<b>오늘 해 볼 것</b> — " +
+      tl.map(function (a) { return a.name; }).join(" · ")) : "";
+    td.hidden = !tl.length;
   }
   return nm ? nm.textContent : "";
 }

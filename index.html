@@ -738,6 +738,8 @@
     font-size: 13px; line-height: 1.55; color: var(--bone);
   }
   .help-first b { color: var(--ember); }
+  .resume-todo { color: var(--bone); }
+  .resume-todo b { color: var(--moss); }
   .help-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
   .help-cols dl { margin: 0; }
   .help-cols dt {
@@ -1202,6 +1204,9 @@
         <p class="resume-name" id="resume-name"></p>
         <p class="resume-meta" id="resume-meta"></p>
         <p class="resume-meta" id="resume-marks"></p>
+        <!-- 오늘 해 볼 것 (v123) — 「다음에 해 볼 것」이 ESC 메뉴의 **접힌** 「기록」과
+             도움말에만 있어서, 둘째 날 켠 아이에게 새로 할 일이 화면 어디에도 안 보였다 -->
+        <p class="resume-meta resume-todo" id="resume-todo" hidden></p>
       </div>
     </div>
 
@@ -1324,6 +1329,9 @@
         <button class="wbtn" id="w-export" type="button">세계 내보내기</button>
         <button class="wbtn" id="w-import" type="button">가져오기</button>
         <button class="wbtn" id="w-restore" type="button">직전으로 되돌리기</button>
+        <!-- 지난번에 끝낸 모습으로 (v123) — 어제의 사고는 되돌리기(세션 안)도
+             「직전」(저장마다 밀린다)도 못 살렸다 -->
+        <button class="wbtn" id="w-restore-day" type="button">지난번에 끝낸 모습으로</button>
         <!-- 아이에게 기기를 넘기기 전에 누르는 자리 (v117) — 튜토리얼을 다 본 표시는
              `blockyard.tutdone`·`blockyard.seen` 으로 **기기**에 남는다. 부모가 먼저 켜 본
              노트북에서는 아이 앞에 안내가 한 줄도 안 뜬다 -->
