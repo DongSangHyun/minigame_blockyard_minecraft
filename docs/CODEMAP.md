@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-14 · 모듈 30개 · 합계 14,514줄
+생성일 2026-09-16 · 모듈 30개 · 합계 14,544줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -10,7 +10,7 @@
 
 | 모듈 | 하는 일 | 줄 | 기대는 곳 |
 |---|---|---:|---|
-| [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 216 | — |
+| [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 217 | — |
 | [`dims.js`](../src/dims.js) | 세계 치수와 좌표 계산 (의존성 없음) | 33 | — |
 | [`queues.js`](../src/queues.js) | 시뮬레이션 대기열 (의존성 없음) | 36 | — |
 | [`boot.js`](../src/boot.js) | 부팅 가드 · 환경 판별 | 29 | state |
@@ -32,12 +32,12 @@
 | [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 804 | state · version · dims · blocks · atlas · world · player · settings · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 201 | state · settings · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
 | [`body.js`](../src/body.js) | 3인칭에서 보이는 플레이어 몸 | 200 | state · settings · scene · player · atlas · hand · blocks |
-| [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 2034 | state · world · queues · mobs · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
+| [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 2055 | state · world · queues · mobs · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
 | [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 329 | state · mobs · fluids · dims · blocks · world · light · scene · player · audio · edit · hud · hand · input |
 | [`mobs.js`](../src/mobs.js) | 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다. | 723 | dims · world · blocks · scene · player · audio · light · daynight · state |
 | [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 500 | state · audio · dims · atlas · blocks · world · scene · daynight · settings · player |
 | [`cloud.js`](../src/cloud.js) | 기기 사이 이어하기 (GitHub Gist 에 세계를 올리고 내려받는다) | 243 | state · save |
-| [`loop.js`](../src/loop.js) | 게임 루프 | 1031 | state · input · mobs · queues · dims · blocks · atlas · world · light · village · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · body · mine · sky |
+| [`loop.js`](../src/loop.js) | 게임 루프 | 1039 | state · input · mobs · queues · dims · blocks · atlas · world · light · village · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · body · mine · sky |
 | [`version.js`](../src/version.js) | 빌드 도장 (자동 생성) | 8 | — |
 | [`main.js`](../src/main.js) | 조립과 시작 | 321 | state · village · tree · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · body · input · mine · sky · loop |
 
@@ -517,39 +517,40 @@
 | `afterWorldSwap(msg, loaded)` | 261 |
 | `cloudSay(msg, kind)` | 347 |
 | `refreshCloud()` | 352 |
-| `refreshTerrain()` | 462 |
-| `refreshBindLabels()` | 490 |
-| `hintText(base)` | 498 |
-| `refreshKeyButtons()` | 505 |
-| `bindConflict(act, code)` | 541 |
-| `shareLink()` | 578 |
-| `refreshBlueprints()` | 591 |
-| `refreshResume()` | 637 |
-| `refreshMenu()` | 683 |
-| `beginPlay()` | 698 |
-| `endPlay()` | 735 |
-| `useDragMode()` | 754 |
-| `goFullscreen()` | 756 |
-| `requestPlay()` | 773 |
-| `hashSeed(str)` | 810 |
-| `arrowLookTick(dt)` | 836 |
-| `applyLook(dx, dy)` | 845 |
-| `cycleTime()` | 865 |
-| `setPhotoMode(on)` | 973 |
-| `setShapeMode(m)` | 1000 |
-| `markHere()` | 1012 |
-| `renameMarkHere()` | 1020 |
-| `toggleMark(named)` | 1033 |
-| `cycleMinimapZoom(dir)` | 1058 |
-| `swapBarPage()` | 1073 |
-| `pickBlock()` | 1097 |
-| `setStick(dx, dy)` | 1484 |
-| `bindHold(id, onDown, onUp)` | 1628 |
-| `toggleRegionBar(on)` | 1720 |
-| `bindOpt(inputId, outId, key, fmt)` | 1861 |
-| `refreshScaleLabels()` | 1891 |
-| `pollGamepadMenu()` | 1936 |
-| `pollGamepad(dt)` | 1946 |
+| `nextTerrain()` | 466 |
+| `refreshTerrain()` | 469 |
+| `refreshBindLabels()` | 497 |
+| `hintText(base)` | 505 |
+| `refreshKeyButtons()` | 512 |
+| `bindConflict(act, code)` | 548 |
+| `shareLink()` | 585 |
+| `refreshBlueprints()` | 598 |
+| `refreshResume()` | 644 |
+| `refreshMenu()` | 690 |
+| `beginPlay()` | 705 |
+| `endPlay()` | 742 |
+| `useDragMode()` | 761 |
+| `goFullscreen()` | 763 |
+| `requestPlay()` | 780 |
+| `hashSeed(str)` | 831 |
+| `arrowLookTick(dt)` | 857 |
+| `applyLook(dx, dy)` | 866 |
+| `cycleTime()` | 886 |
+| `setPhotoMode(on)` | 994 |
+| `setShapeMode(m)` | 1021 |
+| `markHere()` | 1033 |
+| `renameMarkHere()` | 1041 |
+| `toggleMark(named)` | 1054 |
+| `cycleMinimapZoom(dir)` | 1079 |
+| `swapBarPage()` | 1094 |
+| `pickBlock()` | 1118 |
+| `setStick(dx, dy)` | 1505 |
+| `bindHold(id, onDown, onUp)` | 1649 |
+| `toggleRegionBar(on)` | 1741 |
+| `bindOpt(inputId, outId, key, fmt)` | 1882 |
+| `refreshScaleLabels()` | 1912 |
+| `pollGamepadMenu()` | 1957 |
+| `pollGamepad(dt)` | 1967 |
 
 내보내는 값 — `overlay` · `goBtn` · `altBtn` · `seedIn` · `canvas` · `isTouch` · `HINT_LOCK` · `HINT_DRAG` · `HINT_TOUCH` · `hintEl` · `TUT` · `TUT_TOUCH` · `TUT_KEY` · `TUT_LEN` · `slotsEl` · `copySeedBtn` · `expBtn` · `impBtn` · `resBtn` · `fileIn` · `relearnBtn` · `terrainEl` · `KEY_LABEL` · `keysEl` · `RESERVED` · `copyLinkBtn` · `refreshWorldPills` · `MM_ZOOMS` · `lookLast` · `stickZone` · `stickBase` · `stickKnob` · `STICK_R` · `padState`
 
@@ -651,11 +652,11 @@
 |---|---:|
 | `refreshChunkFloor()` | 32 |
 | `newWorld(seed)` | 60 |
-| `step(dt)` | 121 |
-| `animate()` | 879 |
-| `autoTuneFar(fps)` | 988 |
-| `farNow()` | 1006 |
-| `refreshPerf()` | 1008 |
+| `step(dt)` | 129 |
+| `animate()` | 887 |
+| `autoTuneFar(fps)` | 996 |
+| `farNow()` | 1014 |
+| `refreshPerf()` | 1016 |
 
 내보내는 값 — `GRAVITY` · `chunkFloor` · `PLACE_DELAY` · `SNEAK_MUL` · `AIR_CONTROL` · `fwd` · `clock`
 

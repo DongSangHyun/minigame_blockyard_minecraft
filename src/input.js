@@ -459,20 +459,27 @@ if (cOff) cOff.addEventListener("click", function (e) {
 
 // 지형 유형 고르기 — 다음 "새 세계" 부터 적용된다
 export var terrainEl = document.getElementById("terrain");
+// **「다음 세계」의 지형은 따로 든다** (v121) — 예전에는 단추가 `S.terrain` 을 바로 바꿨는데,
+// 그 값은 **지금 세계**의 기록이기도 했다(저장 `tt` · 공유 링크 `?t=` · 사진 도장 · 통계).
+// 「산악」을 눌러 보기만 하고 새 세계를 안 만들면, 지금 보통 세계가 「산악」으로 저장되고
+// 남에게 보낸 링크는 **다른 지형**을 열었다
+export function nextTerrain() {
+  return S.nextTerrain === null || S.nextTerrain === undefined ? (S.terrain | 0) : S.nextTerrain;
+}
 export function refreshTerrain() {
   if (!terrainEl) return;
   var bs = terrainEl.querySelectorAll("button");
   for (var i = 0; i < bs.length; i++)
     bs[i].setAttribute("aria-current",
-      parseInt(bs[i].getAttribute("data-terrain"), 10) === S.terrain ? "true" : "false");
+      parseInt(bs[i].getAttribute("data-terrain"), 10) === nextTerrain() ? "true" : "false");
 }
 if (terrainEl) terrainEl.addEventListener("click", function (e) {
   var btn = e.target.closest("button[data-terrain]");
   if (!btn) return;
   e.stopPropagation();
-  S.terrain = parseInt(btn.getAttribute("data-terrain"), 10);
+  S.nextTerrain = parseInt(btn.getAttribute("data-terrain"), 10);
   refreshTerrain();
-  toast(["보통", "평지", "산악", "군도"][S.terrain] + " — 새 세계부터 적용됩니다");
+  toast(["보통", "평지", "산악", "군도"][S.nextTerrain] + " — 새 세계부터 적용됩니다");
 });
 
 // ── 조작키 재배치 — 손이 다른 사람들을 위해 핵심 몇 개만 바꿀 수 있게
@@ -791,7 +798,12 @@ altBtn.addEventListener("click", function (e) {
   // CLAUDE.md 8번 규칙("파괴적 조작에는 확인을 건다")에 문턱을 둘 이유가 없다
   if (!S.confirmNew) {
     S.confirmNew = true;
-    altBtn.textContent = "정말 새 세계? (다시 누르기)";
+    // **무엇을 버리는지 부른다** (v121 · 자문 29차 #1) — "정말 새 세계?" 만으로는
+    // 새로 만드는 데 왜 확인을 받는지 모른 채 한 번 더 누른다. 새 세계는 **지금 슬롯**을 덮는다
+    var cur = slotInfo(S.slot);
+    var what = cur ? ("「" + (cur.name || ("SEED " + cur.seed)) + " · " + cur.mins + "분」") : "";
+    altBtn.textContent = what ? ("정말? 슬롯 " + S.slot + " " + what + " 을 덮습니다 — 다시 누르기")
+                              : "정말 새 세계? (다시 누르기)";
     setTimeout(function () {
       S.confirmNew = false;
       altBtn.textContent = "새 세계";
@@ -802,6 +814,15 @@ altBtn.addEventListener("click", function (e) {
   var raw = (seedIn.value || "").trim();
   var seed = raw === "" ? ((Math.random() * 100000) | 0) : hashSeed(raw);
   newWorld(seed);
+  // 이름 칸에 적었으면 **그 자리에서** 붙인다 (v121)
+  var nameEl = document.getElementById("namein");
+  var nm = nameEl ? (nameEl.value || "").trim().slice(0, 24) : "";
+  if (nm) {
+    S.worldName = nm;
+    renameSlot(S.slot, nm);
+    nameEl.value = "";
+    refreshSlots();
+  }
   requestPlay();
 });
 document.querySelector(".card").addEventListener("click", function (e) { e.stopPropagation(); });

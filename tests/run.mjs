@@ -14108,6 +14108,51 @@ test("v120 길을 잃었을 때: 마을로 돌아오고, 도움말이 다섯 줄
   assert(r.size >= 13, "도움말 첫 블록 글자가 " + r.size + "px 다 — 45줄 표보다 커야 한다");
 });
 
+test("v121 새 세계: 지형 단추가 지금 세계를 안 바꾸고, 만들 때 이름이 붙는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.endPlay();
+    const keepSlot = B.S.slot, keepT = B.S.terrain;
+    B.S.slot = 3; B.clearSave();
+    B.S.terrain = 0; B.S.nextTerrain = null;
+    B.newWorld(24680);                     // 지금 세계 — 보통 지형
+    B.saveGame();
+
+    // (1) 「산악」을 눌러 보기만 한다 — 지금 세계의 기록이 바뀌면 안 된다
+    const btn = document.querySelector('#terrain button[data-terrain="2"]');
+    if (btn) btn.click();
+    const termNow = B.S.terrain;
+    const link = B.shareLink();
+    B.saveGame();
+    const savedTT = JSON.parse(localStorage.getItem(B.slotKey(3))).tt | 0;
+
+    // (2) 새 세계를 만들면 그때 산악이 된다 — 이름 칸도 함께
+    const nameEl = document.getElementById("namein");
+    if (nameEl) nameEl.value = "우리 성";
+    const alt = document.getElementById("alt");
+    B.S.confirmNew = false;
+    alt.click();                           // 무장 — 무엇을 덮는지 말한다
+    const armText = alt.textContent;
+    alt.click();                           // 실행
+    const termAfter = B.S.terrain;
+    const info = B.slotInfo(3);
+
+    B.S.slot = 3; B.clearSave();
+    B.S.slot = keepSlot; B.S.terrain = keepT; B.S.nextTerrain = null;
+    B.S.village = null;
+    B.endPlay();
+    return { termNow, link, savedTT, termAfter, name: info ? info.name : null, armText, btn: !!btn };
+  });
+  eq(r.btn, true, "지형 단추가 없다 — 시험대가 안 섰다");
+  eq(r.termNow, 0, "「산악」을 눌러 보기만 했는데 지금 세계의 지형이 " + r.termNow + " 로 바뀌었다");
+  assert(/[?&]t=0\b/.test(r.link), "공유 링크가 지금 세계와 다른 지형을 싣는다 — " + r.link);
+  eq(r.savedTT, 0, "저장된 지금 세계의 지형이 " + r.savedTT + " 로 바뀌었다");
+  eq(r.termAfter, 2, "새 세계를 만들었는데 고른 지형(산악)이 안 들어갔다 — " + r.termAfter);
+  eq(r.name, "우리 성", "만들 때 적은 이름이 안 붙었다 (" + r.name + ")");
+  assert(/슬롯 3/.test(r.armText) && /SEED 24680/.test(r.armText),
+     "새 세계 확인이 무엇을 덮는지 안 말한다 — '" + r.armText + "'");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

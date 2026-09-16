@@ -1378,6 +1378,13 @@
           <button type="button" data-terrain="3" aria-current="false">군도</button>
         </div>
       </div>
+      <!-- 새 세계의 이름 (v121) — 이름은 만든 **뒤에** 설정 › 슬롯 › ✎ 로만 붙었다.
+           그전까지 그 세계는 「SEED 54321」이라, 슬롯 목록이 숫자만 나란히 섰다.
+           세계를 만드는 순간이 이름을 붙일 유일하게 자연스러운 순간이다 -->
+      <div class="seedrow">
+        <label for="namein">이름</label>
+        <input id="namein" type="text" maxlength="24" placeholder="새 세계의 이름 (비워도 됩니다)">
+      </div>
       <div class="seedrow">
         <label for="seedin">SEED</label>
         <input id="seedin" type="text" inputmode="numeric" placeholder="비우면 무작위">

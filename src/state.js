@@ -105,6 +105,7 @@ export const S = {
   keyMine: false, keyPlace: false,
   village: null,         // 시작 마을이 놓인 자리 (v115 · 생성기가 채운다)
   noSave: false,         // 링크로 받은 세계 — 남의 슬롯을 안 덮는다 (v116)
+  nextTerrain: null,     // 다음 「새 세계」의 지형 — 지금 세계의 S.terrain 과 따로 든다 (v121)
   tradeCount: 0,         // 상인에게 몇 번 말을 걸었나 — 선물이 돌아가며 나온다
   padFlyTap: 0,
   delArm: 0,

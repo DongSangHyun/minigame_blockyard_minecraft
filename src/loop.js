@@ -59,7 +59,15 @@ export var clock = new THREE.Clock();
 
 export function newWorld(seed) {
   pushPrev();                 // 갈아엎기 직전의 세계를 자동 저장이 못 덮는 자리에 둔다
+  // 고른 지형은 **여기서** 지금 세계의 것이 된다 (v121) — 단추를 누르는 순간이 아니다
+  if (S.nextTerrain !== null && S.nextTerrain !== undefined) {
+    S.terrain = S.nextTerrain;
+    S.nextTerrain = null;
+  }
   generate(seed);
+  // **이름도 새 세계의 것이다** (v121) — 지우지 않아서, 새 세계가 옛 세계의 이름을
+  // 물려받아 저장됐다(「우리 성」 슬롯에 새 섬이 「우리 성」으로 섰다). 시험이 잡았다
+  S.worldName = "";
   relightAll(false);
   markAllDirty();
   buildBudget(70);
