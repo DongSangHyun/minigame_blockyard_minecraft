@@ -144,6 +144,9 @@ nm(FENCE, "울타리", "FENCE"); nm(GATE, "울타리 문", "GATE"); nm(DOOR, "�
 nm(PANE, "유리판", "GLASS PANE"); nm(LADDER, "사다리", "LADDER");
 // 영어 이름은 **한 낱말**로 둔다 (v112) — "STONE BRICK" 으로 적었더니
 // findBlock 의 낱말 맞추기가 `/give brick` 을 돌벽돌(98)로 읽어 벽돌(9)을 못 꺼냈다
+// **맨손** (v128) — 핫바 칸이 비면(AIR) 아무것도 안 든 손이다. 마크와 같다.
+// 캐기는 그대로 되고, 우클릭은 문·상인·동물 같은 **쓰기**만 한다(놓지 않는다)
+nm(AIR, "맨손", "HAND");
 nm(SANDSTONE, "사암", "SANDSTONE"); nm(STONEBRICK, "돌벽돌", "STONEBRICK");
 
 // 캐는 데 걸리는 시간(초)

@@ -2195,7 +2195,7 @@ test("v12 새 블록이 목록과 조준에 모두 등록됐다", async (page) =
       hard: need.filter(b => B.hardnessOf(b) > 0).length,
       dyn: need.filter(b => B.hasDynamicBoxes(b)).length,
       picks: document.querySelectorAll("#pick-grid .pick").length,
-      total: B.ALL_BLOCKS.length + B.ITEMS.length
+      total: B.ALL_BLOCKS.length + B.ITEMS.length + 1   // 맨 앞의 「맨손」 칸 (v128)
     };
   });
   eq(r.inList, 4, "새 블록이 블록 목록에 없다");
@@ -2952,7 +2952,7 @@ test("v16 블록 목록: 갈래와 이름으로 걸러진다", async (page) => {
     find.value = ""; tabs.querySelector('[data-cat="all"]').click();
     const all = count();
     tabs.querySelector('[data-cat="color"]').click();
-    const color = count();
+    const color = count() - 1;          // 맨손 칸은 어느 갈래에도 뜬다 (v128)
     tabs.querySelector('[data-cat="all"]').click();
     find.value = "wool";
     find.dispatchEvent(new Event("input", { bubbles: true }));
@@ -2987,10 +2987,13 @@ test("v16 목록: 최근 쓴 블록이 앞으로 온다", async (page) => {
     B.noteBlockUse(B.B.DIAMOND);
     B.noteBlockUse(B.B.BRICK);
     B.sortPickByRecent();
-    const first = document.querySelector("#pick-grid .pick");
-    const label = first.getAttribute("aria-label");
-    return { label, recent: B.S.recent.slice(), brick: B.NAMES[B.B.BRICK] };
+    // 첫 칸은 늘 「맨손」 (v128) — 최근 블록은 그 다음부터
+    const picks = document.querySelectorAll("#pick-grid .pick");
+    const hand = picks[0].getAttribute("aria-label");
+    const label = picks[1].getAttribute("aria-label");
+    return { hand, label, recent: B.S.recent.slice(), brick: B.NAMES[B.B.BRICK] };
   });
+  eq(r.hand, "맨손", "목록 첫 칸이 맨손이 아니다");
   eq(r.label, r.brick, "가장 최근에 쓴 블록이 앞에 없다: " + r.label);
   eq(r.recent.length, 2, "최근 목록 길이");
 });
@@ -3650,7 +3653,7 @@ test("v19 점검: 모든 블록이 이름·타일·굳기·갈래·아이콘을 
         if (!any) iconFail.push(B.NAMES[b] || ("#" + b));
       } catch (e) { iconFail.push((B.NAMES[b] || b) + " 예외"); }
     });
-    return { total: B.ALL_BLOCKS.length + B.ITEMS.length, missing, iconFail,
+    return { total: B.ALL_BLOCKS.length + B.ITEMS.length + 1, missing, iconFail,   // +1 맨손 칸 (v128)
              picks: document.querySelectorAll("#pick-grid .pick").length };
   });
   assert(r.total >= 50, "블록 수: " + r.total);
@@ -6553,7 +6556,7 @@ test("v63 블록 목록: 새 블록이 화면까지 닿는다", async (page) => 
     // 목록에는 도구(부싯돌)도 함께 뜬다 — 놓는 블록은 아니지만 손에 쥘 수는 있다
     const sapCats = [B.B.SAPLING, B.B.SAPLING_BIRCH, B.B.SAPLING_SPRUCE]
       .map((k) => (B.pickBtns.filter((p) => p.block === k)[0] || {}).cat);
-    return { missing, total: btns.length, all: B.ALL_BLOCKS.length + B.ITEMS.length, bySearch, byEnglish, byOne, noCat, sapCat: sap && sap.cat, sapCats };
+    return { missing, total: btns.length, all: B.ALL_BLOCKS.length + B.ITEMS.length + 1 /* 맨손 칸 (v128) */, bySearch, byEnglish, byOne, noCat, sapCat: sap && sap.cat, sapCats };
   });
   eq(r.missing.length, 0, "블록 목록에 안 뜨는 블록: " + r.missing.join(", "));
   eq(r.total, r.all, "목록 단추가 " + r.total + "개인데 블록+도구는 " + r.all + "종이다");
@@ -14489,6 +14492,168 @@ test("v127 첫 하루: 처음 노는 사람에게는 해가 두 배 느리게 �
   assert(Math.abs(r.newbie - 0.025) < 0.004,
      "처음 노는 사람의 1분이 " + r.newbie.toFixed(4) + " 흘렀다 — 첫 하루가 두 배로 길지 않다");
   assert(Math.abs(r.veteran - 0.05) < 0.004, "30분이 넘었는데도 하루가 느리다 (" + r.veteran.toFixed(4) + ")");
+});
+
+test("v128 맨손: 목록 첫 칸으로 비우면 놓지 않고, 캐기·저장·손 모양은 그대로다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const x = 40, y = 44, z = 40;
+    arena(B, x, y, z, 4);
+    B.set(x, y, z - 2, B.B.STONE); B.set(x, y + 1, z - 2, B.B.STONE);
+    B.refreshAllTops();
+    B.player.pos.set(x + 0.5, y, z + 0.5);
+    B.camera.position.set(x + 0.5, y + 1.62, z + 0.5);
+    B.camera.rotation.set(0, 0, 0);
+    const keepSel = B.getSelected(), keepBar = B.getBar().slice();
+    B.selectSlot(2);
+    // 목록의 첫 칸이 맨손이고, 누르면 그 칸이 비는가
+    const first = B.pickBtns[0];
+    const firstIsHand = first.block === B.B.AIR && first.el.getAttribute("aria-label") === "맨손";
+    B.refreshPickFilter();
+    first.el.click();
+    const barAfter = B.getBar()[2];
+    B.updateHandBlock();
+    const handHidden = !B.heldMesh.visible;
+    // 놓기 — 벽 앞 칸이 그대로 비어 있어야 한다
+    B.beginPlay();
+    const before = B.get(x, y + 1, z - 1);
+    B.place();
+    const placed = B.get(x, y + 1, z - 1);
+    const wall = B.get(x, y + 1, z - 2);
+    // 고스트도 안 뜬다
+    B.step(1 / 60);
+    const ghost = B.ghostMesh.visible;
+    // 저장 왕복
+    B.saveNow && B.saveNow();
+    B.endPlay();
+    // 다른 블록을 다시 고르면 손이 돌아온다
+    B.getBar()[2] = B.B.STONE; B.updateHandBlock();
+    const handBack = B.heldMesh.visible;
+    // 갈래 탭에서도 맨손 칸은 보인다
+    const tab = document.querySelector('#pick-tabs button[data-cat="color"]');
+    if (tab) tab.click();
+    const shownInTab = !first.el.hidden;
+    const all = document.querySelector('#pick-tabs button[data-cat="all"]');
+    if (all) all.click();
+    for (let i = 0; i < keepBar.length; i++) B.getBar()[i] = keepBar[i];
+    B.selectSlot(keepSel); B.updateHandBlock();
+    B.setPaused(false);
+    return { firstIsHand, barAfter, handHidden, before, placed, wall, ghost, handBack, shownInTab,
+             hasTab: !!tab, STONE: B.B.STONE };
+  });
+  assert(r.firstIsHand, "블록 목록의 첫 칸이 「맨손」이 아니다");
+  eq(r.barAfter, 0, "맨손을 눌러도 칸이 비지 않았다");
+  assert(r.handHidden, "맨손인데 손에 블록이 보인다");
+  eq(r.before, 0, "시험 준비: 벽 앞이 비어 있지 않다");
+  eq(r.placed, 0, "맨손으로 우클릭했더니 무언가 놓였다");
+  eq(r.wall, r.STONE, "맨손 우클릭이 벽을 지웠다");
+  assert(!r.ghost, "맨손인데 놓기 미리보기가 뜬다");
+  assert(r.handBack, "블록을 다시 골랐는데 손이 비어 있다");
+  if (r.hasTab) assert(r.shownInTab, "색 갈래 탭에서 맨손 칸이 사라졌다");
+});
+
+test("v128 자문 33: 우클릭 대상 · 겨눈 동물 · 첫 선물 꽃 · 2쪽 선물 · give 맨손 · 횃불 칸", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const x = 44, y = 44, z = 44;
+    arena(B, x, y, z, 6);
+    B.seedMobs();
+    // 앞선 시험이 번식으로 상한(MOB_MAX)을 채웠으면 먹이가 「꽉 찼습니다」 로 끝난다 — 넷만 남긴다
+    B.mobs.filter((m) => !B.MOB_KINDS[m.kind].trader).slice(4).forEach((m) => B.removeMob(m));
+    const animals = B.mobs.filter((m) => !B.MOB_KINDS[m.kind].trader);
+    B.mobs.forEach((m) => { m.x = 5; m.z = 5; m.follow = 0; m.love = 0; });
+    const keepSel = B.getSelected(), keepBar = B.getBar().slice(), keepTc = B.S.tradeCount;
+    const sneak = B.S.sneaking;
+    function aim() {
+      B.player.pos.set(x + 0.5, y, z + 0.5);
+      // 조금 숙여 본다 — 눈높이 그대로면 양(키 0.9)의 머리 위를 지나간다
+      B.player.yaw = 0; B.player.pitch = 0.38;
+      B.camera.position.set(x + 0.5, y + 1.62, z + 0.5);
+      B.camera.rotation.set(-0.38, 0, 0);
+    }
+    B.beginPlay();
+    // (1) 울타리 문 너머의 양 — 문이 먼저 열린다
+    B.applyEdit(x, y, z - 2, B.B.GATE, false);
+    const a = animals[0];
+    a.x = x + 0.5; a.z = z - 3.5; a.y = y; a.follow = 0;
+    aim();
+    B.selectSlot(0);
+    B.getBar()[0] = B.B.FLOWER_R;
+    const gi = B.idx(x, y, z - 2);
+    const gateThere = B.get(x, y, z - 2) === B.B.GATE;
+    const sh0 = B.shape[gi];
+    B.place(false);
+    const gateOpened = B.shape[gi] !== sh0;
+    const fedThroughGate = a.follow > 0;
+    B.applyEdit(x, y, z - 2, 0, false);
+    // (2) 겨눈 동물이 받는다 — 옆의 더 가까운 동물이 아니라
+    const b = animals[1];
+    a.x = x + 0.5; a.z = z - 2.5; a.follow = 0;
+    b.x = x + 1.6; b.z = z + 0.2; b.y = y; b.follow = 0;
+    aim();
+    const dbg = JSON.stringify({ am: (B.aimedMob() || {}).dist, cnt: B.mobs.length, max: B.MOB_MAX });
+    B.place(false);
+    const aimedFed = a.follow > 0, sideFed = b.follow > 0;
+    a.x = 5; a.z = 5; b.x = 5; b.z = 5;
+    // (3) 맨손 + 웅크림 — 문은 그래도 열린다
+    B.applyEdit(x, y, z - 2, B.B.GATE, false);
+    const sh1 = B.shape[gi];
+    B.getBar()[0] = 0; B.updateHandBlock();
+    B.S.sneaking = true;
+    aim();
+    B.place(false);
+    const sneakHandOpened = B.shape[gi] !== sh1;
+    const placeLabel = document.getElementById("tb-place") ? document.getElementById("tb-place").textContent : "쓰기";
+    B.S.sneaking = sneak;
+    B.applyEdit(x, y, z - 2, 0, false);
+    // (4) 첫 선물은 꽃 · 2쪽에서는 양동이를 안 덮는다
+    B.S.tradeCount = 0;
+    B.tradeWith();
+    const firstGift = B.getBar()[9];
+    B.swapBarPage();
+    const page2Before = B.getBar()[9];
+    B.S.fillBar[9] = B.B.WATER;
+    B.tradeWith();
+    const page2After = B.getBar()[9], page2Fill = B.S.fillBar[9];
+    B.swapBarPage();
+    const page1Gift = B.getBar()[9];
+    // (5) give 맨손
+    B.selectSlot(3);
+    const giveMsg = B.runCommand("give 맨손");
+    const given = B.getBar()[3];
+    // (6) 횃불 칸
+    B.getBar()[4] = B.B.TORCH;
+    for (let i = 0; i < 10; i++) if (i !== 4 && B.getBar()[i] === B.B.TORCH) B.getBar()[i] = B.B.STONE;
+    const torch5 = B.torchSlotText();
+    B.getBar()[4] = B.B.STONE;
+    const torchNone = B.torchSlotText();
+    B.endPlay();
+    for (let i = 0; i < keepBar.length; i++) B.getBar()[i] = keepBar[i];
+    B.S.tradeCount = keepTc;
+    B.selectSlot(keepSel); B.updateHandBlock();
+    B.setPaused(false);
+    return { dbg, gateThere, n: animals.length, gateOpened, fedThroughGate, aimedFed, sideFed, sneakHandOpened, placeLabel,
+             firstGift, page2Before, page2After, page2Fill, page1Gift, giveMsg, given, torch5, torchNone,
+             FLOWER_R: B.B.FLOWER_R, BUCKET: B.B.BUCKET, WATER: B.B.WATER };
+  });
+  assert(r.n >= 2, "시험 준비: 동물이 둘 이상이어야 한다 (" + r.n + ")");
+  assert(r.gateThere, "시험 준비: 울타리 문이 안 놓였다");
+  assert(r.gateOpened, "꽃을 든 채 울타리 문을 눌렀는데 문이 안 열렸다");
+  assert(!r.fedThroughGate, "문 너머의 동물이 먹이를 받았다");
+  assert(r.aimedFed, "겨눈 동물이 먹이를 못 받았다 " + r.dbg);
+  assert(!r.sideFed, "겨누지 않은 옆 동물이 먹이를 받았다");
+  assert(r.sneakHandOpened, "맨손으로 웅크려 누르니 문이 안 열린다");
+  eq(r.placeLabel, "쓰기", "맨손인데 폰 버튼이 「놓기」 다");
+  eq(r.firstGift, r.FLOWER_R, "상인의 첫 선물이 꽃이 아니다");
+  eq(r.page2Before, r.BUCKET, "시험 준비: 2쪽 0번 칸이 양동이가 아니다");
+  eq(r.page2After, r.BUCKET, "2쪽에서 받은 선물이 양동이를 덮었다");
+  eq(r.page2Fill, r.WATER, "2쪽에서 받은 선물이 그 쪽 양동이의 물을 쏟았다");
+  assert(r.page1Gift !== r.BUCKET && r.page1Gift > 0, "선물이 1쪽 0번 칸에 안 들어갔다 (" + r.page1Gift + ")");
+  eq(r.given, 0, "/give 맨손 이 칸을 비우지 않았다 — " + r.giveMsg);
+  eq(r.torch5, "5 번 칸의", "횃불 칸 안내");
+  assert(/목록/.test(r.torchNone), "횃불이 없는데 칸 번호를 말한다 — " + r.torchNone);
 });
 
 // ── 실행 ───────────────────────────────────────────────

@@ -565,7 +565,9 @@ export function removeMob(m) {
 }
 
 // 먹이를 주면 잠깐 따라온다
-export function feedNearbyMob(pos) {
+// prefer — 조준한 동물 (v128). 손이 닿으면 그 동물이 받는다 (예전엔 **가장 가까운** 동물이 받아서,
+// 둘째 양을 겨눠도 옆의 소가 하트를 받았고 "같은 종 둘" 을 배울 수가 없었다)
+export function feedNearbyMob(pos, prefer) {
   // 상한에 걸리면 하트도 소리도 내지 않는다 — 안 그러면 "짝이 안 맞았나" 하며 꽃만 계속 준다.
   // -1 을 돌려 부른 쪽(mine.js)이 안내하게 한다 (v46 에서 unlock 을 부른 쪽에 맡긴 것과 같다)
   if (mobs.length >= MOB_MAX) return -1;
@@ -581,6 +583,14 @@ export function feedNearbyMob(pos) {
     // 건너뛰기만 하면 96칸 섬을 가로지르는 동안 따라오기가 끊겼다 (v91).
     if (m.follow > 0) { if (!refeed || d < refeedD) { refeed = m; refeedD = d; } continue; }
     if (d < bestD) { bestD = d; best = i; }
+  }
+  if (prefer && !isTrader(prefer)) {
+    var pi = mobs.indexOf(prefer);
+    var pdx = prefer.x - pos.x, pdz = prefer.z - pos.z;
+    if (pi >= 0 && Math.abs(prefer.y - pos.y) <= 3 && pdx * pdx + pdz * pdz < 25) {
+      if (prefer.follow > 0) { refeed = prefer; best = -1; }
+      else best = pi;
+    }
   }
   if (best < 0) {
     // 둘레에 따라오는 동물뿐이면 그 동물의 시간을 채운다

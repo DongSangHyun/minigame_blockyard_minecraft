@@ -7,7 +7,7 @@ import { WX, WY, WZ, MARK_MAX } from "./dims.js";
 import { markAllDirty, buildBudget } from "./mesh.js";
 import { relightAll } from "./light.js";
 import { IS_TOUCH } from "./boot.js";
-import { SH_SLAB, SH_SLAB_UP, isStairShape, NAMES , isItem} from "./blocks.js";
+import { SH_SLAB, SH_SLAB_UP, isStairShape, NAMES, isItem, AIR, TORCH } from "./blocks.js";
 import { camera, crackMesh, renderer } from "./scene.js";
 import { applyTime } from "./daynight.js";
 import { applyOpts, applyFov, applyTbtn, applyUi, opts, saveOpts } from "./settings.js";
@@ -51,8 +51,8 @@ export var TUT = [
   '이번엔 <b>우클릭</b>으로 블록을 놓아보세요',
   '<b>E</b> 를 눌러 블록 목록에서 다른 재료를 골라보세요',
   '마을 <b>시장</b>의 <b>상인</b>에게 <b>우클릭</b> — 선물을 줍니다 (<b>0</b> 번 칸을 보세요)',
-  '<b>꽃</b>을 들고 <b>동물</b>에게 <b>우클릭</b> — 잠시 따라옵니다',
-  '<b>9</b> 번 <b>횃불</b>로 어두운 곳을 밝혀보세요',
+  '상인이 준 <b>꽃</b>(<b>0</b> 번 칸)을 들고 <b>동물</b>에게 <b>우클릭</b> — 잠시 따라옵니다',
+  '<b>{torch}</b> <b>횃불</b>로 어두운 곳을 밝혀보세요',
   '<b>{help}</b> 를 누르면 나머지 조작이 전부 나옵니다'
 ];
 // 터치용 튜토리얼 — 단계 번호는 TUT 와 같게 맞춘다 (advanceTut 이 같은 인덱스를 쓴다).
@@ -62,7 +62,7 @@ export var TUT_TOUCH = [
   '이번엔 <b>놓기</b> 버튼으로 블록을 놓아보세요',
   '<b>목록</b> 버튼으로 다른 재료를 골라보세요',
   '마을 <b>시장</b>의 <b>상인</b>을 보고 <b>놓기</b> — 선물을 줍니다 (<b>0</b> 번 칸을 보세요)',
-  '<b>꽃</b>을 들고 <b>동물</b>을 보고 <b>놓기</b> — 잠시 따라옵니다',
+  '상인이 준 <b>꽃</b>(<b>0</b> 번 칸)을 들고 <b>동물</b>을 보고 <b>놓기</b> — 잠시 따라옵니다',
   '핫바의 <b>횃불</b>을 골라 어두운 곳을 밝혀보세요',
   '<b>되돌리기</b> 버튼으로 방금 한 것을 지워 보세요 (길게 누르면 다시하기)'
 ];
@@ -517,11 +517,19 @@ export function refreshBindLabels() {
   }
   refreshHint();
 }
+// 횃불이 **실제로** 몇 번 칸에 있나 (v128·자문 33차) — 「9번 칸의 횃불」 은 칸을 바꾼 아이,
+// 핫바 2쪽(9번=부싯돌)에 있는 아이에게 거짓말이었다
+export function torchSlotText() {
+  var i = S.bar ? S.bar.indexOf(TORCH) : -1;
+  if (i >= 0) return (i === 9 ? "0" : String(i + 1)) + " 번 칸의";
+  return "목록(E)에서 고른";
+}
 export function hintText(base) {
   return base.replace("{fly}", keyName(S.binds.fly))
              .replace("{pick}", keyName(S.binds.pick))
              .replace("{shape}", keyName(S.binds.shape))
-             .replace("{help}", keyName(S.binds.help));
+             .replace("{help}", keyName(S.binds.help))
+             .replace("{torch}", torchSlotText());
 }
 
 export function refreshKeyButtons() {
@@ -1164,6 +1172,7 @@ export function pickBlock() {
   // 예전에는 여기서 그냥 나가 버려 그 절반이 통과했다.
   if (S.bar[S.selected] === hit.block && S.shapeMode === mode) { toast(NAMES[hit.block]); return; }
   S.bar[S.selected] = hit.block;
+  if (S.fillBar) S.fillBar[S.selected] = 0;
   setShapeMode(mode);
   refreshSlot(S.selected);
   updateHandBlock();
@@ -1305,7 +1314,7 @@ window.addEventListener("keydown", function (e) {
       var blockPick = S.bar[S.selected], shapePick = currentShape(false);
       // 도구(양동이·부싯돌)를 든 채면 applyEdit 이 0칸을 돌려주는데, 화면에는
       // 엉뚱하게 "먼저 영역을 고르세요" 가 떴다 (영역은 골라 놨는데) — v98
-      if (!wipe && isItem(blockPick)) { toast("도구는 채울 수 없습니다 — 블록을 고르세요"); return; }
+      if (!wipe && (isItem(blockPick) || blockPick === AIR)) { toast("맨손·도구로는 채울 수 없습니다 — 블록을 고르세요"); return; }
       function doFill() {
         var n = wipe ? clearSelection() : fillSelection(blockPick, shapePick);
         // (v118 — 영역 도구는 더 이상 튜토리얼에 없다. 여덟 살에게 Alt+Ctrl+F 는
@@ -1796,7 +1805,7 @@ export function toggleRegionBar(on) {
   }
   on("rb-fill", function () {
     var b = S.bar[S.selected];
-    if (isItem(b)) { toast("도구는 채울 수 없습니다 — 블록을 고르세요"); return; }
+    if (isItem(b) || b === AIR) { toast("맨손·도구로는 채울 수 없습니다 — 블록을 고르세요"); return; }
     say(fillSelection(b, currentShape(false)), "채웠습니다");
   });
   on("rb-wipe", function () { say(clearSelection(), "비웠습니다"); });

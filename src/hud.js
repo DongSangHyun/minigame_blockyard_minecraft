@@ -19,6 +19,14 @@ export function drawIcon(cv, blockId, tileOverride) {
   c.clearRect(0, 0, 64, 64);
   c.imageSmoothingEnabled = false;
   var cx = 32, top = 9, hw = 22, hh = 11, sh = 22;
+  // 맨손 (v128) — 칸을 비워 둔다. 옅은 손 모양 하나로 "비었다" 가 아니라 "맨손" 임을 보인다
+  if (blockId === AIR) {
+    c.fillStyle = "rgba(200,149,107,.55)";
+    c.fillRect(24, 26, 16, 20);          // 손바닥
+    c.fillRect(24, 16, 4, 12); c.fillRect(29, 14, 4, 14);
+    c.fillRect(34, 15, 4, 13); c.fillRect(40, 30, 5, 8);   // 손가락 · 엄지
+    return;
+  }
   var t = tileOverride !== undefined ? [tileOverride, tileOverride, tileOverride] : TILES[blockId];
 
   // 도구(부싯돌·양동이)도 납작하게 그린다 — 6면 큐브로 그리면 **회색 상자**로 보여
@@ -131,7 +139,8 @@ export var pickerEl = document.getElementById("picker");
 export var pickGrid = document.getElementById("pick-grid");
 
 export var pickBtns = [];
-ALL_BLOCKS.concat(ITEMS).forEach(function (b) {
+// 맨 앞 칸은 **맨손** (v128) — 이 칸을 고르면 그 핫바 칸이 비어 아무것도 안 든다
+[AIR].concat(ALL_BLOCKS, ITEMS).forEach(function (b) {
   var btn = document.createElement("button");
   btn.className = "pick";
   btn.type = "button";
@@ -148,6 +157,7 @@ ALL_BLOCKS.concat(ITEMS).forEach(function (b) {
     // 마크의 크리에이티브 인벤토리도 열린 채로 여러 칸을 채운다.
     // 닫기는 E·ESC·바깥 클릭이 이미 있다.
     S.bar[S.selected] = b;
+    if (S.fillBar) S.fillBar[S.selected] = 0;   // 목록에서 꺼낸 양동이는 빈 양동이다 (v128)
     refreshSlot(S.selected);
     updateHandBlock();
     S.worldDirty = true;
@@ -726,6 +736,8 @@ export function sortPickByRecent() {
     var ai = S.recent.indexOf(a.block), bi = S.recent.indexOf(b.block);
     if (ai < 0) ai = 999;
     if (bi < 0) bi = 999;
+    if (a.block === AIR) ai = -1;      // 맨손 칸은 늘 첫 자리
+    if (b.block === AIR) bi = -1;
     return ai - bi;
   });
   for (var i = 0; i < order.length; i++) pickGrid.appendChild(order[i].el);
@@ -736,7 +748,8 @@ export function refreshPickFilter() {
   var shown = 0;
   for (var i = 0; i < pickBtns.length; i++) {
     var e = pickBtns[i];
-    var ok = (pickCat === "all" || e.cat === pickCat) &&
+    // 맨손은 어느 갈래에서도 맨 앞에 보인다 — 비우려고 「전체」 로 돌아갈 일이 없게
+    var ok = (pickCat === "all" || e.cat === pickCat || e.block === AIR) &&
              (!q || e.name.toLowerCase().indexOf(q) >= 0);
     e.el.hidden = !ok;
     if (ok) shown++;

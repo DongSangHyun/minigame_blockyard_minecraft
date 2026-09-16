@@ -1,7 +1,7 @@
 // hand.js — 1인칭 손과 들고 있는 블록
 import { S } from "./state.js";
 import { calmMotion } from "./settings.js";
-import { isStairShape, BUCKET, BUCKET_TILE, CROSS, SHAPE_BOXES, SH_FULL, TILES, faceKindFor, isCross, isItem } from "./blocks.js";
+import { AIR, isStairShape, BUCKET, BUCKET_TILE, CROSS, SHAPE_BOXES, SH_FULL, TILES, faceKindFor, isCross, isItem } from "./blocks.js";
 import { TILE, atlas, atlasTex, tileOrigin } from "./atlas.js";
 import { boxesAt, set } from "./world.js";
 import { CROSS_PLANES, FACES, FACE_UV } from "./mesh.js";
@@ -115,7 +115,8 @@ export function makeBlockGeometry(b, sh, only, tileOverride) {
 }
 
 export var handMat = new THREE.MeshBasicMaterial({ map: atlasTex, vertexColors: true, transparent: true });
-export var heldMesh = new THREE.Mesh(makeBlockGeometry(S.bar[0]), handMat);
+var DEFAULT_HELD = 1;   // 부팅 때 첫 칸이 맨손이어도 틀은 만들어 둔다 (v128)
+export var heldMesh = new THREE.Mesh(makeBlockGeometry(S.bar[0] || DEFAULT_HELD), handMat);
 heldMesh.scale.setScalar(0.20);
 heldMesh.position.set(0.62, -0.40, -1.10);
 heldMesh.rotation.set(0.20, -0.62, 0.10);
@@ -135,6 +136,12 @@ export function updateHandBlock() {
   var key = b * 1024 + sh * 64 + fill;
   if (key === S.heldKey) return;
   S.heldKey = key;
+  // 맨손이면 블록을 숨기고 팔만 남긴다 (v128)
+  heldMesh.visible = b !== AIR;
+  // 폰의 「놓기」 버튼 — 맨손이면 놓지 않고 쓰기만 한다
+  var tbp = document.getElementById("tb-place");
+  if (tbp) tbp.textContent = b === AIR ? "쓰기" : "놓기";
+  if (b === AIR) return;
   heldMesh.geometry.dispose();
   heldMesh.geometry = makeBlockGeometry(b, sh, null, fill ? BUCKET_TILE[fill] : undefined);
 }

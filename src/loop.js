@@ -1,10 +1,10 @@
 // loop.js — 게임 루프
 import { S } from "./state.js";
-import { padState, pollGamepad, pollGamepadMenu, arrowLookTick, tutDone, TUT_LEN, selectionText} from "./input.js";
+import { padState, pollGamepad, pollGamepadMenu, arrowLookTick, tutDone, TUT_LEN, selectionText, torchSlotText } from "./input.js";
 import { breedTick, MOB_KINDS, aimedMob, removeMob, pushOutOfMobs, seedFlocks, seedMobs, seedVillage, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, CX, CZ, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { FIRE, isStairShape, SH_FULL, SH_SLAB, AIR, DEFAULT_BAR, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isItem, isSolid, isUnbreakable } from "./blocks.js";
+import { FIRE, isStairShape, SH_FULL, SH_SLAB, AIR, DEFAULT_BAR, DEFAULT_BAR2, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isItem, isSolid, isUnbreakable } from "./blocks.js";
 import { animateLiquids, crackTex } from "./atlas.js";
 import { boxesAt, seenRatio, BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, set, shape, topMap, world } from "./world.js";
 import { lightAtPlayer, lightBlk, lightSky, relightAll } from "./light.js";
@@ -73,6 +73,10 @@ export function newWorld(seed) {
   buildBudget(70);
   stats.placed = 0; stats.mined = 0;
   S.bar = DEFAULT_BAR.slice();
+  // 2쪽을 보던 중에 만들어도 **도구 쪽이 남는다** (v128·자문 33차) — 예전엔 옛 1쪽이 2쪽 자리로 가서
+  // 양동이·문·사다리·부싯돌이 사라졌다
+  S.barAlt = DEFAULT_BAR2.slice();
+  S.barPage = 1;
   refreshBar();
   S.history.length = 0; S.future.length = 0;
   resetQueues();
@@ -154,7 +158,7 @@ export function step(dt) {
     // 처음 노는 사람에게 어둠은 "사고" 였다. 한 줄 먼저 말해 주면 "예고된 놀이" 가 된다.
     // 첫 30분에만 — 아는 사람에게 매일 밤 잔소리를 하지 않는다
     if (S.playSeconds < 1800 && prevDay < 0.72 && S.timeOfDay >= 0.72) {
-      toast("곧 밤이 옵니다 — 9번 칸의 횃불을 놓아 보세요");
+      toast("곧 밤이 옵니다 — " + torchSlotText() + " 횃불을 놓아 보세요");
     }
   }
   applyTime(dt);
@@ -469,7 +473,7 @@ export function step(dt) {
     var gx = hit.x + hit.nx, gy = hit.y + hit.ny, gz = hit.z + hit.nz;
     // 놓을 수 없는 물건(도구)에는 배치 미리보기를 안 띄운다 —
     // 양동이를 들고 땅을 겨누면 "양동이 블록" 의 반투명 상자가 떴다 (자문 17차 #5)
-    if (!isItem(S.bar[S.selected]) && canPlaceAt(gx, gy, gz))
+    if (!isItem(S.bar[S.selected]) && S.bar[S.selected] !== AIR && canPlaceAt(gx, gy, gz))
       updateGhost(gx, gy, gz, upperFromHit(hit));
     else ghostMesh.visible = false;
   } else {

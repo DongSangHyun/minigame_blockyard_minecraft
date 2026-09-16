@@ -7,7 +7,7 @@ import { BOOKSHELF, CARPET0, LAMP, PLANKS, POT, SAPLING, STAINED0, WOOL0, NAMES,
 import { get, shape, hutSpots, markName, markX, markZ } from "./world.js";
 import { lightSky } from "./light.js";
 import { burst } from "./scene.js";
-import { BODY, HALF, currentShape, player, raycast, stats } from "./player.js";
+import { BODY, EYE, HALF, currentShape, player, raycast, stats } from "./player.js";
 import { breakSound, crunch, placeSound, tone } from "./audio.js";
 import { notePlaced, applyEdit, beginBatch, endBatch, unlock } from "./edit.js";
 import { noteBlockUse, refreshSlot, toast } from "./hud.js";
@@ -120,10 +120,18 @@ export function tradeWith() {
   if (rumor) line = rumor;
   S.tradedThisSession = true;
   S.worldDirty = true;                  // 나눈 말도 저장할 거리다 (v122)
-  S.bar[9] = gift;
-  refreshSlot(9);
+  // **처음 받는 선물은 꽃** (v128·자문 33차) — 튜토리얼 다음 줄이 「꽃을 들고 동물에게」 인데,
+  // 기본 핫바에도 선물 목록에도 꽃이 없어서 그 줄에서 막히면 뒤 두 줄이 영영 안 나왔다
+  if (n === 0) gift = FLOWER_R;
+  // 핫바 **1쪽** 0번 칸에 넣는다 — 2쪽을 보던 중이면 0번 칸은 양동이라 도구가 사라졌다
+  var onAlt = S.barPage === 2 && S.barAlt;
+  var gbar = onAlt ? S.barAlt : S.bar, gfill = onAlt ? S.fillBarAlt : S.fillBar;
+  gbar[9] = gift;
+  if (gfill) gfill[9] = 0;       // 먼저 있던 양동이의 물이 새 칸에 남지 않게
+  if (!onAlt) refreshSlot(9);
+  if (!onAlt && S.selected === 9) updateHandBlock();
   noteBlockUse(gift);
-  toast("상인: \u201c" + line + "\u201d — 0번 칸에 " + NAMES[gift]);
+  toast("상인: \u201c" + line + "\u201d — " + (onAlt ? "1쪽 " : "") + "0번 칸에 " + NAMES[gift]);
   advanceTut(3);                       // 튜토리얼 4번째 줄은 **상인에게 말을 거는 것**이다 (v118)
   tone(720, 0.08, "triangle", 0.05);
   tone(960, 0.09, "triangle", 0.045);
@@ -137,15 +145,23 @@ export function tradeWith() {
 // 들판 한가운데 선 양에게는 꽃을 줄 수도, 상인에게 말을 걸 수도 없었다.
 // 마을 가판에서만 되던 이유가 상인 **뒤에 가판 판자**가 있었기 때문이다
 export function tryInteractMob(repeating) {
-  if (repeating || S.sneaking) return false;
+  if (repeating || sneakSkips()) return false;
   var am = aimedMob();
   if (!am) return false;
+  // **동물보다 가까운 블록이 있으면 블록이 먼저다** (v128·자문 33차) — 좌클릭(loop.js)과 같은 규칙.
+  // 꽃을 든 채 우리 문을 우클릭하면 문 뒤의 양이 먹이를 받고 문은 안 열렸다
+  var bh = raycast(6);
+  if (bh) {
+    var ey = player.pos.y + EYE;
+    var bx = bh.x + 0.5 - player.pos.x, by = bh.y + 0.5 - ey, bz = bh.z + 0.5 - player.pos.z;
+    if (Math.sqrt(bx * bx + by * by + bz * bz) < am.dist) return false;
+  }
   // 상인이 먼저다 (v115) — 가판 앞에서 블록을 놓으려다 상인을 가리면 말을 걸 수가 없다
   if (isTrader(am.mob)) return tradeWith();
   // 꽃을 들고 동물에게 우클릭하면 잠시 따라온다
   if (S.bar[S.selected] === FLOWER_R || S.bar[S.selected] === FLOWER_Y ||
       S.bar[S.selected] === TALLGRASS) {
-    var fed = feedNearbyMob(player.pos);
+    var fed = feedNearbyMob(player.pos, am.mob);   // 겨눈 동물이 받는다 (v128)
     // -1 은 "상한이라 못 받는다" — JS 에서 -1 은 참이라 그냥 두면 과제까지 뜬다
     if (fed === -1) { toast("동물이 " + MOB_MAX + "마리로 꽉 찼습니다"); return true; }
     if (fed) {
@@ -155,11 +171,21 @@ export function tryInteractMob(repeating) {
       return true;
     }
   }
+  // 먹이 없이 동물을 우클릭하면 **한 번만** 알려 준다 (v128) — 아무 반응이 없으면 고장인 줄 안다
+  if (!S.feedHinted) {
+    S.feedHinted = true;
+    toast("동물은 꽃이나 키큰풀을 들고 우클릭하면 따라옵니다");
+  }
   return false;
 }
 
+// 웅크리면 쓰기를 건너뛰고 놓는다 — 단 **맨손이면** 놓을 것이 없으니 그대로 쓴다 (마크와 같다 · v128)
+function sneakSkips() {
+  return S.sneaking && S.bar[S.selected] !== AIR;
+}
+
 export function tryInteract(hit) {
-  if (!hit || S.sneaking) return false;
+  if (!hit || sneakSkips()) return false;
   if (tryInteractMob(false)) return true;
   // 여닫는 블록이 먼저다 — 횃불을 들었다고 문에 불을 붙이면 문을 쓸 수가 없다
   if (isOpenable(hit.block)) return tryInteractGate(hit);
@@ -190,7 +216,7 @@ export function doorOther(x, y, z) {
 }
 
 function tryInteractGate(hit) {
-  if (!hit || S.sneaking) return false;
+  if (!hit || sneakSkips()) return false;
   if (!isOpenable(hit.block)) return false;
   var i = idx(hit.x, hit.y, hit.z);
   if (hit.block === DOOR) {
@@ -280,6 +306,13 @@ export function place(repeating) {
   if (!repeating && tryInteractMob(false)) return;
   if (!hit) return;
   if (!repeating && tryInteract(hit)) return;
+  // **맨손은 아무것도 놓지 않는다** (v128) — 문 열기·상인·먹이 같은 쓰기는 위에서 이미 했다.
+  // 이 줄이 없으면 AIR 를 "놓는" 편집이 되어 **조준한 옆 칸을 지우는** 일이 된다
+  if (S.bar[S.selected] === AIR) {
+    // 한 번만 알려 준다 — 목록에서 ✋ 을 먼저 고른 아이는 우클릭이 고장 난 줄 안다
+    if (!repeating && !S.handHinted) { S.handHinted = true; toast("맨손입니다 — 숫자 키나 목록(E)으로 블록을 고르세요"); }
+    return;
+  }
   // (v118 에서 폰 4번째 줄도 「상인」으로 바뀌었다 — 줄 긋기는 도움말에 남아 있다)
   var b = S.bar[S.selected];
 

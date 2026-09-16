@@ -12,6 +12,7 @@ import { markAllDirty, touch } from "./mesh.js";
 import { boxHitsWorld, player, stats } from "./player.js";
 import { tone } from "./audio.js";
 import { helpAchList, refreshBar, showAchPop, toast } from "./hud.js";
+import { updateHandBlock } from "./hand.js";
 import { setWeather, localBiome } from "./sky.js";
 
 export var HISTORY_MAX = 240;
@@ -940,7 +941,7 @@ export var CMD_HELP =
   "marks · marks del <번호> · fill <블록|공기> [바꿀블록] · hollow · walls <블록> · " +
   "cyl <블록> <반지름> [높이] [속빔] · sphere <블록> <반지름> [속빔] · shell <블록> · " +
   "paste [공기] · mirror · rotate · " +
-  "expand/contract <±dx> <±dy> <±dz> · shift <dx> <dy> <dz> · clone <dx> <dy> <dz> [횟수] · give <블록> · count · bp <save|use|list|del|export|import> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
+  "expand/contract <±dx> <±dy> <±dz> · shift <dx> <dy> <dz> · clone <dx> <dy> <dz> [횟수] · give <블록|맨손> · count · bp <save|use|list|del|export|import> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
 
 // 한국어 이름과 영어 이름을 둘 다 알아듣는다 — "조약돌" 도 "cobble" 도 된다
 function findBlock(name) {
@@ -1077,12 +1078,16 @@ export function runCommand(line) {
   }
 
   if (cmd === "give") {
-    var gb = findBlock(parts.slice(1).join(" "));
+    var gname = parts.slice(1).join(" ");
+    // 맨손 (v128) — 목록에서는 고를 수 있는데 명령으로만 못 비웠다
+    var gb = /^(맨손|빈손|손|hand)$/i.test(gname.trim()) ? AIR : findBlock(gname);
     if (gb < 0) return "그런 블록이 없습니다";
     S.bar[S.selected] = gb;
+    if (S.fillBar) S.fillBar[S.selected] = 0;    // 먼저 든 양동이의 물이 새 칸에 남지 않게
     // 핫바를 다시 그린다 (v95) — 예전에는 손에 든 건 다이아, 핫바가 보여 주는 건 잔디였다.
     // v85 가 글리프까지 넣어 고친 "핫바를 봐서는 뭘 든지 모른다" 가 명령 경로에만 남아 있었다
     refreshBar();
+    updateHandBlock();
     return "핫바에 " + NAMES[gb];
   }
 
