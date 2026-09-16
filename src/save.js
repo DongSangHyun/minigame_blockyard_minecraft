@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { LEGACY_WY, GEN, setGen, MARK_MAX, WX, WZ, idx } from "./dims.js";
 import { DEFAULT_BAR, SH_FULL } from "./blocks.js";
-import { seenMap, expandLegacySeen, touched, refreshAllTops, snapshotSeaCol, set, shape, world, waterLvl } from "./world.js";
+import { hutSpots, seenMap, expandLegacySeen, touched, refreshAllTops, snapshotSeaCol, set, shape, world, waterLvl } from "./world.js";
 
 import { player, stats } from "./player.js";
 import { dumpMobs, loadMobs, mobs, isTrader } from "./mobs.js";
@@ -205,6 +205,7 @@ export function saveGame() {
       // (`tc` 는 이미 touched 가 쓰고 있어 `trc` 다)
       vg: S.village ? [S.village.x, S.village.z, S.village.h] : 0,
       trc: S.tradeCount | 0,
+      hp: hutSpots,                        // 오두막 자리 — 상인의 소문이 가리킨다 (v124)
       // 날씨는 시각(t)·달 위상(md)과 한 짝인데 혼자 빠져 있었다 —
       // 눈 오는 밤 사진을 찍으려고 K 로 잠가 놓아도 탭을 닫으면 맑음으로 돌아왔다.
       wt: S.weather, wk: S.weatherLock ? 1 : 0,
@@ -293,7 +294,13 @@ export function loadGame() {
         if (isTrader(mobs[tj])) mobs[tj].home = S.village.stall.slice();   // 가판을 다시 지킨다
       }
     }
-    S.tradeCount = d.trc | 0;             // 상인이 어제 한 말을 기억한다 — 같은 첫마디를 되풀이하지 않게
+    S.tradeCount = d.trc | 0;
+    // 오두막 자리 — 옛 저장에는 없다(그때는 소문이 안 돈다)
+    hutSpots.length = 0;
+    if (Array.isArray(d.hp)) {
+      for (var hi = 0; hi < d.hp.length && hi < 16; hi++)
+        if (Array.isArray(d.hp[hi]) && d.hp[hi].length === 3) hutSpots.push(d.hp[hi].slice());
+    }             // 상인이 어제 한 말을 기억한다 — 같은 첫마디를 되풀이하지 않게
     // 자람 큐는 저장하지 않는다 — 불러온 세계의 묘목을 다시 주워 담으라고 여기서 신호한다.
     // 호출부(부팅 복원·슬롯 전환·백업 되살리기·파일 가져오기) 넷 중 하나라도 빠뜨리면
     // 그 경로로 들어온 사람의 묘목만 영영 안 자란다 — 그래서 모두가 지나는 여기에 둔다.

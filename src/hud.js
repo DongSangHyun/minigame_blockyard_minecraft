@@ -451,7 +451,7 @@ export function drawMinimapTo(ctx, scale, full) {
         if (S.mmUnder && (seenHere & SEEN_UNDER_ALL)) faded = true;   // 다른 층에서 본 자리
         else { d[o] = 12; d[o + 1] = 16; d[o + 2] = 20; continue; }
       }
-      var b = AIR, shade = 1, hollow = false, made = false, lastY = py;
+      var b = AIR, shade = 1, hollow = false, made = false, mine = false, lastY = py;
       if (S.mmUnder) {
         // 지하에서는 지금 높이의 단면을 본다.
         // 훑는 깊이는 층 두께를 따라간다 — 5칸 고정이면 지하가 26칸이 된 뒤
@@ -473,6 +473,10 @@ export function drawMinimapTo(ctx, scale, full) {
         if (y >= 0) {
           b = world[idx(x, y, z)];
           shade = 0.62 + (y / WY) * 0.72;
+          // **내가 지은 것** (v124) — 지상 지도는 블록 색만 칠해서, 96칸 섬에서 판자집 한 채는
+          // 흙과 구별이 안 됐다. "내 집 어디 있지?" 가 둘째 날의 첫 질문이다.
+          // 위에서 본 칸이 사람 손이 닿은 칸이면 밝게 테를 두른다
+          if (isTouched(x, y, z)) mine = true;
           // 굴 어귀는 이제 **칸마다 칠하지 않는다** — 아래에서 덩어리 중심에 점 하나만 찍는다.
           // 등고선 — 일정 높이마다 한 줄씩 어둡게 해 높낮이를 읽게 한다
           if (S.contour && y > SEA) {
@@ -497,11 +501,14 @@ export function drawMinimapTo(ctx, scale, full) {
       }
       var c = AVG_TOP[b] || [120, 120, 120];
       var cr = c[0] * shade * dim, cg = c[1] * shade * dim, cb = c[2] * shade * dim;
+      if (mine) {                        // 내가 지은 칸 — 원래 색에 밝은 금빛을 섞는다
+        cr = cr * 0.45 + 255 * 0.55; cg = cg * 0.45 + 214 * 0.55; cb = cb * 0.45 + 120 * 0.55;
+      }
       // 고대비 — **지도 안쪽까지 간다** (v114). 예전에는 `opts.contrast` 를 읽는 JS 가
       // 한 줄도 없어서, 「색 구분이 어려울 때」라고 적힌 설정이 **색이 뜻을 나르는
       // 유일한 화면**을 한 픽셀도 안 건드렸다. 바닥은 채도를 죽여 회색에 가깝게 깔고
       // (기호가 뜨게), 밝고 어두움은 더 벌린다
-      if (opts.contrast) {
+      if (opts.contrast && !mine) {        // 내가 지은 칸의 금빛은 고대비에서도 남긴다
         var lum = cr * 0.299 + cg * 0.587 + cb * 0.114;
         var flat = lum < 128 ? lum * 0.72 : 60 + lum * 0.62;
         cr = cr * 0.35 + flat * 0.65; cg = cg * 0.35 + flat * 0.65; cb = cb * 0.35 + flat * 0.65;

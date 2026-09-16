@@ -14263,6 +14263,67 @@ test("v123 어제의 사고: 지난번에 끝낸 모습으로 돌아가고, 오�
   assert(r.todo.indexOf("mine100") < 0, "오늘 해 볼 것에 숫자 과제(광부)가 앞에 섰다: " + r.todo.join(","));
 });
 
+test("v124 내 집과 소문: 지도에 지은 것이 보이고, 상인이 빈집을 알려 준다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.generate(8080, 2); B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    const huts = B.hutSpots.length;
+
+    // (1) 지도 — 지은 칸이 자연 칸과 다른 색으로 칠해지는가
+    const v = B.S.village;
+    const X = v.x + 12, Z = v.z - 14;
+    B.markSeen(B.WX / 2, B.WZ / 2, B.WX, 1);
+    // 기호를 치운다 — 굴 어귀 점이 그 픽셀 위에 그려지면 바닥색이 아니라 주황 테를 잰다
+    // (전체 실행에서 앞 시험이 남긴 어귀 목록이 그 자리를 덮었다)
+    B.mouthDots.length = 0; B.S.marks.length = 0;
+    const keepSp = B.S.spawnPoint; B.S.spawnPoint = null;
+    B.S.mmZoom = 1;
+    B.player.pos.set(B.WX / 2, v.h + 30, B.WZ / 2);   // 가운데에서 보면 확대 없이 섬 전체가 한 장이다
+    B.drawMinimap();
+    const mm = document.getElementById("mm");
+    const px = (x, z) => Array.from(mm.getContext("2d").getImageData(x, z, 1, 1).data.slice(0, 3));
+    const before = px(X, Z);
+    const top = B.topMap[Z * B.WX + X];
+    B.applyEdit(X, top + 1, Z, B.B.PLANKS, true, 0);
+    B.refreshTop(X, Z);
+    B.drawMinimap();
+    const after = px(X, Z);
+    // 같은 판자를 **세계가 놓은 것처럼** 두면 금빛이 안 든다
+    B.setTouched(X, top + 1, Z, false);
+    B.drawMinimap();
+    const natural = px(X, Z);
+
+    // (2) 소문 — 두 번째 대화에 빈집 방향과 표식
+    B.S.earned = {};
+    B.S.tradeCount = 1;
+    const marksBefore = B.S.marks.length;
+    B.tradeWith();
+    const toast = document.getElementById("toast").textContent;
+    const rumorMarks = B.S.marks.filter((m) => m[3] === "소문").length;
+    // 빈집을 이미 찾았으면 소문은 안 돈다
+    B.S.earned = { findHut: true };
+    B.S.tradeCount = 3;
+    const mk2 = B.S.marks.length;
+    B.tradeWith();
+    const mk3 = B.S.marks.length;
+
+    B.S.marks.length = 0; B.S.earned = {}; B.S.tradeCount = 0;
+    B.S.village = null; B.S.spawnPoint = keepSp;
+    B.refreshMouthDots();
+    B.endPlay(); B.setPaused(false);
+    return { huts, before, after, natural, toast, rumorMarks, marksBefore, mk2, mk3 };
+  });
+  assert(r.huts >= 1, "오두막 자리가 기록되지 않았다 (" + r.huts + ")");
+  const diff = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
+  assert(diff(r.after, r.natural) > 60,
+     "지은 판자가 지도에서 자연 판자와 같은 색이다 — 내 집을 못 찾는다 (" + r.after + " vs " + r.natural + ")");
+  assert(/빈집/.test(r.toast), "두 번째 대화에서 소문을 안 알려 준다 — '" + r.toast + "'");
+  assert(/(동|서|남|북)쪽/.test(r.toast), "소문이 방향을 안 말한다 — '" + r.toast + "'");
+  eq(r.rumorMarks, 1, "소문 표식이 " + r.rumorMarks + "개 찍혔다");
+  eq(r.mk3, r.mk2, "빈집을 이미 찾았는데 소문 표식이 또 찍혔다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

@@ -2,9 +2,9 @@
 import { S } from "./state.js";
 import { MOB_MAX, aimedMob, feedNearbyMob, isTrader, mobOccupies } from "./mobs.js";
 import { primeTNT, ignite } from "./fluids.js";
-import { WY, idx, inside } from "./dims.js";
+import { MARK_MAX, WY, idx, inside } from "./dims.js";
 import { BOOKSHELF, CARPET0, LAMP, PLANKS, POT, SAPLING, STAINED0, WOOL0, NAMES, BUCKET, FRAME, FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
-import { get, shape } from "./world.js";
+import { get, shape, hutSpots, markName, markX, markZ } from "./world.js";
 import { lightSky } from "./light.js";
 import { burst } from "./scene.js";
 import { BODY, HALF, currentShape, player, raycast, stats } from "./player.js";
@@ -83,6 +83,13 @@ export var TRADER_LINES = [
 ];
 // 상인과 이야기한다 — 선물은 **0번 칸**에 넣는다.
 // 지금 든 것을 덮으면 짓던 것이 끊긴다 (아이가 손에 든 블록이 갑자기 바뀌면 놀란다)
+// 빈집이 마을에서 어느 쪽인가 — 아이가 지도를 돌려 보지 않아도 되게 방위로 말한다
+export function rumorLine(hs) {
+  var v = S.village;
+  var dx = hs[0] - (v ? v.x : player.pos.x), dz = hs[2] - (v ? v.z : player.pos.z);
+  var dir = Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? "동쪽" : "서쪽") : (dz > 0 ? "남쪽" : "북쪽");
+  return dir + "에 빈집이 있대요 — 지도의 「소문」을 보세요";
+}
 export function tradeWith() {
   var n = (S.tradeCount || 0);
   S.tradeCount = n + 1;
@@ -91,8 +98,26 @@ export function tradeWith() {
   var day = Math.floor(Date.now() / 86400000);
   var gift = TRADER_GIFTS[(n + day) % TRADER_GIFTS.length];
   var line = TRADER_LINES[n % TRADER_LINES.length];
+  // **소문** (v124) — 두 번째 대화부터 마을 밖 빈집을 한 곳씩 알려 준다.
+  // 오두막 3~6채가 섬 어딘가에 있고 「빈집」 과제도 있는데, 아무도 가리키지 않아서
+  // 마을 밖은 "아무것도 없는 들판" 이었다. 지도에 흐린 「소문」 표식을 ±3칸 흩뜨려 찍는다
+  var rumor = "";
+  if (n >= 1 && n % 2 === 1 && hutSpots.length && !S.earned.findHut) {
+    var hs = hutSpots[((n - 1) >> 1) % hutSpots.length];
+    rumor = rumorLine(hs);
+    if (S.marks.length < MARK_MAX) {
+      var jx = hs[0] + (((n * 7) % 7) - 3), jz = hs[2] + (((n * 5) % 7) - 3);
+      var dup = false;
+      for (var mi = 0; mi < S.marks.length; mi++) {
+        if (markName(S.marks[mi]) === "소문" &&
+            Math.abs(markX(S.marks[mi]) - jx) + Math.abs(markZ(S.marks[mi]) - jz) < 8) dup = true;
+      }
+      if (!dup) S.marks.push([jx, hs[1], jz, "소문"]);
+    }
+  }
   // 다시 온 사람에게는 **기억하는 말**로 (v122) — 첫마디가 매번 "어서 오세요" 였다
   if (n > 0 && !S.tradedThisSession) line = "또 왔네요! 오늘 것도 드릴게요";
+  if (rumor) line = rumor;
   S.tradedThisSession = true;
   S.worldDirty = true;                  // 나눈 말도 저장할 거리다 (v122)
   S.bar[9] = gift;

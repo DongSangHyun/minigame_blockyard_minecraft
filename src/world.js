@@ -638,7 +638,8 @@ export function generate(seed, gen) {
   //
   // 난수를 따로 쓴다 — 여기서 뽑는 횟수가 달라지면 뒤따르는 풀·꽃·해변이
   // 모든 시드에서 밀린다 (v61·v75 교훈).
-  if (!S.noHuts) buildHuts(makeRng(S.worldSeed + 7777));   // S.noHuts — 시험이 "오두막 없는 세계" 와 견준다
+  if (!S.noHuts) buildHuts(makeRng(S.worldSeed + 7777));
+  else hutSpots.length = 0;   // S.noHuts — 시험이 "오두막 없는 세계" 와 견준다
 
   // 사막의 선인장과 죽은 덤불 · 설원의 마른 풀 —
   // 초원에만 풀이 깔리면 나머지 바이옴이 상대적으로 더 "만들다 만 맵" 으로 보인다
@@ -1080,7 +1081,11 @@ function buildBoulders(rng) {
   return made;
 }
 
+// 지어진 오두막의 자리 (v124) — 상인이 **소문**으로 가리킨다. 난수를 더 뽑지 않고
+// 성공한 자리만 모으므로 같은 시드의 땅은 한 비트도 안 달라진다
+export var hutSpots = [];
 function buildHuts(rng) {
+  hutSpots.length = 0;
   var tries = 40;
   for (var ht = 0; ht < tries; ht++) {
     var w = 5 + ((rng() * 4) | 0);          // 5~8칸
@@ -1152,6 +1157,7 @@ function buildHuts(rng) {
     var tx2 = hx + 1 + ((rng() * Math.max(1, w - 2)) | 0);
     var tz2 = hz + 1 + ((rng() * Math.max(1, d - 2)) | 0);
     if (get(tx2, hh + 1, tz2) === AIR) set(tx2, hh + 1, tz2, TORCH);
+    hutSpots.push([hx + (w >> 1), hh + 1, hz + (d >> 1)]);
   }
 }
 
