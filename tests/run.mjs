@@ -14153,6 +14153,69 @@ test("v121 새 세계: 지형 단추가 지금 세계를 안 바꾸고, 만들 �
      "새 세계 확인이 무엇을 덮는지 안 말한다 — '" + r.armText + "'");
 });
 
+test("v122 둘째 날: 다시 켜도 마을이 살아 있다 (옛 저장도)", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keepSlot = B.S.slot;
+    B.S.slot = 2; B.clearSave();
+    B.newWorld(31415);
+    const v0 = B.S.village;
+    const want = [v0.x, v0.z, v0.h];
+    B.S.tradeCount = 3;
+    B.saveGame();
+
+    // (1) "다시 켜기" — 메모리의 마을을 지우고 저장에서 불러온다
+    B.S.village = null; B.S.tradeCount = 0;
+    B.loadGame();
+    const got = B.S.village ? [B.S.village.x, B.S.village.z, B.S.village.h] : null;
+    const tc = B.S.tradeCount;
+    B.player.pos.set(6.5, 40, 6.5);
+    const tp = B.runCommand("tp 마을");
+    const trader = B.mobs.filter((m) => B.MOB_KINDS[m.kind].trader)[0];
+    const home = trader && trader.home ? trader.home.slice() : null;
+
+    // (2) **옛 저장**(v115~v121 · vg 없음) — 상인 자리에서 거꾸로 구한다
+    const raw = JSON.parse(localStorage.getItem(B.slotKey(2)));
+    delete raw.vg;
+    localStorage.setItem(B.slotKey(2), JSON.stringify(raw));
+    B.S.village = null;
+    B.loadGame();
+    const legacy = B.S.village ? [B.S.village.x, B.S.village.z, B.S.village.h] : null;
+    const legacyStall = B.S.village ? B.S.village.stall : null;
+
+    // (3) 사흘 만에 다시 켜면 **아침**에서 시작한다
+    const raw2 = JSON.parse(localStorage.getItem(B.slotKey(2)));
+    raw2.at = Date.now() - 3 * 24 * 3600 * 1000;
+    raw2.t = 0.85;                                 // 밤에 껐다
+    localStorage.setItem(B.slotKey(2), JSON.stringify(raw2));
+    B.loadGame();
+    const morning = B.S.timeOfDay, welcome = B.S.welcomeBack;
+    // 방금 끈 세계는 그대로 — 매번 아침으로 돌리면 짓던 밤 풍경이 날아간다
+    raw2.at = Date.now() - 60 * 1000;
+    localStorage.setItem(B.slotKey(2), JSON.stringify(raw2));
+    B.loadGame();
+    const kept = B.S.timeOfDay;
+
+    B.S.slot = 2; B.clearSave();
+    B.S.slot = keepSlot;
+    B.S.village = null; B.S.welcomeBack = false;
+    B.endPlay(); B.setPaused(false);
+    return { want, got, tc, tp, home, legacy, legacyStall, stall: v0.stall, morning, welcome, kept };
+  });
+  eq(JSON.stringify(r.got), JSON.stringify(r.want),
+     "다시 켰더니 마을이 " + JSON.stringify(r.got) + " 다 — 둘째 날부터 「마을로」가 꺼진다");
+  eq(r.tc, 3, "상인과 나눈 말의 수가 " + r.tc + " 로 돌아갔다 — 매일 같은 첫마디를 한다");
+  assert(/마을로 돌아왔습니다/.test(r.tp), "다시 켠 세계에서 /tp 마을 이 안 된다 — " + r.tp);
+  assert(r.home, "다시 켠 세계에서 상인이 가판을 안 지킨다 (home 이 없다)");
+  eq(JSON.stringify(r.legacy), JSON.stringify(r.want),
+     "옛 저장(vg 없음)에서 마을을 못 되살렸다 — " + JSON.stringify(r.legacy));
+  eq(JSON.stringify(r.legacyStall), JSON.stringify(r.stall), "되살린 가판 자리가 실제와 다르다");
+  eq(r.morning, 0.25, "사흘 만에 켰는데 시각이 " + r.morning + " 다 — 어젯밤 그대로 깜깜하게 열린다");
+  eq(r.welcome, true, "사흘 만에 켰는데 인사를 준비하지 않았다");
+  assert(Math.abs(r.kept - 0.85) < 0.01, "방금 끈 세계까지 아침으로 돌렸다 (" + r.kept + ")");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

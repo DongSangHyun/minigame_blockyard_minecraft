@@ -5,7 +5,8 @@ import { DEFAULT_BAR, SH_FULL } from "./blocks.js";
 import { seenMap, expandLegacySeen, touched, refreshAllTops, snapshotSeaCol, set, shape, world, waterLvl } from "./world.js";
 
 import { player, stats } from "./player.js";
-import { dumpMobs, loadMobs } from "./mobs.js";
+import { dumpMobs, loadMobs, mobs, isTrader } from "./mobs.js";
+import { villageAt } from "./village.js";
 import { toast } from "./hud.js";
 import { applyWeather } from "./sky.js";
 
@@ -198,6 +199,10 @@ export function saveGame() {
       mb: dumpMobs(),              // 동물 — 없으면 목장이 탭 하나 닫으면 빈 우리가 된다
       mm: encodeArrB64(seenMap),   // 걸어서 밝힌 지도 — 칸마다 0~3 이라 몇 백 바이트다
       sp: S.spawnPoint, marks: S.marks, bar2: S.barAlt, fly: S.flySpeed, tt: S.terrain,
+      // 마을의 자리와 상인과 나눈 말의 수 (v122) — 필드만 늘어 `v` 는 그대로다.
+      // (`tc` 는 이미 touched 가 쓰고 있어 `trc` 다)
+      vg: S.village ? [S.village.x, S.village.z, S.village.h] : 0,
+      trc: S.tradeCount | 0,
       // 날씨는 시각(t)·달 위상(md)과 한 짝인데 혼자 빠져 있었다 —
       // 눈 오는 밤 사진을 찍으려고 K 로 잠가 놓아도 탭을 닫으면 맑음으로 돌아왔다.
       wt: S.weather, wk: S.weatherLock ? 1 : 0,
@@ -253,11 +258,40 @@ export function loadGame() {
     player.yaw = d.r[0]; player.pitch = d.r[1];
     stats.placed = d.s[0]; stats.mined = d.s[1];
     S.timeOfDay = typeof d.t === "number" ? d.t : 0.3;
+    // **자고 일어났다** (v122) — 세 시간 넘게 지나 다시 켜면 아침에서 시작한다.
+    // 어젯밤 20:24 에 끈 세계가 그대로 깜깜하게 열렸고, 첫 안내는 기기당 한 번뿐이라
+    // 둘째 날에는 아무도 말을 걸지 않았다
+    S.welcomeBack = false;
+    if (d.at && Date.now() - d.at > 3 * 3600 * 1000) {
+      S.timeOfDay = 0.25;
+      S.welcomeBack = true;
+    }
     S.moonDay = (d.md | 0) || 0;          // 달 위상 — 없던 저장은 0(보름달)에서 시작한다
     touched.fill(0);
     if (d.tc) decodeArrB64(d.tc, touched);   // 0/1 이라 RLE 가 잘 먹어 몇 KB 안 된다
     // 예전 저장(mb 없음)은 부를 때 새로 뿌린다 — 호출부가 판단하게 결과를 남긴다
     S.mobsRestored = loadMobs(d.mb);
+    // **마을을 되살린다** (v122) — 예전에는 `S.village` 가 생성기 안에서만 채워져서,
+    // 다시 켠 세계에서는 「마을로」·`/tp 마을`·마을 불 보호·상인 고정이 전부 꺼졌다.
+    // v115~v121 저장에는 `vg` 가 없다 — **상인이 선 자리에서 거꾸로** 구한다
+    // (가판은 늘 중심에서 (−4.5, +1, +2.5) 에 선다 · 자문 31차 실측으로 맞음을 확인)
+    S.village = null;
+    if (Array.isArray(d.vg) && d.vg.length === 3) {
+      S.village = villageAt(d.vg[0] | 0, d.vg[1] | 0, d.vg[2] | 0);
+    } else {
+      for (var ti = 0; ti < mobs.length; ti++) {
+        if (!isTrader(mobs[ti])) continue;
+        var tm = mobs[ti];
+        S.village = villageAt(Math.round(tm.x + 4.5), Math.round(tm.z - 2.5), Math.round(tm.y) - 1);
+        break;
+      }
+    }
+    if (S.village) {
+      for (var tj = 0; tj < mobs.length; tj++) {
+        if (isTrader(mobs[tj])) mobs[tj].home = S.village.stall.slice();   // 가판을 다시 지킨다
+      }
+    }
+    S.tradeCount = d.trc | 0;             // 상인이 어제 한 말을 기억한다 — 같은 첫마디를 되풀이하지 않게
     // 자람 큐는 저장하지 않는다 — 불러온 세계의 묘목을 다시 주워 담으라고 여기서 신호한다.
     // 호출부(부팅 복원·슬롯 전환·백업 되살리기·파일 가져오기) 넷 중 하나라도 빠뜨리면
     // 그 경로로 들어온 사람의 묘목만 영영 안 자란다 — 그래서 모두가 지나는 여기에 둔다.

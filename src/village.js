@@ -400,15 +400,27 @@ export function buildVillage(rng) {
   // 튜토리얼 첫 줄("좌클릭으로 캐보세요")이 곧 우리를 뚫는 일이 됐다
   // 길 서쪽 잔디 — 우리(동쪽) 울타리에서 멀고, 다리(개울)와도 안 겹친다.
   // cz+11.5 로 물렸더니 개울 다리 판자 위에 섰다 (v33 규칙: 스폰은 자연 블록 위)
-  var spawn = [cx - 1.5, h + 1, cz + 9.5];   // cx-2.5 는 가판 기둥이 정면 5.5칸에 섰다
-  village = {
+  // (스폰 자리는 villageAt 이 정한다 — cx-2.5 는 가판 기둥이 정면 5.5칸에 섰다)
+  village = villageAt(cx, cz, h);
+  village.stall = stall;
+  village.mine = mine;
+  S.village = village;
+  return village;
+}
+
+// 마을의 **자리표** — 중심(cx, cz)과 광장 높이(h)만 알면 나머지는 늘 같은 자리다.
+// **다시 켤 때 이걸로 되살린다** (v122): `S.village` 는 생성기 안에서만 채워지고
+// 저장에 없어서, 새로고침한 세계에서는 「마을로」·`/tp 마을`·마을 불 보호·상인 고정이
+// **전부 꺼졌다.** 이틀 전 공개한 판에서 둘째 날부터 그랬다
+export function villageAt(cx, cz, h) {
+  var depth = Math.min(14, h - 6);
+  if (depth < 6) depth = 6;
+  return {
     x: cx, z: cz, h: h,
-    spawn: spawn,
-    stall: stall,
-    mine: mine,
+    spawn: [cx - 1.5, h + 1, cz + 9.5],
+    stall: [cx - 4.5, h + 1, cz + 2.5],           // buildStall(cx-6, cz+1) 의 안쪽
+    mine: [cx + 9, h - depth + 1, cz - 2],         // buildMineEntrance(cx+9, cz-2) 의 바닥
     pen: [cx + 7.5, h + 1, cz + 7.5],
     penBox: [cx + 5, cz + 5, cx + 9, cz + 9]
   };
-  S.village = village;
-  return village;
 }

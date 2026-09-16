@@ -713,6 +713,14 @@ export function beginPlay() {
       player.pos.copy(S.savedPos);
       player.yaw = S.savedYaw; player.pitch = S.savedPitch;
     }
+    // 다시 온 사람에게 한 줄 (v122) — 첫 안내는 기기당 한 번이라 둘째 날에는 아무 말이 없었다
+    if (S.welcomeBack) {
+      S.welcomeBack = false;
+      setTimeout(function () {
+        toast(S.village ? "다시 왔어요! 아침입니다 — 마을은 ESC 설정의 「마을로」"
+                        : "다시 왔어요! 아침입니다 — 지난번에 있던 곳에서 시작합니다");
+      }, 800);
+    }
     try {
       if (!localStorage.getItem("blockyard.seen")) {
         localStorage.setItem("blockyard.seen", "1");
@@ -1867,12 +1875,18 @@ window.addEventListener("resize", function () {
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 });
 
+// **떠날 때는 무조건 남긴다** (v122) — `worldDirty` 는 블록 편집·새 지도 칸·설정에서만
+// 켜져서, 아는 땅을 걷기만 하거나 동물이 새끼를 낳거나 상인과 이야기한 것은
+// 탭을 닫으면 사라졌다. 아이가 가장 아끼는 것이 방금 태어난 양이다. 저장은 5.4ms 다
+function leaveSave() {
+  if (S.started || S.worldDirty) saveGame();
+}
 window.addEventListener("beforeunload", function () {
-  if (S.worldDirty) saveGame();
+  leaveSave();
   releaseLock();          // 이 탭이 쥐고 있던 슬롯을 놓는다 (v101)
 });
 document.addEventListener("visibilitychange", function () {
-  if (document.hidden && S.worldDirty) saveGame();
+  if (document.hidden) leaveSave();
   // 탭을 뒤로 보내면 소리도 재운다 (v93) — rAF 가 멎어도 앰비언트 루프는
   // 마지막 게인 그대로 계속 울어서, 다른 탭에 가 있어도 스피커 아이콘이 켜져 있었다
   setAudioAwake(!document.hidden);

@@ -86,8 +86,15 @@ export var TRADER_LINES = [
 export function tradeWith() {
   var n = (S.tradeCount || 0);
   S.tradeCount = n + 1;
-  var gift = TRADER_GIFTS[n % TRADER_GIFTS.length];
+  // **오늘의 선물**은 날마다 다르다 (v122) — 순번만 돌리면 세션마다 같은 첫 선물이었다.
+  // 날짜를 더해 매일 들를 이유를 만든다
+  var day = Math.floor(Date.now() / 86400000);
+  var gift = TRADER_GIFTS[(n + day) % TRADER_GIFTS.length];
   var line = TRADER_LINES[n % TRADER_LINES.length];
+  // 다시 온 사람에게는 **기억하는 말**로 (v122) — 첫마디가 매번 "어서 오세요" 였다
+  if (n > 0 && !S.tradedThisSession) line = "또 왔네요! 오늘 것도 드릴게요";
+  S.tradedThisSession = true;
+  S.worldDirty = true;                  // 나눈 말도 저장할 거리다 (v122)
   S.bar[9] = gift;
   refreshSlot(9);
   noteBlockUse(gift);

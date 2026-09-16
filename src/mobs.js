@@ -138,6 +138,12 @@ export function wildKinds() {
   return n;
 }
 export function seedMobs() {
+  // **상인은 여기서 내보낸다** (v122) — 뿌리기는 모두를 새 자리로 옮기는데, 상인은
+  // 옛 가판(`home`)을 기억하고 있어 다음 틱에 **옛 세계의 가판 자리로** 돌아갔다
+  // (새 세계에서 허공에 떴다). 상인은 마을이 있을 때 `seedVillage` 가 다시 세운다
+  for (var ti = mobs.length - 1; ti >= 0; ti--) {
+    if (isTrader(mobs[ti])) { disposeMob(mobs[ti]); mobs.splice(ti, 1); }
+  }
   while (mobs.length < MOB_COUNT) mobs.push(makeMob((Math.random() * wildKinds()) | 0));
   // 낱개로 흩뿌리면 같은 종 최근접 거리의 중앙값이 8~18칸이라(자문 12차 #8),
   // 번식 조건(같은 종 · 3칸 안)에 영영 못 닿는다 — 우리를 지어도 채울 방법이 없었다.
