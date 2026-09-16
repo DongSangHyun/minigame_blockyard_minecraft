@@ -2418,7 +2418,15 @@ test("v13 동물: 땅 위를 걸어 다니고 물에 빠지지 않는다", async
     let moved = 0, grounded = 0, inWorld = 0;
     B.mobs.forEach((m, i) => {
       if (Math.abs(m.x - start[i][0]) + Math.abs(m.z - start[i][1]) > 0.5) moved++;
-      const gy = B.topMap[Math.floor(m.z) * B.WX + Math.floor(m.x)] + 1;
+      // **발밑**을 잰다 (v127) — `topMap` 은 기둥의 맨 위라, 나무 **밑**에 선 양을
+      // "캐노피 높이에서 떨어졌다" 로 읽었다(10회 중 1회 · 숲에서 스폰하는 시드).
+      // 발 높이에서 아래로 훑어 처음 만나는 단단한 블록 위가 땅이다.
+      // (나뭇잎 **위**에 선 양도 있다 — 동물 스폰이 topMap 을 쓰는 오래된 동작이다. 그것도 땅으로 친다)
+      const fx = Math.floor(m.x), fz = Math.floor(m.z);
+      let gy = -99;
+      for (let y = Math.floor(m.y + 0.5); y >= 0; y--) {
+        if (B.isSolid(B.get(fx, y, fz))) { gy = y + 1; break; }
+      }
       if (Math.abs(m.y - gy) < 1.6) grounded++;
       if (m.x > 0 && m.x < B.WX && m.z > 0 && m.z < B.WZ) inWorld++;
     });
@@ -12859,7 +12867,11 @@ test("v110 물: 지하로 샌 물이 멎고, 되돌리면 걷힌다", async (pag
   assert(r.at45 > 50, "물이 " + r.at45 + "칸만 퍼졌다 — 시험대가 안 섰다");
   // v109 까지는 초당 300칸으로 **멈추지 않고** 번져 60초에 1만 8천 칸이었다
   assert(r.at45 < 8000, "45초에 " + r.at45 + "칸이 번졌다 — 지하가 통째로 잠긴다");
-  eq(r.at90, r.at45, "45→90초에 " + (r.at90 - r.at45) + "칸이 더 번졌다 — 확산이 안 멎는다");
+  // **몇 칸의 떨림은 허용한다** (v127) — v125 부터 맑은 날에도 눈이 녹아, 물 옆의 눈 한 칸이
+  // 녹으면 물이 그 자리로 한 칸 더 흐른다(맞는 물리다). 이 시험이 막는 것은 v109 까지의
+  // **폭주**(초당 300칸 · 60초에 1만 8천 칸)다
+  assert(r.at90 - r.at45 <= 3,
+     "45→90초에 " + (r.at90 - r.at45) + "칸이 더 번졌다 — 확산이 안 멎는다");
   assert(r.left < r.at45 * 0.75,
      "되돌렸는데 " + r.left + "칸이 남았다 (퍼진 것은 " + r.at45 + "칸) — 되돌리기가 안 먹는다");
   if (r.refilled !== null) eq(r.refilled, true, "바다 수면을 지웠는데 다시 안 찬다 — 바다가 말랐다");
@@ -14450,6 +14462,33 @@ test("v126 저장 공간: 한도에 닿으면 사본을 비우고 본 저장을 
   eq(r.savedSeed, 16181, "본 저장이 옛 내용으로 남았다 (" + r.savedSeed + ")");
   eq(r.otherCopiesGone, true, "사본을 비우지 않고 본 저장을 했다 — 시험대가 안 섰다");
   eq(r.failed, false, "저장에 성공했는데 실패 표시가 남았다");
+});
+
+test("v127 첫 하루: 처음 노는 사람에게는 해가 두 배 느리게 진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keep = { day: B.opts.day, tut: B.S.tut, secs: B.S.playSeconds, t: B.S.timeOfDay,
+                   w: B.S.weather, lock: B.S.weatherLock };
+    B.opts.day = 20; B.S.weather = 0; B.S.weatherLock = true;
+    function advance(tut, secs) {
+      B.S.tut = tut; B.S.timeOfDay = 0.30;
+      for (let k = 0; k < 60 * 60; k++) { B.S.playSeconds = secs; B.step(1 / 60); }
+      return B.S.timeOfDay - 0.30;
+    }
+    const newbie = advance(0, 60);               // 튜토리얼 중 · 첫 1분
+    const learned = advance(B.TUT_LEN, 60);      // 다 배웠다
+    const veteran = advance(0, 4000);            // 한 시간 넘게 놀았다
+    B.opts.day = keep.day; B.S.tut = keep.tut; B.S.playSeconds = keep.secs; B.S.timeOfDay = keep.t;
+    B.S.weather = keep.w; B.S.weatherLock = keep.lock;
+    B.endPlay(); B.setPaused(false);
+    return { newbie, learned, veteran };
+  });
+  // 1분에 하루(20분)의 1/20 = 0.05 가 흐른다. 첫 하루는 그 절반
+  assert(Math.abs(r.learned - 0.05) < 0.004, "다 배운 사람의 1분이 " + r.learned.toFixed(4) + " 흘렀다 (0.05 라야 한다)");
+  assert(Math.abs(r.newbie - 0.025) < 0.004,
+     "처음 노는 사람의 1분이 " + r.newbie.toFixed(4) + " 흘렀다 — 첫 하루가 두 배로 길지 않다");
+  assert(Math.abs(r.veteran - 0.05) < 0.004, "30분이 넘었는데도 하루가 느리다 (" + r.veteran.toFixed(4) + ")");
 });
 
 // ── 실행 ───────────────────────────────────────────────

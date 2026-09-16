@@ -143,7 +143,12 @@ export function step(dt) {
   // 시작 화면에서는 시계를 멈춘다 — 소개문 읽고 시드 넣는 2~3분이 그대로 낮에서 빠졌다
   if (opts.day > 0 && S.started && S.active) {
     var prevDay = S.timeOfDay;
-    S.timeOfDay = (S.timeOfDay + dt / (opts.day * 60)) % 1;
+    // **처음 노는 사람의 첫 하루는 두 배로 길다** (v127) — 기본 20분 하루에서 10.2분이면
+    // 해가 지고 9.6분이 밤이라, 튜토리얼을 다 보기도 전에 캄캄해졌다(마을 밖 블록광 0).
+    // 튜토리얼을 다 볼 때까지, 그리고 첫 30분까지만 — 그 뒤는 설정한 하루 그대로다
+    var firstDay = S.playSeconds < 1800 && S.tut < TUT_LEN;
+    var dayLen = opts.day * 60 * (firstDay ? 2 : 1);
+    S.timeOfDay = (S.timeOfDay + dt / dayLen) % 1;
     if (S.timeOfDay < prevDay) S.moonDay++;      // 자정을 넘기면 달 위상이 바뀐다
     // **밤을 예고한다** (v119) — 하루 20분 중 9.6분이 밤이고, 마을 밖은 블록광 0 이다.
     // 처음 노는 사람에게 어둠은 "사고" 였다. 한 줄 먼저 말해 주면 "예고된 놀이" 가 된다.
