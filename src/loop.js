@@ -785,6 +785,26 @@ function snowSticksTo(b) {
     }
   }
 
+  // **맑은 날에도 눈은 천천히 녹는다** (v125) — 예전에는 비가 와야만 녹아서, 한 번 내린 눈이
+  // 설원 밖 시작 마을을 영영 하얗게 덮었다(맑음 40분에 회복 0 · 자문 32차).
+  // 설원은 그대로 둔다. 비보다 훨씬 느리게 — 눈이 온 뒤 한동안은 눈 풍경을 본다
+  if (playing && S.weather === 0 && S.weatherMix < 0.1) {
+    S.meltTimer = (S.meltTimer || 0) - dt;
+    if (S.meltTimer <= 0) {
+      S.meltTimer = 1.5;
+      var mx0 = Math.floor(player.pos.x), mz0 = Math.floor(player.pos.z);
+      for (var mt = 0; mt < 6; mt++) {
+        var mx = mx0 + ((Math.random() * 41) | 0) - 20;
+        var mz = mz0 + ((Math.random() * 41) | 0) - 20;
+        if (mx < 0 || mx >= WX || mz < 0 || mz >= WZ) continue;
+        if (biomeMap[mz * WX + mx] === 1) continue;
+        var my = topMap[mz * WX + mx];
+        if (my < 1 || world[idx(mx, my, mz)] !== SNOW || isTouched(mx, my, mz)) continue;
+        applyEdit(mx, my, mz, AIR, false);
+      }
+    }
+  }
+
   // 설원 수면은 몇 초 뒤에 언다
   S.freezeTimer += dt;
   if (S.freezeTimer > 2.2) { S.freezeTimer = 0; freezeTick(200); }

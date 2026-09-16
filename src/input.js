@@ -13,7 +13,7 @@ import { applyTime } from "./daynight.js";
 import { applyOpts, applyFov, applyTbtn, applyUi, opts, saveOpts } from "./settings.js";
 import { EYE, currentShape, player, raycast, spawn } from "./player.js";
 import { ac, setAudioAwake, startAmbient, tone } from "./audio.js";
-import { renameSlot, clearSave, SLOTS, backupLabel, dayLabel, restoreDay, needsHomeScreenHint, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo , rememberSlot, releaseLock, lockHeldByOther} from "./save.js";
+import { renameSlot, clearSave, SLOTS, backupLabel, dayLabel, restoreDay, needsHomeScreenHint, resetDayMark, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo , rememberSlot, releaseLock, lockHeldByOther} from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
 import { undoEmptyWhy, nextToTry, lastEditLabel, blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
 import { helpOpen, bigMapOpen, toggleBigMap, closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
@@ -1904,6 +1904,19 @@ window.addEventListener("resize", function () {
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 });
 
+// **오래 열어 둔 탭**으로 돌아왔을 때 (v125) — 아이패드처럼 탭을 며칠씩 열어 두는 기기에서는
+// 페이지를 새로 안 불러서, 「지난번에 끝낸 모습」(.day)이 며칠 전 모습으로 굳었고
+// 「세 시간 지나면 아침」도 안 일어났다. 마지막 저장에서 세 시간이 지났으면 **새 날**로 친다
+function backAfterLongAway() {
+  if (!S.started) return;
+  var info = slotInfo(S.slot);
+  if (!info || !info.at || Date.now() - info.at < 3 * 3600 * 1000) return;
+  resetDayMark();                       // 다음 저장 직전에 지금 모습이 새 「지난번」이 된다
+  S.timeOfDay = 0.25;
+  applyTime();
+  toast(S.village ? "다시 왔어요! 아침입니다 — 마을은 ESC 설정의 「마을로」"
+                  : "다시 왔어요! 아침입니다");
+}
 // **떠날 때는 무조건 남긴다** (v122) — `worldDirty` 는 블록 편집·새 지도 칸·설정에서만
 // 켜져서, 아는 땅을 걷기만 하거나 동물이 새끼를 낳거나 상인과 이야기한 것은
 // 탭을 닫으면 사라졌다. 아이가 가장 아끼는 것이 방금 태어난 양이다. 저장은 5.4ms 다
@@ -1916,6 +1929,7 @@ window.addEventListener("beforeunload", function () {
 });
 document.addEventListener("visibilitychange", function () {
   if (document.hidden) leaveSave();
+  else backAfterLongAway();
   // 탭을 뒤로 보내면 소리도 재운다 (v93) — rAF 가 멎어도 앰비언트 루프는
   // 마지막 게인 그대로 계속 울어서, 다른 탭에 가 있어도 스피커 아이콘이 켜져 있었다
   setAudioAwake(!document.hidden);

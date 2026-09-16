@@ -491,15 +491,20 @@ export function grassTick(px, py, pz, tries) {
     var y = topMap[z * WX + x];
     if (!inside(x, y, z)) continue;
     if (isTouched(x, y, z)) continue;
-    // 덮인 잔디는 지표 바로 아래에 있다 — 그 한 칸을 먼저 본다
-    if (world[idx(x, y, z)] !== AIR && blocksLight(world[idx(x, y, z)]) &&
+    // 덮인 잔디는 지표 바로 아래에 있다 — 그 한 칸을 먼저 본다.
+    // **눈은 잔디를 죽이지 않는다** (v125) — 마크에서 눈 밑은 「눈 덮인 잔디」다.
+    // 눈 반블록을 빛 막는 것으로 쳐서, 한 번 눈이 온 시작 마을이 잔디 32%를 잃고
+    // 눈이 녹아도(녹지도 않았다) 흙 얼룩으로 남았다 (자문 32차)
+    if (world[idx(x, y, z)] !== AIR && world[idx(x, y, z)] !== SNOW &&
+        blocksLight(world[idx(x, y, z)]) &&
         y > 0 && world[idx(x, y - 1, z)] === GRASS && !isTouched(x, y - 1, z)) {
       if (applyEdit(x, y - 1, z, DIRT, false)) { changed++; continue; }
     }
     var i = idx(x, y, z), b = world[i];
     if (b === GRASS) {
-      // 위가 빛을 막으면 잔디가 죽어 흙이 된다
-      if (!blocksLight(get(x, y + 1, z))) continue;
+      // 위가 빛을 막으면 잔디가 죽어 흙이 된다 (눈은 빼고)
+      var above = get(x, y + 1, z);
+      if (above === SNOW || !blocksLight(above)) continue;
       if (applyEdit(x, y, z, DIRT, false)) changed++;
     } else if (b === DIRT) {
       if (get(x, y + 1, z) !== AIR) continue;
@@ -738,11 +743,22 @@ export function fireTick(budget) {
     } else {
       Q.fireQ.push(i);       // 아직 살아 있으면 반드시 다시 큐에 넣는다 (안 그러면 영영 안 꺼진다)
     }
-    S.worldDirty = true;
   }
-  if (Q.fireHead > 4096 && Q.fireHead === Q.fireQ.length) { Q.fireQ.length = 0; Q.fireHead = 0; }
+  // **바뀐 것이 있을 때만** 저장할 거리로 친다 (v125) — 예전에는 불 하나를 꺼내 볼 때마다
+  // 켜서, 꺼지지 않는 불(마을 안·번짐 끔) 셋이 있는 마을에 가만히 서 있기만 해도
+  // 60분에 저장 357회 · 26MB 를 썼다. 게다가 `.bak` 이 20초마다 지금 모습으로 덮여
+  // 사고 직후 「저장 직전」 복구본이 가만히 있는 사이에 사라졌다 (자문 32차)
+  if (acted) S.worldDirty = true;
+  // **살아 있는 불이 있어도 앞부분을 잘라 낸다** (v125) — 정리 조건이 "다 비었을 때" 뿐이라
+  // 꺼지지 않는 불이 하나라도 있으면 큐가 영영 줄지 않았다 (불 셋에 60분 72,003 항목).
+  // 새 배열을 대입하면 안 된다 — 훅(`main.js`)이 배열 참조를 쥐고 있다
+  if (Q.fireHead > 4096) { Q.fireQ.splice(0, Q.fireHead); Q.fireHead = 0; }
   return acted;
 }
+
+// (불러온 세계의 불은 `reseedGrow` 가 묘목과 같은 훑기에서 큐에 다시 넣는다 · v125.
+//  `fireQ` 는 저장되지 않아서, 타던 중에 저장하고 다시 켜면 **번지지도 꺼지지도 비에
+//  젖지도 않는 불**이 세계에 박혔다. v122 의 「떠날 때 무조건 저장」 으로 흔해졌다)
 
 // TNT — 반경 안을 날려 버린다. 기반암은 남는다.
 export var BLAST_R = 4;
@@ -823,7 +839,14 @@ export function enqueueGrow(x, y, z) {
 // 큐를 저장 포맷에 넣지 않는 대신 여기서 한 번 훑는다 (589,824칸에 1ms 남짓).
 function reseedGrow() {
   Q.growQ.length = 0;
-  for (var i = 0; i < N; i++) if (isSapling(world[i])) Q.growQ.push(i);
+  // 불도 같은 훑기에서 줍는다 (v125) — 불러온 세계의 불이 얼어붙지 않게.
+  // 큐에 이미 있는 불은 다시 넣지 않는다(두 번 들어가면 두 배로 탄다)
+  var hasFire = Q.fireHead < Q.fireQ.length;
+  for (var i = 0; i < N; i++) {
+    var b = world[i];
+    if (isSapling(b)) Q.growQ.push(i);
+    else if (b === FIRE && !hasFire) Q.fireQ.push(i);
+  }
   S.growDirty = false;
 }
 

@@ -2405,7 +2405,12 @@ test("v13 동물: 땅 위를 걸어 다니고 물에 빠지지 않는다", async
   const r = await page.evaluate(() => {
     const B = window.__blockyard;
     B.setPaused(true);
+    // 마을은 끈다 (v125) — 스폰이 마을로 가서 동물이 광장 **테(계단 다섯 단)** 와 지붕·차양
+    // 둘레에 뿌려졌고, 한 칸씩 오르내리는 도중을 재면 "땅에서 떨어졌다" 로 읽혔다 (10회 중 1회).
+    // 재려는 것은 동물이 땅을 걷는가다
+    B.S.noVillage = true;
     B.generate(99999); B.relightAll(false);
+    B.S.noVillage = false;
     B.spawn();
     B.seedMobs();
     const start = B.mobs.map(m => [m.x, m.z]);
@@ -14322,6 +14327,88 @@ test("v124 내 집과 소문: 지도에 지은 것이 보이고, 상인이 빈�
   assert(/(동|서|남|북)쪽/.test(r.toast), "소문이 방향을 안 말한다 — '" + r.toast + "'");
   eq(r.rumorMarks, 1, "소문 표식이 " + r.rumorMarks + "개 찍혔다");
   eq(r.mk3, r.mk2, "빈집을 이미 찾았는데 소문 표식이 또 찍혔다");
+});
+
+test("v125 오래 켜 둔 세계: 불이 큐와 저장을 안 불리고, 다시 켜도 타며, 눈이 마을을 안 망친다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.generate(5150, 2); B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    const v = B.S.village;
+    const keepW = B.S.weather, keepLock = B.S.weatherLock;
+    B.S.weather = 0; B.S.weatherMix = 0; B.S.weatherLock = true;
+
+    // (1) 마을 안의 **꺼지지 않는 불** — 큐가 자라지 않고 저장 거리를 안 만든다
+    // 광장 남동쪽 빈자리 — (v.x+6, v.z-6) 은 벽돌집 남쪽 벽이라 불이 안 붙었다
+    const fx = v.x + 3, fz = v.z + 11;
+    B.set(fx, v.h + 1, fz, 0); B.set(fx, v.h + 1, fz + 1, 0);
+    B.applyEdit(fx, v.h + 1, fz, B.B.PLANKS, false, 0);
+    const lit = B.ignite(fx, v.h + 1, fz + 1);
+    let dirtyFrames = 0;
+    for (let k = 0; k < 60 * 180; k++) {
+      B.S.worldDirty = false;
+      B.step(1 / 60);
+      if (B.S.worldDirty) dirtyFrames++;
+    }
+    const qLen = B.Q.fireQ.length;
+    const stillBurning = B.get(fx, v.h + 1, fz + 1) === B.B.FIRE;
+
+    // (2) 저장했다가 다시 켜면 불이 다시 큐에 든다 — 얼어붙지 않는다
+    B.saveGame();
+    B.resetQueues();
+    B.loadGame();
+    B.step(1 / 60);
+    const requeued = B.Q.fireQ.length - B.Q.fireHead;
+
+    // (3) 눈 밑 잔디는 흙이 되지 않고, 맑은 날이면 눈이 녹는다
+    let gx = -1, gz = -1;
+    for (let dz = 6; dz <= 12 && gx < 0; dz++) for (let dx = -12; dx <= 12; dx++) {
+      const x = v.x + dx, z = v.z + dz;
+      const t = B.topMap[z * B.WX + x];
+      if (B.get(x, t, z) === B.B.GRASS && B.biomeMap[z * B.WX + x] !== 1 && !B.isTouched(x, t, z)) { gx = x; gz = z; break; }
+    }
+    let grassKept = null, melted = null;
+    if (gx >= 0) {
+      const gy = B.topMap[gz * B.WX + gx];
+      B.applyEdit(gx, gy + 1, gz, B.B.SNOW, false, 1);
+      B.refreshTop(gx, gz);
+      for (let k = 0; k < 400; k++) B.grassTick(gx + 0.5, gy, gz + 0.5, 40);
+      grassKept = B.get(gx, gy, gz) === B.B.GRASS;
+      // 녹기는 **여러 칸**으로 잰다 — 녹이기는 1.5초마다 41×41 에서 여섯 칸을 뽑으므로
+      // 한 칸만 보면 4분 안에 뽑힐 확률이 반이 안 된다(10회 중 6회 실패했다)
+      const snowed = [];
+      for (let dz = -3; dz <= 3; dz++) for (let dx = -3; dx <= 3; dx++) {
+        const x = gx + dx, z = gz + dz;
+        const t = B.topMap[z * B.WX + x];
+        if (B.biomeMap[z * B.WX + x] === 1 || B.isTouched(x, t, z)) continue;
+        if (B.get(x, t, z) === B.B.SNOW) { snowed.push([x, t, z]); continue; }
+        if (!B.isSolid(B.get(x, t, z)) || B.get(x, t + 1, z) !== 0) continue;
+        B.applyEdit(x, t + 1, z, B.B.SNOW, false, 1);
+        B.refreshTop(x, z);
+        snowed.push([x, t + 1, z]);
+      }
+      B.player.pos.set(gx + 0.5, gy + 1, gz + 0.5);
+      for (let k = 0; k < 60 * 240; k++) B.step(1 / 60);
+      melted = snowed.filter((c) => B.get(c[0], c[1], c[2]) !== B.B.SNOW).length;
+      var snowCount = snowed.length;
+    }
+
+    B.S.weather = keepW; B.S.weatherLock = keepLock;
+    B.resetQueues();
+    B.S.village = null;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { lit, qLen, stillBurning, dirtyFrames, requeued, grassKept, melted, snowCount, found: gx >= 0 };
+  });
+  eq(r.lit, true, "마을 불이 안 붙었다 — 시험대가 안 섰다");
+  eq(r.stillBurning, true, "마을 불이 꺼졌다 — 시험대가 안 섰다");
+  assert(r.qLen < 6000, "꺼지지 않는 불 하나에 3분 만에 fireQ 가 " + r.qLen + " 이다 — 끝없이 자란다");
+  assert(r.dirtyFrames < 60, "가만히 있는데 3분 동안 " + r.dirtyFrames + "프레임이 저장 거리를 만들었다");
+  assert(r.requeued >= 1, "다시 켰더니 불이 큐에 없다 — 번지지도 꺼지지도 않는 불이 박힌다");
+  eq(r.found, true, "잔디 칸을 못 찾았다 — 시험대가 안 섰다");
+  eq(r.grassKept, true, "눈 밑의 잔디가 흙이 됐다 — 한 번 눈이 오면 마을이 흙 얼룩이 된다");
+  assert(r.snowCount >= 20, "눈 판이 " + r.snowCount + "칸뿐이다 — 시험대가 안 섰다");
+  assert(r.melted >= 3, "맑은 날 4분 동안 눈 " + r.snowCount + "칸 중 " + r.melted + "칸만 녹았다");
 });
 
 // ── 실행 ───────────────────────────────────────────────
