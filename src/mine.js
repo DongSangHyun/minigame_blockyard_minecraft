@@ -122,7 +122,11 @@ export function tradeWith() {
   S.worldDirty = true;                  // 나눈 말도 저장할 거리다 (v122)
   // **처음 받는 선물은 꽃** (v128·자문 33차) — 튜토리얼 다음 줄이 「꽃을 들고 동물에게」 인데,
   // 기본 핫바에도 선물 목록에도 꽃이 없어서 그 줄에서 막히면 뒤 두 줄이 영영 안 나왔다
-  if (n === 0) gift = FLOWER_R;
+  // 튜토리얼이 꽃 줄에 와 있는데 핫바 어디에도 꽃이 없으면 그때도 꽃이다 (v130) —
+  // 부모가 먼저 상인과 말한 세계를 아이에게 넘기면 n 이 0 이 아니었다
+  var wantFlower = S.tut === 4 && S.bar.indexOf(FLOWER_R) < 0 &&
+                   !(S.barAlt && S.barAlt.indexOf(FLOWER_R) >= 0);
+  if (n === 0 || wantFlower) gift = FLOWER_R;
   // 핫바 **1쪽** 0번 칸에 넣는다 — 2쪽을 보던 중이면 0번 칸은 양동이라 도구가 사라졌다
   var onAlt = S.barPage === 2 && S.barAlt;
   var gbar = onAlt ? S.barAlt : S.bar, gfill = onAlt ? S.fillBarAlt : S.fillBar;
@@ -289,6 +293,9 @@ export function place(repeating) {
   // 다만 **문·울타리문이 먼저다.** 물을 퍼서 돌아왔는데 제 집 문이 안 열리면 안 된다 —
   // 같은 도구인 부싯돌은 `tryInteract` 안에 있어 문이 열렸다. 도구 둘의 규칙을 맞춘다.
   if (S.bar[S.selected] === BUCKET) {
+    // 양동이를 들고도 상인·동물과는 이야기한다 (v130·자문 34차) — 2쪽 0번 칸이 양동이라
+    // 「0번 칸을 보세요」 를 따라 0 을 누른 아이가 상인에게 말을 걸 수 없었다
+    if (!repeating && tryInteractMob(false)) return;
     var bh = raycast(6);
     if (!repeating && bh && isOpenable(bh.block) && !S.sneaking) {
       if (tryInteract(bh)) return;
@@ -385,7 +392,10 @@ export function place(repeating) {
   advanceTut(1);
   // 4단계는 **어두운 곳에** 꽂았을 때만 (v110) — 06:00 대낮 잔디밭에서 통과하면
   // 시작 화면이 자랑한 "빛이 닿지 않는 곳은 정말로 캄캄합니다" 를 볼 일이 없다
-  if (b === TORCH && lightSky[idx(px, py, pz)] < 8) advanceTut(5);
+  // 밤에 놓아도 「어두운 곳」 이다 (v130) — 해질녘 안내가 횃불을 놓으라고 해 놓고,
+  // 하늘이 트인 곳이라 이 줄이 안 넘어갔다 (lightSky 는 시각을 모른다)
+  var nightNow = S.timeOfDay >= 0.74 || S.timeOfDay < 0.26;
+  if (b === TORCH && (lightSky[idx(px, py, pz)] < 8 || nightNow)) advanceTut(5);
   noteBlockUse(b);
   burst(px, py, pz, b, 5);
   placeSound(b);

@@ -81,6 +81,9 @@ export function newWorld(seed) {
   S.history.length = 0; S.future.length = 0;
   resetQueues();
   S.earned = {}; S.placedKinds = {}; S.lampsPlaced = 0; S.playSeconds = 0;
+  // 상인과 나눈 말도 세계의 것이다 (v130) — 남아 있으면 새 세계에서 첫 선물이 꽃이 아니고
+  // 처음 만난 상인이 「또 왔네요!」 라고 했다
+  S.tradeCount = 0; S.tradedThisSession = false;
   // **튜토리얼은 다시 돌지 않는다** (v114) — 100시간을 논 사람의 두 번째 세계가
   // 「먼저 좌클릭으로 블록을 캐보세요」로 시작했다. 조작을 배웠는지는 **기기의 일**이지
   // 세계의 일이 아니다 (첫 진입 토스트는 이미 `blockyard.seen` 으로 기기 단위였다).
@@ -242,9 +245,12 @@ export function step(dt) {
       player.vel.y = ((S.keys.Space ? 1 : 0) - (crouchKey ? 1 : 0)) * FLY * S.flySpeed * flySprint;
     } else {
       // 사다리 — 몸이 사다리에 걸쳐 있으면 천천히 오르내린다
-      var onLadder = isClimbable(get(Math.floor(player.pos.x),
-                                     Math.floor(player.pos.y + 0.6),
-                                     Math.floor(player.pos.z)));
+      // **발 칸도 본다** (v130) — 몸통(발+0.6)만 보면 벽 꼭대기 0.6칸 아래에서 사다리가 끝난 것으로
+      // 쳐서, 떨어졌다 다시 붙기를 되풀이하며 벽 위로 못 올라섰다. 마크는 발이 사다리 칸을
+      // 벗어날 때까지 오르고, 그때 발이 벽 윗면과 같아 앞으로 걸어 올라선다
+      var lx = Math.floor(player.pos.x), lz = Math.floor(player.pos.z);
+      var onLadder = isClimbable(get(lx, Math.floor(player.pos.y + 0.6), lz)) ||
+                     isClimbable(get(lx, Math.floor(player.pos.y + 0.05), lz));
       if (onLadder) {
         // 웅크리면 사다리에 매달려 멈춘다 — 마크에서 가장 많이 쓰는 손버릇이다.
         // (예전에는 오히려 두 배로 빨리 미끄러져 내려갔다)

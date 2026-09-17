@@ -14709,6 +14709,118 @@ test("v129 맨손 G · 핫바 쪽 저장 · 나뭇잎 위 동물", async (page) 
   eq(r.onLeaf, 0, "나뭇잎 위에 선 동물 " + r.onLeaf + "/" + r.total);
 });
 
+test("v130 사다리 꼭대기: 끝까지 오르면 벽 위로 올라선다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const x = 46, y = 46, z = 46;
+    function build(h) {
+      for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+        for (let dy = -2; dy <= 10; dy++) B.set(x + dx, y + dy, z + dz, 0);
+      for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) B.set(x + dx, y - 1, z + dz, B.B.STONE);
+      // 벽 — 두께 둘(x-1, x), 꼭대기가 y+h-1 · 사다리는 벽 끝까지
+      for (let dy = 0; dy < h; dy++) for (let dz = -1; dz <= 1; dz++) {
+        B.set(x, y + dy, z + dz, B.B.STONE); B.set(x - 1, y + dy, z + dz, B.B.STONE);
+      }
+      for (let dy = 0; dy < h; dy++) {
+        B.set(x + 1, y + dy, z, B.B.LADDER, 0);
+        B.shape[B.idx(x + 1, y + dy, z)] = B.SH.WALL_W;
+      }
+      B.refreshAllTops(); B.relightAll(false); B.markAllDirty(); B.buildBudget(4000);
+    }
+    const h = 4;
+    function climb(keys, secs) {
+      B.player.pos.set(x + 1.5, y, z + 0.5);
+      B.player.vel.set(0, 0, 0);
+      B.player.flying = false;
+      B.player.yaw = Math.PI / 2; B.player.pitch = 0;     // 벽(-x)을 본다
+      B.camera.rotation.set(0, Math.PI / 2, 0);
+      keys.forEach((k) => B.setKey(k, true));
+      // 벽 위에 올라서면 손을 뗀다 — 계속 누르면 벽 너머로 걸어 내려간다
+      for (let k = 0; k < secs * 60; k++) {
+        B.step(1 / 60);
+        if (B.player.onGround && B.player.pos.y > y + h - 0.05 && B.player.pos.x < x + 0.9) break;
+      }
+      keys.forEach((k) => B.setKey(k, false));
+      for (let k = 0; k < 30; k++) B.step(1 / 60);
+      return { y: B.player.pos.y, x: B.player.pos.x, ground: B.player.onGround };
+    }
+    B.beginPlay();
+    build(h);
+    const spaceW = climb(["Space", "KeyW"], 5);
+    const onlyW = climb(["KeyW"], 7);
+    B.endPlay(); B.setPaused(false);
+    return { spaceW, onlyW, top: y + 4, wallX: x + 1 };
+  });
+  for (const [name, v] of [["스페이스+앞", r.spaceW], ["앞으로만", r.onlyW]]) {
+    assert(v.y > r.top - 0.05 && v.x < r.wallX,
+      name + ": 사다리 꼭대기에서 벽 위로 못 올라섰다 — 발 " + v.y.toFixed(2) + " (벽 위 " + r.top + ") · x " + v.x.toFixed(2));
+  }
+});
+
+test("v130 자문 34: 양동이로 상인 · 밤 횃불 튜토리얼 · 꽃 줄의 선물 · /tp 광산", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keep = { tut: B.S.tut, tc: B.S.tradeCount, t: B.S.timeOfDay, sel: B.getSelected(), bar: B.getBar().slice(),
+                   marks: B.S.marks.slice() };
+    // (1) 양동이를 든 채 상인을 겨누고 우클릭 → 거래
+    B.generate(777, 2); B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    const v = B.S.village;
+    B.seedVillage(v);
+    const tr = B.mobs.filter((m) => B.isTrader(m))[0];
+    B.player.pos.set(tr.x + 0.5, tr.y, tr.z + 2.5);
+    B.player.vel.set(0, 0, 0);
+    const dx = tr.x - B.player.pos.x, dz = tr.z - B.player.pos.z;
+    B.player.yaw = Math.atan2(-dx, -dz); B.player.pitch = 0.25;
+    B.camera.position.set(B.player.pos.x, B.player.pos.y + 1.62, B.player.pos.z);
+    B.camera.rotation.set(-0.25, B.player.yaw, 0, "YXZ");
+    B.camera.updateMatrixWorld(true);
+    B.selectSlot(3);
+    B.getBar()[3] = B.B.BUCKET;
+    B.S.tradeCount = 5;
+    const aimed = !!B.aimedMob() && B.isTrader(B.aimedMob().mob);
+    B.place(false);
+    const traded = B.S.tradeCount === 6;
+    // (2) 꽃 줄(4)에 와 있는데 꽃이 없으면 선물이 꽃
+    for (let i = 0; i < 10; i++) if (B.getBar()[i] === B.B.FLOWER_R) B.getBar()[i] = B.B.STONE;
+    B.S.tut = 4; B.S.tradeCount = 7;
+    B.tradeWith();
+    const flower = B.getBar()[9] === B.B.FLOWER_R;
+    // (3) 밤에 탁 트인 곳에 횃불 → 튜토리얼 6번째 줄(5)이 넘어간다
+    B.S.tut = 5; B.S.timeOfDay = 0.85;
+    const X = 44, Y = 50, Z = 44;
+    arena(B, X, Y, Z, 3);
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    B.player.yaw = 0; B.player.pitch = 0.9;
+    B.camera.position.set(X + 0.5, Y + 1.62, Z + 0.5);
+    B.camera.rotation.set(-0.9, 0, 0, "YXZ");
+    B.camera.updateMatrixWorld(true);
+    B.getBar()[3] = B.B.TORCH;
+    B.place(false);
+    const torchPlaced = (() => { let n = 0; for (let a = -3; a <= 3; a++) for (let c = -3; c <= 3; c++) if (B.get(X + a, Y, Z + c) === B.B.TORCH) n++; return n; })();
+    const tutAfter = B.S.tut;
+    // (4) /tp 광산 — 통로에 떨어지지 않는다
+    B.S.marks = B.villageMarks(v);
+    const msg = B.runCommand("tp 광산");
+    const y0 = B.player.pos.y;
+    for (let k = 0; k < 120; k++) B.step(1 / 60);
+    const y1 = B.player.pos.y;
+    B.S.tut = keep.tut; B.S.tradeCount = keep.tc; B.S.timeOfDay = keep.t; B.S.marks = keep.marks;
+    for (let i = 0; i < keep.bar.length; i++) B.getBar()[i] = keep.bar[i];
+    B.selectSlot(keep.sel);
+    B.S.village = null;
+    B.endPlay(); B.setPaused(false);
+    return { aimed, traded, flower, torchPlaced, tutAfter, msg, y0, y1, h: v.h };
+  });
+  assert(r.aimed, "시험 준비: 상인을 못 겨눴다");
+  assert(r.traded, "양동이를 든 채로는 상인과 말할 수 없다");
+  assert(r.flower, "튜토리얼 꽃 줄인데 꽃이 없는 아이에게 꽃을 안 줬다");
+  assert(r.torchPlaced >= 1, "시험 준비: 횃불이 안 놓였다");
+  eq(r.tutAfter, 6, "밤에 횃불을 놓았는데 튜토리얼이 안 넘어갔다");
+  assert(r.y1 > r.h - 1, "/tp 광산 뒤 " + r.y1.toFixed(1) + " 까지 떨어졌다 (광장 " + r.h + ") — " + r.msg);
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

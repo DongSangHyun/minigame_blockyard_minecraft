@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-16 · 모듈 30개 · 합계 14,952줄
+생성일 2026-09-17 · 모듈 30개 · 합계 14,969줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -27,17 +27,17 @@
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 383 | state · dims · blocks · world · scene |
 | [`audio.js`](../src/audio.js) | 소리 | 356 | state · blocks · daynight · settings |
 | [`save.js`](../src/save.js) | 저장 · 불러오기 | 564 | state · dims · blocks · world · player · mobs · village · hud · sky |
-| [`village.js`](../src/village.js) | 시작 마을. 세계를 켜면 **이미 누가 살고 있는 자리**에서 시작한다. | 427 | dims · state · blocks · world |
+| [`village.js`](../src/village.js) | 시작 마을. 세계를 켜면 **이미 누가 살고 있는 자리**에서 시작한다. | 428 | dims · state · blocks · world |
 | [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 1465 | state · queues · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · hand · sky |
 | [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 824 | state · version · dims · blocks · atlas · world · player · settings · hand · input |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 208 | state · settings · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
 | [`body.js`](../src/body.js) | 3인칭에서 보이는 플레이어 몸 | 200 | state · settings · scene · player · atlas · hand · blocks |
 | [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 2123 | state · world · queues · mobs · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
-| [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 394 | state · mobs · fluids · dims · blocks · world · light · scene · player · audio · edit · hud · hand · input |
+| [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 404 | state · mobs · fluids · dims · blocks · world · light · scene · player · audio · edit · hud · hand · input |
 | [`mobs.js`](../src/mobs.js) | 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다. | 741 | dims · world · blocks · scene · player · audio · light · daynight · state |
 | [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 500 | state · audio · dims · atlas · blocks · world · scene · daynight · settings · player |
 | [`cloud.js`](../src/cloud.js) | 기기 사이 이어하기 (GitHub Gist 에 세계를 올리고 내려받는다) | 243 | state · save |
-| [`loop.js`](../src/loop.js) | 게임 루프 | 1068 | state · input · mobs · queues · dims · blocks · atlas · world · light · village · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · body · mine · sky |
+| [`loop.js`](../src/loop.js) | 게임 루프 | 1074 | state · input · mobs · queues · dims · blocks · atlas · world · light · village · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · hand · body · mine · sky |
 | [`version.js`](../src/version.js) | 빌드 도장 (자동 생성) | 8 | — |
 | [`main.js`](../src/main.js) | 조립과 시작 | 323 | state · village · tree · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · body · input · mine · sky · loop |
 
@@ -397,8 +397,8 @@
 | 함수 | 줄 |
 |---|---:|
 | `villageMarks(v)` | 338 |
-| `buildVillage(rng)` | 348 |
-| `villageAt(cx, cz, h)` | 415 |
+| `buildVillage(rng)` | 349 |
+| `villageAt(cx, cz, h)` | 416 |
 
 내보내는 값 — `village`
 
@@ -574,12 +574,12 @@
 | `canPlaceAt(px, py, pz)` | 56 |
 | `rumorLine(hs)` | 87 |
 | `tradeWith()` | 93 |
-| `tryInteractMob(repeating)` | 147 |
-| `tryInteract(hit)` | 187 |
-| `doorOther(x, y, z)` | 212 |
-| `scoopLiquid(repeating)` | 244 |
-| `pourLiquid(hit, repeating)` | 267 |
-| `place(repeating)` | 287 |
+| `tryInteractMob(repeating)` | 151 |
+| `tryInteract(hit)` | 191 |
+| `doorOther(x, y, z)` | 216 |
+| `scoopLiquid(repeating)` | 248 |
+| `pourLiquid(hit, repeating)` | 271 |
+| `place(repeating)` | 291 |
 
 내보내는 값 — `TRADER_GIFTS` · `TRADER_LINES`
 
@@ -664,11 +664,11 @@
 |---|---:|
 | `refreshChunkFloor()` | 32 |
 | `newWorld(seed)` | 60 |
-| `step(dt)` | 133 |
-| `animate()` | 916 |
-| `autoTuneFar(fps)` | 1025 |
-| `farNow()` | 1043 |
-| `refreshPerf()` | 1045 |
+| `step(dt)` | 136 |
+| `animate()` | 922 |
+| `autoTuneFar(fps)` | 1031 |
+| `farNow()` | 1049 |
+| `refreshPerf()` | 1051 |
 
 내보내는 값 — `GRAVITY` · `chunkFloor` · `PLACE_DELAY` · `SNEAK_MUL` · `AIR_CONTROL` · `fwd` · `clock`
 

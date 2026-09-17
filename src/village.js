@@ -339,7 +339,8 @@ export function villageMarks(v) {
   if (!v) return [];
   return [
     [Math.round(v.stall[0]), Math.round(v.stall[1]), Math.round(v.stall[2]), "시장"],
-    [v.mine[0], v.h + 1, v.mine[2], "광산"],
+    // 수직 통로 **밖** 남쪽 테두리 (v130) — 한가운데에 찍으면 `/tp 광산` 이 통로로 떨어뜨렸다
+    [v.mine[0], v.h + 1, v.mine[2] + 3, "광산"],
     [Math.round(v.pen[0]), Math.round(v.pen[1]), Math.round(v.pen[2]), "우리"]
   ];
 }
