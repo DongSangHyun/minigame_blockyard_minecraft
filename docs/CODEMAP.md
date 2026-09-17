@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-09-17 · 모듈 30개 · 합계 14,969줄
+생성일 2026-09-17 · 모듈 30개 · 합계 14,972줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -33,7 +33,7 @@
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 208 | state · settings · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
 | [`body.js`](../src/body.js) | 3인칭에서 보이는 플레이어 몸 | 200 | state · settings · scene · player · atlas · hand · blocks |
 | [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 2123 | state · world · queues · mobs · dims · mesh · light · boot · blocks · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
-| [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 404 | state · mobs · fluids · dims · blocks · world · light · scene · player · audio · edit · hud · hand · input |
+| [`mine.js`](../src/mine.js) | 캐기 · 놓기 | 407 | state · mobs · fluids · dims · blocks · world · light · scene · player · audio · edit · hud · hand · input |
 | [`mobs.js`](../src/mobs.js) | 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다. | 741 | dims · world · blocks · scene · player · audio · light · daynight · state |
 | [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 500 | state · audio · dims · atlas · blocks · world · scene · daynight · settings · player |
 | [`cloud.js`](../src/cloud.js) | 기기 사이 이어하기 (GitHub Gist 에 세계를 올리고 내려받는다) | 243 | state · save |
@@ -575,11 +575,11 @@
 | `rumorLine(hs)` | 87 |
 | `tradeWith()` | 93 |
 | `tryInteractMob(repeating)` | 151 |
-| `tryInteract(hit)` | 191 |
-| `doorOther(x, y, z)` | 216 |
-| `scoopLiquid(repeating)` | 248 |
-| `pourLiquid(hit, repeating)` | 271 |
-| `place(repeating)` | 291 |
+| `tryInteract(hit)` | 194 |
+| `doorOther(x, y, z)` | 219 |
+| `scoopLiquid(repeating)` | 251 |
+| `pourLiquid(hit, repeating)` | 274 |
+| `place(repeating)` | 294 |
 
 내보내는 값 — `TRADER_GIFTS` · `TRADER_LINES`
 

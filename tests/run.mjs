@@ -14821,6 +14821,34 @@ test("v130 자문 34: 양동이로 상인 · 밤 횃불 튜토리얼 · 꽃 줄�
   assert(r.y1 > r.h - 1, "/tp 광산 뒤 " + r.y1.toFixed(1) + " 까지 떨어졌다 (광장 " + r.h + ") — " + r.msg);
 });
 
+test("v131 동물 상한: 24마리여도 꽃을 주면 따라오고, 새끼만 안 생긴다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.seedMobs();
+    const a = B.mobs.filter((m) => !B.MOB_KINDS[m.kind].trader)[0];
+    a.x = 40.5; a.z = 40.5; a.y = 44; a.follow = 0; a.love = 0; a.baby = 0;
+    // 멀리 있는 가짜 동물로 상한을 채운다 (프레임을 돌리지 않으니 그림은 필요 없다)
+    const fakes = [];
+    while (B.mobs.length < B.MOB_MAX) { const f = { kind: a.kind, x: -500, y: -500, z: -500, follow: 0 }; fakes.push(f); B.mobs.push(f); }
+    const res = B.feedNearbyMob({ x: 40.5, y: 44, z: 41.5 }, a);
+    const follow = a.follow, love = a.love;
+    fakes.forEach((f) => B.mobs.splice(B.mobs.indexOf(f), 1));
+    a.follow = 0;
+    // 상한이 아니면 사랑도 켜진다
+    const res2 = B.feedNearbyMob({ x: 40.5, y: 44, z: 41.5 }, a);
+    const love2 = a.love;
+    a.follow = 0; a.love = 0;
+    B.setPaused(false);
+    return { res, follow, love, res2, love2 };
+  });
+  eq(r.res, 2, "상한에서 먹이의 결과");
+  assert(r.follow > 0, "24마리가 되자 꽃을 줘도 안 따라온다");
+  eq(r.love, 0, "상한인데 사랑(번식)이 켜졌다");
+  eq(r.res2, true, "상한 아래에서 먹이의 결과");
+  assert(r.love2 > 0, "상한 아래에서 사랑이 안 켜졌다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

@@ -166,8 +166,11 @@ export function tryInteractMob(repeating) {
   if (S.bar[S.selected] === FLOWER_R || S.bar[S.selected] === FLOWER_Y ||
       S.bar[S.selected] === TALLGRASS) {
     var fed = feedNearbyMob(player.pos, am.mob);   // 겨눈 동물이 받는다 (v128)
-    // -1 은 "상한이라 못 받는다" — JS 에서 -1 은 참이라 그냥 두면 과제까지 뜬다
-    if (fed === -1) { toast("동물이 " + MOB_MAX + "마리로 꽉 찼습니다"); return true; }
+    // 2 는 "상한이라 따라오기만 한다" — 새끼가 왜 안 생기는지 한 번 알린다
+    if (fed === 2 && !S.capHinted) {
+      S.capHinted = true;
+      toast("동물이 " + MOB_MAX + "마리라 새끼는 안 생깁니다 — 따라오기만 합니다");
+    }
     if (fed) {
       triggerSwing();
       unlock("feed");

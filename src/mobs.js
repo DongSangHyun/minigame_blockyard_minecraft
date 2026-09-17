@@ -570,9 +570,9 @@ export function removeMob(m) {
 // prefer — 조준한 동물 (v128). 손이 닿으면 그 동물이 받는다 (예전엔 **가장 가까운** 동물이 받아서,
 // 둘째 양을 겨눠도 옆의 소가 하트를 받았고 "같은 종 둘" 을 배울 수가 없었다)
 export function feedNearbyMob(pos, prefer) {
-  // 상한에 걸리면 하트도 소리도 내지 않는다 — 안 그러면 "짝이 안 맞았나" 하며 꽃만 계속 준다.
-  // -1 을 돌려 부른 쪽(mine.js)이 안내하게 한다 (v46 에서 unlock 을 부른 쪽에 맡긴 것과 같다)
-  if (mobs.length >= MOB_MAX) return -1;
+  // 상한이어도 **따라오기는 한다** (v131·자문 34차 #6) — 예전엔 여기서 -1 로 돌아가,
+  // 24마리가 되면 우리로 데려가는 놀이 자체가 사라졌다. 번식만 막는다(사랑 0) — 2 를 돌려 알린다
+  var capped = mobs.length >= MOB_MAX;
   var best = -1, bestD = 25, refeed = null, refeedD = 1e9;
   for (var i = 0; i < mobs.length; i++) {
     var m = mobs[i];
@@ -598,7 +598,7 @@ export function feedNearbyMob(pos, prefer) {
     // 둘레에 따라오는 동물뿐이면 그 동물의 시간을 채운다
     if (refeed) {
       refeed.follow = 22 + Math.random() * 14;
-      refeed.love = refeed.follow;
+      refeed.love = capped ? 0 : refeed.follow;
       refeed.loveHint = 0;
       burst(refeed.x, refeed.y + 0.8, refeed.z, LOVE_HINT, 4);
       tone(MOB_KINDS[refeed.kind].cry * 1.35, 0.14, "triangle", 0.05,
@@ -612,11 +612,11 @@ export function feedNearbyMob(pos, prefer) {
   // 사랑은 따라오기와 **같이** 끝난다 (자문 12차 #4).
   // 예전엔 20초로 짧아서, 아직 졸졸 따라오는 동물이 사실은 이미 사랑이 식은 상태였다 —
   // 게임이 "된다" 고 보여 주는 동안 창은 닫혀 있었다. 기능이 없는 것보다 나쁘다.
-  mm.love = mm.follow;
+  mm.love = capped ? 0 : mm.follow;
   mm.loveHint = 0;
   burst(mm.x, mm.y + 0.8, mm.z, LOVE_HINT, 5);
   tone(k.cry * 1.35, 0.16, "triangle", 0.06, at(mm.x, mm.y + 0.6, mm.z));
-  return true;
+  return capped ? 2 : true;
 }
 
 // 꽃을 받은 두 마리가 가까이 있으면 새끼가 난다 — 우리를 채울 유일한 방법이다.
