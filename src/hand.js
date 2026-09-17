@@ -1,7 +1,7 @@
 // hand.js — 1인칭 손과 들고 있는 블록
 import { S } from "./state.js";
 import { calmMotion } from "./settings.js";
-import { AIR, isStairShape, BUCKET, BUCKET_TILE, CROSS, SHAPE_BOXES, SH_FULL, TILES, faceKindFor, isCross, isItem } from "./blocks.js";
+import { hasShapes, AIR, isStairShape, BUCKET, BUCKET_TILE, CROSS, SHAPE_BOXES, SH_FULL, TILES, faceKindFor, isCross, isItem } from "./blocks.js";
 import { TILE, atlas, atlasTex, tileOrigin } from "./atlas.js";
 import { boxesAt, set } from "./world.js";
 import { CROSS_PLANES, FACES, FACE_UV } from "./mesh.js";
@@ -157,7 +157,7 @@ ghostMesh.visible = false;
 ghostMesh.renderOrder = 4;
 scene.add(ghostMesh);
 export function updateGhost(px, py, pz, upper) {
-  var b = S.bar[S.selected], sh = currentShape(upper);
+  var b = S.bar[S.selected], sh = hasShapes(S.bar[S.selected]) ? currentShape(upper) : SH_FULL;
   // 계단은 이웃에 따라 모서리로 바뀐다(v66). 미리보기가 늘 직선이면
   // "놓아 봐야 아는" 물건이 되어 고스트를 넣은 뜻이 없어진다.
   // 놓기 전이라도 이웃은 읽을 수 있다 — 모서리는 그 칸이 아니라 옆 칸이 정한다.

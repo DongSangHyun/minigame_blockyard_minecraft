@@ -7,7 +7,7 @@ import { WX, WY, WZ, MARK_MAX } from "./dims.js";
 import { markAllDirty, buildBudget } from "./mesh.js";
 import { relightAll } from "./light.js";
 import { IS_TOUCH } from "./boot.js";
-import { SH_SLAB, SH_SLAB_UP, isStairShape, NAMES, isItem, AIR, TORCH } from "./blocks.js";
+import { SH_SLAB, SH_SLAB_UP, isStairShape, NAMES, isItem, AIR, TORCH, hasShapes } from "./blocks.js";
 import { camera, crackMesh, renderer } from "./scene.js";
 import { applyTime } from "./daynight.js";
 import { applyOpts, applyFov, applyTbtn, applyUi, opts, saveOpts } from "./settings.js";
@@ -523,6 +523,7 @@ export function refreshBindLabels() {
 // **맨손이면 바꾸지 않는다** (v129) — 들 것이 없는데 「반블록」 이라고 말하고 빈 칸에 ▬ 을 그렸다
 export function cycleShape() {
   if (S.bar[S.selected] === AIR) { toast("맨손 — 모양은 블록을 들었을 때 바꿉니다"); return false; }
+  if (!hasShapes(S.bar[S.selected])) { toast("「" + NAMES[S.bar[S.selected]] + "」 은 모양이 없습니다"); return false; }
   setShapeMode(S.shapeMode + 1);
   updateHandBlock();
   toast(["전체 블록", "반블록", "계단"][S.shapeMode]);
@@ -1177,6 +1178,7 @@ export function pickBlock() {
   // 계단 방향은 currentShape() 가 시선으로 정하므로 갈래만 맞추면 된다 (마크와 같다)
   var psh = hit.shape;
   var mode = (psh === SH_SLAB || psh === SH_SLAB_UP) ? 1 : (isStairShape(psh) ? 2 : 0);
+  if (!hasShapes(hit.block)) mode = 0;   // 열린 울타리 문(모양 1)을 반블록으로 읽지 않는다 (v132)
   // 블록이 같아도 **모양 갈래가 다르면** 가져와야 한다.
   // 손에 온전한 돌을 들고 이미 놓은 돌계단을 복사하는 것이 계단을 잇는 가장 흔한 순간인데,
   // 예전에는 여기서 그냥 나가 버려 그 절반이 통과했다.

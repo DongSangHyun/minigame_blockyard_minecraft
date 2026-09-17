@@ -775,6 +775,13 @@ export function generate(seed, gen) {
       // 선인장은 통짜 블록이지만 모래 위에만 서므로 같이 본다 (모래가 내려가면 뜬다)
       if (!isCross(cb3) && cb3 !== CACTUS) continue;
       var un3 = world[idx(cx3, cy3 - 1, cz3)];
+      // **벽 횃불은 벽을 본다** (v132·자문 34차) — 밑칸만 보다가 마을 가판·광산 방·통로의
+      // 벽 횃불을 전부 걷어 내서 광산이 캄캄했다. 놀이 중 규칙(edit.js dropCross)과 같다
+      var wd3 = WALL_DIR[shape[ci3]];
+      if (wd3) {
+        var wx3 = cx3 + wd3[0], wz3 = cz3 + wd3[2];
+        if (wx3 >= 0 && wx3 < WX && wz3 >= 0 && wz3 < WZ && isSolid(world[idx(wx3, cy3, wz3)])) continue;
+      }
       // 같은 것 위에 쌓이는 장식이 생기더라도 밑동부터 판정되어 줄줄이 걷힌다
       if (!isSolid(un3) && un3 !== cb3) set(cx3, cy3, cz3, AIR);
     }

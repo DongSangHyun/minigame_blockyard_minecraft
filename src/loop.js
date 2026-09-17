@@ -254,8 +254,11 @@ export function step(dt) {
       if (onLadder) {
         // 웅크리면 사다리에 매달려 멈춘다 — 마크에서 가장 많이 쓰는 손버릇이다.
         // (예전에는 오히려 두 배로 빨리 미끄러져 내려갔다)
-        var up = crouchKey ? 0 : (S.keys.Space ? 1 : (len > 0 ? 0.75 : 0));
-        player.vel.y = crouchKey ? 0 : (up ? up * 3.2 : -1.6);
+        // 전환식 웅크리기(S.sneaking)로도 매달린다 (v132) — 누르고 있는 동안만 보아서
+        // 「웅크리기 전환식」 을 켠 아이는 사다리에서 멈출 수가 없었다
+        var hold = crouchKey || S.sneaking;
+        var up = hold ? 0 : (S.keys.Space ? 1 : (len > 0 ? 0.75 : 0));
+        player.vel.y = hold ? 0 : (up ? up * 3.2 : -1.6);
         if (up > 0 && Math.random() < dt * 6) crunch(0.05, 0.03, 900);
       } else
       player.vel.y -= GRAVITY * dt * (feetInWater ? (thick ? 0.14 : 0.22) : 1);
@@ -266,7 +269,7 @@ export function step(dt) {
           if (eyeInLiquid) player.vel.y = thick ? 2.4 : 4.4;
           else player.vel.y = Math.max(player.vel.y, thick ? 2.4 : JUMP * 0.8);
         }
-      } else if (S.keys.Space && player.onGround) {
+      } else if (S.keys.Space && player.onGround && !onLadder) {   // 사다리에서는 점프로 튀지 않고 오른다 (v132)
         player.vel.y = JUMP;
         player.onGround = false;
       }
@@ -479,7 +482,7 @@ export function step(dt) {
     var gx = hit.x + hit.nx, gy = hit.y + hit.ny, gz = hit.z + hit.nz;
     // 놓을 수 없는 물건(도구)에는 배치 미리보기를 안 띄운다 —
     // 양동이를 들고 땅을 겨누면 "양동이 블록" 의 반투명 상자가 떴다 (자문 17차 #5)
-    if (!isItem(S.bar[S.selected]) && S.bar[S.selected] !== AIR && canPlaceAt(gx, gy, gz))
+    if (!isItem(S.bar[S.selected]) && S.bar[S.selected] !== AIR && canPlaceAt(gx, gy, gz, S.bar[S.selected]))
       updateGhost(gx, gy, gz, upperFromHit(hit));
     else ghostMesh.visible = false;
   } else {

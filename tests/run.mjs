@@ -833,12 +833,17 @@ test("v6 풀·꽃: 초원에 심기고, 통과할 수 있고, 빛을 막지 않�
   const r = await page.evaluate(() => {
     const B = window.__blockyard;
     B.generate(99999); B.relightAll(false);
+    function onWall(x, y, z) {
+      const d = B.WALL_DIR[B.shape[B.idx(x, y, z)]];
+      return !!d && B.isSolid(B.get(x + d[0], y, z + d[2]));
+    }
     let plants = 0, floating = 0;
     for (let z = 0; z < B.WZ; z++) for (let x = 0; x < B.WX; x++)
       for (let y = 1; y < B.WY; y++) {
         const b = B.world[B.idx(x, y, z)];
         if (!B.isCross(b)) continue;
         plants++;
+        if (onWall(x, y, z)) continue;       // 벽 횃불은 벽이 받친다 (v132)
         if (!B.isSolid(B.world[B.idx(x, y - 1, z)])) floating++;
       }
     return { plants, floating,
@@ -1110,6 +1115,8 @@ test("v8 놓기: 풀을 조준하고 놓으면 그 자리를 덮어쓴다 (허�
     B.refreshAllTops();
     B.applyEdit(x, y, z - 3, B.B.TALLGRASS, false);
 
+    // 처음 켜는 판은 beginPlay 가 스폰으로 옮기므로 먼저 켠다 (v132 — 필터 실행에서만 깨졌다)
+    B.beginPlay();
     // 풀을 정면으로 조준한다 — raycast 는 player.pos + EYE 에서 쏜다
     B.player.pos.set(x + 0.5, y + 0.5 - 1.62, z + 0.5);
     B.player.yaw = 0; B.player.pitch = 0;
@@ -1117,7 +1124,6 @@ test("v8 놓기: 풀을 조준하고 놓으면 그 자리를 덮어쓴다 (허�
     B.camera.rotation.set(0, 0, 0);
     const hit = B.raycast(6);
     B.getBar()[B.getSelected()] = B.B.STONE;
-    B.beginPlay();
     B.place();
     B.endPlay(); B.setPaused(false);
     return {
@@ -8092,6 +8098,8 @@ phoneTest("반블록·계단에 갈 길이 있다", async (page) => {
     const onScreen = rect.bottom <= window.innerHeight + 1 && rect.top >= -1 &&
                      rect.right <= window.innerWidth + 1 && rect.left >= -1;
     const keep = B.S.shapeMode;
+    const keepB = B.getBar()[B.getSelected()];
+    B.getBar()[B.getSelected()] = B.B.STONE;     // 모양이 있는 블록을 쥔다 (v132)
     B.S.shapeMode = 0;
     function tap() {
       btn.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
@@ -8100,6 +8108,7 @@ phoneTest("반블록·계단에 갈 길이 있다", async (page) => {
     }
     const seq = [tap(), tap(), tap()];
     B.S.shapeMode = keep;
+    B.getBar()[B.getSelected()] = keepB;
     B.endPlay();
     return { missing: false, onScreen, seq, big: Math.min(rect.width, rect.height) };
   });
@@ -8941,6 +8950,8 @@ test("v79 지하: 카브가 지표를 뚫어도 풀·덤불이 허공에 안 남
           }
           if (!B.isCross(b)) continue;
           plants++;
+          const wd = B.WALL_DIR[B.shape[B.idx(x, y, z)]];
+          if (wd && B.isSolid(B.get(x + wd[0], y, z + wd[2]))) continue;   // 벽 횃불 (v132)
           if (!B.isSolid(under) && under !== b) {
             floating++;
             if (bad.length < 4) bad.push({ seed, x, y, z, b, under });
@@ -10336,6 +10347,9 @@ test("v85 핫바: 칸에 딸린 모양이 칸에서 읽힌다", async (page) => 
         function (el) { const g = el.querySelector(".shape");
           return g ? getComputedStyle(g).color : "?"; });
     }
+    // 모양이 있는 블록을 쥔다 — 앞 시험이 남긴 울타리·맨손이면 글리프가 없다 (v132)
+    const keepBar85 = B.getBar().slice();
+    for (let i = 0; i < 10; i++) B.getBar()[i] = B.B.STONE;
     for (let i = 0; i < 10; i++) { B.selectSlot(i); B.setShapeMode(0); }
     B.selectSlot(0); B.setShapeMode(2);      // 계단
     B.selectSlot(2); B.setShapeMode(1);      // 반블록
@@ -10359,7 +10373,8 @@ test("v85 핫바: 칸에 딸린 모양이 칸에서 읽힌다", async (page) => 
     const quiet = toastEl.textContent;
 
     for (let i = 0; i < 10; i++) { B.selectSlot(i); B.setShapeMode(0); }
-    B.selectSlot(0);
+    for (let i = 0; i < 10; i++) B.getBar()[i] = keepBar85[i];
+    B.selectSlot(0); B.refreshBar();
     B.endPlay(); B.setPaused(false);
     return { g, col, gSel, label0, movedMsg, msg2, quiet };
   });
@@ -14847,6 +14862,132 @@ test("v131 동물 상한: 24마리여도 꽃을 주면 따라오고, 새끼만 �
   eq(r.love, 0, "상한인데 사랑(번식)이 켜졌다");
   eq(r.res2, true, "상한 아래에서 먹이의 결과");
   assert(r.love2 > 0, "상한 아래에서 사랑이 안 켜졌다");
+});
+
+test("v132 마을 횃불: 가판·광산 방·통로·갱도의 횃불이 생성 뒤에도 남는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const miss = [];
+    let checked = 0;
+    for (const seed of [777, 4242, 20260917]) {
+      B.generate(seed, 2);
+      const v = B.S.village;
+      if (!v) { miss.push(seed + ": 마을 없음"); continue; }
+      const x = v.mine[0], by = v.mine[1] - 1, z = v.mine[2];
+      const sx = Math.round(v.stall[0] - 1.5), sy = Math.round(v.stall[1]), sz = Math.round(v.stall[2] - 1.5);
+      const spots = {
+        "가판": [sx, sy + 1, sz + 1],
+        "방 서쪽": [x - 3, by + 1, z],
+        "방 동쪽": [x + 3, by + 1, z - 2],
+        "통로": [x + 1, by + 4, z + 1],
+        "갱도": [x + 8, by, z]
+      };
+      for (const k in spots) {
+        const p = spots[k];
+        checked++;
+        if (B.get(p[0], p[1], p[2]) !== B.B.TORCH) miss.push(seed + " " + k + " (" + p.join(",") + ")=" + B.get(p[0], p[1], p[2]));
+      }
+    }
+    B.S.village = null;
+    B.setPaused(false);
+    return { miss, checked };
+  });
+  assert(r.checked >= 10, "시험 준비: 잰 자리가 " + r.checked);
+  eq(r.miss.length, 0, "사라진 마을 횃불: " + r.miss.join(" | "));
+});
+
+test("v132 자문 35: 모양 없는 블록 · 계단공 · 찾기 별명 · give 문 · 사다리 이어 붙이기 · 전환식 매달리기", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keep = { sel: B.getSelected(), bar: B.getBar().slice(), mode: B.S.shapeMode, tog: B.opts.sneaktog, earned: Object.assign({}, B.S.earned) };
+    const out = {};
+    const X = 44, Y = 50, Z = 44;
+    arena(B, X, Y, Z, 4);
+    // 지나가던 동물이 놓을 칸에 서면 놓기가 막힌다 — 멀리 치운다 (10회 중 1회 흔들림)
+    B.mobs.forEach((m) => { if (!B.MOB_KINDS[m.kind].trader) { m.x = 5; m.z = 5; } });
+    // (1) 반블록 모드로 울타리 문 → 닫힌 채
+    B.selectSlot(2);
+    B.getBar()[2] = B.B.GATE;
+    B.setShapeMode(1);
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    B.player.yaw = 0; B.player.pitch = 0.7;
+    B.camera.position.set(X + 0.5, Y + 1.62, Z + 0.5);
+    B.camera.rotation.set(-0.7, 0, 0, "YXZ");
+    B.camera.updateMatrixWorld(true);
+    B.place(false);
+    let gate = null;
+    for (let a = -3; a <= 3; a++) for (let c = -3; c <= 3; c++) if (B.get(X + a, Y, Z + c) === B.B.GATE) gate = B.shape[B.idx(X + a, Y, Z + c)];
+    out.gateShape = gate;
+    // (3) 모양 없는 블록에서 G
+    B.setShapeMode(0);
+    out.cycleFence = B.cycleShape();
+    B.getBar()[2] = B.B.STONE;
+    out.cycleStone = B.cycleShape();
+    B.setShapeMode(0);
+    // (2) 계단공은 계단 모양으로만
+    delete B.S.earned.stair;
+    B.notePlaced(B.B.LOG, 11, 1);      // 눕힌 원목
+    B.notePlaced(B.B.TORCH, 14, 1);    // 벽 횃불
+    B.notePlaced(B.B.DOOR, 17, 1);     // 문
+    out.stairFalse = !!B.S.earned.stair;
+    B.notePlaced(B.B.PLANKS, 3, 1);    // 계단
+    out.stairTrue = !!B.S.earned.stair;
+    // (4) 찾기 별명
+    const find = document.getElementById("pick-find");
+    function cnt(q) { find.value = q; const n = B.refreshPickFilter(); find.value = ""; B.refreshPickFilter(); return n; }
+    out.flower = cnt("꽃"); out.window = cnt("창문"); out.lamp = cnt("램프"); out.stained = cnt("색 유리"); out.red = cnt("빨간");
+    // (5) give 문
+    B.runCommand("give 문");
+    out.give = B.getBar()[2];
+    // (9) 사다리 위에 사다리
+    for (let dy = 0; dy <= 4; dy++) B.set(X - 1, Y + dy, Z, B.B.STONE);
+    B.set(X, Y, Z, B.B.LADDER, 0); B.shape[B.idx(X, Y, Z)] = B.SH.WALL_W;
+    B.refreshAllTops();
+    B.getBar()[2] = B.B.LADDER;
+    B.player.pos.set(X + 0.05, Y + 1.3, Z + 0.5);
+    B.player.vel.set(0, 0, 0);
+    B.player.yaw = 0; B.player.pitch = 1.5;
+    B.camera.position.set(X + 0.05, Y + 1.3 + 1.62, Z + 0.5);
+    B.camera.rotation.set(-1.5, 0, 0, "YXZ");
+    B.camera.updateMatrixWorld(true);
+    const hit = B.raycast(6);
+    out.hitLadder = !!hit && hit.block === B.B.LADDER && hit.ny === 1;
+    out.hitDbg = JSON.stringify(hit);
+    B.place(false);
+    out.above = B.get(X, Y + 1, Z);
+    out.aboveShape = B.shape[B.idx(X, Y + 1, Z)];
+    out.toast = document.getElementById("toast").textContent;
+    // (10) 전환식 웅크리기로 매달리기
+    B.opts.sneaktog = true; B.S.sneakLatch = true;
+    B.player.pos.set(X + 0.5, Y + 1.2, Z + 0.5);
+    B.player.vel.set(0, 0, 0);
+    const y0 = B.player.pos.y;
+    for (let k = 0; k < 60; k++) B.step(1 / 60);
+    out.hangDrop = y0 - B.player.pos.y;
+    B.S.sneakLatch = false; B.opts.sneaktog = keep.tog;
+    for (let i = 0; i < keep.bar.length; i++) B.getBar()[i] = keep.bar[i];
+    B.selectSlot(keep.sel); B.setShapeMode(keep.mode);
+    B.S.earned = keep.earned;
+    B.endPlay(); B.setPaused(false);
+    return Object.assign(out, { DOOR: B.B.DOOR, LADDER: B.B.LADDER, WALL_W: B.SH.WALL_W });
+  });
+  eq(r.gateShape, 0, "반블록 모드로 놓은 울타리 문이 열린 채다 (모양 " + r.gateShape + ")");
+  eq(r.cycleFence, false, "울타리 문을 들고 G 가 모양을 바꿨다");
+  eq(r.cycleStone, true, "돌을 들고 G 가 안 먹는다");
+  eq(r.stairFalse, false, "원목·벽 횃불·문으로 「계단공」 이 열렸다");
+  eq(r.stairTrue, true, "계단을 놓았는데 「계단공」 이 안 열렸다");
+  assert(r.flower >= 2, "「꽃」 으로 찾으니 " + r.flower + "칸 (양귀비·민들레)");
+  assert(r.window >= 2, "「창문」 으로 찾으니 " + r.window + "칸");
+  assert(r.lamp >= 1, "「램프」 로 찾으니 " + r.lamp + "칸");
+  assert(r.stained >= 16, "「색 유리」 로 찾으니 " + r.stained + "칸");
+  assert(r.red >= 3, "「빨간」 으로 찾으니 " + r.red + "칸");
+  eq(r.give, r.DOOR, "/give 문 이 문이 아닌 것을 줬다");
+  assert(r.hitLadder, "시험 준비: 사다리 윗면을 못 겨눴다 " + r.hitDbg);
+  eq(r.above, r.LADDER, "사다리 위에 사다리가 안 이어 붙었다 " + r.toast);
+  eq(r.aboveShape, r.WALL_W, "이어 붙인 사다리가 같은 벽을 보지 않는다");
+  assert(r.hangDrop < 0.05, "전환식 웅크리기인데 사다리에서 " + r.hangDrop.toFixed(2) + "칸 미끄러졌다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

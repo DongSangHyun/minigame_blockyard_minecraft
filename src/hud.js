@@ -2,7 +2,7 @@
 import { S } from "./state.js";
 import { BUILD } from "./version.js";
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
-import { AIR, ALL_BLOCKS, isStained, BUCKET, BUCKET_TILE, FENCE, LOG, PLANKS, BOOKSHELF, LAMP, COBBLE, TORCH, GLASS, ITEMS, isItem, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross, isLeaf } from "./blocks.js";
+import { blockAliases, hasShapes, AIR, ALL_BLOCKS, isStained, BUCKET, BUCKET_TILE, FENCE, LOG, PLANKS, BOOKSHELF, LAMP, COBBLE, TORCH, GLASS, ITEMS, isItem, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross, isLeaf } from "./blocks.js";
 import { AVG_TOP, TILE, atlas, tileOrigin } from "./atlas.js";
 import { SEEN_TOP, SEEN_UNDER_ALL, UNDER_BANDS, underBand, isTouched, heightMap, markX, markY, markZ, markName, seenMap, markSeen, topMap, world } from "./world.js";
 import { player } from "./player.js";
@@ -104,7 +104,7 @@ export function refreshSlot(i) {
   var slot = hotbarEl.children[i];
   var m = (S.shapeBar && i !== S.selected) ? (S.shapeBar[i] | 0) : (S.shapeMode | 0);
   if (i !== S.selected && !S.shapeBar) m = 0;
-  var g = b === AIR ? "" : (SHAPE_GLYPH[m] || "");   // 맨손 칸에는 모양 글리프가 없다 (v129)
+  var g = !hasShapes(b) ? "" : (SHAPE_GLYPH[m] || "");   // 모양 없는 블록(맨손 포함)은 글리프 없음   // 맨손 칸에는 모양 글리프가 없다 (v129)
   var nm2 = slotName(i);
   slot.setAttribute("aria-label", nm2 + (g ? " · " + SHAPE_WORD[m] : ""));
   slot.querySelector(".name").textContent = nm2;
@@ -167,7 +167,7 @@ export var pickBtns = [];
   pickGrid.appendChild(btn);
   // 한국어 이름과 영어 이름을 둘 다 검색어로 둔다 — "조약돌" 도 "cobble" 도 잡힌다
   pickBtns.push({ el: btn, block: b,
-                  name: ((NAMES[b] || "") + " " + (NAMES_EN[b] || "")).trim(),
+                  name: ((NAMES[b] || "") + " " + (NAMES_EN[b] || "") + " " + blockAliases(b).join(" ")).trim(),
                   cat: categoryOf(b) });
 });
 
@@ -181,7 +181,8 @@ export function openPicker() {
   // **검색칸에 커서를 준다** (v114) — 예전에는 첫 블록 칸을 짚었고, 목록이 열린 동안
   // 키 처리는 Digit 과 Tab 만 살아 있어서 **글자를 쳐도 아무 일이 안 일어났다.**
   // 검색칸에 가려면 Shift+Tab 을 여섯 번 눌러야 했다. 마크의 검색 탭도 열자마자 커서가 간다
-  if (pickFind && pickFind.focus) { pickFind.focus(); pickFind.select(); }
+  // 폰에서는 커서를 주지 않는다 (v132) — 가상 키보드가 올라와 목록 절반을 가렸다
+  if (!isTouch && pickFind && pickFind.focus) { pickFind.focus(); pickFind.select(); }
   else { var first = pickGrid.querySelector(".pick"); if (first && first.focus) first.focus(); }
 }
 export function closePicker(resume) {
@@ -744,19 +745,25 @@ export function sortPickByRecent() {
 }
 
 export function refreshPickFilter() {
-  var q = (pickFind && pickFind.value || "").trim().toLowerCase();
+  // 띄어쓰기는 보지 않는다 (v132) — 도움말은 「색 유리」, 이름은 「색유리」 였다
+  var q = (pickFind && pickFind.value || "").replace(/\s+/g, "").toLowerCase();
   var shown = 0;
   for (var i = 0; i < pickBtns.length; i++) {
     var e = pickBtns[i];
     // 맨손은 어느 갈래에서도 맨 앞에 보인다 — 비우려고 「전체」 로 돌아갈 일이 없게
     var ok = (pickCat === "all" || e.cat === pickCat || e.block === AIR) &&
-             (!q || e.name.toLowerCase().indexOf(q) >= 0);
+             (!q || e.name.replace(/\s+/g, "").toLowerCase().indexOf(q) >= 0 ||
+              e.name.toLowerCase().split(" ").indexOf(q) >= 0);
     e.el.hidden = !ok;
     if (ok) shown++;
   }
   return shown;
 }
-if (pickFind) pickFind.addEventListener("input", refreshPickFilter);
+if (pickFind) pickFind.addEventListener("input", function () {
+  var n = refreshPickFilter();
+  // 계단·반블록은 블록이 아니라 **모양**이다 — 0건이면 어디서 바꾸는지 알려 준다 (v132)
+  if (n <= 1 && /계단|반블록|반 블록|slab|stair/i.test(pickFind.value)) toast("계단·반블록은 블록을 고른 뒤 G(모양)로 바꿉니다");
+});
 if (pickTabs) pickTabs.addEventListener("click", function (ev) {
   var btn = ev.target.closest("button[data-cat]");
   if (!btn) return;

@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { MOB_MAX, aimedMob, feedNearbyMob, isTrader, mobOccupies } from "./mobs.js";
 import { primeTNT, ignite } from "./fluids.js";
 import { MARK_MAX, WY, idx, inside } from "./dims.js";
-import { BOOKSHELF, CARPET0, LAMP, PLANKS, POT, SAPLING, STAINED0, WOOL0, NAMES, BUCKET, FRAME, FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
+import { WALL_DIR, hasShapes, BOOKSHELF, CARPET0, LAMP, PLANKS, POT, SAPLING, STAINED0, WOOL0, NAMES, BUCKET, FRAME, FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
 import { get, shape, hutSpots, markName, markX, markZ } from "./world.js";
 import { lightSky } from "./light.js";
 import { burst } from "./scene.js";
@@ -53,12 +53,15 @@ export function upperFromHit(hit) {
   return ((hit.hitY || hit.y) - hit.y) > 0.5;
 }
 
-export function canPlaceAt(px, py, pz) {
+// b — 놓을 블록 (v132). 몸을 막지 않는 것(사다리·횃불·풀꽃)은 내 몸과 겹쳐도 놓인다 —
+// 사다리에 매달린 채 머리 위로 이어 붙이는 것이 사다리를 쓰는 가장 흔한 손버릇이다 (마크와 같다)
+export function canPlaceAt(px, py, pz, b) {
   if (!inside(px, py, pz)) return false;
   var cur = get(px, py, pz);
   if (cur !== AIR && !isLiquid(cur) && !isCross(cur)) return false;
   var p = player.pos;
-  if (p.x + HALF > px && p.x - HALF < px + 1 &&
+  var passable = b !== undefined && !isSolid(b) && !isLiquid(b);
+  if (!passable && p.x + HALF > px && p.x - HALF < px + 1 &&
       p.y + BODY > py && p.y < py + 1 &&
       p.z + HALF > pz && p.z - HALF < pz + 1) return false;
   // 동물이 선 칸에도 놓지 않는다 (v94) — 예전에는 플레이어 몸만 봐서
@@ -131,7 +134,11 @@ export function tradeWith() {
   var onAlt = S.barPage === 2 && S.barAlt;
   var gbar = onAlt ? S.barAlt : S.bar, gfill = onAlt ? S.fillBarAlt : S.fillBar;
   gbar[9] = gift;
-  if (gfill) gfill[9] = 0;       // 먼저 있던 양동이의 물이 새 칸에 남지 않게
+  if (gfill) gfill[9] = 0;
+  // 칸이 기억하던 모양도 비운다 (v132) — 0번 칸이 계단 모드였으면 선물받은 조명이 계단으로 놓였다
+  var gshape = onAlt ? S.shapeBarAlt : S.shapeBar;
+  if (gshape) gshape[9] = 0;
+  if (!onAlt && S.selected === 9) S.shapeMode = 0;       // 먼저 있던 양동이의 물이 새 칸에 남지 않게
   if (!onAlt) refreshSlot(9);
   if (!onAlt && S.selected === 9) updateHandBlock();
   noteBlockUse(gift);
@@ -346,7 +353,7 @@ export function place(repeating) {
   var px = onCross ? hit.x : hit.x + hit.nx;
   var py = onCross ? hit.y : hit.y + hit.ny;
   var pz = onCross ? hit.z : hit.z + hit.nz;
-  if (!canPlaceAt(px, py, pz)) {
+  if (!canPlaceAt(px, py, pz, b)) {
     // 세계의 천장에 닿았으면 그렇다고 말한다 (v83).
     // 지형이 12칸 올라가면서(v79) 지을 하늘이 45칸에서 33칸으로 줄었는데,
     // 천장에서는 **토스트도 소리도 없이** 아무 일이 안 일어나 마우스만 계속 누르게 됐다.
@@ -366,12 +373,18 @@ export function place(repeating) {
       (hit.nx !== 0 || hit.nz !== 0) && isSolid(hit.block)) {
     wallSh = wallShapeFor(hit.nx, hit.nz);
   }
+  // 사다리를 겨누고 사다리를 놓으면 **같은 벽에 이어 붙인다** (v132·자문 35차) — 사다리는 단단하지
+  // 않아 위 규칙에 안 걸려, 매달린 채 위로 이어 붙이려 하면 늘 「벽에 붙여야 합니다」 였다
+  if (b === LADDER && !wallSh && hit.block === LADDER) {
+    var lwd = WALL_DIR[hit.shape];
+    if (lwd && isSolid(get(px + lwd[0], py, pz + lwd[2]))) wallSh = hit.shape;
+  }
   if ((b === LADDER || b === FRAME) && !wallSh) { toast("벽에 붙여야 합니다"); return; }
   if (needsFloor(b) && !wallSh && !isSolid(get(px, py - 1, pz))) {
     toast("받칠 바닥이 필요합니다"); return;
   }
   // 물·용암·풀·횃불에는 반블록·계단 모양을 붙이지 않는다 (반쪽짜리 물덩이 방지)
-  var sh = (isLiquid(b) || isCross(b)) ? SH_FULL : wantSh;
+  var sh = (isLiquid(b) || isCross(b) || !hasShapes(b)) ? SH_FULL : wantSh;
   // 원목은 클릭한 면 방향으로 눕는다 (마크와 같다)
   if (isLog(b) && sh === SH_FULL && !onCross) {
     if (hit.nx !== 0) sh = SH_AXIS_X;

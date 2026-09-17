@@ -1020,7 +1020,7 @@
         <dd>물에서는 <kbd>Space</kbd> 로 떠오르고, 수면에서 <kbd>W</kbd>+<kbd>Space</kbd> 로 물가에 올라섭니다</dd>
         <dt>짓기</dt><dd>좌클릭 길게 캐기 · 우클릭 놓기(드래그로 줄 긋기)</dd>
         <dd><b>색 유리 16색</b>과 <b>사암·돌벽돌</b>이 있습니다 — 목록(<kbd>E</kbd>)의 「색」·「건축」 탭</dd>
-        <dd><kbd>E</kbd> 블록 목록 · <kbd data-bind="pick">Q</kbd>/휠클릭 복사 · <kbd data-bind="shape">G</kbd> 반블록·계단</dd>
+        <dd><kbd>E</kbd> 블록 목록 · <kbd data-bind="pick">Q</kbd>/휠클릭 복사 · <kbd data-bind="shape">G</kbd> 반블록·계단 (울타리·문 같은 블록은 모양이 없습니다)</dd>
         <dd><kbd>Tab</kbd> 핫바 2쪽 · <kbd>1</kbd>–<kbd>0</kbd> 칸 고르기</dd>
         <dd><b>맨손</b> — 목록 맨 앞의 ✋ 칸을 고르면 아무것도 안 듭니다 (캐기·문 열기·상인은 그대로)</dd>
         <dd><kbd>Ctrl</kbd>+<kbd>Z</kbd> 되돌리기 · <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> 다시하기</dd>
@@ -1117,7 +1117,7 @@
         <dd><b>목록</b> — 블록 96종에서 고릅니다 (이름으로 찾기·갈래 탭)</dd>
         <dd><b>뽑기</b> — 보고 있는 블록을 모양까지 그대로 손에 듭니다</dd>
         <dd><b>목록을 길게</b> 누르면 핫바 2쪽 — 울타리·문·사다리·유리판·부싯돌·<b>양동이</b>가 있습니다</dd>
-        <dd><b>모양</b> — 전체 블록 → 반블록 → 계단 (계단 방향은 보고 있는 쪽)</dd>
+        <dd><b>모양</b> — 전체 블록 → 반블록 → 계단 (계단 방향은 보고 있는 쪽 · 울타리·문 같은 블록은 모양이 없습니다)</dd>
         <dd>아래 <b>핫바 칸</b>을 눌러 고릅니다 · <b>되돌리기</b>는 대량 편집도 한 번에 되돌립니다</dd>
         <dd><b>맨손</b> — 목록 맨 앞의 ✋ 칸을 고르면 아무것도 안 듭니다 (캐기·문 열기·상인은 그대로)</dd>
         <dd><b>되돌리기를 길게</b> 누르면 <b>다시하기</b>입니다 (되돌린 것을 되살립니다)</dd>
@@ -1178,7 +1178,7 @@
     <h2>블록 고르기</h2>
     <p>고른 블록이 지금 선택된 칸에 들어갑니다 · <span class="onlykeys"><kbd>E</kbd> 로 닫기</span><span class="onlytouch"><b>목록</b> 단추로 닫기</span></p>
     <div class="pick-tools">
-      <input id="pick-find" type="text" placeholder="이름으로 찾기 (예: wool, stone)" autocomplete="off">
+      <input id="pick-find" type="text" placeholder="이름으로 찾기 (예: 양털, 문, 꽃)" autocomplete="off">
       <div id="pick-tabs">
         <button type="button" data-cat="all" aria-current="true">전체</button>
         <button type="button" data-cat="nature">자연</button>

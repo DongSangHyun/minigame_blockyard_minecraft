@@ -192,7 +192,8 @@ function buildStall(x, z, h) {
   set(x + 2, h + 2, z, LAMP);
   set(x + 1, h + 1, z + 1, AIR);
   set(x + 2, h + 1, z + 1, AIR);
-  set(x, h + 2, z + 1, TORCH, wallShapeFor(1, 0));
+  // 뒤쪽(+z) 울타리 기둥에 붙인다 — 예전엔 -x 쪽 허공에 붙어 생성 마지막에 걷혔다 (v132)
+  set(x, h + 2, z + 1, TORCH, wallShapeFor(0, -1));
   return [x + 1.5, h + 1, z + 1.5];                   // 상인이 설 자리
 }
 
@@ -216,7 +217,12 @@ function buildMineEntrance(x, z, h) {
     fill(x - 1, y, z - 1, x + 1, y, z + 1, AIR);
     set(x, y, z - 2, COBBLE);                          // 사다리가 붙을 벽
     set(x, y, z - 1, LADDER, wallShapeFor(0, 1));
-    if ((y - by) % 4 === 0) set(x + 1, y, z + 1, TORCH);
+    // 통로 횃불은 +x 암벽에 붙인다 (v132) — 바닥 없는 통로 한가운데에 서 있다가 걷혔다.
+    // 암벽이 동굴이면 조약돌 한 칸을 댄다
+    if ((y - by) % 4 === 0) {
+      if (!isSolid(world[idx(x + 2, y, z + 1)])) set(x + 2, y, z + 1, COBBLE);
+      set(x + 1, y, z + 1, TORCH, wallShapeFor(-1, 0));
+    }
   }
   // 밑바닥 방과 갱도 한 줄기 — 조약돌 바닥에 원목 들보
   fill(x - 3, by, z - 3, x + 3, by + 2, z + 3, AIR);
@@ -229,8 +235,12 @@ function buildMineEntrance(x, z, h) {
     set(x, ry, z - 2, COBBLE);
     set(x, ry, z - 1, LADDER, wallShapeFor(0, 1));
   }
+  // 방 횃불 — 동쪽은 갱도 입구(z-1..z+1)라 벽이 없다. 한 칸 비켜 z-2 에 붙인다 (v132).
+  // 벽이 동굴이면 조약돌을 댄다
+  if (!isSolid(world[idx(x - 4, by + 1, z)])) set(x - 4, by + 1, z, COBBLE);
+  if (!isSolid(world[idx(x + 4, by + 1, z - 2)])) set(x + 4, by + 1, z - 2, COBBLE);
   set(x - 3, by + 1, z, TORCH, wallShapeFor(1, 0));
-  set(x + 3, by + 1, z, TORCH, wallShapeFor(-1, 0));
+  set(x + 3, by + 1, z - 2, TORCH, wallShapeFor(-1, 0));
   // 용암 위에 방을 파지 않는다 (자문 30차 실측: 열 시드 중 넷에서 바닥 밑 3칸에 용암) —
   // 아이가 바닥을 파면 용암이 올라온다. 바닥 두 겹을 조약돌로 막는다
   for (var lz = -3; lz <= 3; lz++)
@@ -249,7 +259,7 @@ function buildMineEntrance(x, z, h) {
       set(tx, by, z - 1, FENCE); set(tx, by + 1, z - 1, FENCE);
       set(tx, by, z + 1, FENCE); set(tx, by + 1, z + 1, FENCE);
       fill(tx, by + 2, z - 1, tx, by + 2, z + 1, LOG);
-      set(tx, by + 1, z, TORCH);
+      set(tx, by, z, TORCH);                          // 바닥에 세운다 — by+1 은 공중이라 걷혔다 (v132)
     }
   }
   return [x, by + 1, z];

@@ -4,7 +4,7 @@ import { Q } from "./queues.js";
 import { opts } from "./settings.js";
 import { encodeArrB64, decodeArrB64, SLOTS } from "./save.js";
 import { SEA, DIRS, N, PLANE, WX, WY, WZ, idx, inside } from "./dims.js";
-import { isCarpet, ITEMS, POT, FRAME, FENCE, GLASS, PLANKS, BRICK, isSapling, SH_STAIR_N, SH_STAIR_E, SH_STAIR_S, SH_STAIR_W, SH_STAIR_NU, LAMP, FLOWER_R, FLOWER_Y, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
+import { blockAliases, isStairShape, isCarpet, ITEMS, POT, FRAME, FENCE, GLASS, PLANKS, BRICK, isSapling, SH_STAIR_N, SH_STAIR_W, SH_STAIR_NU, LAMP, FLOWER_R, FLOWER_Y, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
 import { markX, markY, markZ, markName, topMap, refreshAllTops, touched, get, BIOME_NAMES, markTouched, isTouched, setTouched, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightAll, relightLocal } from "./light.js";
 import { enqueueGrow, enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
@@ -230,8 +230,8 @@ export function notePlaced(b, sh, n) {
   if (b === LAMP) { S.lampsPlaced += n; if (S.lampsPlaced >= 10) unlock("lamp10"); }
   if (b === TORCH) { S.torchesPlaced += n; if (S.torchesPlaced >= 10) unlock("torch10"); }
   if (b === FLOWER_R || b === FLOWER_Y) unlock("flower");
-  if (sh === SH_STAIR_N || sh === SH_STAIR_E || sh === SH_STAIR_S || sh === SH_STAIR_W ||
-      sh >= SH_STAIR_NU) unlock("stair");
+  // 계단 갈래만 센다 (v132) — `sh >= SH_STAIR_NU` 는 눕힌 원목·벽 횃불·사다리·문까지 잡았다
+  if (isStairShape(sh)) unlock("stair");
   S.placedKinds[b] = 1;
   var allKinds = true;
   for (var ak = 0; ak < ALL_BLOCKS.length; ak++) if (!S.placedKinds[ALL_BLOCKS[ak]]) allKinds = false;
@@ -408,7 +408,7 @@ export var ACHIEVEMENTS = [
   { id: "iron", name: "쇠맛", desc: "철 광석을 캔다" },
   { id: "deep", name: "깊은 곳", desc: "높이 3 아래로 내려간다" },
   { id: "high", name: "꼭대기", desc: "해수면보다 16칸 높은 곳에 딛고 선다 (날아서는 안 된다)" },
-  { id: "lamp10", name: "등대지기", desc: "램프를 10개 놓는다" },
+  { id: "lamp10", name: "등대지기", desc: "조명을 10개 놓는다" },
   { id: "flood", name: "수문장", desc: "물을 흘려 퍼뜨린다" },
   { id: "gravity", name: "사태", desc: "모래나 자갈을 무너뜨린다" },
   { id: "night", name: "밤샘", desc: "한밤중에 바깥에 서 있는다" },
@@ -678,7 +678,7 @@ export function refreshStats() {
     "<dt>위치</dt><dd>" + Math.floor(player.pos.x) + " · " +
       Math.floor(player.pos.y) + " · " + Math.floor(player.pos.z) + "</dd>" +
     "<dt>지형</dt><dd>" + BIOME_NAMES[localBiome()] + "</dd>" +
-    "<dt>램프</dt><dd>" + S.lampsPlaced + "</dd>" +
+    "<dt>조명</dt><dd>" + S.lampsPlaced + "</dd>" +
     "<dt>과제</dt><dd>" + achCount() + " / " + ACHIEVEMENTS.length + "</dd>" +
     "<dt>세계 모양</dt><dd>" + ["보통", "평지", "산악", "군도"][S.terrain | 0] + "</dd>" +
     "<dt>슬롯</dt><dd>" + S.slot + " / " + SLOTS + "</dd>" +
@@ -954,6 +954,14 @@ function findBlock(name) {
   // "그런 블록이 없습니다" 였다. 핫바 2쪽에 있는 물건을 명령으로는 못 꺼냈다.
   // place() 가 도구를 이미 가로채므로 핫바에 들어가도 안전하다
   var pool = ALL_BLOCKS.concat(ITEMS);
+  // **이름 전체가 같은 것**부터 (v132) — 「문」 이 「울타리 문」 의 낱말에 먼저 걸렸다
+  var qs = q.replace(/\s+/g, "");
+  for (var e0 = 0; e0 < pool.length; e0++) {
+    if ((NAMES[pool[e0]] || "").replace(/\s+/g, "").toLowerCase() === qs) return pool[e0];
+  }
+  for (var e1 = 0; e1 < pool.length; e1++) {
+    if (blockAliases(pool[e1]).indexOf(q) >= 0) return pool[e1];
+  }
   for (var i = 0; i < pool.length; i++) {
     var b = pool[i];
     var parts = label(b).split(" ");

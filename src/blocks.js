@@ -291,6 +291,30 @@ export function doorFacing(sh) { return (sh - SH_DOOR_N) % SH_DOOR_OPEN_OFF; }  
 export function doorShapeFor(facing, open) {
   return SH_DOOR_N + (facing & 3) + (open ? SH_DOOR_OPEN_OFF : 0);
 }
+// 찾기 별명 (v132·자문 35차) — 아이는 「꽃」「창문」「램프」「빨간」 으로 찾는다.
+// 목록 검색과 `/give` 가 같이 쓴다. 이름 자체는 바꾸지 않는다
+var COLOR_SAY = [["빨강", "빨간"], ["파랑", "파란"], ["노랑", "노란"], ["검정", "검은"], ["하양", "하얀"]];
+export function blockAliases(b) {
+  var a = [];
+  if (b === FLOWER_R || b === FLOWER_Y) a.push("꽃");
+  if (b === GLASS || b === PANE) a.push("창문", "창");
+  if (b === LAMP) a.push("램프", "전등");
+  if (b === DOOR) a.push("출입문");
+  var n = NAMES[b] || "";
+  for (var i = 0; i < COLOR_SAY.length; i++)
+    if (n.indexOf(COLOR_SAY[i][0]) >= 0) a.push(n.replace(COLOR_SAY[i][0], COLOR_SAY[i][1]));
+  return a;
+}
+
+// 반블록·계단 모양을 가질 수 있는 블록인가 (v132·자문 35차) — 울타리·문·유리판·사다리·액자·
+// 카펫·화분·횃불·풀꽃·액체·도구는 모양을 무시하거나 자기 모양(열림·벽)을 쓴다.
+// 특히 울타리 문은 모양 1 을 「열림」 으로 읽어서, 반블록 모드로 놓으면 **열린 채** 놓였다
+export function hasShapes(b) {
+  if (b === AIR || b === FENCE || b === GATE || b === DOOR || b === PANE || b === LADDER ||
+      b === FRAME || b === POT || b === TORCH || b === FIRE) return false;
+  if (isCarpet(b) || isCross(b) || isLiquid(b) || isItem(b)) return false;
+  return true;
+}
 export function isWallShape(sh) { return sh >= SH_WALL_N && sh <= SH_WALL_W; }
 // 계단 갈래인가 — 아래 계단(2~5)과 반전 계단(7~10) 을 한꺼번에 본다
 export function isStairShape(sh) {
