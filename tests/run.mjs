@@ -464,11 +464,13 @@ test("개선4 픽블록: 휠 클릭이 조준한 블록을 핫바에 담는다",
     for (let dx = -2; dx <= 2; dx++) for (let dy = -2; dy <= 2; dy++) for (let dz = -4; dz <= 2; dz++)
       B.applyEdit(x + dx, y + dy, z + dz, B.B.AIR, false);
     B.applyEdit(x, y, z - 3, B.B.BRICK, false);
+    // 먼저 플레이를 켠다 — 처음 켜는 판은 beginPlay 가 스폰 자리로 옮긴다
+    // (필터로 이 시험만 돌리면 그래서 엉뚱한 곳을 보고 있었다 · v129)
+    B.beginPlay();
     B.player.pos.set(x + 0.5, y - 1.62 + 0.5, z + 0.5);
     B.camera.position.set(x + 0.5, y + 0.5, z + 0.5);
     B.camera.rotation.y = 0; B.camera.rotation.x = 0;
     B.player.yaw = 0; B.player.pitch = 0;
-    B.beginPlay();
     const sel = B.getSelected();
     B.getBar()[sel] = B.B.GRASS;
     const canvas = document.querySelector("#stage canvas");
@@ -14654,6 +14656,57 @@ test("v128 자문 33: 우클릭 대상 · 겨눈 동물 · 첫 선물 꽃 · 2�
   eq(r.given, 0, "/give 맨손 이 칸을 비우지 않았다 — " + r.giveMsg);
   eq(r.torch5, "5 번 칸의", "횃불 칸 안내");
   assert(/목록/.test(r.torchNone), "횃불이 없는데 칸 번호를 말한다 — " + r.torchNone);
+});
+
+test("v129 맨손 G · 핫바 쪽 저장 · 나뭇잎 위 동물", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const keepSel = B.getSelected(), keepBar = B.getBar().slice(), keepMode = B.S.shapeMode;
+    // (1) 맨손에서 G — 모양이 안 바뀐다
+    B.selectSlot(1);
+    B.getBar()[1] = 0;
+    B.setShapeMode(0);
+    const changedOnHand = B.cycleShape();
+    const modeOnHand = B.S.shapeMode;
+    B.getBar()[1] = B.B.STONE;
+    const changedOnStone = B.cycleShape();
+    const modeOnStone = B.S.shapeMode;
+    B.setShapeMode(0);
+    for (let i = 0; i < keepBar.length; i++) B.getBar()[i] = keepBar[i];
+    // (2) 2쪽에서 저장 → 불러오기 → 여전히 2쪽
+    B.swapBarPage();
+    const page2Slot0 = B.getBar()[9];
+    B.saveGame();
+    B.swapBarPage();                // 1쪽으로 돌려 놓고
+    B.loadGame();
+    const pageAfter = B.S.barPage, slotAfter = B.getBar()[9];
+    if (B.S.barPage === 2) B.swapBarPage();
+    // (3) 동물은 나뭇잎 위에 안 선다 — 여러 번 뿌려 본다
+    let onLeaf = 0, total = 0;
+    for (let k = 0; k < 6; k++) {
+      B.seedMobs();
+      B.mobs.forEach((m) => {
+        if (B.MOB_KINDS[m.kind].trader) return;
+        total++;
+        const below = B.get(Math.floor(m.x), Math.round(m.y) - 1, Math.floor(m.z));
+        if (B.isLeaf(below)) onLeaf++;
+      });
+    }
+    B.selectSlot(keepSel); B.setShapeMode(keepMode); B.updateHandBlock();
+    B.setPaused(false);
+    return { changedOnHand, modeOnHand, changedOnStone, modeOnStone, page2Slot0, pageAfter, slotAfter,
+             onLeaf, total, BUCKET: B.B.BUCKET };
+  });
+  eq(r.changedOnHand, false, "맨손인데 G 가 모양을 바꿨다");
+  eq(r.modeOnHand, 0, "맨손 G 뒤의 모양");
+  eq(r.changedOnStone, true, "돌을 들고 G 가 안 먹는다");
+  eq(r.modeOnStone, 1, "돌을 들고 G 한 번이면 반블록");
+  eq(r.page2Slot0, r.BUCKET, "시험 준비: 2쪽 0번 칸");
+  eq(r.pageAfter, 2, "2쪽에서 저장했는데 불러오니 " + r.pageAfter + "쪽이라 한다");
+  eq(r.slotAfter, r.BUCKET, "불러온 2쪽 0번 칸이 양동이가 아니다");
+  assert(r.total > 0, "시험 준비: 동물이 없다");
+  eq(r.onLeaf, 0, "나뭇잎 위에 선 동물 " + r.onLeaf + "/" + r.total);
 });
 
 // ── 실행 ───────────────────────────────────────────────

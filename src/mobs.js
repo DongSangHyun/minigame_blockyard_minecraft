@@ -1,7 +1,7 @@
 // mobs.js — 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다.
 import { SEA, seaLift, WX, WY, WZ, idx } from "./dims.js";
 import { shapeAt, topMap, world } from "./world.js";
-import { WOOL0, DOOR, doorOpen, FENCE, GATE, AIR, ICE, LAVA, WATER, isSolid } from "./blocks.js";
+import { WOOL0, DOOR, doorOpen, FENCE, GATE, AIR, ICE, LAVA, WATER, isLeaf, isSolid } from "./blocks.js";
 import { burst, scene } from "./scene.js";
 import { player } from "./player.js";
 import { at, crunch, tone } from "./audio.js";
@@ -232,6 +232,8 @@ function placeAround(m, cx, cz, dmin, dmax, tries) {
     var below = world[idx(gx, y - 1, gz)];
     if (!isSolid(below)) continue;
     if (below === WATER || below === LAVA || below === ICE) continue;   // 물·용암은 피한다
+    // 나뭇잎 위도 피한다 (v129) — topMap 은 나무 꼭대기를 땅으로 쳐서 캐노피 위에 양이 섰다
+    if (isLeaf(below)) continue;
     if (world[idx(gx, y, gz)] !== AIR || world[idx(gx, y + 1, gz)] !== AIR) continue;
     // 기둥의 겉면이 젖어 있으면 그 기둥은 바다다 — topMap 이 아직 물을 못 받은 순간에
     // 바다 밑 모래를 "마른 땅" 으로 보고 양을 해저에 놓는 일이 있었다 (v30 진단)

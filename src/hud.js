@@ -104,7 +104,7 @@ export function refreshSlot(i) {
   var slot = hotbarEl.children[i];
   var m = (S.shapeBar && i !== S.selected) ? (S.shapeBar[i] | 0) : (S.shapeMode | 0);
   if (i !== S.selected && !S.shapeBar) m = 0;
-  var g = SHAPE_GLYPH[m] || "";
+  var g = b === AIR ? "" : (SHAPE_GLYPH[m] || "");   // 맨손 칸에는 모양 글리프가 없다 (v129)
   var nm2 = slotName(i);
   slot.setAttribute("aria-label", nm2 + (g ? " · " + SHAPE_WORD[m] : ""));
   slot.querySelector(".name").textContent = nm2;

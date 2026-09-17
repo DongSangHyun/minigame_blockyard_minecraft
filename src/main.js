@@ -22,7 +22,7 @@ import { checkFoundAchievements, nextToTry, FOUND_IDS, undoEmptyWhy, HISTORY_CEL
 import { refreshMouthDots, mouthDots, naturalRoof, roofDepth, ROOF_R, UNDER_ROOF, refreshMinimapCap, openPicker, closePicker, pickBtns, airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawMinimapTo, drawBigMap, toggleBigMap, bigMapOpen, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp , setHelpTab, toast} from "./hud.js";
 import { updateGhost, ghostMesh, ghostMat, updateHandLight, handMat, makeBlockGeometry, triggerSwing, updateHand, heldMesh, updateHandBlock } from "./hand.js";
 import { bodyRoot, updateBody, armL, armR, legL, legR, neck, upper } from "./body.js";
-import { torchSlotText, toggleRegionBar, refreshResume, advanceTut, tutDone, TUT_LEN, TUT_KEY, setStick, advanceTutTouch, HINT_TOUCH, refreshBlueprints, afterWorldSwap, aimCell, setPhotoMode, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink , swapBarPage, setShapeMode, cycleMinimapZoom, toggleMark, markHere, renameMarkHere} from "./input.js";
+import { cycleShape, torchSlotText, toggleRegionBar, refreshResume, advanceTut, tutDone, TUT_LEN, TUT_KEY, setStick, advanceTutTouch, HINT_TOUCH, refreshBlueprints, afterWorldSwap, aimCell, setPhotoMode, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink , swapBarPage, setShapeMode, cycleMinimapZoom, toggleMark, markHere, renameMarkHere} from "./input.js";
 import { canPlaceAt, mineAt, place, tryInteract, upperFromHit, tradeWith, rumorLine } from "./mine.js";
 import { weatherPoints, applyWeather, HIDE_Y, starMat, sunMat, stars, sunSprite, cPos, placeCreature, MOON_PHASES, boltAt, boltMesh, strikeBolt, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
 import { newWorld, PLACE_DELAY, PLACE_REPEAT, SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, farNow, refreshPerf, step , chunkFloor, refreshChunkFloor} from "./loop.js";
@@ -171,7 +171,7 @@ window.__blockyard = {
   markX: markX, markY: markY, markZ: markZ, markName: markName, HISTORY_CELLS_MAX: HISTORY_CELLS_MAX, setStick: setStick, HINT_TOUCH: HINT_TOUCH,
   advanceTut: advanceTut, advanceTutTouch: advanceTutTouch,
   updateGhost: updateGhost, ghostMesh: ghostMesh, makeBlockGeometry: makeBlockGeometry,
-  heldMesh: heldMesh, updateHandBlock: updateHandBlock, torchSlotText: torchSlotText,
+  heldMesh: heldMesh, updateHandBlock: updateHandBlock, torchSlotText: torchSlotText, cycleShape: cycleShape,
   selBox: selBox, selMat: selMat, SEL_DONE: SEL_DONE, SEL_ANCHOR: SEL_ANCHOR,
   seenMap: seenMap, seenRatio: seenRatio, markSeen: markSeen, hutSpots: hutSpots, setTouched: setTouched, tradeWith: tradeWith, rumorLine: rumorLine,
   SEEN_TOP: SEEN_TOP, SEEN_UNDER: SEEN_UNDER,

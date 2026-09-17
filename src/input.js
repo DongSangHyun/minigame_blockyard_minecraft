@@ -519,6 +519,16 @@ export function refreshBindLabels() {
 }
 // 횃불이 **실제로** 몇 번 칸에 있나 (v128·자문 33차) — 「9번 칸의 횃불」 은 칸을 바꾼 아이,
 // 핫바 2쪽(9번=부싯돌)에 있는 아이에게 거짓말이었다
+// 모양 바꾸기 — 키보드 G · 폰 모양 버튼 · 패드 십자 위가 같은 길을 쓴다.
+// **맨손이면 바꾸지 않는다** (v129) — 들 것이 없는데 「반블록」 이라고 말하고 빈 칸에 ▬ 을 그렸다
+export function cycleShape() {
+  if (S.bar[S.selected] === AIR) { toast("맨손 — 모양은 블록을 들었을 때 바꿉니다"); return false; }
+  setShapeMode(S.shapeMode + 1);
+  updateHandBlock();
+  toast(["전체 블록", "반블록", "계단"][S.shapeMode]);
+  tone(560 + S.shapeMode * 120, 0.06, "square", 0.04);
+  return true;
+}
 export function torchSlotText() {
   var i = S.bar ? S.bar.indexOf(TORCH) : -1;
   if (i >= 0) return (i === 9 ? "0" : String(i + 1)) + " 번 칸의";
@@ -1404,10 +1414,7 @@ window.addEventListener("keydown", function (e) {
     toast(player.flying ? "비행 모드" : "걷기 모드");
   }
   if (e.code === S.binds.shape) {
-    setShapeMode(S.shapeMode + 1);
-    updateHandBlock();
-    toast(["전체 블록", "반블록", "계단"][S.shapeMode]);
-    tone(560 + S.shapeMode * 120, 0.06, "square", 0.04);
+    cycleShape();
   }
   if (e.code === "Slash" || (e.key === "/" && !e.ctrlKey && !e.metaKey)) {
     e.preventDefault();
@@ -1779,9 +1786,7 @@ bindHold("tb-shape", function () {
 }, function () {
   clearTimeout(shapeHold);
   if (shapeLong) { shapeLong = false; return; }
-  setShapeMode(S.shapeMode + 1);
-  toast(["전체 블록", "반블록", "계단"][S.shapeMode]);
-  updateHandBlock();       // (v118 — 4번째 줄은 상인이다)
+  cycleShape();
 });
 
 export function toggleRegionBar(on) {
@@ -2110,10 +2115,7 @@ export function pollGamepad(dt) {
   // 패드 배치에 없었다. 모양(G)도 없어서 패드만으로는 반블록·계단을 못 놓았다
   if (tapped(13)) { undo(); toast("되돌리기"); }   // 십자 아래 — 되돌리기
   if (tapped(12)) {                                // 십자 위 — 모양 (G 와 같은 길)
-    setShapeMode(S.shapeMode + 1);
-    updateHandBlock();
-    toast(["전체 블록", "반블록", "계단"][S.shapeMode]);
-    tone(560 + S.shapeMode * 120, 0.06, "square", 0.04);
+    cycleShape();
   }
   if (tapped(8)) { toggleHelp(true); setHelpTab(false); }   // View — 도움말
   return true;

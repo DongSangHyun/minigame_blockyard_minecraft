@@ -1,7 +1,7 @@
 // save.js — 저장 · 불러오기
 import { S } from "./state.js";
 import { LEGACY_WY, GEN, setGen, MARK_MAX, WX, WZ, idx } from "./dims.js";
-import { DEFAULT_BAR, SH_FULL } from "./blocks.js";
+import { DEFAULT_BAR, DEFAULT_BAR2, SH_FULL } from "./blocks.js";
 import { hutSpots, seenMap, expandLegacySeen, touched, refreshAllTops, snapshotSeaCol, set, shape, world, waterLvl } from "./world.js";
 
 import { player, stats } from "./player.js";
@@ -220,7 +220,7 @@ export function saveGame() {
       tc: encodeArrB64(touched),   // 사람이 손댄 칸 — 없으면 이어하기 때 날씨·잔디가 내 건축물을 다시 건드린다
       mb: dumpMobs(),              // 동물 — 없으면 목장이 탭 하나 닫으면 빈 우리가 된다
       mm: encodeArrB64(seenMap),   // 걸어서 밝힌 지도 — 칸마다 0~3 이라 몇 백 바이트다
-      sp: S.spawnPoint, marks: S.marks, bar2: S.barAlt, fly: S.flySpeed, tt: S.terrain,
+      sp: S.spawnPoint, marks: S.marks, bar2: S.barAlt, bp: S.barPage, fly: S.flySpeed, tt: S.terrain,
       // 마을의 자리와 상인과 나눈 말의 수 (v122) — 필드만 늘어 `v` 는 그대로다.
       // (`tc` 는 이미 touched 가 쓰고 있어 `trc` 다)
       vg: S.village ? [S.village.x, S.village.z, S.village.h] : 0,
@@ -344,6 +344,10 @@ export function loadGame() {
     // 표식은 "3일 만에 다시 켠 사람" 을 위한 기능인데 다시 켤 때 반이 사라졌다
     S.marks = Array.isArray(d.marks) ? d.marks.slice(0, MARK_MAX) : [];
     if (Array.isArray(d.bar2) && d.bar2.length === DEFAULT_BAR.length) S.barAlt = d.bar2.slice();
+    else S.barAlt = DEFAULT_BAR2.slice();   // 없으면 앞 세계의 2쪽이 남았다 (v129)
+    // 어느 쪽을 보던 중이었나 (v129) — `bar` 는 **보던 쪽**이라, 2쪽에서 저장하면
+    // 불러온 뒤 「1쪽」 이라 부르며 도구 쪽을 보여 주고 Tab 이 거꾸로 돌았다
+    S.barPage = d.bp === 2 ? 2 : 1;
     S.flySpeed = typeof d.fly === "number" ? Math.max(0.5, Math.min(4, d.fly)) : 1;
     S.terrain = (d.tt | 0) || 0;
     // 없으면 예전 저장 — 기본값으로 둔다 (저장 버전은 v5 그대로)
