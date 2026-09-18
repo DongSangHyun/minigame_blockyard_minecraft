@@ -84,7 +84,7 @@ export var TRADER_LINES = [
   "저기 광산도 가 보셨어요?",
   "묘목을 심으면 나무가 자란답니다"
 ];
-// 상인과 이야기한다 — 선물은 **0번 칸**에 넣는다.
+// 상인과 이야기한다 — 선물은 **빈 칸(없으면 0번 칸)** 에 넣는다.
 // 지금 든 것을 덮으면 짓던 것이 끊긴다 (아이가 손에 든 블록이 갑자기 바뀌면 놀란다)
 // 빈집이 마을에서 어느 쪽인가 — 아이가 지도를 돌려 보지 않아도 되게 방위로 말한다
 export function rumorLine(hs) {
@@ -130,19 +130,24 @@ export function tradeWith() {
   var wantFlower = S.tut === 4 && S.bar.indexOf(FLOWER_R) < 0 &&
                    !(S.barAlt && S.barAlt.indexOf(FLOWER_R) >= 0);
   if (n === 0 || wantFlower) gift = FLOWER_R;
-  // 핫바 **1쪽** 0번 칸에 넣는다 — 2쪽을 보던 중이면 0번 칸은 양동이라 도구가 사라졌다
+  // 핫바 **1쪽**에 넣는다 — 2쪽을 보던 중이면 0번 칸은 양동이라 도구가 사라졌다.
+  // **빈 칸(맨손)이 있으면 그리로** (v133·자문 35차 #7) — 0번 칸을 고정으로 덮어써서,
+  // 꾸미려고 넣어 둔 색유리가 두 번째 대화에 화분으로 바뀌었다. 빈 칸이 없으면 예전처럼 0번 칸
   var onAlt = S.barPage === 2 && S.barAlt;
   var gbar = onAlt ? S.barAlt : S.bar, gfill = onAlt ? S.fillBarAlt : S.fillBar;
-  gbar[9] = gift;
-  if (gfill) gfill[9] = 0;
-  // 칸이 기억하던 모양도 비운다 (v132) — 0번 칸이 계단 모드였으면 선물받은 조명이 계단으로 놓였다
+  var slot = 9;
+  for (var gi = 0; gi < gbar.length; gi++) if (gbar[gi] === AIR) { slot = gi; break; }
+  gbar[slot] = gift;
+  if (gfill) gfill[slot] = 0;
+  // 칸이 기억하던 모양도 비운다 (v132) — 그 칸이 계단 모드였으면 선물받은 조명이 계단으로 놓였다
   var gshape = onAlt ? S.shapeBarAlt : S.shapeBar;
-  if (gshape) gshape[9] = 0;
-  if (!onAlt && S.selected === 9) S.shapeMode = 0;       // 먼저 있던 양동이의 물이 새 칸에 남지 않게
-  if (!onAlt) refreshSlot(9);
-  if (!onAlt && S.selected === 9) updateHandBlock();
+  if (gshape) gshape[slot] = 0;
+  if (!onAlt && S.selected === slot) S.shapeMode = 0;
+  if (!onAlt) refreshSlot(slot);
+  if (!onAlt && S.selected === slot) updateHandBlock();
   noteBlockUse(gift);
-  toast("상인: \u201c" + line + "\u201d — " + (onAlt ? "1쪽 " : "") + "0번 칸에 " + NAMES[gift]);
+  toast("상인: \u201c" + line + "\u201d — " + (onAlt ? "1쪽 " : "") +
+        (slot === 9 ? "0" : (slot + 1)) + "번 칸에 " + NAMES[gift]);
   advanceTut(3);                       // 튜토리얼 4번째 줄은 **상인에게 말을 거는 것**이다 (v118)
   tone(720, 0.08, "triangle", 0.05);
   tone(960, 0.09, "triangle", 0.045);

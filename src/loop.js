@@ -4,9 +4,9 @@ import { padState, pollGamepad, pollGamepadMenu, arrowLookTick, tutDone, TUT_LEN
 import { breedTick, MOB_KINDS, aimedMob, removeMob, pushOutOfMobs, seedFlocks, seedMobs, seedVillage, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, CX, CZ, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
-import { FIRE, isStairShape, SH_FULL, SH_SLAB, AIR, DEFAULT_BAR, DEFAULT_BAR2, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isItem, isSolid, isUnbreakable } from "./blocks.js";
+import { FIRE, isStairShape, SH_FULL, SH_SLAB, WALL_DIR, AIR, DEFAULT_BAR, DEFAULT_BAR2, ICE, LAVA, SNOW, TORCH, WATER, hardnessOf, isClimbable, isCross, isItem, isSolid, isUnbreakable } from "./blocks.js";
 import { animateLiquids, crackTex } from "./atlas.js";
-import { boxesAt, seenRatio, BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, set, shape, topMap, world } from "./world.js";
+import { shapeAt, boxesAt, seenRatio, BIOME_NAMES, biomeMap, crossBase, generate, get, isTouched, set, shape, topMap, world } from "./world.js";
 import { lightAtPlayer, lightBlk, lightSky, relightAll } from "./light.js";
 import { villageMarks } from "./village.js";
 import { growTick, lavaFlowTick, lavaDryTick, grassTick, lavaTick, primeTick, TNT_FUSE, decayTick, dryTick, fallTick, fireTick, freezeTick, waterTick } from "./fluids.js";
@@ -249,15 +249,21 @@ export function step(dt) {
       // 쳐서, 떨어졌다 다시 붙기를 되풀이하며 벽 위로 못 올라섰다. 마크는 발이 사다리 칸을
       // 벗어날 때까지 오르고, 그때 발이 벽 윗면과 같아 앞으로 걸어 올라선다
       var lx = Math.floor(player.pos.x), lz = Math.floor(player.pos.z);
-      var onLadder = isClimbable(get(lx, Math.floor(player.pos.y + 0.6), lz)) ||
-                     isClimbable(get(lx, Math.floor(player.pos.y + 0.05), lz));
+      var lyB = Math.floor(player.pos.y + 0.6), lyF = Math.floor(player.pos.y + 0.05);
+      var ly = isClimbable(get(lx, lyB, lz)) ? lyB : (isClimbable(get(lx, lyF, lz)) ? lyF : -1);
+      var onLadder = ly >= 0;
       if (onLadder) {
         // 웅크리면 사다리에 매달려 멈춘다 — 마크에서 가장 많이 쓰는 손버릇이다.
         // (예전에는 오히려 두 배로 빨리 미끄러져 내려갔다)
         // 전환식 웅크리기(S.sneaking)로도 매달린다 (v132) — 누르고 있는 동안만 보아서
         // 「웅크리기 전환식」 을 켠 아이는 사다리에서 멈출 수가 없었다
         var hold = crouchKey || S.sneaking;
-        var up = hold ? 0 : (S.keys.Space ? 1 : (len > 0 ? 0.75 : 0));
+        // **벽 쪽으로 밀 때만** 걸어서 오른다 (v133·자문 35차 #8) — 예전에는 사다리 칸 안에서
+        // 어느 쪽으로 움직여도 떠올라, 벽을 따라 지나가던 아이가 둥실 떴고 뒤로 물러나도 올라갔다.
+        // 마크도 벽에 부딪히고 있을 때만 오른다. 스페이스는 방향과 상관없이 오른다
+        var lwd = WALL_DIR[shapeAt(lx, ly, lz)];
+        var pushing = len > 0 && (!lwd || (mx * lwd[0] + mz * lwd[2]) > 0);
+        var up = hold ? 0 : (S.keys.Space ? 1 : (pushing ? 0.75 : 0));
         player.vel.y = hold ? 0 : (up ? up * 3.2 : -1.6);
         if (up > 0 && Math.random() < dt * 6) crunch(0.05, 0.03, 900);
       } else

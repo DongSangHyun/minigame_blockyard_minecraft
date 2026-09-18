@@ -14626,16 +14626,20 @@ test("v128 자문 33: 우클릭 대상 · 겨눈 동물 · 첫 선물 꽃 · 2�
     B.S.sneaking = sneak;
     B.applyEdit(x, y, z - 2, 0, false);
     // (4) 첫 선물은 꽃 · 2쪽에서는 양동이를 안 덮는다
+    // 선물은 **빈 칸**부터 찾는다 (v133) — 맨손 칸을 만들어 두고 거기서 확인한다
     B.S.tradeCount = 0;
+    B.getBar()[6] = 0;
     B.tradeWith();
-    const firstGift = B.getBar()[9];
+    const firstGift = B.getBar().indexOf(B.B.FLOWER_R) >= 0 ? B.B.FLOWER_R : B.getBar()[6];
     B.swapBarPage();
     const page2Before = B.getBar()[9];
     B.S.fillBar[9] = B.B.WATER;
+    B.getBar()[6] = B.B.STONE;                 // 2쪽에는 빈 칸을 두지 않는다
     B.tradeWith();
     const page2After = B.getBar()[9], page2Fill = B.S.fillBar[9];
     B.swapBarPage();
-    const page1Gift = B.getBar()[9];
+    // 2쪽에서 받은 선물은 1쪽의 빈 칸에 들어갔다 — 빈 칸이 남아 있지 않아야 한다
+    const page1Gift = B.getBar().indexOf(0) < 0 ? B.getBar()[6] : 0;
     // (5) give 맨손
     B.selectSlot(3);
     const giveMsg = B.runCommand("give 맨손");
@@ -14667,7 +14671,7 @@ test("v128 자문 33: 우클릭 대상 · 겨눈 동물 · 첫 선물 꽃 · 2�
   eq(r.page2Before, r.BUCKET, "시험 준비: 2쪽 0번 칸이 양동이가 아니다");
   eq(r.page2After, r.BUCKET, "2쪽에서 받은 선물이 양동이를 덮었다");
   eq(r.page2Fill, r.WATER, "2쪽에서 받은 선물이 그 쪽 양동이의 물을 쏟았다");
-  assert(r.page1Gift !== r.BUCKET && r.page1Gift > 0, "선물이 1쪽 0번 칸에 안 들어갔다 (" + r.page1Gift + ")");
+  assert(r.page1Gift !== r.BUCKET && r.page1Gift > 0, "2쪽에서 받은 선물이 1쪽 빈 칸에 안 들어갔다 (" + r.page1Gift + ")");
   eq(r.given, 0, "/give 맨손 이 칸을 비우지 않았다 — " + r.giveMsg);
   eq(r.torch5, "5 번 칸의", "횃불 칸 안내");
   assert(/목록/.test(r.torchNone), "횃불이 없는데 칸 번호를 말한다 — " + r.torchNone);
@@ -14988,6 +14992,73 @@ test("v132 자문 35: 모양 없는 블록 · 계단공 · 찾기 별명 · give
   eq(r.above, r.LADDER, "사다리 위에 사다리가 안 이어 붙었다 " + r.toast);
   eq(r.aboveShape, r.WALL_W, "이어 붙인 사다리가 같은 벽을 보지 않는다");
   assert(r.hangDrop < 0.05, "전환식 웅크리기인데 사다리에서 " + r.hangDrop.toFixed(2) + "칸 미끄러졌다");
+});
+
+test("v133 선물은 빈 칸으로 · 사다리는 벽 쪽으로 밀 때만 오른다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keep = { bar: B.getBar().slice(), sel: B.getSelected(), tc: B.S.tradeCount };
+    const out = {};
+    // (1) 빈 칸이 있으면 그 칸에 — 0번 칸은 그대로
+    for (let i = 0; i < 10; i++) B.getBar()[i] = B.B.STONE;
+    B.getBar()[9] = B.B.GLASS;          // 0번 칸에 꾸미려고 넣어 둔 것
+    B.getBar()[4] = 0;                  // 5번 칸이 맨손
+    B.S.tradeCount = 3;
+    B.tradeWith();
+    out.slot5 = B.getBar()[4]; out.slot0 = B.getBar()[9];
+    out.toast = document.getElementById("toast").textContent;
+    // 빈 칸이 없으면 예전처럼 0번 칸
+    for (let i = 0; i < 10; i++) B.getBar()[i] = B.B.STONE;
+    B.S.tradeCount = 5;
+    B.tradeWith();
+    out.fallback = B.getBar()[9] !== B.B.STONE;
+    for (let i = 0; i < keep.bar.length; i++) B.getBar()[i] = keep.bar[i];
+    B.selectSlot(keep.sel); B.S.tradeCount = keep.tc; B.refreshBar();
+    // (2) 사다리 — 벽(-x)에 붙은 사다리 한 줄
+    const X = 46, Y = 46, Z = 46;
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+      for (let dy = -1; dy <= 8; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 2, Z + dz, B.B.STONE);
+    }
+    for (let dy = -1; dy <= 6; dy++) B.set(X - 1, Y + dy, Z, B.B.STONE);
+    for (let dy = 0; dy <= 6; dy++) { B.set(X, Y + dy, Z, B.B.LADDER, 0); B.shape[B.idx(X, Y + dy, Z)] = B.SH.WALL_W; }
+    B.refreshAllTops(); B.relightAll(false);
+    function walk(yaw, key, secs) {
+      B.player.pos.set(X + 0.5, Y + 2, Z + 0.5);
+      B.player.vel.set(0, 0, 0);
+      B.player.flying = false;
+      B.player.yaw = yaw; B.player.pitch = 0;
+      B.camera.rotation.set(0, yaw, 0, "YXZ");
+      const y0 = B.player.pos.y;
+      B.setKey(key, true);
+      for (let k = 0; k < secs * 60; k++) B.step(1 / 60);
+      B.setKey(key, false);
+      return B.player.pos.y - y0;
+    }
+    out.toWall = walk(Math.PI / 2, "KeyW", 1);     // 벽(-x) 쪽으로 민다
+    out.backward = walk(Math.PI / 2, "KeyS", 1);   // 벽에서 물러난다
+    out.sideways = walk(Math.PI, "KeyW", 1);       // 벽과 나란히 (+z)
+    out.space = (() => {
+      B.player.pos.set(X + 0.5, Y + 2, Z + 0.5);
+      B.player.vel.set(0, 0, 0);
+      const y0 = B.player.pos.y;
+      B.setKey("Space", true);
+      for (let k = 0; k < 60; k++) B.step(1 / 60);
+      B.setKey("Space", false);
+      return B.player.pos.y - y0;
+    })();
+    B.endPlay(); B.setPaused(false);
+    return Object.assign(out, { GLASS: B.B.GLASS, STONE: B.B.STONE });
+  });
+  assert(r.slot5 !== 0 && r.slot5 !== r.STONE, "선물이 빈 칸(5번)에 안 들어갔다 — " + r.slot5);
+  eq(r.slot0, r.GLASS, "빈 칸이 있는데도 0번 칸을 덮어썼다");
+  assert(/5번 칸/.test(r.toast), "토스트가 칸 번호를 잘못 말한다 — " + r.toast);
+  assert(r.fallback, "빈 칸이 없을 때 0번 칸에 안 넣었다");
+  assert(r.toWall > 1.5, "벽 쪽으로 미는데 안 올라간다 (" + r.toWall.toFixed(2) + ")");
+  assert(r.space > 1.5, "스페이스로 안 올라간다 (" + r.space.toFixed(2) + ")");
+  assert(r.backward <= 0.01, "사다리에서 뒤로 물러나는데 올라간다 (" + r.backward.toFixed(2) + ")");
+  assert(r.sideways <= 0.01, "사다리 옆을 지나가는데 몸이 뜬다 (" + r.sideways.toFixed(2) + ")");
 });
 
 // ── 실행 ───────────────────────────────────────────────
