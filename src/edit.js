@@ -1070,6 +1070,10 @@ export function runCommand(line) {
       y = markY(m) >= 0 ? markY(m) : (topMap[markZ(m) * WX + markX(m)] + 1);
     }
     if (!isFinite(x) || !isFinite(y) || !isFinite(z)) return "tp <x> <y> <z> · tp <표식 번호|이름>";
+    // **정수 좌표는 그 칸 한가운데로** (v136 · 외부 시험) — 43 은 네 칸이 만나는 모서리라
+    // 몸(폭 0.6)이 이웃 칸을 물어 튕겨 올라갔고, 메시지는 친 좌표를 그대로 말했다
+    if (x === Math.floor(x)) x += 0.5;
+    if (z === Math.floor(z)) z += 0.5;
     var tx = Math.max(0.4, Math.min(WX - 0.4, x));
     var ty = Math.max(1, Math.min(WY - 2, y));
     var tz = Math.max(0.4, Math.min(WZ - 0.4, z));
@@ -1077,10 +1081,10 @@ export function runCommand(line) {
     // 조준은 늘 제 머리가 든 칸 하나뿐이라 **한 칸씩 캐서 파 올라가는 것 말고는 길이 없었다.**
     // 좌표를 대충 친 사람이나, 표식 자리를 나중에 벽으로 메운 사람이 그대로 갇혔다.
     // 몸이 들어갈 두 칸이 빌 때까지 위로 훑는다 (spawn 이 쓰는 방법과 같다)
-    var gx = Math.floor(tx), gz = Math.floor(tz);
+    // 기둥 하나가 아니라 **몸 상자 전체**로 본다 — 한 칸만 보면 옆 칸 벽에 몸이 걸려도 「빈 자리」 였다
     var lifted = 0;
     for (var ty2 = Math.floor(ty); ty2 < WY - 2; ty2++) {
-      if (!isSolid(get(gx, ty2, gz)) && !isSolid(get(gx, ty2 + 1, gz))) { ty = ty2; break; }
+      if (!boxHitsWorld(tx, ty2, tz)) { ty = ty2; break; }
       lifted++;
     }
     player.pos.set(tx, ty, tz);

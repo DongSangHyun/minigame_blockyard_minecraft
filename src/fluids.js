@@ -16,6 +16,12 @@ import { leafDrop } from "./survival.js";
 import { applyEdit, batchPush, beginBatch, endBatch, ownFire, FIRE_UNDO_MAX, FLUID_UNDO_MAX, unlock } from "./edit.js";
 
 export var MAXFLOW = 7; // 근원에서 옆으로 뻗을 수 있는 칸 수 (마크와 같은 7칸)
+// 떨어지는 물 (v136) — 근원(0)이 아니라 **흐름**이다. 옆으로 퍼질 거리는 근원처럼 새로 세지만,
+// 위의 물이 끊기면 마른다. 예전에는 떨어지는 물을 근원 0 으로 두어, 물줄기 둘 사이 칸이
+// 「근원 둘 = 무한 물」 규칙으로 진짜 근원이 되고 근원끼리 서로를 받쳐 **영영 안 말랐다**
+// (마른 고지대에 한 양동이 → 근원 175칸 · 되돌리기 7,493칸 — 외부 브라우저 시험)
+export var FALLING = 8;
+function spreadLvl(v) { return v === FALLING ? 0 : v; }
 
 export function enqueueWater(x, y, z) {
   if (!inside(x, y, z)) return;
@@ -287,7 +293,7 @@ export function waterTick(budget) {
       //  통째로 건너뛰어 **되돌려도 남은 물끼리 서로를 먹여 다시 퍼졌다.**
       lvl = 0;
     } else if (get(x, y + 1, z) === WATER) {
-      lvl = 0;                          // 위에서 떨어지는 물은 다시 근원이 된다
+      lvl = FALLING;                    // 위에서 떨어지는 물 — 흐름이지만 퍼질 거리는 새로 센다
       unlock("waterfall");
     } else {
       var srcCount = 0;
@@ -298,8 +304,8 @@ export function waterTick(budget) {
         // 단단한 바닥을 딛고 있는 물만 옆으로 퍼진다 — 떨어지는 물기둥은 퍼지지 않는다
         if (!isSolid(get(nx2, y - 1, nz2))) continue;
         var nlvl = waterLvl[idx(nx2, y, nz2)];
-        if (nlvl === 0) srcCount++;
-        var cand = nlvl + 1;
+        if (nlvl === 0) srcCount++;          // 떨어지는 물은 근원으로 안 센다
+        var cand = spreadLvl(nlvl) + 1;
         if (cand > MAXFLOW) continue;
         if (lvl < 0 || cand < lvl) lvl = cand;
       }
@@ -388,12 +394,12 @@ export function dryTick(budget) {
     // 수면까지 물로 이어진 기둥만 바다로 친다
     if (y <= SEA && isSeaCell2(i, y)) continue;
     var lvl = waterLvl[i];
-    if (lvl === 0 && get2(i, 0, 1, 0) !== WATER) {
-      // 위에서 떨어지던 물이 끊긴 근원 — 옆에서 받쳐 주지 않으면 사라진다
-      if (!fedSideways(i, y, MAXFLOW)) { removeWater(i, y); dried++; }
+    // 떨어지는 물은 **위의 물만** 본다 — 옆이 받친다고 치면 제가 먹인 흐름이 저를 다시 먹여 안 마른다
+    if (lvl === FALLING) {
+      if (get2(i, 0, 1, 0) !== WATER) { removeWater(i, y); dried++; }
       continue;
     }
-    if (lvl === 0) continue;
+    if (lvl === 0) continue;           // 근원(사람이 놓은 물 · 무한 물)은 마르지 않는다
     if (get2(i, 0, 1, 0) === WATER) continue;
     if (fedSideways(i, y, lvl)) continue;
     removeWater(i, y);
@@ -417,7 +423,7 @@ export function fedSideways(i, y, lvl) {
     var nx = x + DIRS[h][0], nz = z + DIRS[h][2];
     if (get(nx, y, nz) !== WATER) continue;
     if (!isSolid(get(nx, y - 1, nz))) continue;
-    if (waterLvl[idx(nx, y, nz)] < lvl) return true;
+    if (spreadLvl(waterLvl[idx(nx, y, nz)]) < lvl) return true;
   }
   return false;
 }

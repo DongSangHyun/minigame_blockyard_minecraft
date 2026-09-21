@@ -264,16 +264,19 @@ export function showHud(on) {
   touchEl.hidden = !(on && isTouch);
   // 사진 모드에서는 미니 바만 남긴다 (v96) — HUD 를 끄면 터치 단추가 통째로 사라져
   // **폰에서는 사진을 저장할 길도 나올 길도 없었다** (과제 「사진사」가 영영 안 열렸다)
-  if (photoBar) photoBar.hidden = !(S.photoMode && isTouch);
+  // 데스크톱에도 띄운다 (v136 · 외부 시험) — F6 을 누르면 HUD 가 통째로 사라지고
+  // 안내도 나갈 단추도 0개였다. 사진 저장(F2)은 캔버스만 찍으므로 이 바는 사진에 안 나온다
+  if (photoBar) photoBar.hidden = !S.photoMode;
   if (regionBar) regionBar.hidden = !(on && isTouch && S.regionBarOpen);
 }
 
 export var toastEl = document.getElementById("toast");
-export function toast(msg) {
+// force — 사진 모드에 **들어가는 순간**의 안내처럼 삼키면 안 되는 말 (v136)
+export function toast(msg, force) {
   // 사진 모드·화면 표시 끄기에서는 삼킨다 (v95) — hudEls 다섯에 토스트가 안 들어 있어서,
   // 구도를 잡는 동안 화면에서 가장 큰 글자가 토스트였다.
   // (첫 세계에서는 beginPlay 가 0.6초 뒤 띄우는 안내가 HUD 를 껐는데도 한가운데 남았다)
-  if (S.photoMode || S.hudHidden) return;
+  if ((S.photoMode || S.hudHidden) && !force) return;
   toastEl.textContent = msg; toastEl.classList.add("on");
   // **글자 수에 맞춰 띄운다** (v117) — 1.6초 고정이었다. 마을 안내는 36자인데
   // 초등 저학년의 묵독으로 8~12초 걸린다: 만들어 둔 안내의 20%만 읽히고 닫혔다.

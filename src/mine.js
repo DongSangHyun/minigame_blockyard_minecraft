@@ -254,7 +254,7 @@ export function tryInteract(hit) {
   // 횃불을 들고 TNT 를 우클릭하면 터진다 (마크의 부싯돌 자리)
   if (hit.block === TNT && S.bar[S.selected] === FLINT) {
     // 즉시 터뜨리지 않는다 — 도화선 4초. 피할 시간을 준다 (마크와 같다)
-    if (primeTNT(hit.x, hit.y, hit.z)) toast("도화선에 불이 붙었습니다 — 피하세요");
+    if (primeTNT(hit.x, hit.y, hit.z)) toast("도화선에 불이 붙었습니다 — 4초 뒤에 터져 둘레 블록이 사라집니다");   // 몸은 안 다친다 — 「피하세요」 는 거짓이었다 (v136)
     triggerSwing();                      // "쾅" 과제는 터질 때 준다 (explode 에서)
     return true;
   }

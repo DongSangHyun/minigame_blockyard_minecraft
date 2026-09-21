@@ -1003,7 +1003,7 @@ test("v6 물: 놓은 물이 아래로 떨어지고 옆으로 3칸까지만 퍼�
         cells++;
         const d = Math.abs(dx) + Math.abs(dz);
         if (d > maxDist) maxDist = d;
-        if (B.waterLvl[i] > B.MAXFLOW) wrongLvl++;
+        if (B.waterLvl[i] > B.MAXFLOW && B.waterLvl[i] !== 8) wrongLvl++;   // 8 = 떨어지는 물 (v136)
       }
     return { maxDist, cells, wrongLvl, MAXFLOW: B.MAXFLOW,
              fell: B.world[B.idx(x, y, z)] === B.B.WATER };
@@ -3121,8 +3121,10 @@ test("v17 명령: tp · time · give · seed 가 먹는다", async (page) => {
     // v95 부터 tp 는 막힌 자리면 위로 올린다 — 빈 자리로 보내야 좌표가 그대로다
     for (let dy = 0; dy <= 3; dy++) B.set(40, 33 + dy, 44, 0);
     B.refreshTop(40, 44);
-    B.runCommand("tp 40 33 44");
-    out.pos = [Math.round(B.player.pos.x), Math.round(B.player.pos.y), Math.round(B.player.pos.z)];
+    out.tpMsg = B.runCommand("tp 40 33 44");
+    // 정수 좌표는 칸 한가운데(40.5)로 간다 (v136) — 칸 번호로 읽는다
+    out.pos = [Math.floor(B.player.pos.x), Math.floor(B.player.pos.y), Math.floor(B.player.pos.z)];
+    out.centred = B.player.pos.x === 40.5 && B.player.pos.z === 44.5;
     // 막힌 자리로 보내면 위로 올라온다 (갇히지 않는다)
     for (let dy = -1; dy <= 3; dy++) B.set(41, 33 + dy, 44, B.B.STONE);
     B.refreshTop(41, 44);
@@ -3138,6 +3140,8 @@ test("v17 명령: tp · time · give · seed 가 먹는다", async (page) => {
   });
   assert(r.help.indexOf("tp") >= 0, "help 가 비었다");
   eq(r.pos.join(), "40,33,44", "tp 가 안 먹는다: " + r.pos.join());
+  assert(r.centred, "정수 좌표 tp 가 칸 한가운데로 안 갔다");
+  assert(/40 33 44/.test(r.tpMsg), "tp 메시지가 실제 자리와 다르다 — " + r.tpMsg);
   eq(r.lifted, true, "돌 속으로 tp 했는데 안 올라왔다 — 갇힌다");
   eq(r.time, 0.5, "time 정오가 안 먹는다");
   eq(r.bar, 9, "give brick 이 안 먹는다");
@@ -7456,6 +7460,9 @@ test("v67 표식: 좌표·이름이 붙고 거기로 돌아갈 수 있다", asyn
 
     // 예전 저장의 [x, z] 두 원소도 그대로 읽혀야 한다 (저장 버전은 v5 그대로)
     B.S.marks = [[30, 40], [50, 22, 60, "채석장"]];
+    // 표식 자리를 비워 둔다 — 지형에 기대면 필터 실행에서 돌 속이라 위로 올라갔다 (v136)
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++)
+      for (let dy = 0; dy <= 3; dy++) B.set(50 + dx, 22 + dy, 60 + dz, 0);
     const oldX = B.markX(B.S.marks[0]), oldZ = B.markZ(B.S.marks[0]), oldY = B.markY(B.S.marks[0]);
     const newX = B.markX(B.S.marks[1]), newY = B.markY(B.S.marks[1]), newZ = B.markZ(B.S.marks[1]);
     const newName = B.markName(B.S.marks[1]), oldName = B.markName(B.S.marks[0]);
@@ -7463,15 +7470,15 @@ test("v67 표식: 좌표·이름이 붙고 거기로 돌아갈 수 있다", asyn
     // /tp 로 표식에 간다 — 번호로
     B.player.pos.set(5, 40, 5);
     const byNum = B.runCommand("tp 2");
-    const atNum = [Math.round(B.player.pos.x), Math.round(B.player.pos.y), Math.round(B.player.pos.z)];
+    const atNum = [Math.floor(B.player.pos.x), Math.round(B.player.pos.y), Math.floor(B.player.pos.z)];   // 표식 칸의 한가운데로 간다 (v136)
     // 이름으로
     B.player.pos.set(5, 40, 5);
     B.runCommand("tp 채석장");
-    const atName = [Math.round(B.player.pos.x), Math.round(B.player.pos.y), Math.round(B.player.pos.z)];
+    const atName = [Math.floor(B.player.pos.x), Math.round(B.player.pos.y), Math.floor(B.player.pos.z)];   // 표식 칸의 한가운데로 간다 (v136)
     // 높이를 모르는 예전 표식은 그 자리 지표로 올려 준다 (땅에 파묻히면 안 된다)
     B.player.pos.set(5, 40, 5);
     B.runCommand("tp 1");
-    const atOld = [Math.round(B.player.pos.x), Math.round(B.player.pos.y), Math.round(B.player.pos.z)];
+    const atOld = [Math.floor(B.player.pos.x), Math.round(B.player.pos.y), Math.floor(B.player.pos.z)];   // 표식 칸의 한가운데로 간다 (v136)
     const groundThere = B.topMap[30 * 0 + 40 * B.WX + 30] !== undefined
       ? B.topMap[40 * B.WX + 30] : -1;
     const missing = B.runCommand("tp 없는이름");
@@ -15392,6 +15399,69 @@ phoneTest("v135 모으기 모드: 목표가 버튼 이름으로 말하고, 되�
   assert(/목록에서/.test(r.need) && !/E 에서/.test(r.need), "폰인데 안내가 E 를 말한다 — " + r.need);
   assert(r.undoHidden, "모으기 모드인데 폰의 되돌리기 단추가 보인다");
   assert(r.undoBack, "만들기 모드로 돌아와도 되돌리기 단추가 숨어 있다");
+});
+
+test("v136 물: 고지대에 부은 한 양동이는 근원을 늘리지 않고, 근원을 걷으면 모두 물러난다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true);
+    const X = 46, Y = 50, Z = 46, R = 11;
+    // 마른 시험대 — 아래 바닥(Y-4)과 가운데 고지대(Y-1, 7×7)
+    for (let dx = -R; dx <= R; dx++) for (let dz = -R; dz <= R; dz++) {
+      for (let dy = -3; dy <= 6; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+      B.set(X + dx, Y - 4, Z + dz, K.STONE);
+      // 바깥 둘레 벽 — 물이 시험대 밖으로 새지 않게
+      if (Math.abs(dx) === R || Math.abs(dz) === R) for (let dy = -3; dy <= 1; dy++) B.set(X + dx, Y + dy, Z + dz, K.STONE);
+    }
+    for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++)
+      for (let dy = -3; dy <= -1; dy++) B.set(X + dx, Y + dy, Z + dz, K.STONE);
+    B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    B.applyEdit(X, Y, Z, K.WATER, true);
+    function settle(n) { for (let k = 0; k < n; k++) { B.waterTick(2000); B.dryTick(2000); } }
+    function count() {
+      let src = 0, all = 0;
+      for (let dx = -R; dx <= R; dx++) for (let dz = -R; dz <= R; dz++) for (let dy = -3; dy <= 2; dy++) {
+        const i = B.idx(X + dx, Y + dy, Z + dz);
+        if (B.world[i] !== K.WATER) continue;
+        all++;
+        if (B.waterLvl[i] === 0) src++;
+      }
+      return { src, all };
+    }
+    settle(120);
+    const spread = count();
+    B.applyEdit(X, Y, Z, 0, true);
+    settle(200);
+    const after = count();
+    B.setPaused(false);
+    return { spread, after };
+  });
+  assert(r.spread.all > 20, "시험 준비: 물이 퍼지지 않았다 (" + r.spread.all + ")");
+  eq(r.spread.src, 1, "한 양동이가 근원 " + r.spread.src + "칸으로 불었다 (흐름 " + r.spread.all + ")");
+  eq(r.after.all, 0, "근원을 걷었는데 물이 " + r.after.all + "칸 남았다 (그중 근원 " + r.after.src + ")");
+});
+
+test("v136 사진 모드: 켜는 순간 안내가 뜨고, 데스크톱에도 나가기 바가 보인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    const t = document.getElementById("toast");
+    t.textContent = "";
+    B.setPhotoMode(true);
+    const msg = t.textContent;
+    const bar = document.getElementById("photobar");
+    const barShown = !!bar && !bar.hidden;
+    B.toast("이건 삼켜진다");
+    const swallowed = t.textContent === msg;
+    B.setPhotoMode(false);
+    const barGone = !bar || bar.hidden;
+    B.endPlay();
+    return { msg, barShown, swallowed, barGone };
+  });
+  assert(/사진 모드/.test(r.msg), "사진 모드를 켜도 안내가 안 뜬다 — '" + r.msg + "'");
+  assert(r.barShown, "데스크톱 사진 모드에 나가기 바가 없다");
+  assert(r.swallowed, "사진 모드인데 다른 토스트가 화면을 가린다");
+  assert(r.barGone, "사진 모드를 꺼도 바가 남는다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

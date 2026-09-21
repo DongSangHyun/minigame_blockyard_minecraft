@@ -1086,7 +1086,9 @@ export function setPhotoMode(on) {
     if (S.uiOpen) closePicker(true);
     if (helpOpen()) toggleHelp(false);
   }
-  toast(S.photoMode ? "사진 모드 — F2 저장 · F5 3인칭 · F6 나가기" : "사진 모드 끔");
+  // 켜는 순간에도 들린다 (v136) — toast 가 사진 모드면 삼켜서 이 안내는 **한 번도 안 떴다**
+  toast(S.photoMode ? (isTouch ? "사진 모드 — 아래 바로 저장·나가기" : "사진 모드 — F2 저장 · F5 3인칭 · F6 나가기")
+                    : "사진 모드 끔", true);
 }
 
 // 사진 모드 미니 바 — 저장 · 시점 · 나가기
