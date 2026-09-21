@@ -8,6 +8,7 @@ import { markAllDirty, buildBudget } from "./mesh.js";
 import { relightAll } from "./light.js";
 import { IS_TOUCH } from "./boot.js";
 import { SH_SLAB, SH_SLAB_UP, isStairShape, NAMES, isItem, AIR, TORCH, hasShapes } from "./blocks.js";
+import { invCount, svGoalText } from "./survival.js";
 import { camera, crackMesh, renderer } from "./scene.js";
 import { applyTime } from "./daynight.js";
 import { applyOpts, applyFov, applyTbtn, applyUi, opts, saveOpts } from "./settings.js";
@@ -73,6 +74,14 @@ export function refreshHint() {
   // 그 뒤 **57분 동안** 같은 문장이 화면 왼쪽 아래에 붙어 있었다.
   // "다 배웠다" 는 신호가 없어, 게임이 아직 나를 초보로 보는 느낌이 내내 갔다.
   // 메뉴에서 돌아오거나 도움말을 닫으면 잠깐 다시 뜬다(이 함수가 그때 불린다)
+  // 모으기 모드는 **목표 한 줄**이 튜토리얼 자리를 쓴다 (v134) — 다 이룰 때까지 접지 않는다
+  var goal = S.survival ? svGoalText() : "";
+  if (goal) {
+    hintEl.innerHTML = "목표 — " + goal;
+    if (!S.hudHidden && !S.photoMode) hintEl.hidden = false;
+    clearTimeout(hintFade);
+    return;
+  }
   hintEl.innerHTML = hintText(S.tut < TUT.length ? tutLine(S.tut)
     : (isTouch ? HINT_TOUCH : (S.lockMode ? HINT_LOCK : HINT_DRAG)));
   if (!S.hudHidden && !S.photoMode) hintEl.hidden = false;
@@ -497,6 +506,27 @@ if (terrainEl) terrainEl.addEventListener("click", function (e) {
   toast(["보통", "평지", "산악", "군도"][S.nextTerrain] + " — 새 세계부터 적용됩니다");
 });
 
+// 놀이 방식 (v134) — 지형과 같은 틀: 누르는 순간이 아니라 **새 세계를 만들 때** 적용된다
+var modeEl = document.getElementById("playmode");
+export function nextMode() {
+  return S.nextMode === null || S.nextMode === undefined ? (S.survival ? 1 : 0) : S.nextMode;
+}
+export function refreshMode() {
+  if (!modeEl) return;
+  var bs = modeEl.querySelectorAll("button");
+  for (var i = 0; i < bs.length; i++)
+    bs[i].setAttribute("aria-current", parseInt(bs[i].getAttribute("data-mode"), 10) === nextMode() ? "true" : "false");
+}
+if (modeEl) modeEl.addEventListener("click", function (e) {
+  var btn = e.target.closest("button[data-mode]");
+  if (!btn) return;
+  e.stopPropagation();
+  S.nextMode = parseInt(btn.getAttribute("data-mode"), 10);
+  refreshMode();
+  toast(S.nextMode === 1 ? "모으기 — 나무부터 캐서 제작대로 하나씩 만듭니다 (새 세계부터)"
+                         : "만들기 — 모든 블록을 처음부터 씁니다 (새 세계부터)");
+});
+
 // ── 조작키 재배치 — 손이 다른 사람들을 위해 핵심 몇 개만 바꿀 수 있게
 export var KEY_LABEL = { fly: "비행", shape: "모양", pick: "복사", help: "도움말",
                           mine: "캐기", place: "놓기" };
@@ -742,6 +772,7 @@ export function refreshMenu() {
   refreshBlueprints();
   drawPreview();
   refreshTerrain();
+  refreshMode();
   refreshKeyButtons();
   refreshCloud();
   if (S.started) goBtn.textContent = "계속하기";
@@ -1183,6 +1214,8 @@ export function pickBlock() {
   // 손에 온전한 돌을 들고 이미 놓은 돌계단을 복사하는 것이 계단을 잇는 가장 흔한 순간인데,
   // 예전에는 여기서 그냥 나가 버려 그 절반이 통과했다.
   if (S.bar[S.selected] === hit.block && S.shapeMode === mode) { toast(NAMES[hit.block]); return; }
+  // 모으기 모드 — 가방에 있는 것만 집어 든다 (v134)
+  if (S.survival && invCount(hit.block) <= 0) { toast("가방에 " + NAMES[hit.block] + "이(가) 없습니다"); return; }
   S.bar[S.selected] = hit.block;
   if (S.fillBar) S.fillBar[S.selected] = 0;
   setShapeMode(mode);

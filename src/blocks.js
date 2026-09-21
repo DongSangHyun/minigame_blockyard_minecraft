@@ -44,6 +44,13 @@ export var STAINED0 = 81, STAINED_COUNT = 16;
 export function isStained(b) { return b >= STAINED0 && b < STAINED0 + STAINED_COUNT; }
 // 무채색 석재 둘 (v112) — 사암(사막의 재료)과 돌벽돌(성벽·바닥).
 export var SANDSTONE = 97, STONEBRICK = 98;
+// 모으기 모드 (v134) — 제작대·화로는 놓는 블록이고, 나머지는 **손에 드는 재료·도구**다.
+// 재료·도구는 MATERIALS 에 두어 만들기 모드의 목록에는 안 나온다(쓸 데가 없다)
+export var CRAFT_TABLE = 99, FURNACE = 100;
+export var STICK = 101, PICK_WOOD = 102, PICK_STONE = 103, PICK_IRON = 104, PICK_DIAMOND = 105,
+    IRON_INGOT = 106, GOLD_INGOT = 107, COAL_LUMP = 108, DIAMOND_GEM = 109;
+export var MATERIALS = [STICK, COAL_LUMP, IRON_INGOT, GOLD_INGOT, DIAMOND_GEM,
+                        PICK_WOOD, PICK_STONE, PICK_IRON, PICK_DIAMOND];
 export function isSapling(b) {
   return b === SAPLING || b === SAPLING_BIRCH || b === SAPLING_SPRUCE;
 }
@@ -68,6 +75,13 @@ TILES[PLANKS] = [8, 8, 8];
 TILES[GLASS]  = [9, 9, 9];
 TILES[SANDSTONE] = [104, 103, 104];      // 윗면은 매끈, 옆면은 결 (v112)
 TILES[STONEBRICK] = [105, 105, 105];
+TILES[CRAFT_TABLE] = [106, 107, 8];        // 윗면 격자 · 옆면 연장 · 밑은 판자
+TILES[FURNACE] = [109, 108, 109];          // 옆면에 불구멍
+TILES[STICK] = [110, 110, 110];
+TILES[PICK_WOOD] = [111, 111, 111]; TILES[PICK_STONE] = [112, 112, 112];
+TILES[PICK_IRON] = [113, 113, 113]; TILES[PICK_DIAMOND] = [114, 114, 114];
+TILES[IRON_INGOT] = [115, 115, 115]; TILES[GOLD_INGOT] = [116, 116, 116];
+TILES[COAL_LUMP] = [117, 117, 117]; TILES[DIAMOND_GEM] = [118, 118, 118];
 TILES[BRICK]  = [10, 10, 10];
 TILES[WATER]  = [11, 11, 11];
 TILES[COBBLE] = [12, 12, 12];
@@ -148,6 +162,11 @@ nm(PANE, "유리판", "GLASS PANE"); nm(LADDER, "사다리", "LADDER");
 // 캐기는 그대로 되고, 우클릭은 문·상인·동물 같은 **쓰기**만 한다(놓지 않는다)
 nm(AIR, "맨손", "HAND");
 nm(SANDSTONE, "사암", "SANDSTONE"); nm(STONEBRICK, "돌벽돌", "STONEBRICK");
+nm(CRAFT_TABLE, "제작대", "WORKBENCH"); nm(FURNACE, "화로", "FURNACE");
+nm(STICK, "막대기", "STICK"); nm(COAL_LUMP, "석탄", "COALLUMP");
+nm(IRON_INGOT, "철괴", "IRONINGOT"); nm(GOLD_INGOT, "금괴", "GOLDINGOT"); nm(DIAMOND_GEM, "다이아몬드", "GEM");
+nm(PICK_WOOD, "나무 곡괭이", "WOODPICK"); nm(PICK_STONE, "돌 곡괭이", "STONEPICK");
+nm(PICK_IRON, "철 곡괭이", "IRONPICK"); nm(PICK_DIAMOND, "다이아 곡괭이", "DIAMONDPICK");
 
 // 캐는 데 걸리는 시간(초)
 export var HARDNESS = {};
@@ -164,7 +183,8 @@ HARDNESS[SAPLING] = 0.05;
 HARDNESS[SAPLING_BIRCH] = 0.05;
 HARDNESS[SAPLING_SPRUCE] = 0.05;
 HARDNESS[BOOKSHELF] = 0.62; HARDNESS[CARPET] = 0.06;
-HARDNESS[SANDSTONE] = 0.85; HARDNESS[STONEBRICK] = 1.25;   // 사암은 무르고 돌벽돌은 돌과 같다
+HARDNESS[SANDSTONE] = 0.85; HARDNESS[STONEBRICK] = 1.25;
+HARDNESS[CRAFT_TABLE] = 0.62; HARDNESS[FURNACE] = 1.4;   // 사암은 무르고 돌벽돌은 돌과 같다
 HARDNESS[POT] = 0.10; HARDNESS[FRAME] = 0.10; HARDNESS[BUCKET] = 0.20;
 HARDNESS[GOLD] = 2.35; HARDNESS[DIAMOND] = 2.9;
 HARDNESS[TNT] = 0.30; HARDNESS[FIRE] = 0.02; HARDNESS[FLINT] = 0.20;
@@ -215,12 +235,12 @@ export var ALL_BLOCKS = [GRASS, DIRT, STONE, COBBLE, SAND, SANDSTONE, STONEBRICK
                   DEADBUSH, DRYGRASS, SAPLING,
                   BOOKSHELF, CARPET, POT, FRAME, BIRCH_LOG, BIRCH_LEAVES, SPRUCE_LOG, SPRUCE_LEAVES,
                   SAPLING_BIRCH, SAPLING_SPRUCE,
-                  GOLD, DIAMOND, FENCE, GATE, DOOR, PANE, LADDER, TNT];
+                  GOLD, DIAMOND, FENCE, GATE, DOOR, PANE, LADDER, TNT, CRAFT_TABLE, FURNACE];
 
 // 도구 — 목록에는 나오지만 "놓는 블록" 이 아니다.
 // ALL_BLOCKS 에 넣으면 "수집가"(모든 블록 놓기) 과제가 영영 불가능해진다.
 export var ITEMS = [FLINT, BUCKET];
-export function isItem(b) { return ITEMS.indexOf(b) >= 0; }
+export function isItem(b) { return ITEMS.indexOf(b) >= 0 || MATERIALS.indexOf(b) >= 0; }
 for (var wj = 0; wj < WOOL_COUNT; wj++) ALL_BLOCKS.push(WOOL0 + wj);
 // 색 카펫 — 양털과 같은 색 이름을 쓴다. 아틀라스 타일 61~76.
 for (var ck = 0; ck < CARPET_COUNT; ck++) {

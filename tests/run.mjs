@@ -2203,7 +2203,7 @@ test("v12 새 블록이 목록과 조준에 모두 등록됐다", async (page) =
       hard: need.filter(b => B.hardnessOf(b) > 0).length,
       dyn: need.filter(b => B.hasDynamicBoxes(b)).length,
       picks: document.querySelectorAll("#pick-grid .pick").length,
-      total: B.ALL_BLOCKS.length + B.ITEMS.length + 1   // 맨 앞의 「맨손」 칸 (v128)
+      total: B.ALL_BLOCKS.length + B.ITEMS.length + 1 + B.MATERIALS.length   // 맨손 칸(v128) + 모으기 재료(v134)
     };
   });
   eq(r.inList, 4, "새 블록이 블록 목록에 없다");
@@ -3661,7 +3661,7 @@ test("v19 점검: 모든 블록이 이름·타일·굳기·갈래·아이콘을 
         if (!any) iconFail.push(B.NAMES[b] || ("#" + b));
       } catch (e) { iconFail.push((B.NAMES[b] || b) + " 예외"); }
     });
-    return { total: B.ALL_BLOCKS.length + B.ITEMS.length + 1, missing, iconFail,   // +1 맨손 칸 (v128)
+    return { total: B.ALL_BLOCKS.length + B.ITEMS.length + 1 + B.MATERIALS.length, missing, iconFail,   // 맨손 칸 + 모으기 재료
              picks: document.querySelectorAll("#pick-grid .pick").length };
   });
   assert(r.total >= 50, "블록 수: " + r.total);
@@ -6564,7 +6564,7 @@ test("v63 블록 목록: 새 블록이 화면까지 닿는다", async (page) => 
     // 목록에는 도구(부싯돌)도 함께 뜬다 — 놓는 블록은 아니지만 손에 쥘 수는 있다
     const sapCats = [B.B.SAPLING, B.B.SAPLING_BIRCH, B.B.SAPLING_SPRUCE]
       .map((k) => (B.pickBtns.filter((p) => p.block === k)[0] || {}).cat);
-    return { missing, total: btns.length, all: B.ALL_BLOCKS.length + B.ITEMS.length + 1 /* 맨손 칸 (v128) */, bySearch, byEnglish, byOne, noCat, sapCat: sap && sap.cat, sapCats };
+    return { missing, total: btns.length, all: B.ALL_BLOCKS.length + B.ITEMS.length + 1 + B.MATERIALS.length /* 맨손 칸 + 모으기 재료 (v134) */, bySearch, byEnglish, byOne, noCat, sapCat: sap && sap.cat, sapCats };
   });
   eq(r.missing.length, 0, "블록 목록에 안 뜨는 블록: " + r.missing.join(", "));
   eq(r.total, r.all, "목록 단추가 " + r.total + "개인데 블록+도구는 " + r.all + "종이다");
@@ -7116,7 +7116,9 @@ phoneTest("블록 목록의 모든 칸을 누를 수 있다", async (page) => {
     const firstSeen = seen(B.pickBtns[0].el);
     const firstName = B.pickBtns[0].name;
     grid.scrollTop = grid.scrollHeight;
-    const lastEl = B.pickBtns[B.pickBtns.length - 1];
+    // 모으기 재료(v134)는 만들기 모드에서 숨는다 — 보이는 것 가운데 마지막
+    const shown = B.pickBtns.filter((p) => !p.el.hidden);
+    const lastEl = shown[shown.length - 1];
     const lastSeen = seen(lastEl.el);
     const lastName = lastEl.name;
     B.closePicker(false);
@@ -15059,6 +15061,247 @@ test("v133 선물은 빈 칸으로 · 사다리는 벽 쪽으로 밀 때만 오�
   assert(r.space > 1.5, "스페이스로 안 올라간다 (" + r.space.toFixed(2) + ")");
   assert(r.backward <= 0.01, "사다리에서 뒤로 물러나는데 올라간다 (" + r.backward.toFixed(2) + ")");
   assert(r.sideways <= 0.01, "사다리 옆을 지나가는데 몸이 뜬다 (" + r.sideways.toFixed(2) + ")");
+});
+
+test("v134 모으기 모드: 나무 → 판자 → 제작대 → 곡괭이, 가방·곡괭이 단계·막힌 길·저장", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true); B.beginPlay();
+    const keep = { bar: B.getBar().slice(), alt: B.S.barAlt.slice(), sel: B.getSelected(), sv: B.S.survival };
+    const out = {};
+    const find = (o, at) => B.RECIPES.filter((q) => q.out === o && (!at || q.at === at))[0];
+    B.resetSurvival(true);
+    out.emptyBar = B.getBar().every((b) => b === 0);
+    out.goal0 = B.svGoalText();
+    // 캐기 — 원목이 가방과 빈 칸에 들어오고 목표가 넘어간다
+    const X = 40, Y = 44, Z = 40;
+    arena(B, X, Y, Z, 4);
+    B.mobs.forEach((m) => { if (!B.MOB_KINDS[m.kind].trader) { m.x = 5; m.z = 5; } });
+    B.set(X, Y, Z - 2, K.BIRCH_LOG); B.refreshAllTops();
+    B.mineAt({ x: X, y: Y, z: Z - 2, block: K.BIRCH_LOG, shape: 0 });
+    out.log = B.invCount(K.BIRCH_LOG); out.logInBar = B.getBar().indexOf(K.BIRCH_LOG) >= 0;
+    out.step1 = B.S.svStep;
+    // 손 제작 — 판자(원목 종류는 상관없다) → 원목이 다 떨어지면 핫바에서 빠진다
+    out.planksOk = B.craft(find(K.PLANKS));
+    out.planks = B.invCount(K.PLANKS); out.logGone = B.getBar().indexOf(K.BIRCH_LOG) < 0;
+    // 돌은 곡괭이가 없으면 못 캔다
+    out.stoneNoPick = B.canMine(K.STONE);
+    // 제작대는 손으로 · 곡괭이는 제작대 옆에서만
+    B.addItem(K.PLANKS, 20);
+    out.tableOk = B.craft(find(K.CRAFT_TABLE));
+    out.pickHidden = B.recipesFor({ table: false, furnace: false }).indexOf(find(K.PICK_WOOD)) < 0;
+    out.pickShown = B.recipesFor({ table: true, furnace: false }).indexOf(find(K.PICK_WOOD)) >= 0;
+    B.craft(find(K.STICK));
+    out.pickOk = B.craft(find(K.PICK_WOOD));
+    out.tier = B.toolTier(); out.stoneOk = B.canMine(K.STONE); out.ironNo = B.canMine(K.IRON);
+    // 돌을 캐면 조약돌
+    B.set(X + 1, Y, Z - 2, K.STONE); B.refreshAllTops();
+    B.mineAt({ x: X + 1, y: Y, z: Z - 2, block: K.STONE, shape: 0 });
+    out.cobble = B.invCount(K.COBBLE);
+    // 놓기 — 가방에서 하나 빠지고, 없으면 못 놓는다
+    B.getBar()[0] = K.CRAFT_TABLE; B.selectSlot(0);
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    B.player.yaw = 0; B.player.pitch = 0.7;
+    B.camera.position.set(X + 0.5, Y + 1.62, Z + 0.5);
+    B.camera.rotation.set(-0.7, 0, 0, "YXZ");
+    B.camera.updateMatrixWorld(true);
+    const tables0 = B.invCount(K.CRAFT_TABLE);
+    B.place(false);
+    out.tablePlacedInv = B.invCount(K.CRAFT_TABLE);
+    let placed = 0;
+    for (let a = -3; a <= 3; a++) for (let c = -3; c <= 3; c++) if (B.get(X + a, Y, Z + c) === K.CRAFT_TABLE) placed++;
+    out.placed = placed; out.tables0 = tables0;
+    out.slotCleared = B.getBar()[0] === 0;
+    out.nearTable = B.stationsNear().table;
+    // 막힌 길 — 되돌리기 · /give · 영역 채우기
+    out.undo = B.undo();
+    out.give = B.runCommand("give 다이아몬드");
+    // 목록은 가방이다 — 가진 것만 보이고, 만들기 목록이 뜬다
+    B.openPicker();
+    const vis = B.pickBtns.filter((p) => !p.el.hidden).map((p) => p.block);
+    out.bagOnlyOwned = vis.every((b) => b === 0 || B.invCount(b) > 0);
+    out.bagHasPick = vis.indexOf(K.PICK_WOOD) >= 0;
+    out.craftRows = document.querySelectorAll("#craft-list .craft").length;
+    out.craftVisible = !document.getElementById("pick-craft").hidden;
+    const okBtn = document.querySelector("#craft-list .craft.ok");
+    const before = JSON.stringify(B.S.inv);
+    if (okBtn) okBtn.click();
+    out.clickCrafted = JSON.stringify(B.S.inv) !== before;
+    B.closePicker();
+    // 저장 왕복
+    B.saveGame();
+    const invBefore = JSON.stringify(B.S.inv);
+    B.S.survival = false; B.S.inv = {};
+    B.loadGame();
+    out.svLoaded = B.S.survival === true; out.invLoaded = JSON.stringify(B.S.inv) === invBefore;
+    // 만들기 모드로 돌려놓는다
+    B.resetSurvival(false);
+    for (let i = 0; i < keep.bar.length; i++) B.getBar()[i] = keep.bar[i];
+    for (let i = 0; i < keep.alt.length; i++) B.S.barAlt[i] = keep.alt[i];
+    B.selectSlot(keep.sel); B.refreshBar();
+    B.saveGame();
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  assert(r.emptyBar, "모으기 세계가 빈손으로 시작하지 않는다");
+  assert(/나무/.test(r.goal0), "첫 목표가 나무 캐기가 아니다 — " + r.goal0);
+  eq(r.log, 1, "원목을 캤는데 가방에 없다");
+  assert(r.logInBar, "새로 얻은 원목이 핫바 빈 칸에 안 들어갔다");
+  eq(r.step1, 1, "원목을 얻었는데 목표가 안 넘어갔다");
+  assert(r.planksOk, "원목으로 판자를 못 만든다");
+  eq(r.planks, 4, "판자 개수");
+  assert(r.logGone, "원목을 다 썼는데 핫바에 남아 있다");
+  eq(r.stoneNoPick, false, "곡괭이 없이 돌을 캘 수 있다");
+  assert(r.tableOk, "제작대를 손으로 못 만든다");
+  assert(r.pickHidden && r.pickShown, "곡괭이가 제작대 옆에서만 보이지 않는다");
+  assert(r.pickOk, "제작대 레시피로 나무 곡괭이를 못 만든다");
+  eq(r.tier, 1, "나무 곡괭이 단계");
+  assert(r.stoneOk && r.ironNo === false, "나무 곡괭이로 돌은 되고 철은 안 되어야 한다");
+  eq(r.cobble, 1, "돌을 캤는데 조약돌이 안 들어왔다");
+  eq(r.placed, 1, "제작대가 안 놓였다");
+  eq(r.tablePlacedInv, r.tables0 - 1, "놓았는데 가방에서 안 빠졌다");
+  assert(r.slotCleared, "마지막 하나를 놓았는데 칸이 비지 않았다");
+  assert(r.nearTable, "놓은 제작대를 옆에서 못 찾는다");
+  eq(r.undo, false, "모으기 모드에서 되돌리기가 된다");
+  assert(/모으기 모드/.test(r.give), "/give 가 막히지 않았다 — " + r.give);
+  assert(r.bagOnlyOwned, "가방 화면에 없는 것이 보인다");
+  assert(r.bagHasPick, "가방에 곡괭이가 안 보인다");
+  assert(r.craftVisible && r.craftRows >= 4, "만들기 목록이 안 뜬다 (" + r.craftRows + ")");
+  assert(r.clickCrafted, "만들기 단추를 눌러도 가방이 안 바뀐다");
+  assert(r.svLoaded && r.invLoaded, "모으기 세계를 저장·불러오면 가방이 사라진다");
+});
+
+test("v134 모으기 모드: 곡괭이 없이는 누르고 있어도 돌이 안 캐지고, 화로 옆에서 철을 녹인다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true); B.beginPlay();
+    const keep = { bar: B.getBar().slice(), alt: B.S.barAlt.slice(), sel: B.getSelected() };
+    const out = {};
+    B.resetSurvival(true);
+    const X = 40, Y = 44, Z = 40;
+    arena(B, X, Y, Z, 4);
+    B.mobs.forEach((m) => { if (!B.MOB_KINDS[m.kind].trader) { m.x = 5; m.z = 5; } });
+    B.set(X, Y + 1, Z - 2, K.STONE); B.refreshAllTops();
+    function hold(secs) {
+      B.player.pos.set(X + 0.5, Y, Z + 0.5); B.player.vel.set(0, 0, 0);
+      B.player.yaw = 0; B.player.pitch = 0.2;
+      B.camera.rotation.set(-0.2, 0, 0, "YXZ");
+      B.S.keyMine = true;
+      for (let k = 0; k < secs * 60; k++) B.step(1 / 60);
+      B.S.keyMine = false;
+      for (let k = 0; k < 5; k++) B.step(1 / 60);
+      return B.get(X, Y + 1, Z - 2);
+    }
+    out.noPick = hold(4);
+    out.hint = document.getElementById("toast").textContent;
+    B.addItem(K.PICK_WOOD, 1);
+    out.withPick = hold(4);
+    out.cobble = B.invCount(K.COBBLE);
+    // 화로 — 멀리 있으면 철괴 레시피가 없고, 옆에 두면 녹인다
+    B.addItem(K.IRON, 2); B.addItem(K.COAL_LUMP, 2);
+    const iron = B.RECIPES.filter((q) => q.out === K.IRON_INGOT)[0];
+    out.farHas = B.recipesFor(B.stationsNear()).indexOf(iron) >= 0;
+    B.set(X + 2, Y, Z, K.FURNACE); B.refreshAllTops();
+    out.nearHas = B.recipesFor(B.stationsNear()).indexOf(iron) >= 0;
+    out.smelt = B.craft(iron);
+    out.ingot = B.invCount(K.IRON_INGOT); out.ironLeft = B.invCount(K.IRON); out.coalLeft = B.invCount(K.COAL_LUMP);
+    B.set(X + 2, Y, Z, 0); B.refreshAllTops();
+    B.resetSurvival(false);
+    for (let i = 0; i < keep.bar.length; i++) B.getBar()[i] = keep.bar[i];
+    for (let i = 0; i < keep.alt.length; i++) B.S.barAlt[i] = keep.alt[i];
+    B.selectSlot(keep.sel); B.refreshBar();
+    B.endPlay(); B.setPaused(false);
+    return Object.assign(out, { STONE: K.STONE });
+  });
+  eq(r.noPick, r.STONE, "곡괭이 없이 누르고 있었더니 돌이 캐졌다");
+  assert(/곡괭이/.test(r.hint), "무엇이 필요한지 안 알려 준다 — " + r.hint);
+  eq(r.withPick, 0, "나무 곡괭이가 있는데 돌이 안 캐진다");
+  eq(r.cobble, 1, "캔 돌이 조약돌로 안 들어왔다");
+  eq(r.farHas, false, "화로가 없는데 철괴 레시피가 보인다");
+  assert(r.nearHas && r.smelt, "화로 옆에서 철을 못 녹인다");
+  assert(r.ingot === 1 && r.ironLeft === 1 && r.coalLeft === 1, "녹인 뒤 개수가 틀리다 " + JSON.stringify(r));
+});
+
+test("v134 자문 36: 선물 하루 한 번 · 먼저 한 목표 · 받침 잃은 것 회수 · 우클릭한 제작대 · 양털 · 빈 칸 순서", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true); B.beginPlay();
+    const keep = { bar: B.getBar().slice(), alt: B.S.barAlt.slice(), sel: B.getSelected(), tc: B.S.tradeCount, page: B.S.barPage };
+    const out = {};
+    B.resetSurvival(true);
+    // (1) 상인 — 하루 한 번
+    B.S.tradeCount = 3;
+    B.tradeWith();
+    const inv1 = JSON.stringify(B.S.inv);
+    B.tradeWith();
+    out.giftOnce = JSON.stringify(B.S.inv) === inv1 && inv1 !== "{}";
+    // (2) 화로를 먼저 만들어 놓아 버렸어도, 화로 목표에 오면 넘어간다
+    B.resetSurvival(true);
+    B.S.svStep = 7;                       // 「화로를 만들어 놓으세요」
+    B.svEvent("craft:" + K.FURNACE);      // 앞서 만든 일
+    out.stepAfterEarly = B.S.svStep;
+    B.resetSurvival(true);
+    B.svEvent("craft:" + K.FURNACE);      // 목표가 오기 전에 만들었다
+    B.S.svStep = 7;
+    B.svEvent("get:" + K.DIRT);           // 아무 일이나 하나 일어나면
+    out.stepCatchUp = B.S.svStep;
+    // (3) 받침을 캐면 횃불이 가방으로
+    B.resetSurvival(true);
+    const X = 40, Y = 44, Z = 40;
+    arena(B, X, Y, Z, 4);
+    B.set(X, Y, Z - 2, K.DIRT); B.set(X, Y + 1, Z - 2, K.TORCH); B.refreshAllTops();
+    B.mineAt({ x: X, y: Y, z: Z - 2, block: K.DIRT, shape: 0 });
+    out.torchBack = B.invCount(K.TORCH); out.dirtBack = B.invCount(K.DIRT);
+    // (4) 우클릭한 제작대는 멀어도 곡괭이 레시피가 뜬다
+    B.S.forceStation = "table";
+    B.openPicker();
+    out.forced = Array.prototype.some.call(document.querySelectorAll("#craft-list .craft"),
+      (el) => /나무 곡괭이/.test(el.textContent));
+    B.closePicker();
+    out.forceCleared = B.S.forceStation === null;
+    // (5) 맨손으로 양을 우클릭하면 양털
+    const sheep = B.mobs.filter((m) => m.kind === 0)[0];
+    B.mobs.forEach((m) => { if (m !== sheep && !B.MOB_KINDS[m.kind].trader) { m.x = 5; m.z = 5; } });
+    if (sheep) {
+      sheep.x = X + 0.5; sheep.z = Z - 1.8; sheep.y = Y; sheep.shornAt = 0;
+      B.set(X, Y, Z - 2, 0); B.refreshAllTops();
+      B.selectSlot(0); B.getBar()[0] = 0;
+      B.player.pos.set(X + 0.5, Y, Z + 0.5); B.player.yaw = 0; B.player.pitch = 0.35;
+      B.camera.position.set(X + 0.5, Y + 1.62, Z + 0.5); B.camera.rotation.set(-0.35, 0, 0, "YXZ");
+      B.camera.updateMatrixWorld(true);
+      B.place(false);
+      out.wool = B.invCount(B.WOOL0);
+      B.getBar()[0] = 0;                   // 받은 양털이 그 칸에 들어왔다 — 다시 맨손으로
+      B.place(false);
+      out.woolAgain = B.invCount(B.WOOL0);
+    } else { out.wool = 1; out.woolAgain = 1; }
+    // (6) 빈 칸은 1쪽부터 — 2쪽을 보던 중에 주워도
+    B.resetSurvival(true);
+    B.swapBarPage();                       // 2쪽을 본다
+    B.addItem(K.SAND, 1);
+    B.swapBarPage();                       // 1쪽으로
+    out.onPage1 = B.getBar().indexOf(K.SAND) >= 0;
+    // (7) 청사진은 막혔다고 말한다
+    out.bp = B.useBlueprint("아무거나");
+    B.resetSurvival(false);
+    for (let i = 0; i < keep.bar.length; i++) B.getBar()[i] = keep.bar[i];
+    for (let i = 0; i < keep.alt.length; i++) B.S.barAlt[i] = keep.alt[i];
+    B.S.tradeCount = keep.tc;
+    B.selectSlot(keep.sel); B.refreshBar();
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  assert(r.giftOnce, "모으기 모드에서 상인 선물이 하루에 두 번 나온다");
+  eq(r.stepAfterEarly, 8, "화로를 만들었는데 화로 목표가 안 넘어간다");
+  eq(r.stepCatchUp, 8, "먼저 만든 화로를 목표가 기억하지 못한다");
+  eq(r.torchBack, 1, "받침을 캤더니 횃불이 사라졌다 (가방으로 와야 한다)");
+  eq(r.dirtBack, 1, "캔 흙");
+  assert(r.forced, "우클릭한 제작대인데 곡괭이 레시피가 없다");
+  assert(r.forceCleared, "닫은 뒤에도 제작대 표시가 남는다");
+  eq(r.wool, 1, "맨손으로 양을 눌렀는데 양털이 안 나온다");
+  eq(r.woolAgain, 1, "같은 양에게서 곧바로 양털이 또 나온다");
+  assert(r.onPage1, "2쪽을 보다 주운 것이 1쪽 빈 칸에 안 들어갔다");
+  assert(typeof r.bp === "string" && /모으기/.test(r.bp), "청사진이 막혔다고 말하지 않는다 — " + r.bp);
 });
 
 // ── 실행 ───────────────────────────────────────────────

@@ -19,6 +19,7 @@ import { splash, waterLap, fireCrackle, at, caveSound, crunch, lavaHiss, lavaPop
 import { pushPrev, saveGame , touchLock} from "./save.js";
 import { checkBuildAchievements, checkFoundAchievements, ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
 import { refreshMouthDots, refreshMinimapCap, tAim, airBar, airEl, drawMinimap, bigMapOpen, drawBigMap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
+import { canMine, mineSpeed, needText, resetSurvival } from "./survival.js";
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
 import { updateBody } from "./body.js";
 import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
@@ -77,6 +78,11 @@ export function newWorld(seed) {
   // 양동이·문·사다리·부싯돌이 사라졌다
   S.barAlt = DEFAULT_BAR2.slice();
   S.barPage = 1;
+  // 놀이 방식도 여기서 새 세계의 것이 된다 (v134) — 지형과 같은 틀. 고르지 않았으면 지금 세계를 따른다.
+  // 모으기면 빈손 · 빈 가방에서 시작한다
+  var wantSv = (S.nextMode !== null && S.nextMode !== undefined) ? S.nextMode === 1 : !!S.survival;
+  S.nextMode = null;
+  resetSurvival(wantSv);
   refreshBar();
   S.history.length = 0; S.future.length = 0;
   resetQueues();
@@ -505,6 +511,9 @@ export function step(dt) {
   var DIG_INSTANT = 0.08;
   function digNeed(b) {
     var h = hardnessOf(b);
+    // 모으기 모드는 굳기 그대로 — 곡괭이가 좋을수록 돌 종류가 빨라진다 (v134).
+    // 「캐기 속도」 설정은 만들기 모드의 편의라 여기선 안 쓴다
+    if (S.survival) return h / mineSpeed(b);
     if (opts.dig === 2) return Math.min(h, DIG_INSTANT);
     if (opts.dig === 1) return h / 4;
     return h;
@@ -552,7 +561,13 @@ export function step(dt) {
       if (hit && hit.y > 0 && !isUnbreakable(hit.block) && !S.mobSwatted) miningSound(hit.block);
     }
   } else S.swingBeat = 0;
-  if (wantBreak && hit && hit.y > 0 && !isUnbreakable(hit.block) && !S.mobSwatted) {
+  // 모으기 모드 — 곡괭이가 모자라면 캐지 않고 무엇이 필요한지 알린다 (v134)
+  var tooHard = wantBreak && hit && S.survival && !canMine(hit.block);
+  if (tooHard) {
+    S.breaking.on = false; crackMesh.visible = false;
+    if (S.tooHardHint !== hit.block) { S.tooHardHint = hit.block; toast(needText(hit.block)); }
+  } else if (!wantBreak) S.tooHardHint = -1;
+  if (wantBreak && hit && hit.y > 0 && !isUnbreakable(hit.block) && !S.mobSwatted && !tooHard) {
     if (!S.breaking.on || S.breaking.x !== hit.x || S.breaking.y !== hit.y || S.breaking.z !== hit.z) {
       S.breaking.on = true; S.breaking.x = hit.x; S.breaking.y = hit.y; S.breaking.z = hit.z;
       S.breaking.t = 0; S.breaking.need = digNeed(hit.block); S.breaking.stage = -1;

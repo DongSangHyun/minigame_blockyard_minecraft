@@ -18,6 +18,12 @@ export const S = {
   bar: null,
   barAlt: null,
   barPage: 1,
+  // 모으기 모드 (v134) — 세계마다 정한다. inv 는 {블록번호: 개수}, svStep 은 목표 한 줄의 차례
+  survival: false,
+  inv: null,
+  svStep: 0,
+  svSeen: null,      // 모으기 목표에 쓰려고 적어 두는 「일어난 일」 (v134)
+  giftDay: -1,       // 모으기 모드에서 상인 선물을 받은 날 — 하루 한 번 (v134)
   flySpeed: 1,
   earned: {},
   placedKinds: {},

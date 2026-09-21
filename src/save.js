@@ -225,6 +225,9 @@ export function saveGame() {
       // (`tc` 는 이미 touched 가 쓰고 있어 `trc` 다)
       vg: S.village ? [S.village.x, S.village.z, S.village.h] : 0,
       trc: S.tradeCount | 0,
+      // 모으기 모드 (v134) — 필드만 늘어 `v` 는 그대로다. 없으면 만들기 세계
+      sv: S.survival ? 1 : 0, inv: S.survival ? (S.inv || {}) : 0, svs: S.svStep | 0,
+      svk: S.survival ? (S.svSeen || {}) : 0, gd: S.giftDay,
       hp: hutSpots,                        // 오두막 자리 — 상인의 소문이 가리킨다 (v124)
       // 날씨는 시각(t)·달 위상(md)과 한 짝인데 혼자 빠져 있었다 —
       // 눈 오는 밤 사진을 찍으려고 K 로 잠가 놓아도 탭을 닫으면 맑음으로 돌아왔다.
@@ -348,6 +351,14 @@ export function loadGame() {
     // 어느 쪽을 보던 중이었나 (v129) — `bar` 는 **보던 쪽**이라, 2쪽에서 저장하면
     // 불러온 뒤 「1쪽」 이라 부르며 도구 쪽을 보여 주고 Tab 이 거꾸로 돌았다
     S.barPage = d.bp === 2 ? 2 : 1;
+    S.survival = d.sv === 1;
+    S.inv = {};
+    if (S.survival && d.inv && typeof d.inv === "object") {
+      for (var ik in d.inv) { var iv = d.inv[ik] | 0; if (iv > 0) S.inv[ik] = iv; }
+    }
+    S.svStep = d.svs | 0;
+    S.svSeen = (d.svk && typeof d.svk === "object") ? d.svk : {};
+    S.giftDay = typeof d.gd === "number" ? d.gd : -1;
     S.flySpeed = typeof d.fly === "number" ? Math.max(0.5, Math.min(4, d.fly)) : 1;
     S.terrain = (d.tt | 0) || 0;
     // 없으면 예전 저장 — 기본값으로 둔다 (저장 버전은 v5 그대로)

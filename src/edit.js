@@ -13,6 +13,7 @@ import { boxHitsWorld, player, stats } from "./player.js";
 import { tone } from "./audio.js";
 import { helpAchList, refreshBar, showAchPop, toast } from "./hud.js";
 import { updateHandBlock } from "./hand.js";
+import { collect } from "./survival.js";
 import { setWeather, localBiome } from "./sky.js";
 
 export var HISTORY_MAX = 240;
@@ -34,6 +35,8 @@ function meltIceAround(x, y, z, record, depth) {
 // 예전에는 world[] 를 직접 써서, 받침돌을 캐고 Ctrl+Z 하면 돌만 돌아오고 횃불은 영영 사라졌다.
 // (CLAUDE.md 6절 1번이 경고하는 바로 그 실수였다)
 // depth — applyEdit → dropCross → applyEdit 재귀의 상한. 사다리 탑이 아무리 높아도 8이면 넉넉하다.
+// 모으기 — 받침을 잃고 떨어진 것은 가방으로 (자문 36차 #3). 사람의 편집(record)일 때만
+function svDrop(b, record) { if (S.survival && record) collect(b); }
 function dropCross(x, y, z, wall, record, depth) {
   if (!inside(x, y, z)) return;
   if ((depth || 0) > 8) return;
@@ -48,6 +51,7 @@ function dropCross(x, y, z, wall, record, depth) {
   if (isCarpet(db) || db === POT) {
     if (wall) return;                          // 카펫·화분은 벽이 아니라 바닥에 놓인다
     if (isSolid(get(x, y - 1, z))) return;
+    svDrop(db, record);
     applyEdit(x, y, z, AIR, record, SH_FULL, (depth || 0) + 1);
     return;
   }
@@ -55,6 +59,7 @@ function dropCross(x, y, z, wall, record, depth) {
     if (wall) return;                          // 문은 벽이 아니라 바닥에 선다
     if (world[idx(x, y - 1, z)] === DOOR) return;   // 아래가 문이면 내가 윗쪽 — 아래가 판단한다
     if (isSolid(get(x, y - 1, z))) return;
+    svDrop(DOOR, record);                      // 두 칸이지만 문 하나
     if (get(x, y + 1, z) === DOOR) {           // 윗칸도 함께 걷는다
       applyEdit(x, y + 1, z, AIR, record, SH_FULL, (depth || 0) + 1);
     }
@@ -65,6 +70,7 @@ function dropCross(x, y, z, wall, record, depth) {
     var d = WALL_DIR[shape[i]];
     if (!d || d[0] !== wall[0] || d[2] !== wall[2]) return;
   } else if (isWallShape(shape[i])) return;   // 벽 횃불은 아래가 비어도 남는다
+  svDrop(db, record);
   applyEdit(x, y, z, AIR, record, SH_FULL, (depth || 0) + 1);
 }
 
@@ -360,7 +366,15 @@ export var lastEditLabel = "";
 // "더 없음" 만 뜨면, 이어하기 직후에는 되돌리기가 고장 난 줄 안다 —
 // 240단계라고 설정에 적어 놓고 껐다 켜면 0인데 그 말을 안 했다.
 export var undoEmptyWhy = "";
+// 모으기 모드에서는 **공짜로 블록이 생기는 길**을 막는다 (v134) — 되돌리기·영역 채우기·붙여넣기·
+// 청사진·/give 가 가방을 거치지 않아, 캐고 만드는 놀이가 한 줄로 끝났다
+export function svBlocked() {
+  if (!S.survival) return false;
+  toast("모으기 모드에서는 쓸 수 없습니다 — 캐고 만들어서 지어요");
+  return true;
+}
 export function undo() {
+  if (svBlocked()) return false;
   var e = S.history.pop();
   if (!e) {
     undoEmptyWhy = S.loadedFromSave && !S.everEdited
@@ -384,6 +398,7 @@ export function undo() {
   return true;
 }
 export function redo() {
+  if (svBlocked()) return false;
   var e = S.future.pop();
   if (!e) return false;
   lastEditLabel = editLabel(e);
@@ -730,6 +745,7 @@ export var REGION_MAX = 40000;   // 한 번에 다룰 수 있는 칸 수
 // 다 지은 벽돌 벽을 조약돌로 바꾸려면 예전에는 200칸을 하나씩 캐고 하나씩 놓아야 했다
 // (200 × 1.4초 ≈ 4분 40초). 건축은 짓는 시간보다 고치는 시간이 길다.
 export function fillSelection(block, sh, only) {
+  if (svBlocked()) return 0;
   var b = bounds();
   if (!b) return 0;
   if (selectionSize() > REGION_MAX) return -1;
@@ -749,6 +765,7 @@ export function fillSelection(block, sh, only) {
 // AIR 를 ALL_BLOCKS 에 넣으면 "수집가" 과제가 영영 불가능해지므로 (v19 교훈)
 // 여기서 AIR 를 직접 넘긴다.
 export function clearSelection() {
+  if (svBlocked()) return 0;
   var b = bounds();
   if (!b) return 0;
   if (selectionSize() > REGION_MAX) return -1;
@@ -767,6 +784,7 @@ export function clearSelection() {
 // 있어서 조준이 안 닿았다. 벽을 한 칸 캐고 기어들어가 모서리를 찍고 나오는 것이 유일한 길이었다.
 // mode — "hollow" 속을 공기로 · "walls" 옆 네 면만 · "shell" 여섯 면 전부
 export function shellSelection(block, sh, mode) {
+  if (svBlocked()) return 0;
   var b = bounds();
   if (!b) return 0;
   if (selectionSize() > REGION_MAX) return -1;
@@ -797,6 +815,7 @@ export function shellSelection(block, sh, mode) {
 // 중심은 **선 자리**다 (월드에디트와 같다) — 조준한 칸으로 하면 채운 뒤에는
 // 그 칸이 블록 안이라 다시 겨눌 수가 없다 (v111 의 /hollow 가 고친 것과 같은 함정).
 export function roundSelection(block, sh, r, h, hollow, kind) {
+  if (svBlocked()) return 0;
   r = Math.max(1, Math.min(32, Math.round(r)));
   h = Math.max(1, Math.min(WY, Math.round(h || 1)));
   var cx = Math.floor(player.pos.x), cy = Math.floor(player.pos.y), cz = Math.floor(player.pos.z);
@@ -914,6 +933,7 @@ export function rotateClip() {
 // 대칭 건물을 짓는 길이 복사 → 거울 → 붙여넣기인데, 목적지가 평지가 아니면
 // 그 순간 속이 찬 덩어리가 됐다. 월드에디트도 **빈칸까지가 기본**이다.
 export function pasteClip(px, py, pz, withAir) {
+  if (svBlocked()) return 0;
   var c = S.clip;
   if (!c) return 0;
   beginBatch(Math.max(1024, c.w * c.h * c.d));
@@ -941,7 +961,7 @@ export var CMD_HELP =
   "marks · marks del <번호> · fill <블록|공기> [바꿀블록] · hollow · walls <블록> · " +
   "cyl <블록> <반지름> [높이] [속빔] · sphere <블록> <반지름> [속빔] · shell <블록> · " +
   "paste [공기] · mirror · rotate · " +
-  "expand/contract <±dx> <±dy> <±dz> · shift <dx> <dy> <dz> · clone <dx> <dy> <dz> [횟수] · give <블록|맨손> · count · bp <save|use|list|del|export|import> <이름> · undo <n> · redo <n> · seed · gm <속도> · help";
+  "expand/contract <±dx> <±dy> <±dz> · shift <dx> <dy> <dz> · clone <dx> <dy> <dz> [횟수] · give <블록|맨손> · count · bp <save|use|list|del|export|import> <이름> · undo <n> · redo <n> · seed · gm <속도> · help (모으기 모드: fill·give·paste·clone·bp·undo 등은 막힘)";
 
 // 한국어 이름과 영어 이름을 둘 다 알아듣는다 — "조약돌" 도 "cobble" 도 된다
 function findBlock(name) {
@@ -977,6 +997,8 @@ function findBlock(name) {
   return -1;
 }
 
+// 모으기 모드에서 막는 명령 — 블록을 공짜로 만들거나 가방을 건너뛴다 (v134)
+var SV_CHEATS = ["fill", "hollow", "walls", "shell", "cyl", "sphere", "paste", "clone", "give", "bp", "undo", "redo"];
 export var CMD_LIST = ["tp", "marks", "time", "weather", "fill", "hollow", "walls", "shell", "cyl", "sphere", "paste", "mirror", "rotate", "expand", "contract", "shift", "clone", "give", "count", "bp", "undo", "redo", "seed", "gm", "help"];
 // 앞글자만 쳐도 알아듣게 — 명령이 열 개나 되면 오타 한 번에 막힌다
 export function completeCommand(prefix) {
@@ -995,6 +1017,7 @@ export function runCommand(line) {
     if (guess) cmd = guess;
   }
   if (cmd === "help" || cmd === "?") return CMD_HELP;
+  if (S.survival && SV_CHEATS.indexOf(cmd) >= 0) return "모으기 모드에서는 쓸 수 없는 명령입니다 — 캐고 만들어서 지어요";
 
   // 표식 목록 — 96px 미니맵의 7px 글자 말고 **글자로 읽을 곳**이 필요하다.
   // 화면 밖 표식은 가장자리에 눌려 이름도 안 나온다.
@@ -1371,6 +1394,8 @@ export function saveBlueprint(name) {
   return "";
 }
 export function useBlueprint(name) {
+  // 막혔다는 말을 **돌려준다** (자문 36차 #7) — 0 을 돌려주면 부른 쪽이 「청사진 준비됨」 을 띄웠다
+  if (svBlocked()) return "모으기 모드에서는 쓸 수 없습니다 — 캐고 만들어서 지어요";
   var all = loadBlueprints();
   var bp = all[name];
   if (!bp) return "그런 청사진이 없습니다";

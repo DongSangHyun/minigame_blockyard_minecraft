@@ -473,6 +473,79 @@ paint(105, function (p, r) {  // 돌벽돌 — 어긋나게 쌓은 네모 (v112)
   }
 });
 
+// ── 모으기 모드 (v134) — 제작대·화로와 손에 드는 재료·도구
+function plankBase(p, r) {
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++)
+    p(x, y, pick(r, ["#a0793f", "#9a743c", "#a88146", "#93703a"]));
+  for (var x2 = 0; x2 < 16; x2++) { p(x2, 0, "#6e5128"); p(x2, 15, "#6e5128"); }
+}
+paint(106, function (p, r) {  // 제작대 윗면 — 판자 위에 3×3 격자
+  plankBase(p, r);
+  for (var i = 2; i <= 13; i++) { p(i, 2, "#5a3f1c"); p(i, 13, "#5a3f1c"); p(2, i, "#5a3f1c"); p(13, i, "#5a3f1c");
+    p(i, 6, "#5a3f1c"); p(i, 9, "#5a3f1c"); p(6, i, "#5a3f1c"); p(9, i, "#5a3f1c"); }
+});
+paint(107, function (p, r) {  // 제작대 옆면 — 톱과 망치
+  plankBase(p, r);
+  for (var y = 0; y < 16; y++) { p(0, y, "#6e5128"); p(15, y, "#6e5128"); }
+  for (var k = 0; k < 6; k++) p(3 + k, 5 + k, "#c8c8c8");      // 톱날
+  for (var k2 = 0; k2 < 3; k2++) p(3 + k2, 4 + k2, "#8a8a8a");
+  for (var y2 = 4; y2 < 12; y2++) p(11, y2, "#5a3f1c");        // 망치 자루
+  p(10, 4, "#6f6f6f"); p(11, 4, "#6f6f6f"); p(12, 4, "#6f6f6f"); p(10, 5, "#6f6f6f"); p(12, 5, "#6f6f6f");
+});
+function cobbleBase(p, r, dark) {
+  for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+    var n = Math.floor((r() - 0.5) * 30) - (dark ? 20 : 0);
+    p(x, y, "rgb(" + (118 + n) + "," + (118 + n) + "," + (118 + n) + ")");
+  }
+}
+paint(108, function (p, r) {  // 화로 옆면 — 불구멍
+  cobbleBase(p, r, false);
+  for (var y = 8; y < 14; y++) for (var x = 4; x < 12; x++) p(x, y, "#1c1c1c");
+  for (var x2 = 5; x2 < 11; x2++) p(x2, 13, pick(r, ["#ff9a2a", "#ffcf4a", "#e0561c"]));
+  for (var x3 = 3; x3 < 13; x3++) p(x3, 7, "#4a4a4a");
+});
+paint(109, function (p, r) {  // 화로 윗면·밑면
+  cobbleBase(p, r, true);
+});
+// 손에 드는 그림은 배경이 투명하다 — 칠하지 않은 칸은 비워 둔다
+function stickLine(p, x0, y0, len, col) {
+  for (var k = 0; k < len; k++) { p(x0 + k, y0 - k, col); p(x0 + k + 1, y0 - k, col); }
+}
+paint(110, function (p) {  // 막대기
+  stickLine(p, 3, 13, 10, "#8a6433");
+  for (var k = 0; k < 10; k += 3) p(4 + k, 13 - k, "#5a3f1c");
+});
+function pickaxe(p, head, edge) {
+  stickLine(p, 3, 13, 8, "#7a5a2c");                            // 자루 (왼쪽 아래 → 가운데)
+  var H = [[4, 3], [5, 2], [6, 2], [7, 2], [8, 2], [9, 2], [10, 3], [11, 4], [12, 5], [12, 6], [13, 7],
+           [3, 4], [2, 5], [2, 6], [11, 3], [12, 4], [13, 5], [13, 6]];
+  for (var i = 0; i < H.length; i++) p(H[i][0], H[i][1], head);
+  p(2, 7, edge); p(13, 8, edge); p(8, 3, edge); p(9, 3, edge); p(10, 4, edge);
+}
+paint(111, function (p) { pickaxe(p, "#a0793f", "#6e5128"); });   // 나무 곡괭이
+paint(112, function (p) { pickaxe(p, "#8a8a8a", "#5a5a5a"); });   // 돌 곡괭이
+paint(113, function (p) { pickaxe(p, "#e4e4e4", "#a8a8a8"); });   // 철 곡괭이
+paint(114, function (p) { pickaxe(p, "#5ee6d8", "#2a9d93"); });   // 다이아 곡괭이
+function ingot(p, top, mid, low) {
+  for (var y = 6; y < 11; y++) for (var x = 2 + (10 - y) ; x < 14 - (y - 6); x++) p(x, y, mid);
+  for (var x2 = 6; x2 < 12; x2++) p(x2, 6, top);
+  for (var x3 = 2; x3 < 10; x3++) p(x3, 10, low);
+}
+paint(115, function (p) { ingot(p, "#ffffff", "#d8d8d8", "#9a9a9a"); });   // 철괴
+paint(116, function (p) { ingot(p, "#fff6a8", "#f5d33c", "#b8901c"); });   // 금괴
+paint(117, function (p, r) {  // 석탄 — 울퉁불퉁한 검은 덩이
+  for (var y = 4; y < 13; y++) for (var x = 4; x < 13; x++) {
+    var dx = x - 8.5, dy = y - 8.5;
+    if (dx * dx + dy * dy < 18 + r() * 6) p(x, y, pick(r, ["#1e1e1e", "#2c2c2c", "#383838", "#141414"]));
+  }
+});
+paint(118, function (p) {  // 다이아몬드 — 마름모 보석
+  for (var y = 3; y < 14; y++) {
+    var w = y < 7 ? (y - 3) + 2 : 13 - y;
+    for (var x = 8 - w; x <= 8 + w - 1; x++) p(x, y, (x + y) % 3 === 0 ? "#b8fff6" : (y < 7 ? "#6ff0e2" : "#2fb8aa"));
+  }
+});
+
 paint(77, function (p, r) {  // 화분 옆면 — 토분에 테두리 한 줄
   for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
     // 아래 절반만 화분이고 위는 비운다 (작은 상자에 늘여 붙는다)

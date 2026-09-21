@@ -2,13 +2,15 @@
 import { S } from "./state.js";
 import { BUILD } from "./version.js";
 import { SEA, WX, WY, WZ, idx } from "./dims.js";
-import { blockAliases, hasShapes, AIR, ALL_BLOCKS, isStained, BUCKET, BUCKET_TILE, FENCE, LOG, PLANKS, BOOKSHELF, LAMP, COBBLE, TORCH, GLASS, ITEMS, isItem, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross, isLeaf } from "./blocks.js";
+import { MATERIALS, blockAliases, hasShapes, AIR, ALL_BLOCKS, isStained, BUCKET, BUCKET_TILE, FENCE, LOG, PLANKS, BOOKSHELF, LAMP, COBBLE, TORCH, GLASS, ITEMS, isItem, NAMES, NAMES_EN, TILES, WATER, categoryOf, isCross, isLeaf } from "./blocks.js";
 import { AVG_TOP, TILE, atlas, tileOrigin } from "./atlas.js";
 import { SEEN_TOP, SEEN_UNDER_ALL, UNDER_BANDS, underBand, isTouched, heightMap, markX, markY, markZ, markName, seenMap, markSeen, topMap, world } from "./world.js";
 import { player } from "./player.js";
 import { opts } from "./settings.js";
 import { updateHandBlock } from "./hand.js";
 import { advanceTut, canvas, isTouch } from "./input.js";
+import { canCraft, craft, needLine, recipesFor, stationsNear } from "./survival.js";
+import { tone } from "./audio.js";
 
 export var hotbarEl = document.getElementById("hotbar");
 export var slotCanvases = [];
@@ -76,7 +78,9 @@ for (var si = 0; si < S.bar.length; si++) {
     name.className = "name";
     var shp = document.createElement("span");
     shp.className = "shape";
-    slot.appendChild(key); slot.appendChild(cv); slot.appendChild(name); slot.appendChild(shp);
+    var cnt = document.createElement("span");
+    cnt.className = "cnt";                 // 모으기 모드의 개수 (v134)
+    slot.appendChild(key); slot.appendChild(cv); slot.appendChild(name); slot.appendChild(shp); slot.appendChild(cnt);
     slot.addEventListener("click", function (e) { e.preventDefault(); selectSlot(i); });
     hotbarEl.appendChild(slot);
     slotCanvases.push(cv);
@@ -100,7 +104,9 @@ export function slotName(i) {
 export function refreshSlot(i) {
   var b = S.bar[i];
   var fill = (b === BUCKET && S.fillBar) ? (S.fillBar[i] | 0) : 0;
-  drawIcon(slotCanvases[i], b, fill ? BUCKET_TILE[fill] : undefined);
+  // 모으기 모드의 빈 칸은 **그냥 빈 칸**이다 (v134) — 칸마다 손 그림이 서면 핫바가 손으로 가득했다
+  if (b === AIR && S.survival) slotCanvases[i].getContext("2d").clearRect(0, 0, 64, 64);
+  else drawIcon(slotCanvases[i], b, fill ? BUCKET_TILE[fill] : undefined);
   var slot = hotbarEl.children[i];
   var m = (S.shapeBar && i !== S.selected) ? (S.shapeBar[i] | 0) : (S.shapeMode | 0);
   if (i !== S.selected && !S.shapeBar) m = 0;
@@ -108,6 +114,8 @@ export function refreshSlot(i) {
   var nm2 = slotName(i);
   slot.setAttribute("aria-label", nm2 + (g ? " · " + SHAPE_WORD[m] : ""));
   slot.querySelector(".name").textContent = nm2;
+  var cn = slot.querySelector(".cnt");
+  if (cn) cn.textContent = (S.survival && b !== AIR && S.inv && S.inv[b]) ? String(S.inv[b]) : "";
   var sp = slot.querySelector(".shape");
   if (sp) {
     sp.textContent = g;
@@ -140,7 +148,7 @@ export var pickGrid = document.getElementById("pick-grid");
 
 export var pickBtns = [];
 // 맨 앞 칸은 **맨손** (v128) — 이 칸을 고르면 그 핫바 칸이 비어 아무것도 안 든다
-[AIR].concat(ALL_BLOCKS, ITEMS).forEach(function (b) {
+[AIR].concat(ALL_BLOCKS, ITEMS, MATERIALS).forEach(function (b) {
   var btn = document.createElement("button");
   btn.className = "pick";
   btn.type = "button";
@@ -150,7 +158,9 @@ export var pickBtns = [];
   drawIcon(cv, b);
   var cap = document.createElement("figcaption");
   cap.textContent = NAMES[b];
-  btn.appendChild(cv); btn.appendChild(cap);
+  var pc = document.createElement("span");
+  pc.className = "cnt";
+  btn.appendChild(cv); btn.appendChild(cap); btn.appendChild(pc);
   btn.addEventListener("click", function () {
     // 닫지 않는다 — 핫바 열 칸을 양털 색으로 갈아 끼우려면
     // 예전엔 E→클릭→숫자→E→클릭→… 스무 번을 눌러야 했다.
@@ -166,7 +176,7 @@ export var pickBtns = [];
   });
   pickGrid.appendChild(btn);
   // 한국어 이름과 영어 이름을 둘 다 검색어로 둔다 — "조약돌" 도 "cobble" 도 잡힌다
-  pickBtns.push({ el: btn, block: b,
+  pickBtns.push({ el: btn, block: b, cnt: pc,
                   name: ((NAMES[b] || "") + " " + (NAMES_EN[b] || "") + " " + blockAliases(b).join(" ")).trim(),
                   cat: categoryOf(b) });
 });
@@ -174,6 +184,7 @@ export var pickBtns = [];
 export function openPicker() {
   if (S.uiOpen) return;
   sortPickByRecent();
+  renderCraft();
   refreshPickFilter();
   S.uiOpen = true;
   pickerEl.hidden = false;
@@ -188,6 +199,7 @@ export function openPicker() {
 export function closePicker(resume) {
   if (!S.uiOpen) return;
   S.uiOpen = false;
+  S.forceStation = null;
   pickerEl.hidden = true;
   if (resume && S.active && S.lockMode && canvas.requestPointerLock) {
     try { canvas.requestPointerLock(); } catch (e) {}
@@ -717,6 +729,55 @@ export function bootDone() {
   setTimeout(function () { bootEl.style.display = "none"; }, 400);
 }
 
+// ── 모으기 모드의 만들기 (v134) — 목록(E)이 「가방 + 만들기」 가 된다.
+// 제작대·화로가 4칸 안에 있으면 그 레시피도 열린다. 만들 수 있는 것이 앞에 온다
+var craftBox = document.getElementById("pick-craft");
+var craftList = document.getElementById("craft-list");
+var craftNote = document.getElementById("craft-note");
+export function renderCraft() {
+  var title = document.getElementById("pick-title"), lede = document.getElementById("pick-lede");
+  if (title) title.textContent = S.survival ? "가방 · 만들기" : "블록 고르기";
+  if (lede) lede.textContent = S.survival ? "만든 것은 가방에 들어갑니다 · 가방의 것을 누르면 지금 칸에 듭니다"
+                                          : "고른 블록이 지금 선택된 칸에 들어갑니다";
+  if (pickerEl) pickerEl.classList.toggle("sv", !!S.survival);
+  if (!craftBox) return;
+  craftBox.hidden = !S.survival;
+  if (!S.survival) return;
+  var st = stationsNear();
+  if (S.forceStation) st[S.forceStation] = true;   // 우클릭해서 연 그 제작대·화로
+  var list = recipesFor(st).slice();
+  list.sort(function (a, b) { return (canCraft(b) ? 1 : 0) - (canCraft(a) ? 1 : 0); });
+  craftNote.textContent = !st.table ? "제작대 옆에서는 곡괭이·화로·문도 만들 수 있어요"
+                        : (!st.furnace ? "제작대 옆입니다 · 화로 옆에서는 철괴·유리를 녹여요" : "제작대와 화로 옆입니다");
+  craftList.innerHTML = "";
+  list.forEach(function (r) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "craft" + (canCraft(r) ? " ok" : "");
+    b.disabled = !canCraft(r);
+    var cv = document.createElement("canvas");
+    cv.width = cv.height = 64;
+    drawIcon(cv, r.out);
+    var t = document.createElement("span");
+    t.textContent = NAMES[r.out] + (r.n > 1 ? " ×" + r.n : "");
+    var sm = document.createElement("small");
+    sm.textContent = needLine(r);
+    t.appendChild(sm);
+    b.appendChild(cv); b.appendChild(t);
+    b.setAttribute("aria-label", NAMES[r.out] + " 만들기 — " + needLine(r));
+    b.addEventListener("click", function () {
+      var step0 = S.svStep;
+      if (!craft(r)) return;
+      tone(760, 0.06, "triangle", 0.05);
+      // 목표를 넘긴 칭찬이 떴으면 덮지 않는다
+      if (S.svStep === step0) toast(NAMES[r.out] + (r.n > 1 ? " ×" + r.n : "") + " 만들었습니다");
+      renderCraft();
+      refreshPickFilter();
+    });
+    craftList.appendChild(b);
+  });
+}
+
 // ── 블록 목록 걸러 보기
 export var pickFind = document.getElementById("pick-find");
 export var pickTabs = document.getElementById("pick-tabs");
@@ -751,6 +812,10 @@ export function refreshPickFilter() {
   for (var i = 0; i < pickBtns.length; i++) {
     var e = pickBtns[i];
     // 맨손은 어느 갈래에서도 맨 앞에 보인다 — 비우려고 「전체」 로 돌아갈 일이 없게
+    // 모으기 모드는 **가방**이다 — 가진 것만, 개수와 함께 (v134). 재료·도구는 모으기에만 뜬다
+    var owned = S.inv && S.inv[e.block] > 0;
+    if (e.cnt) e.cnt.textContent = (S.survival && owned) ? String(S.inv[e.block]) : "";
+    if (S.survival ? (e.block !== AIR && !owned) : MATERIALS.indexOf(e.block) >= 0) { e.el.hidden = true; continue; }
     var ok = (pickCat === "all" || e.cat === pickCat || e.block === AIR) &&
              (!q || e.name.replace(/\s+/g, "").toLowerCase().indexOf(q) >= 0 ||
               e.name.toLowerCase().split(" ").indexOf(q) >= 0);

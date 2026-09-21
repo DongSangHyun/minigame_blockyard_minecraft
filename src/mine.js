@@ -3,14 +3,15 @@ import { S } from "./state.js";
 import { MOB_MAX, aimedMob, feedNearbyMob, isTrader, mobOccupies } from "./mobs.js";
 import { primeTNT, ignite } from "./fluids.js";
 import { MARK_MAX, WY, idx, inside } from "./dims.js";
-import { WALL_DIR, hasShapes, BOOKSHELF, CARPET0, LAMP, PLANKS, POT, SAPLING, STAINED0, WOOL0, NAMES, BUCKET, FRAME, FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
+import { CRAFT_TABLE, FURNACE, WALL_DIR, hasShapes, BOOKSHELF, CARPET0, LAMP, PLANKS, POT, SAPLING, STAINED0, WOOL0, NAMES, BUCKET, FRAME, FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
 import { get, shape, hutSpots, markName, markX, markZ } from "./world.js";
 import { lightSky } from "./light.js";
 import { burst } from "./scene.js";
 import { BODY, EYE, HALF, currentShape, player, raycast, stats } from "./player.js";
 import { breakSound, crunch, placeSound, tone } from "./audio.js";
 import { notePlaced, applyEdit, beginBatch, endBatch, unlock } from "./edit.js";
-import { noteBlockUse, refreshSlot, toast } from "./hud.js";
+import { noteBlockUse, openPicker, refreshSlot, toast } from "./hud.js";
+import { addItem, collect, invCount, removeItem, svEvent } from "./survival.js";
 import { triggerSwing, updateHandBlock } from "./hand.js";
 import { advanceTut } from "./input.js";
 
@@ -25,6 +26,11 @@ export function mineAt(hit) {
   if (mined && doy >= 0) applyEdit(hit.x, doy, hit.z, AIR, true);
   if (doy >= 0) endBatch("문 캐기");
   if (!mined) return;
+  // 모으기 모드 — 캔 것이 가방에 들어온다 (v134). 문은 두 칸이지만 하나다
+  var step0 = S.svStep;
+  var got = collect(hit.block);
+  // 목표를 넘긴 칭찬을 덮지 않는다 · 핫바가 꽉 찼으면 어디 갔는지 말한다
+  if (got && S.svStep === step0) toast("+1 " + NAMES[got] + (S.lastSlotted ? "" : " (가방에 있어요 — E)"));
   stats.mined++;
   unlock("firstMine");
   advanceTut(0);
@@ -130,6 +136,26 @@ export function tradeWith() {
   var wantFlower = S.tut === 4 && S.bar.indexOf(FLOWER_R) < 0 &&
                    !(S.barAlt && S.barAlt.indexOf(FLOWER_R) >= 0);
   if (n === 0 || wantFlower) gift = FLOWER_R;
+  // 모으기 모드 — 선물은 **가방**에 넉 개 (v134). 핫바 빈 칸에는 addItem 이 알아서 넣는다
+  if (S.survival) {
+    // **하루 한 번** (자문 36차 #1) — 누를 때마다 넉 개씩 주면 판자·조명이 무한이라
+    // 나무 캐기부터 곡괭이까지가 통째로 건너뛰어졌다. 소문은 그대로 들려준다
+    if (S.giftDay === day) {
+      toast("상인: \u201c" + (rumor || "오늘 선물은 드렸어요 — 내일 또 오세요") + "\u201d");
+      advanceTut(3);
+      return true;
+    }
+    S.giftDay = day;
+    if (gift === PLANKS) gift = WOOL0;                // 판자는 모으기의 첫 걸음이라 선물로 안 준다
+    addItem(gift, 4);
+    toast("상인: \u201c" + line + "\u201d — 가방에 " + NAMES[gift] + " ×4");
+    advanceTut(3);
+    tone(720, 0.08, "triangle", 0.05);
+    tone(960, 0.09, "triangle", 0.045);
+    triggerSwing();
+    unlock("trade");
+    return true;
+  }
   // 핫바 **1쪽**에 넣는다 — 2쪽을 보던 중이면 0번 칸은 양동이라 도구가 사라졌다.
   // **빈 칸(맨손)이 있으면 그리로** (v133·자문 35차 #7) — 0번 칸을 고정으로 덮어써서,
   // 꾸미려고 넣어 둔 색유리가 두 번째 대화에 화분으로 바뀌었다. 빈 칸이 없으면 예전처럼 0번 칸
@@ -174,6 +200,16 @@ export function tryInteractMob(repeating) {
   }
   // 상인이 먼저다 (v115) — 가판 앞에서 블록을 놓으려다 상인을 가리면 말을 걸 수가 없다
   if (isTrader(am.mob)) return tradeWith();
+  // 모으기 — 맨손으로 양을 우클릭하면 양털 한 개 (자문 36차 #5). 한 마리에 5분에 한 번
+  if (S.survival && S.bar[S.selected] === AIR && am.mob.kind === 0) {
+    var now = Date.now();
+    if (am.mob.shornAt && now - am.mob.shornAt < 300000) { toast("이 양은 조금 뒤에 다시 털이 자라요"); return true; }
+    am.mob.shornAt = now;
+    addItem(WOOL0, 1);
+    toast("+1 " + NAMES[WOOL0]);
+    triggerSwing();
+    return true;
+  }
   // 꽃을 들고 동물에게 우클릭하면 잠시 따라온다
   if (S.bar[S.selected] === FLOWER_R || S.bar[S.selected] === FLOWER_Y ||
       S.bar[S.selected] === TALLGRASS) {
@@ -206,6 +242,13 @@ function sneakSkips() {
 export function tryInteract(hit) {
   if (!hit || sneakSkips()) return false;
   if (tryInteractMob(false)) return true;
+  // 모으기 모드 — 제작대·화로를 우클릭하면 만들기 화면이 열린다 (v134)
+  // 우클릭한 그 제작대·화로는 거리와 상관없이 인정한다 (자문 36차 #4 — 5~6칸에서 누르면 「제작대가 아니다」 였다)
+  if (S.survival && (hit.block === CRAFT_TABLE || hit.block === FURNACE)) {
+    S.forceStation = hit.block === CRAFT_TABLE ? "table" : "furnace";
+    openPicker();
+    return true;
+  }
   // 여닫는 블록이 먼저다 — 횃불을 들었다고 문에 불을 붙이면 문을 쓸 수가 없다
   if (isOpenable(hit.block)) return tryInteractGate(hit);
   // 횃불을 들고 TNT 를 우클릭하면 터진다 (마크의 부싯돌 자리)
@@ -337,6 +380,11 @@ export function place(repeating) {
   }
   // (v118 에서 폰 4번째 줄도 「상인」으로 바뀌었다 — 줄 긋기는 도움말에 남아 있다)
   var b = S.bar[S.selected];
+  // 모으기 모드 — 가방에 있는 것만 놓는다 (v134)
+  if (S.survival && !isItem(b) && invCount(b) <= 0) {
+    if (!repeating) toast("가방에 " + NAMES[b] + "이(가) 없습니다 — 캐거나 만드세요");
+    return;
+  }
 
   // 반블록 두 장을 겹치면 온전한 블록이 된다 — 건축가가 제일 먼저 시도하는 것
   var hitSh = hit.shape;
@@ -346,6 +394,7 @@ export function place(repeating) {
        (hitSh === SH_SLAB_UP && wantSh === SH_SLAB_UP && hit.ny < 0))) {
     if (!applyEdit(hit.x, hit.y, hit.z, b, true, SH_FULL)) return;
     stats.placed++;
+    // 모으기 — 합칠 때는 빼지 않는다 (자문 36차 #8). 반블록 두 장 = 블록 하나 값이다
     unlock("slabmerge");
     burst(hit.x, hit.y, hit.z, b, 5);
     placeSound(b);
@@ -366,7 +415,11 @@ export function place(repeating) {
     return;
   }
 
-  if (isItem(b)) { toast("부싯돌은 놓는 물건이 아닙니다 — 탈 것을 우클릭하세요"); return; }
+  if (isItem(b)) {
+    if (!repeating) toast(b === FLINT ? "부싯돌은 놓는 물건이 아닙니다 — 탈 것을 우클릭하세요"
+                                      : NAMES[b] + "은(는) 놓는 물건이 아닙니다 — 가방에 들고 다니는 재료예요");
+    return;
+  }
   if (needsFloor(b) && isLiquid(get(px, py, pz))) {
     // 꽃·묘목까지 "꺼집니다" 라고 하면 무슨 말인지 알 수가 없다
     toast((b === TORCH || b === FIRE) ? "물속에서는 꺼집니다" : "물속에는 놓을 수 없습니다");
@@ -410,6 +463,12 @@ export function place(repeating) {
   } else
   if (!applyEdit(px, py, pz, b, true, sh)) return;
   notePlaced(b, sh, 1);
+  if (S.survival) {
+    removeItem(b, 1);
+    // 덮어쓴 횃불·꽃·묘목은 가방으로 돌아온다 (자문 36차 #3) — 풀은 dropOf 가 없음으로 친다
+    if (onCross) collect(hit.block);
+    if (b === CRAFT_TABLE || b === FURNACE) svEvent("place:" + b);
+  }
   advanceTut(1);
   // 4단계는 **어두운 곳에** 꽂았을 때만 (v110) — 06:00 대낮 잔디밭에서 통과하면
   // 시작 화면이 자랑한 "빛이 닿지 않는 곳은 정말로 캄캄합니다" 를 볼 일이 없다
