@@ -15375,7 +15375,7 @@ test("v135 모으기 안정화: 원목부터 철 곡괭이까지 목표가 차�
   });
   eq(r.steps.join(","), "1,2,3,4,5,6,7,8,9,10,11", "목표 단계가 차례로 안 넘어간다");
   eq(r.tier, 3, "철 곡괭이 단계");
-  assert(/다이아몬드/.test(r.goal), "철 곡괭이 뒤 목표가 다이아몬드가 아니다 — " + r.goal);
+  assert(/다이아/.test(r.goal), "철 곡괭이 뒤 목표가 다이아몬드가 아니다 — " + r.goal);
   eq(r.farSaplings, 0, "멀리서 진 잎이 묘목을 준다");
   assert(r.nearSaplings >= 5 && r.nearSaplings <= 45, "가까이 진 잎의 묘목 수가 이상하다 (" + r.nearSaplings + "/400)");
   assert(/제작대/.test(r.needFar), "제작대가 먼데 곡괭이 안내가 제작대를 말하지 않는다 — " + r.needFar);
@@ -15587,6 +15587,90 @@ test("v137 가져오기: 한 번 누르면 묻고, 두 번째에 파일을 고�
   eq(r.second, 1, "두 번째 누름에 파일 고르기가 안 열린다");
   eq(r.diamonds, 4, "/fill 다이아 광석 이 안 먹는다 — " + r.msg);
   eq(r.coal, 4, "/fill 석탄 광석 다이아 광석 이 안 먹는다 — " + r.msg2);
+});
+
+test("v138 외부 시험 3차: 숲지기·수문장은 내가 한 일로만 · 로/으로 · 저장 검사 · 모으기 다이아", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true);
+    const out = {};
+    const keepEarned = Object.assign({}, B.S.earned);
+    const X = 44, Y = 50, Z = 44;
+    arena(B, X, Y, Z, 6);
+    for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++) {
+      B.set(X + dx, Y - 1, Z + dz, K.GRASS);
+      for (let dy = 0; dy <= 10; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    }
+    B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    B.player.pos.set(X - 5.5, Y, Z - 5.5);
+    // (1) 세계가 둔 묘목(손 안 댐)이 자라도 숲지기는 안 열린다
+    delete B.S.earned.sapling;
+    B.set(X, Y, Z, K.SAPLING); B.setTouched(X, Y, Z, false);
+    B.enqueueGrow(X, Y, Z);
+    for (let k = 0; k < 400 && B.get(X, Y, Z) === K.SAPLING; k++) B.growTick(1e9);
+    out.naturalGrew = B.get(X, Y, Z) !== K.SAPLING;
+    out.naturalUnlock = !!B.S.earned.sapling;
+    // 내가 심은 묘목이면 열린다
+    B.applyEdit(X + 4, Y, Z + 4, K.SAPLING, true);
+    B.enqueueGrow(X + 4, Y, Z + 4);
+    for (let k = 0; k < 400 && B.get(X + 4, Y, Z + 4) === K.SAPLING; k++) B.growTick(1e9);
+    out.plantedUnlock = !!B.S.earned.sapling;
+    // (2) 수문장 — 바닷물이 들어온 것(내가 안 부음)으로는 안 열린다
+    delete B.S.earned.flood;
+    B.S.pouredAt = 0;
+    B.set(X - 3, Y, Z + 3, K.WATER); B.enqueueWaterAround(X - 3, Y, Z + 3);
+    for (let k = 0; k < 10; k++) B.waterTick(500);
+    out.naturalFlood = !!B.S.earned.flood;
+    B.applyEdit(X + 3, Y, Z - 3, K.WATER, true);
+    for (let k = 0; k < 10; k++) B.waterTick(500);
+    out.pouredFlood = !!B.S.earned.flood;
+    // (3) 로/으로
+    B.S.selA = [X - 1, Y + 3, Z - 1]; B.S.selB = [X, Y + 3, Z];
+    out.snow = B.runCommand("fill 눈"); out.stone = B.runCommand("fill 돌"); out.dirt = B.runCommand("fill 흙");
+    B.S.selA = B.S.selB = null;
+    // (4) seed 가 null 인 저장은 거부한다
+    const key = B.S.slot <= 1 ? "blockyard.save" : null;
+    B.saveGame();
+    const k2 = Object.keys(localStorage).filter((k) => /^blockyard\.(world|save)/.test(k) && !/\.(bak|prev|day)$/.test(k));
+    let rejected = null;
+    const curKey = k2.filter((k) => { try { return JSON.parse(localStorage.getItem(k)).seed === B.seed(); } catch (e) { return false; } })[0];
+    if (curKey) {
+      const raw = localStorage.getItem(curKey);
+      const d = JSON.parse(raw); d.seed = null;
+      localStorage.setItem(curKey, JSON.stringify(d));
+      rejected = B.loadGame() === false;
+      localStorage.setItem(curKey, raw);
+      B.loadGame();
+    }
+    out.rejected = rejected; out.curKey = !!curKey;
+    // (5) 모으기 세계는 굴 벽에 드러난 다이아몬드가 더 있다
+    function exposedDiamonds() {
+      let n = 0;
+      for (let y = 1; y < 16; y++) for (let z = 1; z < B.WZ - 1; z++) for (let x = 1; x < B.WX - 1; x++) {
+        if (B.get(x, y, z) !== K.DIAMOND) continue;
+        if ([[1,0,0],[-1,0,0],[0,0,1],[0,0,-1],[0,1,0]].some((d) => B.get(x + d[0], y + d[1], z + d[2]) === 0)) n++;
+      }
+      return n;
+    }
+    B.generate(4242, 0); const before = exposedDiamonds();
+    const placed = B.enrichDiamonds(4242, B.makeRng(4242 + 90210));
+    const after = exposedDiamonds();
+    out.dia = { before, placed, after };
+    B.S.earned = keepEarned;
+    B.setPaused(false);
+    return out;
+  });
+  assert(r.naturalGrew, "시험 준비: 세계의 묘목이 안 자랐다");
+  eq(r.naturalUnlock, false, "세계가 둔 묘목이 자랐는데 「숲지기」 가 열렸다");
+  eq(r.plantedUnlock, true, "내가 심은 묘목이 자랐는데 「숲지기」 가 안 열렸다");
+  eq(r.naturalFlood, false, "내가 붓지 않은 물이 퍼졌는데 「수문장」 이 열렸다");
+  eq(r.pouredFlood, true, "내가 부은 물이 퍼졌는데 「수문장」 이 안 열렸다");
+  assert(/눈으로$/.test(r.snow) && /돌로$/.test(r.stone) && /흙으로$/.test(r.dirt),
+     "로/으로가 틀리다 — " + [r.snow, r.stone, r.dirt].join(" | "));
+  assert(r.curKey, "시험 준비: 지금 세계의 저장 키를 못 찾았다");
+  eq(r.rejected, true, "seed 가 null 인 저장을 받아들였다");
+  assert(r.dia.placed >= 10 && r.dia.after >= r.dia.before + 10,
+     "모으기 다이아가 굴 벽에 안 늘었다 " + JSON.stringify(r.dia));
 });
 
 // ── 실행 ───────────────────────────────────────────────

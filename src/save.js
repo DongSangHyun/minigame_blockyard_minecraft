@@ -267,6 +267,10 @@ export function loadGame() {
     if (!raw) return false;
     var d = JSON.parse(raw);
     if (!d || !d.w) return false;
+    // **세계를 덮기 전에** 모양부터 본다 (v138 · 외부 시험 3차) — seed 가 null 이어도 통과해
+    // 시드 0 짜리 세계로 열렸다(마을·재생성이 시드를 쓴다). 위치·시선이 없으면 디코드 뒤에 던져 반쯤 덮였다
+    if (typeof d.seed !== "number" || !isFinite(d.seed)) return false;
+    if (!Array.isArray(d.p) || d.p.length !== 3 || !Array.isArray(d.r) || d.r.length < 2) return false;
     // v5 부터 세계 높이가 64 · v2~v4 는 48 이었으므로 아래에서부터 옮겨 담는다
     if (d.v === 5) { if (!decodeWorldB64(d.w)) return false; }
     else if (d.v === 4 || d.v === 3) { if (!liftLegacy(d.w, world, false)) return false; }

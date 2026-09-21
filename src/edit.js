@@ -13,7 +13,7 @@ import { boxHitsWorld, player, stats } from "./player.js";
 import { tone } from "./audio.js";
 import { helpAchList, refreshBar, showAchPop, toast } from "./hud.js";
 import { updateHandBlock } from "./hand.js";
-import { collect } from "./survival.js";
+import { collect, withRo } from "./survival.js";
 import { setWeather, localBiome } from "./sky.js";
 
 export var HISTORY_MAX = 240;
@@ -93,6 +93,7 @@ export function applyEdit(x, y, z, to, record, sh, depth) {
   world[i] = to;
   shape[i] = toSh;
   if (to === WATER) waterLvl[i] = 0;       // 손으로 놓은 물은 언제나 근원
+  if (to === WATER && record) S.pouredAt = Date.now();   // 「수문장」 은 내가 부은 물만 (v138)
   else if (from === WATER) waterLvl[i] = 0;
   if (to === WATER) enqueueWaterAround(x, y, z);
   if (from === WATER && to !== WATER) enqueueDryAround(x, y, z);
@@ -1178,7 +1179,7 @@ export function runCommand(line) {
     if (n < 0) return "영역이 너무 큽니다";
     if (repl >= 0 && !n) return (NAMES[repl] || "그 블록") + " 인 칸이 없습니다";
     if (!n) return "먼저 Alt+클릭으로 영역을 고르세요";
-    return n.toLocaleString("ko-KR") + "칸을 " + NAMES[fb] + " 로";
+    return n.toLocaleString("ko-KR") + "칸을 " + withRo(NAMES[fb]);
   }
 
   // 속 비우기 · 벽 세우기 (v111) — 월드에디트의 //hollow · //walls 와 같은 자리.
@@ -1196,7 +1197,7 @@ export function runCommand(line) {
     var wn = shellSelection(wb, SH_FULL, cmd === "shell" ? "shell" : "walls");
     if (wn < 0) return "영역이 너무 큽니다";
     if (!wn) return bounds() ? "이미 " + NAMES[wb] + " 입니다" : "먼저 Alt+클릭으로 영역을 고르세요";
-    return wn.toLocaleString("ko-KR") + "칸을 " + NAMES[wb] + " 로";
+    return wn.toLocaleString("ko-KR") + "칸을 " + withRo(NAMES[wb]);
   }
 
   // /cyl <블록> <반지름> [높이] [속빔] · /sphere <블록> <반지름> [속빔]
@@ -1220,7 +1221,7 @@ export function runCommand(line) {
     var rn = roundSelection(cb4, SH_FULL, rad, hei, hollowWord, cmd);
     if (rn < 0) return "너무 큽니다 — 반지름과 높이를 줄이세요 (" + REGION_MAX.toLocaleString("ko-KR") + "칸까지)";
     if (!rn) return "이미 " + NAMES[cb4] + " 입니다";
-    return rn.toLocaleString("ko-KR") + "칸을 " + NAMES[cb4] + " 로 (" +
+    return rn.toLocaleString("ko-KR") + "칸을 " + withRo(NAMES[cb4]) + " (" +
            (cmd === "cyl" ? "원기둥 반지름 " + rad + " · 높이 " + hei : "구 반지름 " + rad) +
            (hollowWord ? " · 속빔" : "") + ")";
   }

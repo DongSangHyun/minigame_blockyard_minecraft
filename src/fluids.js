@@ -345,7 +345,8 @@ export function waterTick(budget) {
   }
   if (Q.waterHead > 4096 && Q.waterHead === Q.waterQ.length) { Q.waterQ.length = 0; Q.waterHead = 0; }
   releaseFluidOwner();
-  if (changed) unlock("flood");
+  // **내가 부은 물**이 퍼질 때만 (v138 · 외부 시험 3차) — 바닷가 흙 한 칸을 캐서 바닷물이 들어와도 열렸다
+  if (changed && S.pouredAt && Date.now() - S.pouredAt < 30000) unlock("flood");
   return changed;
 }
 
@@ -918,6 +919,9 @@ export function growTick(dt) {
     // 묘목 자리를 비우는 것도 **묶음 안에서** 기록한다 (v96).
     // 예전에는 이 한 줄이 묶음 밖에 있어(기록 false), 자란 나무를 Ctrl+Z 하면
     // 나무는 사라지는데 **묘목도 같이 사라졌다** — 심은 것을 잃는다.
+    // **사람이 심은 묘목**인가 (v138 · 외부 시험 3차) — 세계가 흩뿌린 묘목이 자라도 「숲지기」 가 열려,
+    // 가만히 서 있기만 해도 34초 만에 과제가 달성됐다
+    var planted = isTouched(x, y, z);
     beginBatch(64);
     applyEdit(x, y, z, AIR, true, SH_FULL);
     var ok = growTree(x, y - 1, z, kind, logB, leafB, makeRng(seed),
@@ -932,8 +936,9 @@ export function growTick(dt) {
     tone(180, 0.20, "triangle", 0.05, voice);
     tone(240, 0.26, "triangle", 0.04, voice);
     grown++;
+    if (planted) S.plantedGrown = true;
   }
   Q.growQ = keep;
-  if (grown) { S.worldDirty = true; unlock("sapling"); }
+  if (grown) { S.worldDirty = true; if (S.plantedGrown) { S.plantedGrown = false; unlock("sapling"); } }
   return grown;
 }

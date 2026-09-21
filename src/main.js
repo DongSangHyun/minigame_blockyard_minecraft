@@ -1,10 +1,10 @@
 // main.js — 조립과 시작
 import { S } from "./state.js";
 import { villageMarks } from "./village.js";
-import { addItem, removeItem, invCount, collect, dropOf, toolTier, needTier, canMine, RECIPES, craft, canCraft, recipesFor, stationsNear, svEvent, svGoalText, resetSurvival, SV_GOALS, leafDrop, needText, josa } from "./survival.js";
+import { addItem, removeItem, invCount, collect, dropOf, toolTier, needTier, canMine, RECIPES, craft, canCraft, recipesFor, stationsNear, svEvent, svGoalText, resetSurvival, SV_GOALS, leafDrop, needText, josa, enrichDiamonds, withRo } from "./survival.js";
 import { growTree } from "./tree.js";
 import { breedTick, isTrader, MOB_MAX, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, loadMobs, disposeMob, mobOccupies, aimedMob, removeMob, mobs, pushOutOfMobs, seedFlocks, seedMobs, seedVillage, updateFlocks, updateMobs } from "./mobs.js";
-import { atlasSample, SWATCH_SIDE, animateLiquids, atlas, painted, AVG_TOP } from "./atlas.js";
+import { atlasSample, SWATCH_SIDE, animateLiquids, atlas, painted, AVG_TOP, makeRng } from "./atlas.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, GEN, setGen, seaLift, WX, WY, WZ, idx, inside } from "./dims.js";
 import { MATERIALS, CRAFT_TABLE, FURNACE, STICK, PICK_WOOD, PICK_STONE, PICK_IRON, PICK_DIAMOND, IRON_INGOT, GOLD_INGOT, COAL_LUMP, DIAMOND_GEM, WALL_DIR, hasShapes, DEFAULT_BAR, isThin, needsFloor, needsWall, STAINED0, STAINED_COUNT, isStained, SANDSTONE, STONEBRICK, POT, FRAME, BUCKET, BOOKSHELF, CARPET, CARPET0, CARPET_COUNT, isCarpet, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SAPLING, SAPLING_BIRCH, SAPLING_SPRUCE, isSapling, doorOpen, doorFacing, doorShapeFor, DOOR, AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, SPRUCE_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DEFAULT_BAR2, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLINT, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, ITEMS, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, categoryOf, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isItem, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
@@ -182,7 +182,7 @@ window.__blockyard = {
   MATERIALS: MATERIALS, addItem: addItem, removeItem: removeItem, invCount: invCount, collect: collect, dropOf: dropOf,
   toolTier: toolTier, needTier: needTier, canMine: canMine, RECIPES: RECIPES, craft: craft, canCraft: canCraft,
   recipesFor: recipesFor, stationsNear: stationsNear, svEvent: svEvent, svGoalText: svGoalText,
-  resetSurvival: resetSurvival, SV_GOALS: SV_GOALS, leafDrop: leafDrop, needText: needText, josa: josa, renderCraft: renderCraft, nextMode: nextMode,
+  resetSurvival: resetSurvival, SV_GOALS: SV_GOALS, leafDrop: leafDrop, needText: needText, josa: josa, enrichDiamonds: enrichDiamonds, withRo: withRo, makeRng: makeRng, renderCraft: renderCraft, nextMode: nextMode,
   selBox: selBox, selMat: selMat, SEL_DONE: SEL_DONE, SEL_ANCHOR: SEL_ANCHOR,
   seenMap: seenMap, seenRatio: seenRatio, markSeen: markSeen, hutSpots: hutSpots, setTouched: setTouched, tradeWith: tradeWith, rumorLine: rumorLine,
   SEEN_TOP: SEEN_TOP, SEEN_UNDER: SEEN_UNDER,

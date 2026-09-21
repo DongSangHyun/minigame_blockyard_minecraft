@@ -1,9 +1,9 @@
 // survival.js — 모으기 모드: 가방 · 캐면 얻기 · 곡괭이 단계 · 제작대/화로 제작 · 목표 한 줄
 import { S } from "./state.js";
 import { AIR, GRASS, DIRT, STONE, COBBLE, SAND, GRAVEL, LOG, BIRCH_LOG, SPRUCE_LOG, LEAVES, BIRCH_LEAVES, SPRUCE_LEAVES, PLANKS, GLASS, BRICK, COAL, IRON, GOLD, DIAMOND, ICE, FIRE, WATER, LAVA, TALLGRASS, DRYGRASS, DEADBUSH, SAPLING, SAPLING_BIRCH, SAPLING_SPRUCE, TORCH, LAMP, DOOR, FENCE, GATE, LADDER, PANE, BOOKSHELF, POT, FRAME, BUCKET, FLINT, SANDSTONE, STONEBRICK, CRAFT_TABLE, FURNACE, STICK, PICK_WOOD, PICK_STONE, PICK_IRON, PICK_DIAMOND, IRON_INGOT, GOLD_INGOT, COAL_LUMP, DIAMOND_GEM, NAMES, WOOL0, CARPET0, STAINED0, FLOWER_R, FLOWER_Y } from "./blocks.js";
-import { get } from "./world.js";
+import { get, set } from "./world.js";
 import { player } from "./player.js";
-import { inside } from "./dims.js";
+import { WX, WZ, inside } from "./dims.js";
 import { refreshBar, toast } from "./hud.js";
 import { isTouch, refreshHint } from "./input.js";
 
@@ -12,6 +12,13 @@ export function josa(word, withFinal, withoutFinal) {
   var c = String(word || "").charCodeAt(String(word || "").length - 1);
   if (c < 0xac00 || c > 0xd7a3) return withoutFinal;
   return ((c - 0xac00) % 28) ? withFinal : withoutFinal;
+}
+// 「로/으로」 — 받침이 없거나 ㄹ 받침이면 「로」 (v138 · 외부 시험 3차: 「18칸을 눈 로」)
+export function withRo(word) {
+  var w = String(word || ""), c = w.charCodeAt(w.length - 1);
+  if (c < 0xac00 || c > 0xd7a3) return w + "로";
+  var jong = (c - 0xac00) % 28;
+  return w + ((jong === 0 || jong === 8) ? "로" : "으로");
 }
 export function isPick(b) { return PICKS.indexOf(b) >= 0; }
 
@@ -212,7 +219,7 @@ export var SV_GOALS = [
   { key: "place:" + FURNACE, text: "<b>화로</b>를 땅에 놓으세요 — 그 옆에서 광석을 녹입니다" },
   { key: "craft:" + IRON_INGOT, text: "철 광석과 석탄을 화로에서 녹여 <b>철괴</b>를 만드세요" },
   { key: "craft:" + PICK_IRON, text: "철괴 3개와 막대기 2개로 <b>철 곡괭이</b>를 만드세요 — 다이아몬드를 캘 수 있어요" },
-  { key: "get:" + DIAMOND_GEM, text: "깊은 땅속에서 <b>다이아몬드</b>를 찾으세요!" },
+  { key: "get:" + DIAMOND_GEM, text: "아주 깊은 굴(바닥 가까이)의 벽에서 하늘색 점이 박힌 <b>다이아 광석</b>을 찾으세요!" },
   { key: "craft:" + PICK_DIAMOND, text: "다이아몬드 3개와 막대기 2개로 <b>다이아 곡괭이</b>를 만드세요" }
 ];
 export function svGoalText() {
@@ -281,6 +288,25 @@ export function leafDrop(b, x, y, z) {
   }
   var d = b === BIRCH_LEAVES ? SAPLING_BIRCH : (b === SPRUCE_LEAVES ? SAPLING_SPRUCE : SAPLING);
   addItem(d, 1);
+}
+
+// 모으기 세계의 다이아몬드 (v138 · 외부 시험 3차) — 섬 전체에 22칸, 굴 벽에 드러난 것은 2칸이라
+// 다이아 곡괭이(3개)가 사실상 운이었다. **굴 벽에 드러난 자리**에 한두 칸짜리를 열둘 더 둔다.
+// 세계를 만든 직후 한 번 — 같은 시드면 같은 자리다. 만들기 모드의 지형은 건드리지 않는다
+export function enrichDiamonds(seed, rng) {
+  var placed = 0, tries = 0;
+  while (placed < 12 && tries++ < 20000) {
+    var x = 2 + Math.floor(rng() * (WX - 4)), z = 2 + Math.floor(rng() * (WZ - 4));
+    var y = 3 + Math.floor(rng() * 12);                 // 3~14 — 바닥 가까이
+    if (get(x, y, z) !== STONE) continue;
+    var open = get(x + 1, y, z) === AIR || get(x - 1, y, z) === AIR || get(x, y, z + 1) === AIR ||
+               get(x, y, z - 1) === AIR || get(x, y + 1, z) === AIR;
+    if (!open) continue;
+    set(x, y, z, DIAMOND);
+    if (rng() < 0.5 && get(x, y - 1, z) === STONE) set(x, y - 1, z, DIAMOND);
+    placed++;
+  }
+  return placed;
 }
 
 // 새 모으기 세계 — 빈손 · 빈 가방

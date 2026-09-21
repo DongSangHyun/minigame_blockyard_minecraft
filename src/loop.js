@@ -19,7 +19,8 @@ import { splash, waterLap, fireCrackle, at, caveSound, crunch, lavaHiss, lavaPop
 import { pushPrev, saveGame, touchLock, lockHeldByOther } from "./save.js";
 import { checkBuildAchievements, checkFoundAchievements, ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
 import { refreshMouthDots, refreshMinimapCap, tAim, airBar, airEl, drawMinimap, bigMapOpen, drawBigMap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
-import { canMine, josa, mineSpeed, needText, resetSurvival } from "./survival.js";
+import { makeRng } from "./atlas.js";
+import { canMine, enrichDiamonds, josa, mineSpeed, needText, resetSurvival } from "./survival.js";
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
 import { updateBody } from "./body.js";
 import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
@@ -66,6 +67,9 @@ export function newWorld(seed) {
     S.nextTerrain = null;
   }
   generate(seed);
+  // 모으기 세계면 굴 벽에 다이아몬드를 조금 더 (v138) — 빛·메시를 굽기 **전에** 둔다
+  var svNext = (S.nextMode !== null && S.nextMode !== undefined) ? S.nextMode === 1 : !!S.survival;
+  if (svNext) enrichDiamonds(seed, makeRng(S.worldSeed + 90210));
   // **이름도 새 세계의 것이다** (v121) — 지우지 않아서, 새 세계가 옛 세계의 이름을
   // 물려받아 저장됐다(「우리 성」 슬롯에 새 섬이 「우리 성」으로 섰다). 시험이 잡았다
   S.worldName = "";
