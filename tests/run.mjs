@@ -3780,7 +3780,8 @@ test("v19 게임패드: 꽂혀만 있고 안 누르면 키보드·마우스를 �
     B.pollGamepad(1 / 60);
     pad.buttons[7].pressed = false;
     B.pollGamepad(1 / 60);
-    const released = B.S.mouseDown[0];
+    // 패드 캐기는 따로 통로(padMine · v137) — 뗐으면 꺼지고, 마우스 쪽은 사람이 누른 그대로다
+    const released = B.S.padMine;
     navigator.getGamepads = real;
     B.S.mouseDown[0] = false; B.S.keys.Space = false;
     B.endPlay(); B.setPaused(false);
@@ -5156,7 +5157,7 @@ test("v37 게임패드: 베드락 배치로 바뀌고 놓기가 홀드로 반복
     btn[4].pressed = true; poll(); btn[4].pressed = false; poll();   // LB — 되돌아옴
     const lbBack = B.getSelected() === was;
     btn[7].pressed = true; poll();                                    // RT — 캐기
-    const mining = B.S.mouseDown[0] === true;
+    const mining = B.S.padMine === true;                              // 패드 캐기 통로 (v137)
     btn[7].pressed = false; poll();
     btn[6].pressed = true; poll(3);                                   // LT — 놓기(홀드)
     const placingHeld = B.S.touchPlace === true;
@@ -7267,9 +7268,9 @@ phoneTest("튜토리얼 일곱 줄을 터치만으로 끝까지 간다", async (
       B.player.pos.set(m.x, m.y, m.z + 2.0);
       B.player.yaw = 0;
       for (let pi = 0; pi <= 24; pi++) {
-        B.player.pitch = pi * 0.05;
+        B.player.pitch = -pi * 0.05;   // 아래를 보면 음수 (v137)
         B.camera.rotation.order = "YXZ";
-        B.camera.rotation.y = 0; B.camera.rotation.x = -B.player.pitch;
+        B.camera.rotation.y = 0; B.camera.rotation.x = B.player.pitch;
         B.camera.position.set(B.player.pos.x, B.player.pos.y + B.EYE, B.player.pos.z);
         B.camera.updateMatrixWorld(true);
         const a = B.aimedMob();
@@ -11654,7 +11655,7 @@ test("v95 동물: 좌클릭으로 보내고, 벽 너머는 못 잡는다", async
     B.player.flying = false;
     B.player.pos.set(X + 0.5, Y, Z + 0.5);
     // -Z 쪽 동물을 내려다본다 — 눈높이(발+1.62)는 양(키 0.56)의 머리 위로 지나간다
-    B.player.yaw = 0; B.player.pitch = 0.36;
+    B.player.yaw = 0; B.player.pitch = -0.36;
     const aimed = !!B.aimedMob();
 
     // 사이에 벽을 세우면 못 잡는다 — 울타리 너머의 양이 벽을 뚫고 잡히면 안 된다.
@@ -13872,7 +13873,7 @@ test("v115 첫 마을: 켜자마자 집·상인·동물·광산·개울이 있�
       });
       kept = B.removeMob(t) === false && B.mobs.indexOf(t) >= 0;
       B.player.pos.set(t.x, t.y, t.z + 2.2);
-      B.player.yaw = 0; B.player.pitch = 0.18;
+      B.player.yaw = 0; B.player.pitch = -0.18;
       B.S.bar[9] = 0;
       const aim = B.aimedMob();
       tradedName = aim ? B.MOB_KINDS[aim.mob.kind].name : "none";
@@ -14595,7 +14596,7 @@ test("v128 자문 33: 우클릭 대상 · 겨눈 동물 · 첫 선물 꽃 · 2�
     function aim() {
       B.player.pos.set(x + 0.5, y, z + 0.5);
       // 조금 숙여 본다 — 눈높이 그대로면 양(키 0.9)의 머리 위를 지나간다
-      B.player.yaw = 0; B.player.pitch = 0.38;
+      B.player.yaw = 0; B.player.pitch = -0.38;
       B.camera.position.set(x + 0.5, y + 1.62, z + 0.5);
       B.camera.rotation.set(-0.38, 0, 0);
     }
@@ -14800,7 +14801,7 @@ test("v130 자문 34: 양동이로 상인 · 밤 횃불 튜토리얼 · 꽃 줄�
     B.player.pos.set(tr.x + 0.5, tr.y, tr.z + 2.5);
     B.player.vel.set(0, 0, 0);
     const dx = tr.x - B.player.pos.x, dz = tr.z - B.player.pos.z;
-    B.player.yaw = Math.atan2(-dx, -dz); B.player.pitch = 0.25;
+    B.player.yaw = Math.atan2(-dx, -dz); B.player.pitch = -0.25;
     B.camera.position.set(B.player.pos.x, B.player.pos.y + 1.62, B.player.pos.z);
     B.camera.rotation.set(-0.25, B.player.yaw, 0, "YXZ");
     B.camera.updateMatrixWorld(true);
@@ -14820,7 +14821,7 @@ test("v130 자문 34: 양동이로 상인 · 밤 횃불 튜토리얼 · 꽃 줄�
     const X = 44, Y = 50, Z = 44;
     arena(B, X, Y, Z, 3);
     B.player.pos.set(X + 0.5, Y, Z + 0.5);
-    B.player.yaw = 0; B.player.pitch = 0.9;
+    B.player.yaw = 0; B.player.pitch = -0.9;
     B.camera.position.set(X + 0.5, Y + 1.62, Z + 0.5);
     B.camera.rotation.set(-0.9, 0, 0, "YXZ");
     B.camera.updateMatrixWorld(true);
@@ -14925,7 +14926,7 @@ test("v132 자문 35: 모양 없는 블록 · 계단공 · 찾기 별명 · give
     B.getBar()[2] = B.B.GATE;
     B.setShapeMode(1);
     B.player.pos.set(X + 0.5, Y, Z + 0.5);
-    B.player.yaw = 0; B.player.pitch = 0.7;
+    B.player.yaw = 0; B.player.pitch = -0.7;
     B.camera.position.set(X + 0.5, Y + 1.62, Z + 0.5);
     B.camera.rotation.set(-0.7, 0, 0, "YXZ");
     B.camera.updateMatrixWorld(true);
@@ -15273,7 +15274,7 @@ test("v134 자문 36: 선물 하루 한 번 · 먼저 한 목표 · 받침 잃�
       sheep.x = X + 0.5; sheep.z = Z - 1.8; sheep.y = Y; sheep.shornAt = 0;
       B.set(X, Y, Z - 2, 0); B.refreshAllTops();
       B.selectSlot(0); B.getBar()[0] = 0;
-      B.player.pos.set(X + 0.5, Y, Z + 0.5); B.player.yaw = 0; B.player.pitch = 0.35;
+      B.player.pos.set(X + 0.5, Y, Z + 0.5); B.player.yaw = 0; B.player.pitch = -0.35;
       B.camera.position.set(X + 0.5, Y + 1.62, Z + 0.5); B.camera.rotation.set(-0.35, 0, 0, "YXZ");
       B.camera.updateMatrixWorld(true);
       B.place(false);
@@ -15360,7 +15361,7 @@ test("v135 모으기 안정화: 원목부터 철 곡괭이까지 목표가 차�
     const sheep = B.mobs.filter((m) => !B.MOB_KINDS[m.kind].trader)[0];
     const n0 = B.mobs.length;
     sheep.x = X + 0.5; sheep.z = Z - 1.8; sheep.y = Y;
-    B.player.yaw = 0; B.player.pitch = 0.35;
+    B.player.yaw = 0; B.player.pitch = -0.35;
     B.S.keyMine = true;
     for (let k = 0; k < 20; k++) B.step(1 / 60);
     B.S.keyMine = false;
@@ -15462,6 +15463,130 @@ test("v136 사진 모드: 켜는 순간 안내가 뜨고, 데스크톱에도 나
   assert(r.barShown, "데스크톱 사진 모드에 나가기 바가 없다");
   assert(r.swallowed, "사진 모드인데 다른 토스트가 화면을 가린다");
   assert(r.barGone, "사진 모드를 꺼도 바가 남는다");
+});
+
+test("v137 공유 링크: 슬롯 1 에 세계가 있어도 ?seed= 는 받은 시드를 연다", async (page) => {
+  const keep = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const k = { slot: B.S.slot, seed: B.seed() };
+    B.S.slot = 1; B.saveGame();            // 슬롯 1 에 옛 세계가 있다
+    B.S.slot = k.slot;
+    return k;
+  });
+  const url = page.url().split("?")[0] + "?seed=4242";
+  const p2 = await page.context().newPage();
+  await p2.goto(url, { waitUntil: "load" });
+  await p2.waitForFunction("window.__blockyard && window.__blockyard.booted !== false", null, { timeout: 30000 });
+  const r = await p2.evaluate(() => ({ seed: window.__blockyard.seed(), loaded: window.__blockyard.S.loadedFromSave }));
+  await p2.close();
+  eq(r.seed, 4242, "링크로 연 세계가 받은 시드가 아니다 (옛 세계 " + keep.seed + " 가 열렸나)");
+  eq(r.loaded, false, "링크로 열었는데 저장에서 불러왔다");
+});
+
+test("v137 동물 조준: 내려다보면 양이 잡히고, 하늘을 보면 안 잡힌다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const m = B.mobs.filter((q) => !B.MOB_KINDS[q.kind].trader)[0];
+    B.mobs.forEach((q) => { if (q !== m && !B.MOB_KINDS[q.kind].trader) { q.x = 5; q.z = 5; } });
+    const X = 44, Y = 50, Z = 44;
+    arena(B, X, Y, Z, 4);
+    m.x = X + 0.5; m.z = Z - 1.5; m.y = Y;
+    B.player.pos.set(X + 0.5, Y, Z + 0.5); B.player.yaw = 0;
+    B.player.pitch = -0.58; const down = B.aimedMob();
+    B.player.pitch = 0.58;  const up = B.aimedMob();
+    B.player.pitch = 0;
+    B.setPaused(false);
+    return { down: !!down && down.mob === m, up: !!up && up.mob === m };
+  });
+  assert(r.down, "양을 내려다보는데 조준선이 못 잡는다");
+  assert(!r.up, "하늘을 보는데 발밑의 양이 잡힌다 (위아래가 뒤집혔다)");
+});
+
+test("v137 게임패드: 드래그 모드에서도 RT 로 캔다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    const real = navigator.getGamepads;
+    const pad = { connected: true, axes: [0, 0, 0, 0], buttons: Array.from({ length: 16 }, () => ({ pressed: false, value: 0 })) };
+    navigator.getGamepads = () => [pad];
+    B.setPaused(true); B.beginPlay();
+    const keepLock = B.S.lockMode;
+    B.S.lockMode = false;                     // 터치 기기는 늘 드래그 모드다
+    const X = 44, Y = 50, Z = 44;
+    arena(B, X, Y, Z, 3);
+    B.mobs.forEach((m) => { if (!B.MOB_KINDS[m.kind].trader) { m.x = 5; m.z = 5; } });
+    B.set(X, Y + 1, Z - 2, K.DIRT); B.refreshAllTops();
+    B.player.pos.set(X + 0.5, Y, Z + 0.5); B.player.yaw = 0; B.player.pitch = -0.2;
+    pad.buttons[7].pressed = true; pad.buttons[7].value = 1;
+    for (let k = 0; k < 150; k++) { B.pollGamepad(1 / 60); B.step(1 / 60); }
+    pad.buttons[7].pressed = false; pad.buttons[7].value = 0;
+    B.pollGamepad(1 / 60); B.step(1 / 60);
+    const mined = B.get(X, Y + 1, Z - 2) === 0;
+    const released = !B.S.padMine;
+    navigator.getGamepads = real;
+    B.S.lockMode = keepLock;
+    B.endPlay(); B.setPaused(false);
+    return { mined, released };
+  });
+  assert(r.mined, "드래그 모드에서 RT 를 눌러도 안 캐진다");
+  assert(r.released, "RT 를 떼도 캐기가 이어진다");
+});
+
+test("v137 탭 잠금: 먼저 연 탭도 시작 화면에서 나중 탭을 5초 안에 알아챈다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.endPlay();                               // 시작 화면 — 예전에는 여기서 잠금을 안 찍었다
+    const key = "blockyard.lock." + B.S.slot;
+    const keep = localStorage.getItem(key);
+    B.S.otherTab = null;
+    localStorage.setItem(key, JSON.stringify({ id: "나중탭", at: Date.now() }));
+    const t = document.getElementById("toast"); t.textContent = "";
+    B.S.lockTimer = 5.1;
+    B.step(1 / 60);
+    const warned = /다른 탭/.test(t.textContent), flagged = !!B.S.otherTab;
+    const mineNow = JSON.parse(localStorage.getItem(key) || "{}").id !== "나중탭";   // 제 심장박동도 찍었다
+    B.S.otherTab = null;
+    if (keep) localStorage.setItem(key, keep); else localStorage.removeItem(key);
+    return { warned, flagged, mineNow };
+  });
+  assert(r.flagged, "시작 화면의 탭이 다른 탭을 못 알아챈다");
+  assert(r.warned, "다른 탭을 알아채도 알려 주지 않는다");
+  assert(r.mineNow, "시작 화면에서 잠금을 찍지 않는다 — 20초 뒤 죽은 탭으로 보인다");
+});
+
+test("v137 가져오기: 한 번 누르면 묻고, 두 번째에 파일을 고른다 · /fill 두 낱말 이름", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.saveGame();
+    const imp = document.getElementById("w-import"), file = document.getElementById("w-file");
+    let picked = 0;
+    const realClick = file.click;
+    file.click = function () { picked++; };
+    imp.click();
+    const first = { picked, text: imp.textContent };
+    imp.click();
+    const second = picked;
+    file.click = realClick;
+    B.S.importArmed = false;
+    // /fill 다이아 광석 (두 낱말) — 바꿀 블록으로 잘못 쪼개지 않는다
+    B.setPaused(true);
+    const X = 44, Y = 50, Z = 44;
+    for (let dx = 0; dx < 2; dx++) for (let dz = 0; dz < 2; dz++) B.set(X + dx, Y, Z + dz, 0);
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 1, Y, Z + 1];
+    const msg = B.runCommand("fill 다이아 광석");
+    const diamonds = [0, 1].reduce((n, dx) => n + [0, 1].filter((dz) => B.get(X + dx, Y, Z + dz) === B.B.DIAMOND).length, 0);
+    // 앞·뒤를 둘 다 온전한 이름으로 가른다 — 다이아 광석 인 칸만 석탄 광석으로
+    const msg2 = B.runCommand("fill 석탄 광석 다이아 광석");
+    const coal = [0, 1].reduce((n, dx) => n + [0, 1].filter((dz) => B.get(X + dx, Y, Z + dz) === B.B.COAL).length, 0);
+    B.S.selA = B.S.selB = null;
+    B.setPaused(false);
+    return { first, second, msg, diamonds, msg2, coal };
+  });
+  eq(r.first.picked, 0, "가져오기를 한 번 눌렀는데 바로 파일을 고른다 (확인 없이 슬롯을 덮는다)");
+  assert(/정말/.test(r.first.text), "가져오기가 무엇을 덮는지 묻지 않는다 — " + r.first.text);
+  eq(r.second, 1, "두 번째 누름에 파일 고르기가 안 열린다");
+  eq(r.diamonds, 4, "/fill 다이아 광석 이 안 먹는다 — " + r.msg);
+  eq(r.coal, 4, "/fill 석탄 광석 다이아 광석 이 안 먹는다 — " + r.msg2);
 });
 
 // ── 실행 ───────────────────────────────────────────────

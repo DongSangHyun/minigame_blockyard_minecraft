@@ -298,7 +298,22 @@ if (expBtn) expBtn.addEventListener("click", function (e) {
   e.stopPropagation();
   toast(exportWorld() ? "세계를 파일로 내보냈습니다" : "내보낼 세계가 없습니다");
 });
-if (impBtn) impBtn.addEventListener("click", function (e) { e.stopPropagation(); fileIn.click(); });
+// 가져오기도 **두 번 눌러야** 한다 (v137 · 외부 시험 2차) — 새 세계·슬롯 지우기는 확인을 거는데
+// 이것만 한 번에 지금 슬롯을 덮었다. 덮인 세계는 「직전으로 되돌리기」 로 돌아온다(pushPrev)
+if (impBtn) impBtn.addEventListener("click", function (e) {
+  e.stopPropagation();
+  if (hasSave() && !S.importArmed) {
+    S.importArmed = true;
+    var cur = slotInfo(S.slot);
+    var label = impBtn.textContent;
+    impBtn.textContent = "정말? 슬롯 " + S.slot + (cur ? " 「" + (cur.name || ("SEED " + cur.seed)) + "」" : "") + " 을 덮습니다 — 다시 누르기";
+    toast("가져오면 지금 슬롯을 덮습니다 — 덮인 세계는 「직전으로 되돌리기」 로 돌아옵니다");
+    setTimeout(function () { S.importArmed = false; impBtn.textContent = label; }, 4000);
+    return;
+  }
+  S.importArmed = false;
+  fileIn.click();
+});
 if (fileIn) fileIn.addEventListener("change", function () {
   var f = fileIn.files && fileIn.files[0];
   if (!f) return;
@@ -830,7 +845,7 @@ export function endPlay() {
   if (!S.active) return;
   S.active = false;
   S.keys = Object.create(null);
-  S.mouseDown[0] = S.mouseDown[1] = S.mouseDown[2] = false;
+  S.mouseDown[0] = S.mouseDown[1] = S.mouseDown[2] = false; S.padMine = false;
   S.dragging = false; S.touchBreak = false;
   S.stick.x = 0; S.stick.z = 0;
   S.breaking.on = false;
@@ -2100,7 +2115,7 @@ export function pollGamepad(dt) {
   // 키보드 `E`/`ESC` 나 마우스 말고는 나갈 길이 없었다.
   // 창 안에서는 **닫기·취소·핫바 칸**만 살린다 (시점·이동·캐기·놓기는 쉰다).
   if (S.uiOpen) {
-    S.mouseDown[0] = false; S.touchPlace = false;
+    S.mouseDown[0] = false; S.touchPlace = false; S.padMine = false;
     padState.lx = 0; padState.ly = 0; padState.rx = 0; padState.ry = 0;
     if (tapped(3) || tapped(1) || tapped(9)) closePicker(true);   // Y · B · 메뉴 — 닫는다
     if (tapped(4) || tapped(14)) selectSlot(S.selected - 1);
@@ -2121,8 +2136,11 @@ export function pollGamepad(dt) {
   else if (padHeld[1]) S.keys.ShiftLeft = false;
   // 베드락 기본 배치에 맞춘다 — RT 캐기 · LT 놓기 · LB/RB 핫바 · Y 목록 · 메뉴 일시정지
   var mine = pressed(7);                           // RT — 캐기 (RB 는 핫바로 넘겼다)
-  if (mine) S.mouseDown[0] = true;
-  else if (padHeld[7]) S.mouseDown[0] = false;
+  // 캐기는 **마우스 모드와 무관한 통로**로 (v137 · 외부 시험 2차) — mouseDown[0] 은 loop 가
+  // 잠금 모드일 때만 읽어서, 드래그 모드(터치 기기는 늘 드래그)에서는 RT 로 0칸이었다.
+  // 놓기(LT)는 touchPlace 라 늘 읽혔다. 키 캐기(S.keyMine · v114)와 같은 틀이다
+  if (mine) S.padMine = true;
+  else if (padHeld[7]) S.padMine = false;
   // 놓기는 누르고 있으면 반복된다 — 마우스·터치와 같은 PLACE_DELAY/REPEAT 경로를 탄다
   var lay = pressed(6);
   if (lay && !padHeld[6]) { S.placeCooldown = 0; S.lastPlaceCell = -1; }

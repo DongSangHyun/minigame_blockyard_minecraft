@@ -963,6 +963,19 @@ export var CMD_HELP =
   "paste [공기] · mirror · rotate · " +
   "expand/contract <±dx> <±dy> <±dz> · shift <dx> <dy> <dz> · clone <dx> <dy> <dz> [횟수] · give <블록|맨손> · count · bp <save|use|list|del|export|import> <이름> · undo <n> · redo <n> · seed · gm <속도> · help (모으기 모드: fill·give·paste·clone·bp·undo 등은 막힘)";
 
+// 이름 **전체**가 딱 맞는 블록만 (v137) — `/fill` 이 「다이아 광석」 을 「다이아 + 광석(=석탄 광석)」 으로
+// 쪼개 읽어 「석탄 광석 인 칸이 없습니다」 라고 했다. 블록 110종 중 68종이 두 낱말이다
+function exactBlock(name) {
+  var q = String(name || "").replace(/\s+/g, "").toLowerCase();
+  if (!q) return -1;
+  var pool = ALL_BLOCKS.concat(ITEMS);
+  for (var i = 0; i < pool.length; i++) {
+    var b = pool[i];
+    if ((NAMES[b] || "").replace(/\s+/g, "").toLowerCase() === q) return b;
+    if ((NAMES_EN[b] || "").replace(/\s+/g, "").toLowerCase() === q) return b;
+  }
+  return -1;
+}
 // 한국어 이름과 영어 이름을 둘 다 알아듣는다 — "조약돌" 도 "cobble" 도 된다
 function findBlock(name) {
   if (!name) return -1;
@@ -1137,8 +1150,21 @@ export function runCommand(line) {
     }
     // "/fill 조약돌 벽돌" — 벽돌인 칸만 조약돌로. 창문·문틀·안쪽 공기는 그대로 둔다.
     var repl = -1, fbName = fname;
-    var two = fname.split(/\s+/);
-    if (two.length >= 2) {
+    var two = fname.trim().split(/\s+/);
+    var whole = exactBlock(fname);
+    // 두 낱말 이름을 먼저 온전히 읽는다 — 통째로 맞으면 바꿀 블록은 없다.
+    // 아니면 **앞·뒤를 둘 다 온전한 이름으로** 가르는 자리를 찾는다 (「다이아 광석 석탄 광석」)
+    var splitFound = false;
+    if (whole < 0 && two.length >= 2) {
+      for (var cut = two.length - 1; cut >= 1 && !splitFound; cut--) {
+        var hName = two.slice(0, cut).join(" "), tName = two.slice(cut).join(" ");
+        var hb = exactBlock(hName);
+        if (hb < 0) continue;
+        if (/^(공기|빈칸|air|없음)$/i.test(tName)) { repl = AIR; fbName = hName; splitFound = true; }
+        else if (exactBlock(tName) >= 0) { repl = exactBlock(tName); fbName = hName; splitFound = true; }
+      }
+    }
+    if (whole < 0 && !splitFound && two.length >= 2) {
       var maybe = findBlock(two[two.length - 1]);
       var head = two.slice(0, two.length - 1).join(" ");
       if (maybe >= 0 && findBlock(head) >= 0) { repl = maybe; fbName = head; }

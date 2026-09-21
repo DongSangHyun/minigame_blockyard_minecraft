@@ -16,7 +16,7 @@ import { applyTime, clockText, dayLight } from "./daynight.js";
 import { calmMotion, fovForAspect, opts } from "./settings.js";
 import { EYE, HALF, moveAxis, moveHorizontal, player, pointSolid, raycast, spawn, stats, unstick } from "./player.js";
 import { splash, waterLap, fireCrackle, at, caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
-import { pushPrev, saveGame , touchLock} from "./save.js";
+import { pushPrev, saveGame, touchLock, lockHeldByOther } from "./save.js";
 import { checkBuildAchievements, checkFoundAchievements, ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
 import { refreshMouthDots, refreshMinimapCap, tAim, airBar, airEl, drawMinimap, bigMapOpen, drawBigMap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
 import { canMine, josa, mineSpeed, needText, resetSurvival } from "./survival.js";
@@ -521,7 +521,7 @@ export function step(dt) {
 
   // 키로 건 캐기는 **마우스 모드와 무관하다** (v114) — 드래그 모드에서는 이 판정이
   // `S.dragging` 을 보므로, 키를 눌러도 아무 일이 안 일어났다
-  var wantBreak = playing && (S.touchBreak || S.keyMine || (S.lockMode ? S.mouseDown[0]
+  var wantBreak = playing && (S.touchBreak || S.keyMine || S.padMine || (S.lockMode ? S.mouseDown[0]
                               : (S.dragging && S.dragBtn === 0 && S.dragDist < 7)));
   // 좌클릭이 동물을 향하면 동물이 먼저다 (v95) — 마크 크리에이티브와 같다.
   // 누른 채로 있으면 근처 동물이 줄줄이 사라지므로 **한 번 누르면 한 마리**다
@@ -938,7 +938,16 @@ function snowSticksTo(b) {
   // 이 슬롯을 쥐고 있다고 5초마다 알린다 (v101) — 다른 탭이 이걸 보고 경고한다.
   // 저장할 때도 찍지만, 아무것도 안 짓고 걷기만 해도 잠금은 살아 있어야 한다
   S.lockTimer = (S.lockTimer || 0) + dt;
-  if (S.active && S.lockTimer > 5) { S.lockTimer = 0; touchLock(); }
+  // **시작 화면에서도** 알리고, **쓰기 전에 먼저 읽는다** (v137 · 외부 시험 2차) — 플레이 중에만 찍어서
+  // 메뉴에 둔 탭의 잠금은 20초 뒤 죽은 것으로 보였고, 먼저 연 탭은 나중에 연 탭을 영영 몰랐다
+  // (탭 A 가 75칸을 잃었다). 두 탭이 번갈아 쓰므로 5초 안에 서로를 본다
+  if (S.lockTimer > 5 && !document.hidden) {
+    S.lockTimer = 0;
+    var other = lockHeldByOther(S.slot);
+    if (other && !S.otherTab) toast("⚠ 다른 탭에서 이 세계를 열고 있습니다 — 한쪽 탭을 닫으세요 (둘 다 저장하면 한쪽이 지워집니다)");
+    S.otherTab = other;
+    touchLock();
+  }
 
   if (S.toastTimer > 0) {
     S.toastTimer -= dt;

@@ -65,7 +65,9 @@ if (S.urlSeed !== null) {
   else { S.slot = lastSlot(); S.noSave = true; }
 }
 S.loadedFromSave = S.urlSeed === null && hasSave() && loadGame();
-if (!S.loadedFromSave && S.slot !== 1) { S.slot = 1; S.loadedFromSave = hasSave() && loadGame(); }
+// 링크로 온 사람은 슬롯 1 로 끌어내리지 않는다 (v137 · 외부 시험 2차) — 가드가 없어서
+// 한 번이라도 논 사람이 `?seed=` 를 열면 **자기 옛 세계**가 열리고 토스트만 「링크로 받은 세계」 였다
+if (!S.loadedFromSave && S.slot !== 1 && S.urlSeed === null) { S.slot = 1; S.loadedFromSave = hasSave() && loadGame(); }
 if (!S.loadedFromSave) {
   bootProgress("세계를 만드는 중…", 0.20);
   generate(S.urlSeed !== null ? S.urlSeed : ((Math.random() * 100000) | 0));

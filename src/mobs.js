@@ -531,7 +531,9 @@ export function mobOccupies(x, y, z) {
 export function aimedMob(maxDist) {
   var eye = player.pos.y + 1.62;
   var fx = -Math.sin(player.yaw) * Math.cos(player.pitch);
-  var fy = -Math.sin(player.pitch);
+  // **양수 pitch 가 위다** (v137 · 외부 시험 2차) — loop.js 가 camera.rotation.x = player.pitch 로 쓴다.
+  // 부호가 반대여서 양을 내려다보면 안 잡히고 하늘을 봐야 잡혔다. 키 큰 상인만 눈높이에 걸려 멀쩡했다
+  var fy = Math.sin(player.pitch);
   var fz = -Math.cos(player.yaw) * Math.cos(player.pitch);
   var far = maxDist || 4.2;
   for (var t = 0.6; t <= far; t += 0.3) {
