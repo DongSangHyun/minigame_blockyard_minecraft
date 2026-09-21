@@ -89,7 +89,7 @@ export function decayTick(budget) {
     var y = (i / PLANE) | 0, rem = i - y * PLANE;
     var z = (rem / WX) | 0, x = rem - z * WX;
     burst(x, y, z, world[i], 5);
-    leafDrop(world[i]);          // 모으기 — 가끔 묘목 (v134)
+    leafDrop(world[i], x, y, z);   // 모으기 — 내 둘레에서 진 잎은 가끔 묘목 (v134·v135)
     // **되돌리기에 싣는다** (v110) — 기록 false 였던 탓에, 나무 한 그루를 베면
     // 잎 46~59장이 사라지고 되돌려도 **원목만 돌아와 맨 줄기가 허공에 다시 섰다.**
     // `docs/GAMEPLAY.md` 의 「세계가 하는 일 → 어디에 실리나」 표에서 잎 부패만 빠져 있었다.

@@ -1,7 +1,7 @@
 // main.js — 조립과 시작
 import { S } from "./state.js";
 import { villageMarks } from "./village.js";
-import { addItem, removeItem, invCount, collect, dropOf, toolTier, needTier, canMine, RECIPES, craft, canCraft, recipesFor, stationsNear, svEvent, svGoalText, resetSurvival, SV_GOALS } from "./survival.js";
+import { addItem, removeItem, invCount, collect, dropOf, toolTier, needTier, canMine, RECIPES, craft, canCraft, recipesFor, stationsNear, svEvent, svGoalText, resetSurvival, SV_GOALS, leafDrop, needText, josa } from "./survival.js";
 import { growTree } from "./tree.js";
 import { breedTick, isTrader, MOB_MAX, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, loadMobs, disposeMob, mobOccupies, aimedMob, removeMob, mobs, pushOutOfMobs, seedFlocks, seedMobs, seedVillage, updateFlocks, updateMobs } from "./mobs.js";
 import { atlasSample, SWATCH_SIDE, animateLiquids, atlas, painted, AVG_TOP } from "./atlas.js";
@@ -180,7 +180,7 @@ window.__blockyard = {
   MATERIALS: MATERIALS, addItem: addItem, removeItem: removeItem, invCount: invCount, collect: collect, dropOf: dropOf,
   toolTier: toolTier, needTier: needTier, canMine: canMine, RECIPES: RECIPES, craft: craft, canCraft: canCraft,
   recipesFor: recipesFor, stationsNear: stationsNear, svEvent: svEvent, svGoalText: svGoalText,
-  resetSurvival: resetSurvival, SV_GOALS: SV_GOALS, renderCraft: renderCraft, nextMode: nextMode,
+  resetSurvival: resetSurvival, SV_GOALS: SV_GOALS, leafDrop: leafDrop, needText: needText, josa: josa, renderCraft: renderCraft, nextMode: nextMode,
   selBox: selBox, selMat: selMat, SEL_DONE: SEL_DONE, SEL_ANCHOR: SEL_ANCHOR,
   seenMap: seenMap, seenRatio: seenRatio, markSeen: markSeen, hutSpots: hutSpots, setTouched: setTouched, tradeWith: tradeWith, rumorLine: rumorLine,
   SEEN_TOP: SEEN_TOP, SEEN_UNDER: SEEN_UNDER,

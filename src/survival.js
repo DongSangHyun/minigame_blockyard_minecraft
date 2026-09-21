@@ -5,7 +5,15 @@ import { get } from "./world.js";
 import { player } from "./player.js";
 import { inside } from "./dims.js";
 import { refreshBar, toast } from "./hud.js";
-import { refreshHint } from "./input.js";
+import { isTouch, refreshHint } from "./input.js";
+
+// 받침에 맞는 조사 — 「곡괭이은(는)」 같은 말을 안 쓰게 (자문 37차 #5)
+export function josa(word, withFinal, withoutFinal) {
+  var c = String(word || "").charCodeAt(String(word || "").length - 1);
+  if (c < 0xac00 || c > 0xd7a3) return withoutFinal;
+  return ((c - 0xac00) % 28) ? withFinal : withoutFinal;
+}
+export function isPick(b) { return PICKS.indexOf(b) >= 0; }
 
 // ── 가방
 export function invCount(b) { return (S.inv && S.inv[b]) | 0; }
@@ -96,7 +104,11 @@ export function needTier(b) {
 var TIER_NAME = ["", "나무 곡괭이", "돌 곡괭이", "철 곡괭이", "다이아 곡괭이"];
 export function canMine(b) { return !S.survival || toolTier() >= needTier(b); }
 export function needText(b) {
-  var t = TIER_NAME[needTier(b)] + "가 필요합니다 — E 에서 만드세요";
+  // 곡괭이 레시피는 **제작대 옆에서만** 뜬다 — 제작대가 멀면 E 를 눌러도 곡괭이가 없다 (자문 37차 #2)
+  var where = stationsNear().table ? "E 에서 만드세요"
+            : (invCount(CRAFT_TABLE) ? "제작대를 옆에 놓고 E 에서 만드세요"
+                                     : "판자 4개로 제작대를 만들어 옆에 놓고 E 에서 만드세요");
+  var t = TIER_NAME[needTier(b)] + "가 필요합니다 — " + touchWords(where);
   // 원목도 곡괭이도 없으면 만들 수가 없다 — 어디로 가야 하는지 말한다 (자문 36차 #10)
   if (!toolTier() && !haveOf(LOGS) && !invCount(PLANKS)) t += " · 먼저 위로 올라가 나무부터 (못 나오면 F 로 날기)";
   return t;
@@ -195,17 +207,24 @@ export var SV_GOALS = [
   { key: "place:" + CRAFT_TABLE, text: "<b>제작대</b>를 땅에 놓으세요 — 그 옆에서 더 많이 만듭니다" },
   { key: "craft:" + PICK_WOOD, text: "제작대 옆에서 <b>나무 곡괭이</b>를 만드세요 (막대기도 필요해요)" },
   { key: "get:" + COBBLE, text: "곡괭이로 <b>돌</b>을 캐서 조약돌을 모으세요" },
-  { key: "craft:" + PICK_STONE, text: "조약돌로 <b>돌 곡괭이</b>를 만드세요 — 철을 캘 수 있어요" },
-  { key: "craft:" + FURNACE, text: "조약돌 8개로 <b>화로</b>를 만들어 놓으세요" },
+  { key: "craft:" + PICK_STONE, text: "조약돌 3개와 막대기 2개로 <b>돌 곡괭이</b>를 만드세요 — 철을 캘 수 있어요" },
+  { key: "craft:" + FURNACE, text: "조약돌 8개로 <b>화로</b>를 만드세요" },
+  { key: "place:" + FURNACE, text: "<b>화로</b>를 땅에 놓으세요 — 그 옆에서 광석을 녹입니다" },
   { key: "craft:" + IRON_INGOT, text: "철 광석과 석탄을 화로에서 녹여 <b>철괴</b>를 만드세요" },
-  { key: "craft:" + PICK_IRON, text: "철괴 3개로 <b>철 곡괭이</b>를 만드세요 — 다이아몬드를 캘 수 있어요" },
+  { key: "craft:" + PICK_IRON, text: "철괴 3개와 막대기 2개로 <b>철 곡괭이</b>를 만드세요 — 다이아몬드를 캘 수 있어요" },
   { key: "get:" + DIAMOND_GEM, text: "깊은 땅속에서 <b>다이아몬드</b>를 찾으세요!" },
-  { key: "craft:" + PICK_DIAMOND, text: "다이아몬드 3개로 <b>다이아 곡괭이</b>를 만드세요" }
+  { key: "craft:" + PICK_DIAMOND, text: "다이아몬드 3개와 막대기 2개로 <b>다이아 곡괭이</b>를 만드세요" }
 ];
 export function svGoalText() {
   var st = S.svStep | 0;
   if (st >= SV_GOALS.length) return "";
-  return SV_GOALS[st].text;
+  return touchWords(SV_GOALS[st].text);
+}
+// 폰에는 좌클릭도 E 도 없다 — 버튼 이름으로 말한다 (v135)
+export function touchWords(t) {
+  if (!isTouch) return t;
+  return t.replace("좌클릭으로", "<b>캐기</b> 버튼으로").replace("<b>E</b>(목록)를 눌러", "<b>목록</b> 버튼을 눌러")
+          .replace(/E 에서/g, "목록에서");
 }
 // 일어난 일을 알려 받는다 — 지금 목표와 같으면 한 칸 나아간다.
 // 이미 앞서 해 둔 것(곡괭이를 먼저 만든 아이)도 **뒤따라 넘어가게** 가방을 본다
@@ -252,8 +271,14 @@ export function collect(b) {
 }
 
 // 저절로 진 잎 — 가끔 묘목 (자문 36차 #6). 기둥만 베고 떠나도 숲을 되살릴 씨앗이 남는다
-export function leafDrop(b) {
+// **내 둘레(8칸)에서 진 잎만** (v135·자문 37차) — 새 세계의 잎 부패 큐에는 마을 터를 고르며 잘린
+// 나무의 뜬 잎이 섬 곳곳에 들어 있어, 나무 한 그루를 벤 사이에 묘목이 열몇 개씩 쏟아졌다
+export function leafDrop(b, x, y, z) {
   if (!S.survival || Math.random() >= 0.05) return;
+  if (x !== undefined) {
+    var dx = x + 0.5 - player.pos.x, dy = y - player.pos.y, dz = z + 0.5 - player.pos.z;
+    if (dx * dx + dz * dz > 64 || Math.abs(dy) > 10) return;
+  }
   var d = b === BIRCH_LEAVES ? SAPLING_BIRCH : (b === SPRUCE_LEAVES ? SAPLING_SPRUCE : SAPLING);
   addItem(d, 1);
 }

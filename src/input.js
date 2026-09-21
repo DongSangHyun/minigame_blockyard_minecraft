@@ -8,7 +8,7 @@ import { markAllDirty, buildBudget } from "./mesh.js";
 import { relightAll } from "./light.js";
 import { IS_TOUCH } from "./boot.js";
 import { SH_SLAB, SH_SLAB_UP, isStairShape, NAMES, isItem, AIR, TORCH, hasShapes } from "./blocks.js";
-import { invCount, svGoalText } from "./survival.js";
+import { invCount, josa, svGoalText } from "./survival.js";
 import { camera, crackMesh, renderer } from "./scene.js";
 import { applyTime } from "./daynight.js";
 import { applyOpts, applyFov, applyTbtn, applyUi, opts, saveOpts } from "./settings.js";
@@ -1215,7 +1215,7 @@ export function pickBlock() {
   // 예전에는 여기서 그냥 나가 버려 그 절반이 통과했다.
   if (S.bar[S.selected] === hit.block && S.shapeMode === mode) { toast(NAMES[hit.block]); return; }
   // 모으기 모드 — 가방에 있는 것만 집어 든다 (v134)
-  if (S.survival && invCount(hit.block) <= 0) { toast("가방에 " + NAMES[hit.block] + "이(가) 없습니다"); return; }
+  if (S.survival && invCount(hit.block) <= 0) { toast("가방에 " + NAMES[hit.block] + josa(NAMES[hit.block], "이", "가") + " 없습니다"); return; }
   S.bar[S.selected] = hit.block;
   if (S.fillBar) S.fillBar[S.selected] = 0;
   setShapeMode(mode);

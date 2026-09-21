@@ -15304,6 +15304,96 @@ test("v134 자문 36: 선물 하루 한 번 · 먼저 한 목표 · 받침 잃�
   assert(typeof r.bp === "string" && /모으기/.test(r.bp), "청사진이 막혔다고 말하지 않는다 — " + r.bp);
 });
 
+test("v135 모으기 안정화: 원목부터 철 곡괭이까지 목표가 차례로 넘어가고, 먼 잎·먼 제작대·동물이 새지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true); B.beginPlay();
+    const keep = { bar: B.getBar().slice(), alt: B.S.barAlt.slice(), sel: B.getSelected() };
+    const out = { steps: [] };
+    const find = (o) => B.RECIPES.filter((q) => q.out === o)[0];
+    B.resetSurvival(true);
+    const X = 40, Y = 44, Z = 40;
+    arena(B, X, Y, Z, 5);
+    B.mobs.forEach((m) => { if (!B.MOB_KINDS[m.kind].trader) { m.x = 5; m.z = 5; } });
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    const mine = (b, x, z) => { B.set(x, Y, z, b); B.mineAt({ x: x, y: Y, z: z, block: b, shape: 0 }); };
+    const step = () => out.steps.push(B.S.svStep);
+    for (let i = 0; i < 5; i++) mine(K.LOG, X + 2, Z - 2);            step(); // 1
+    B.craft(find(K.PLANKS)); B.craft(find(K.PLANKS)); B.craft(find(K.PLANKS)); step(); // 2
+    B.craft(find(K.CRAFT_TABLE));                                      step(); // 3
+    B.set(X + 1, Y, Z, K.CRAFT_TABLE);
+    B.svEvent("place:" + K.CRAFT_TABLE);                               step(); // 4
+    B.craft(find(K.STICK));
+    B.craft(find(K.PICK_WOOD));                                        step(); // 5
+    for (let i = 0; i < 12; i++) mine(K.STONE, X - 2, Z - 2);          step(); // 6
+    B.craft(find(K.STICK));
+    B.craft(find(K.PICK_STONE));                                       step(); // 7
+    B.craft(find(K.FURNACE));                                          step(); // 8 — 아직 놓지 않았다
+    B.set(X - 1, Y, Z, K.FURNACE);
+    B.svEvent("place:" + K.FURNACE);                                   step(); // 9
+    for (let i = 0; i < 3; i++) mine(K.IRON, X + 2, Z + 2);
+    for (let i = 0; i < 3; i++) mine(K.COAL, X - 2, Z + 2);
+    for (let i = 0; i < 3; i++) B.craft(find(K.IRON_INGOT));           step(); // 10
+    out.stickNeeded = B.canCraft(find(K.PICK_IRON)) === (B.invCount(K.STICK) >= 2);
+    if (B.invCount(K.STICK) < 2) B.craft(find(K.STICK));
+    B.craft(find(K.PICK_IRON));                                        step(); // 11
+    out.tier = B.toolTier();
+    out.goal = B.svGoalText();
+    // (나) 먼 곳에서 진 잎은 묘목을 안 준다
+    B.S.inv = {}; B.refreshBar();
+    for (let i = 0; i < 400; i++) B.leafDrop(K.LEAVES, X + 40, Y, Z + 40);
+    out.farSaplings = B.invCount(K.SAPLING);
+    for (let i = 0; i < 400; i++) B.leafDrop(K.LEAVES, X + 2, Y + 3, Z);
+    out.nearSaplings = B.invCount(K.SAPLING);
+    // (다) 제작대가 멀면 곡괭이 안내가 제작대를 말한다
+    B.set(X + 1, Y, Z, 0); B.set(X - 1, Y, Z, 0);
+    B.S.inv = {};
+    out.needFar = B.needText(K.STONE);
+    // (라) 모으기에서는 좌클릭이 동물을 지우지 않는다
+    const sheep = B.mobs.filter((m) => !B.MOB_KINDS[m.kind].trader)[0];
+    const n0 = B.mobs.length;
+    sheep.x = X + 0.5; sheep.z = Z - 1.8; sheep.y = Y;
+    B.player.yaw = 0; B.player.pitch = 0.35;
+    B.S.keyMine = true;
+    for (let k = 0; k < 20; k++) B.step(1 / 60);
+    B.S.keyMine = false;
+    out.mobsKept = B.mobs.length === n0;
+    B.resetSurvival(false);
+    for (let i = 0; i < keep.bar.length; i++) B.getBar()[i] = keep.bar[i];
+    for (let i = 0; i < keep.alt.length; i++) B.S.barAlt[i] = keep.alt[i];
+    B.selectSlot(keep.sel); B.refreshBar();
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  eq(r.steps.join(","), "1,2,3,4,5,6,7,8,9,10,11", "목표 단계가 차례로 안 넘어간다");
+  eq(r.tier, 3, "철 곡괭이 단계");
+  assert(/다이아몬드/.test(r.goal), "철 곡괭이 뒤 목표가 다이아몬드가 아니다 — " + r.goal);
+  eq(r.farSaplings, 0, "멀리서 진 잎이 묘목을 준다");
+  assert(r.nearSaplings >= 5 && r.nearSaplings <= 45, "가까이 진 잎의 묘목 수가 이상하다 (" + r.nearSaplings + "/400)");
+  assert(/제작대/.test(r.needFar), "제작대가 먼데 곡괭이 안내가 제작대를 말하지 않는다 — " + r.needFar);
+  assert(r.mobsKept, "모으기 모드에서 좌클릭이 동물을 지웠다");
+});
+
+phoneTest("v135 모으기 모드: 목표가 버튼 이름으로 말하고, 되돌리기 단추가 숨는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    B.resetSurvival(true); B.refreshBar();
+    const goal = B.svGoalText();
+    const need = B.needText(B.B.STONE);
+    const undo = document.getElementById("tb-undo");
+    const undoHidden = !undo || getComputedStyle(undo).display === "none";
+    B.resetSurvival(false); B.refreshBar();
+    const undoBack = !undo || getComputedStyle(undo).display !== "none";
+    B.endPlay();
+    return { goal, need, undoHidden, undoBack };
+  });
+  assert(/캐기/.test(r.goal) && !/좌클릭/.test(r.goal), "폰인데 목표가 좌클릭을 말한다 — " + r.goal);
+  assert(/목록에서/.test(r.need) && !/E 에서/.test(r.need), "폰인데 안내가 E 를 말한다 — " + r.need);
+  assert(r.undoHidden, "모으기 모드인데 폰의 되돌리기 단추가 보인다");
+  assert(r.undoBack, "만들기 모드로 돌아와도 되돌리기 단추가 숨어 있다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

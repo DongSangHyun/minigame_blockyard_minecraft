@@ -123,6 +123,8 @@ export function refreshSlot(i) {
   }
 }
 export function refreshBar() {
+  // 모으기 모드 표시 — 폰의 「되돌리기」 처럼 모으기에서 안 쓰는 단추를 CSS 로 숨긴다 (v135)
+  document.body.classList.toggle("sv", !!S.survival);
   for (var i = 0; i < S.bar.length; i++) refreshSlot(i);
   updateHandBlock();
 }

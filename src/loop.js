@@ -19,7 +19,7 @@ import { splash, waterLap, fireCrackle, at, caveSound, crunch, lavaHiss, lavaPop
 import { pushPrev, saveGame , touchLock} from "./save.js";
 import { checkBuildAchievements, checkFoundAchievements, ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
 import { refreshMouthDots, refreshMinimapCap, tAim, airBar, airEl, drawMinimap, bigMapOpen, drawBigMap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
-import { canMine, mineSpeed, needText, resetSurvival } from "./survival.js";
+import { canMine, josa, mineSpeed, needText, resetSurvival } from "./survival.js";
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
 import { updateBody } from "./body.js";
 import { canPlaceAt, mineAt, place, upperFromHit } from "./mine.js";
@@ -526,7 +526,9 @@ export function step(dt) {
   // 좌클릭이 동물을 향하면 동물이 먼저다 (v95) — 마크 크리에이티브와 같다.
   // 누른 채로 있으면 근처 동물이 줄줄이 사라지므로 **한 번 누르면 한 마리**다
   if (!wantBreak) S.mobSwatted = false;
-  else if (!S.mobSwatted) {
+  // 모으기 모드에서는 동물을 안 지운다 (v135·자문 37차) — 굴을 파다 조준선에 소가 걸리면 사라졌다.
+  // 되돌릴 수 없는 일을 캐기 손버릇이 저지르면 안 된다. 좌클릭은 그 뒤 블록을 캔다
+  else if (!S.mobSwatted && !S.survival) {
     var am = aimedMob();
     if (am) {
       // 동물보다 가까운 블록이 있으면 블록을 캔다 — 울타리 너머의 양이 벽을 뚫고 잡히면 안 된다
@@ -540,8 +542,9 @@ export function step(dt) {
           S.mobSwatted = true;
           triggerSwing();
           // 되돌릴 수 없는 일이다 — 처음 한 번은 그렇게 말해 준다
-          toast(S.mobSwatHinted ? (kindName + "을(를) 보냈습니다")
-                                : (kindName + "을(를) 보냈습니다 — 동물은 되돌리기로 안 돌아옵니다"));
+          var jo = josa(kindName, "을", "를");
+          toast(S.mobSwatHinted ? (kindName + jo + " 보냈습니다")
+                                : (kindName + jo + " 보냈습니다 — 동물은 되돌리기로 안 돌아옵니다"));
           S.mobSwatHinted = true;
           S.breaking.on = false;
           crackMesh.visible = false;

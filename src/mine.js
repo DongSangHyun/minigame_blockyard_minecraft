@@ -11,7 +11,7 @@ import { BODY, EYE, HALF, currentShape, player, raycast, stats } from "./player.
 import { breakSound, crunch, placeSound, tone } from "./audio.js";
 import { notePlaced, applyEdit, beginBatch, endBatch, unlock } from "./edit.js";
 import { noteBlockUse, openPicker, refreshSlot, toast } from "./hud.js";
-import { addItem, collect, invCount, removeItem, svEvent } from "./survival.js";
+import { addItem, collect, invCount, isPick, josa, removeItem, svEvent } from "./survival.js";
 import { triggerSwing, updateHandBlock } from "./hand.js";
 import { advanceTut } from "./input.js";
 
@@ -382,7 +382,7 @@ export function place(repeating) {
   var b = S.bar[S.selected];
   // 모으기 모드 — 가방에 있는 것만 놓는다 (v134)
   if (S.survival && !isItem(b) && invCount(b) <= 0) {
-    if (!repeating) toast("가방에 " + NAMES[b] + "이(가) 없습니다 — 캐거나 만드세요");
+    if (!repeating) toast("가방에 " + NAMES[b] + josa(NAMES[b], "이", "가") + " 없습니다 — 캐거나 만드세요");
     return;
   }
 
@@ -417,7 +417,8 @@ export function place(repeating) {
 
   if (isItem(b)) {
     if (!repeating) toast(b === FLINT ? "부싯돌은 놓는 물건이 아닙니다 — 탈 것을 우클릭하세요"
-                                      : NAMES[b] + "은(는) 놓는 물건이 아닙니다 — 가방에 들고 다니는 재료예요");
+      : isPick(b) ? NAMES[b] + josa(NAMES[b], "은", "는") + " 가방에 있으면 캘 때 저절로 쓰여요"
+      : NAMES[b] + josa(NAMES[b], "은", "는") + " 놓는 물건이 아닙니다 — 제작에 쓰는 재료예요");
     return;
   }
   if (needsFloor(b) && isLiquid(get(px, py, pz))) {
