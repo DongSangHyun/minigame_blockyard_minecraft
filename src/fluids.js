@@ -358,6 +358,16 @@ export function enqueueFreeze(x, y, z) {
   if (world[i] === WATER && biomeMap[z * WX + x] === 1 && y >= SEA) Q.freezeQ.push(i);
 }
 
+// 처음 붙인 자리에서 FIRE_REACH 안인가 — 집이 통째로 사라지면 복구가 없다
+function fireReachable(nx, ny, nz) {
+  if (!S.fireOrigins || !S.fireOrigins.length) return true;
+  for (var oj = 0; oj < S.fireOrigins.length; oj++) {
+    var og = S.fireOrigins[oj];
+    if (Math.abs(nx - og[0]) + Math.abs(ny - og[1]) + Math.abs(nz - og[2]) <= FIRE_REACH) return true;
+  }
+  return false;
+}
+
 export function freezeTick(budget) {
   budget = budget || 200;
   var frozen = 0;
@@ -368,6 +378,7 @@ export function freezeTick(budget) {
     var y = (i / PLANE) | 0, rem = i - y * PLANE;
     var z = (rem / WX) | 0, x = rem - z * WX;
     if (biomeMap[z * WX + x] !== 1) continue;
+    if (waterLvl[i] !== 0) continue;                 // 흐르는 물은 안 언다 — 근원만 (v140 · QA · 마크와 같다)
     if (get(x, y + 1, z) !== AIR) continue;          // 덮인 물은 얼지 않는다
     if (playerOccupies(x, y, z)) continue;           // 헤엄치는 사람을 얼음 속에 가두지 않는다
     if (lightBlk[i] >= 12) continue;                 // 광원 옆은 안 언다
@@ -710,15 +721,7 @@ export function fireTick(budget) {
       if (Math.random() > 0.30) continue;
       if (raining && ny > topMap[nz * WX + nx] - 0.5) continue;   // 비 맞는 자리엔 안 붙는다
       // 처음 붙인 자리에서 너무 멀리 번지지 않게 — 집이 통째로 사라지면 복구가 없다
-      if (S.fireOrigins.length) {
-        var od = 1e9;                       // 가장 가까운 원점까지의 거리로 잰다
-        for (var oj = 0; oj < S.fireOrigins.length; oj++) {
-          var og = S.fireOrigins[oj];
-          var dd = Math.abs(nx - og[0]) + Math.abs(ny - og[1]) + Math.abs(nz - og[2]);
-          if (dd < od) od = dd;
-        }
-        if (od > FIRE_REACH) continue;
-      }
+      if (!fireReachable(nx, ny, nz)) continue;
       // 물이 닿아 있으면 불이 옮겨 붙지 않는다
       var wet = false;
       for (var wd = 0; wd < 6 && !wet; wd++) {
@@ -734,9 +737,13 @@ export function fireTick(budget) {
     }
 
     // 옆에 태울 것이 없으면 사그라진다
+    // **옮겨 붙을 수 있는 것만** 연료로 친다 (v140 · QA) — 번짐 한계(FIRE_REACH) 밖의 판자도 연료로 쳐서
+    // 가장자리의 불 열두 칸이 영영 안 꺼졌다
     var fuel = false;
     for (var d2 = 0; d2 < 6 && !fuel; d2++) {
-      if (isFlammable(get(x + DIRS[d2][0], y + DIRS[d2][1], z + DIRS[d2][2]))) fuel = true;
+      var fx = x + DIRS[d2][0], fy2 = y + DIRS[d2][1], fz = z + DIRS[d2][2];
+      // 번질 수 없는 불(마을 안 · 번짐 끔)도 연료가 없는 것으로 본다 — 영영 타며 큐와 저장을 붙잡았다
+      if (isFlammable(get(fx, fy2, fz)) && spread && !inVillage && fireReachable(fx, fy2, fz)) fuel = true;
     }
     // 물이 닿으면 즉시 꺼진다
     var doused = false;
@@ -922,12 +929,25 @@ export function growTick(dt) {
     // **사람이 심은 묘목**인가 (v138 · 외부 시험 3차) — 세계가 흩뿌린 묘목이 자라도 「숲지기」 가 열려,
     // 가만히 서 있기만 해도 34초 만에 과제가 달성됐다
     var planted = isTouched(x, y, z);
-    beginBatch(64);
-    applyEdit(x, y, z, AIR, true, SH_FULL);
-    var ok = growTree(x, y - 1, z, kind, logB, leafB, makeRng(seed),
-                      get, function (bx, by, bz, b) { applyEdit(bx, by, bz, b, true, SH_FULL); },
-                      AIR, WY);
-    endBatch("나무 자람");
+    // **사람이 심은 나무만** 되돌리기에 싣는다 (v140 · QA) — 섬 어딘가의 자연 묘목이 자라면 그 한 줄이
+    // 불·물의 주인 기록을 끊고(beginBatch 가 주인을 놓는다) 되돌리기 맨 위에 앉아, Ctrl+Z 가 **먼 곳의 나무**를
+    // 지우고 탄 판자 109칸은 한 칸도 안 돌아왔다. 심은 나무도 끝나면 주인을 되돌려 놓는다
+    var ok;
+    if (planted) {
+      var keepFire = S.fireOwner, keepFluid = S.fluidOwner, keepFall = S.fallOwner;
+      beginBatch(64);
+      applyEdit(x, y, z, AIR, true, SH_FULL);
+      ok = growTree(x, y - 1, z, kind, logB, leafB, makeRng(seed),
+                    get, function (bx, by, bz, b) { applyEdit(bx, by, bz, b, true, SH_FULL); },
+                    AIR, WY);
+      endBatch("나무 자람");
+      S.fireOwner = keepFire; S.fluidOwner = keepFluid; S.fallOwner = keepFall;
+    } else {
+      applyEdit(x, y, z, AIR, false, SH_FULL);
+      ok = growTree(x, y - 1, z, kind, logB, leafB, makeRng(seed),
+                    get, function (bx, by, bz, b) { applyEdit(bx, by, bz, b, false, SH_FULL); },
+                    AIR, WY);
+    }
     if (!ok) { applyEdit(x, y, z, sap, false, SH_FULL); keep.push(i); continue; }
     // 옆에 서 있다가 나무가 소리 없이 솟으면 무슨 일이 난 건지 모른다.
     // 잎이 터지는 소리와 잎조각 — 무엇이 어디서 자랐는지 눈과 귀로 알린다.

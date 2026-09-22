@@ -141,6 +141,7 @@ export function tradeWith() {
     // **하루 한 번** (자문 36차 #1) — 누를 때마다 넉 개씩 주면 판자·조명이 무한이라
     // 나무 캐기부터 곡괭이까지가 통째로 건너뛰어졌다. 소문은 그대로 들려준다
     if (S.giftDay === day) {
+      S.tradeCount = n;                 // 선물 없는 말은 세지 않는다 — 소문 차례가 헛돌았다 (v140)
       toast("상인: \u201c" + (rumor || "오늘 선물은 드렸어요 — 내일 또 오세요") + "\u201d");
       advanceTut(3);
       return true;

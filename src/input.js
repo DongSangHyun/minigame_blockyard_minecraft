@@ -1238,6 +1238,9 @@ export function pickBlock() {
   if (S.bar[S.selected] === hit.block && S.shapeMode === mode) { toast(NAMES[hit.block]); return; }
   // 모으기 모드 — 가방에 있는 것만 집어 든다 (v134)
   if (S.survival && invCount(hit.block) <= 0) { toast("가방에 " + NAMES[hit.block] + josa(NAMES[hit.block], "이", "가") + " 없습니다"); return; }
+  // 모으기에서 이미 핫바에 있으면 **그 칸을 고른다** (v140 · QA) — 같은 블록이 두 칸을 차지하고
+  // 고른 칸에 있던 것이 핫바에서 밀려났다 (마크도 있는 칸으로 옮겨 간다)
+  if (S.survival && S.bar.indexOf(hit.block) >= 0) { selectSlot(S.bar.indexOf(hit.block)); setShapeMode(mode); return; }
   S.bar[S.selected] = hit.block;
   if (S.fillBar) S.fillBar[S.selected] = 0;
   setShapeMode(mode);

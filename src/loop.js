@@ -17,7 +17,7 @@ import { calmMotion, fovForAspect, opts } from "./settings.js";
 import { EYE, HALF, moveAxis, moveHorizontal, player, pointSolid, raycast, spawn, stats, unstick } from "./player.js";
 import { splash, waterLap, fireCrackle, at, caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
 import { pushPrev, saveGame, touchLock, lockHeldByOther } from "./save.js";
-import { checkBuildAchievements, checkFoundAchievements, ACHIEVEMENTS, achCount, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
+import { checkBuildAchievements, checkFoundAchievements, achCount, achTotal, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
 import { refreshMouthDots, refreshMinimapCap, tAim, airBar, airEl, drawMinimap, bigMapOpen, drawBigMap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
 import { makeRng } from "./atlas.js";
 import { canMine, enrichDiamonds, josa, mineSpeed, needText, resetSurvival } from "./survival.js";
@@ -1049,7 +1049,7 @@ export function animate() {
     else tMode.textContent = player.flying ? "비행" : (S.wasUnderwater ? "헤엄" : "걷기");
     tShape.textContent = ["전체", "반블록", "계단"][S.shapeMode];
     tBlocks.innerHTML = "놓음 <b>" + stats.placed + "</b> · 캔 <b>" + stats.mined + "</b>";
-    tAch.innerHTML = "<b>" + achCount() + "</b> / " + ACHIEVEMENTS.length;
+    tAch.innerHTML = "<b>" + achCount() + "</b> / " + achTotal();
     var fps = Math.round(S.fpsFrames / S.fpsAccum);
     tFps.textContent = fps;
     autoTuneFar(fps);

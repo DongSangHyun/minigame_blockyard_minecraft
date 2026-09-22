@@ -7,7 +7,7 @@ import { SEA, DIRS, N, PLANE, WX, WY, WZ, idx, inside } from "./dims.js";
 import { blockAliases, isStairShape, isCarpet, ITEMS, POT, FRAME, FENCE, GLASS, PLANKS, BRICK, isSapling, SH_STAIR_N, SH_STAIR_W, SH_STAIR_NU, LAMP, FLOWER_R, FLOWER_Y, SH_STAIR_WU, SH_WALL_N, SH_WALL_W, SH_DOOR_N, SH_AXIS_X, SH_AXIS_Z, TORCH, isWool, DOOR, LAVA, AIR, ALL_BLOCKS, EMIT, ICE, NAMES, NAMES_EN, SH_FULL, WALL_DIR, WATER, isClimbable, isCross, isItem, isLog, isSolid, isUnbreakable, isWallShape } from "./blocks.js";
 import { markX, markY, markZ, markName, topMap, refreshAllTops, touched, get, BIOME_NAMES, markTouched, isTouched, setTouched, refreshTop, shape, waterLvl, world } from "./world.js";
 import { relightAll, relightLocal } from "./light.js";
-import { enqueueGrow, enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay } from "./fluids.js";
+import { enqueueGrow, enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround, enqueueFall, enqueueWaterAround, queueLeafDecay, enqueueFreeze } from "./fluids.js";
 import { markAllDirty, touch } from "./mesh.js";
 import { boxHitsWorld, player, stats } from "./player.js";
 import { tone } from "./audio.js";
@@ -94,6 +94,7 @@ export function applyEdit(x, y, z, to, record, sh, depth) {
   shape[i] = toSh;
   if (to === WATER) waterLvl[i] = 0;       // 손으로 놓은 물은 언제나 근원
   if (to === WATER && record) S.pouredAt = Date.now();   // 「수문장」 은 내가 부은 물만 (v138)
+  if (to === WATER) enqueueFreeze(x, y, z);   // 설원의 근원도 언다 — 흐름만 얼리던 v140 뒤로 부은 물이 안 얼었다
   else if (from === WATER) waterLvl[i] = 0;
   if (to === WATER) enqueueWaterAround(x, y, z);
   if (from === WATER && to !== WATER) enqueueDryAround(x, y, z);
@@ -486,10 +487,19 @@ export function achProgress(a) {
 // 손에 잡히는 목표(방 한 칸·다이아)를 먼저 가리킨다. 나머지는 배열 순서 그대로
 export var TRY_ORDER = ["firstMine", "firstPlace", "trade", "feed", "sapling", "breed",
                         "coal", "room", "findHut", "flower", "stair", "lamp10", "diamond"];
+// 모으기 모드에서는 **할 수 없는 과제** (v140 · QA) — TNT 레시피가 없고(쾅) 영역 채우기가 막혀 있고(대공사)
+// 양털이 세 빛깔뿐이며(색칠) 모든 종류를 모을 수 없다(수집가). 목록·분모에서 빼고 「만들기 전용」 이라 적는다
+export var CREATIVE_ONLY = ["boom", "build100", "palette", "collector"];
+export function achAvailable(a) { return !(S.survival && CREATIVE_ONLY.indexOf(a.id) >= 0); }
+export function achTotal() {
+  var n = 0;
+  for (var i = 0; i < ACHIEVEMENTS.length; i++) if (achAvailable(ACHIEVEMENTS[i])) n++;
+  return n;
+}
 export function nextToTry(n) {
   var out = [], seen = {};
   function take(a) {
-    if (!a || seen[a.id] || S.earned[a.id] || out.length >= n) return;
+    if (!a || seen[a.id] || S.earned[a.id] || out.length >= n || !achAvailable(a)) return;
     seen[a.id] = true;
     out.push(a);
   }
@@ -512,9 +522,10 @@ export function refreshAchList() {
   }
   for (var i = 0; i < ACHIEVEMENTS.length; i++) {
     var a = ACHIEVEMENTS[i];
-    html += '<div class="ach' + (S.earned[a.id] ? " got" : "") + '">' +
+    var off = !achAvailable(a);
+    html += '<div class="ach' + (S.earned[a.id] ? " got" : "") + (off ? " off" : "") + '">' +
             '<b>' + (S.earned[a.id] ? "\u2714" : "\u2022") + '</b>' +
-            '<span>' + a.name + ' · ' + a.desc + achProgress(a) + '</span></div>';
+            '<span>' + a.name + ' · ' + a.desc + (off ? " (만들기 전용)" : achProgress(a)) + '</span></div>';
   }
   achGrid.innerHTML = html;
   if (helpAchList) helpAchList.innerHTML = html;
@@ -695,7 +706,7 @@ export function refreshStats() {
       Math.floor(player.pos.y) + " · " + Math.floor(player.pos.z) + "</dd>" +
     "<dt>지형</dt><dd>" + BIOME_NAMES[localBiome()] + "</dd>" +
     "<dt>조명</dt><dd>" + S.lampsPlaced + "</dd>" +
-    "<dt>과제</dt><dd>" + achCount() + " / " + ACHIEVEMENTS.length + "</dd>" +
+    "<dt>과제</dt><dd>" + achCount() + " / " + achTotal() + "</dd>" +
     "<dt>세계 모양</dt><dd>" + ["보통", "평지", "산악", "군도"][S.terrain | 0] + "</dd>" +
     "<dt>슬롯</dt><dd>" + S.slot + " / " + SLOTS + "</dd>" +
     "<dt>표식</dt><dd>" + S.marks.length + "개</dd>" +
@@ -715,7 +726,7 @@ export function unlock(id) {
   S.earned[id] = 1;
   S.worldDirty = true;
   // 팝업에 진척도를 같이 실어 토스트를 아낀다 — 토스트는 직전 안내를 덮어 지운다
-  showAchPop(found.name, found.desc + "  ·  " + achCount() + " / " + ACHIEVEMENTS.length);
+  showAchPop(found.name, found.desc + "  ·  " + achCount() + " / " + achTotal());
   tone(880, 0.09, "triangle", 0.05);
   setTimeout(function () { tone(1320, 0.12, "triangle", 0.045); }, 110);
   // 목록 DOM 은 여기서 다시 그리지 않는다 — 36개짜리 innerHTML 두 번이 106ms 였고,

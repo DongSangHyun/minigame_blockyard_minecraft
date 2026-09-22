@@ -6348,6 +6348,7 @@ test("v62 묘목: 심어 두면 나무가 되고, 되돌리기 한 번에 사라
 
     // (1) 흙 위에 심으면 자란다
     B.applyEdit(X, Y, Z, B.B.SAPLING, false, 0);
+    B.setTouched(X, Y, Z, true);         // 사람이 심은 묘목 — 사람이 심은 나무만 되돌리기에 실린다 (v140)
     const planted = B.get(X, Y, Z) === B.B.SAPLING;
     B.S.history.length = 0; B.S.future.length = 0;
     // 앞선 시험이 남긴 파편이 있을 수 있다 — 절대값이 아니라 늘어났는지를 본다 (v36 교훈)
@@ -8079,7 +8080,7 @@ test("v73 소리: 바다·불·낮이 더는 무음이 아니다", async (page) 
     const t0 = B.atlasSample(55);
     let t1 = t0;
     for (let a = 0; a < 6 && t1 === t0; a++) {
-      B.animateLiquids(1.7);
+      B.animateLiquids(1.7 + a * 0.37 + Math.random());   // 매번 다른 시각 — 같은 시각이면 같은 그림이다 (v140)
       t1 = B.atlasSample(55);
     }
 
@@ -14396,6 +14397,9 @@ test("v125 오래 켜 둔 세계: 불이 큐와 저장을 안 불리고, 다시 
     const stillBurning = B.get(fx, v.h + 1, fz + 1) === B.B.FIRE;
 
     // (2) 저장했다가 다시 켜면 불이 다시 큐에 든다 — 얼어붙지 않는다
+    // v140 부터 마을 안 불은 번지지 않고 **사그라진다** — 막 붙인 불로 잰다
+    B.set(fx, v.h + 1, fz + 1, 0);
+    B.ignite(fx, v.h + 1, fz + 1);
     B.saveGame();
     B.resetQueues();
     B.loadGame();
@@ -14443,7 +14447,8 @@ test("v125 오래 켜 둔 세계: 불이 큐와 저장을 안 불리고, 다시 
     return { lit, qLen, stillBurning, dirtyFrames, requeued, grassKept, melted, snowCount, found: gx >= 0 };
   });
   eq(r.lit, true, "마을 불이 안 붙었다 — 시험대가 안 섰다");
-  eq(r.stillBurning, true, "마을 불이 꺼졌다 — 시험대가 안 섰다");
+  // v140 — 번질 수 없는 불은 연료가 없는 것으로 보고 사그라진다 (예전 「꺼지지 않는 불」)
+  eq(r.stillBurning, false, "마을 안 불이 3분 뒤에도 탄다 — 번지지 못하는 불은 사그라져야 한다");
   assert(r.qLen < 6000, "꺼지지 않는 불 하나에 3분 만에 fireQ 가 " + r.qLen + " 이다 — 끝없이 자란다");
   assert(r.dirtyFrames < 60, "가만히 있는데 3분 동안 " + r.dirtyFrames + "프레임이 저장 거리를 만들었다");
   assert(r.requeued >= 1, "다시 켰더니 불이 큐에 없다 — 번지지도 꺼지지도 않는 불이 박힌다");
@@ -15728,6 +15733,102 @@ test("v139 QA: 모으기 이어하기 카드는 목표를 · 패드 트리거는
   assert(/모으기/.test(r.sv) && /나무/.test(r.sv), "모으기 세계의 이어하기 카드가 목표를 안 보여 준다 — " + r.sv);
   assert(!/모으기/.test(r.cr), "만들기 세계의 카드에 모으기가 뜬다 — " + r.cr);
   assert(r.half, "트리거를 반쯤(0.6) 당겼는데 캐기가 안 된다");
+});
+
+test("v140 QA 2차: 자연 나무는 되돌리기 밖 · 가장자리 불은 꺼진다 · 모으기 과제 · 흐르는 물은 안 언다 · 복사는 있는 칸으로", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true);
+    const out = {};
+    const X = 44, Y = 50, Z = 44;
+    // (A) 사람이 안 심은 묘목이 자라도 되돌리기 목록이 안 늘고, 불의 주인이 그대로다
+    for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++) {
+      B.set(X + dx, Y - 1, Z + dz, K.GRASS);
+      for (let dy = 0; dy <= 10; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    }
+    B.refreshAllTops(); B.relightAll(false); B.resetQueues();
+    B.player.pos.set(X - 5.5, Y, Z - 5.5);
+    B.S.history.length = 0;
+    B.S.fireOwner = { tag: "불" };
+    B.set(X, Y, Z, K.SAPLING); B.setTouched(X, Y, Z, false);
+    B.enqueueGrow(X, Y, Z);
+    for (let k = 0; k < 400 && B.get(X, Y, Z) === K.SAPLING; k++) B.growTick(1e9);
+    out.grew = B.get(X, Y, Z) !== K.SAPLING;
+    out.histAfterNatural = B.S.history.length;
+    out.ownerKept = !!B.S.fireOwner && B.S.fireOwner.tag === "불";
+    B.S.fireOwner = null;
+    // (B) 번짐 한계 가장자리의 불은 결국 꺼진다
+    const FX = 30, FY = 50, FZ = 30;
+    for (let dx = -8; dx <= 8; dx++) for (let dz = -8; dz <= 8; dz++) {
+      for (let dy = 0; dy <= 4; dy++) B.set(FX + dx, FY + dy, FZ + dz, 0);
+      B.set(FX + dx, FY - 1, FZ + dz, (Math.abs(dx) <= 6 && Math.abs(dz) <= 6) ? K.PLANKS : K.STONE);
+    }
+    B.refreshAllTops(); B.resetQueues();
+    B.S.weather = 0; B.S.weatherLock = true;
+    B.ignite(FX, FY, FZ);
+    let fires = 0;
+    for (let k = 0; k < 60 * 40; k++) {
+      B.fireTick(400);
+      if (k % 60 === 0) {
+        fires = 0;
+        for (let dx = -8; dx <= 8; dx++) for (let dz = -8; dz <= 8; dz++) if (B.get(FX + dx, FY, FZ + dz) === K.FIRE) fires++;
+        if (k > 600 && fires === 0) break;
+      }
+    }
+    out.firesLeft = fires;
+    B.S.weatherLock = false;
+    // (C) 모으기에서는 할 수 없는 과제 넷을 분모에서 뺀다
+    const keepBar = B.getBar().slice(), keepAlt = B.S.barAlt.slice();
+    B.resetSurvival(true); B.refreshAchList();
+    out.svTotal = B.achTotal(); out.all = B.ACHIEVEMENTS.length;
+    out.offRows = document.querySelectorAll("#achgrid .ach.off, .ach.off").length;
+    out.tryHasBoom = B.nextToTry(50).some((a) => a.id === "boom");
+    // (E) 이미 핫바에 있는 블록을 복사하면 그 칸을 고른다
+    B.addItem(K.GLASS, 3);
+    const glassSlot = B.getBar().indexOf(K.GLASS);
+    B.set(X - 5, Y, Z + 5, K.GLASS); B.refreshAllTops();
+    B.selectSlot((glassSlot + 3) % 10);
+    B.player.pos.set(X - 4.5, Y + 3, Z + 5.5); B.player.yaw = 0; B.player.pitch = -1.5;
+    B.camera.position.set(X - 4.5, Y + 3 + 1.62, Z + 5.5); B.camera.rotation.set(-1.5, 0, 0, "YXZ");
+    B.camera.updateMatrixWorld(true);
+    B.pickBlock();
+    out.pickSelected = B.getSelected() === glassSlot;
+    out.glassSlots = B.getBar().filter((b) => b === K.GLASS).length;
+    B.resetSurvival(false); B.refreshAchList();
+    for (let i = 0; i < keepBar.length; i++) B.getBar()[i] = keepBar[i];
+    for (let i = 0; i < keepAlt.length; i++) B.S.barAlt[i] = keepAlt[i];
+    B.refreshBar();
+    out.crTotal = B.achTotal();
+    // (D) 설원에서 흐르는 물은 안 언다 — 근원만
+    let snowCol = -1;
+    for (let i = 0; i < B.WX * B.WZ && snowCol < 0; i++) if (B.biomeMap[i] === 1) snowCol = i;
+    if (snowCol >= 0) {
+      const sx = snowCol % B.WX, sz = (snowCol / B.WX) | 0, sy = B.SEA + 8;
+      B.set(sx, sy - 1, sz, K.STONE); B.set(sx, sy, sz, K.WATER); B.set(sx, sy + 1, sz, 0);
+      const i0 = B.idx(sx, sy, sz);
+      B.waterLvl[i0] = 3;                      // 흐르는 물
+      B.enqueueFreeze(sx, sy, sz); B.freezeTick(1000);
+      out.flowFroze = B.get(sx, sy, sz) === K.ICE;
+      B.set(sx, sy, sz, K.WATER); B.waterLvl[i0] = 0;
+      B.enqueueFreeze(sx, sy, sz); B.freezeTick(1000);
+      out.srcFroze = B.get(sx, sy, sz) === K.ICE;
+      B.set(sx, sy, sz, 0);
+    } else { out.flowFroze = false; out.srcFroze = true; }
+    B.setPaused(false);
+    return out;
+  });
+  assert(r.grew, "시험 준비: 자연 묘목이 안 자랐다");
+  eq(r.histAfterNatural, 0, "사람이 안 심은 나무가 되돌리기 목록에 들어갔다");
+  assert(r.ownerKept, "자연 나무가 자라며 불의 되돌리기 주인을 끊었다");
+  eq(r.firesLeft, 0, "번짐 한계 가장자리의 불이 40초 뒤에도 " + r.firesLeft + "칸 타고 있다");
+  eq(r.svTotal, r.all - 4, "모으기 과제 분모");
+  assert(r.offRows >= 4, "모으기에서 할 수 없는 과제가 흐리게 표시되지 않는다 (" + r.offRows + ")");
+  eq(r.tryHasBoom, false, "모으기에서 「쾅」 을 해 볼 것으로 권한다");
+  eq(r.crTotal, r.all, "만들기 과제 분모");
+  assert(r.pickSelected, "이미 핫바에 있는 블록을 복사했는데 그 칸으로 안 간다");
+  eq(r.glassSlots, 1, "복사가 같은 블록을 두 칸에 넣었다");
+  eq(r.flowFroze, false, "흐르는 물이 얼었다 (근원만 얼어야 한다)");
+  eq(r.srcFroze, true, "근원 물이 안 언다");
 });
 
 // ── 실행 ───────────────────────────────────────────────
