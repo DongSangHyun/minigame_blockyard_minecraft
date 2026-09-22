@@ -35,6 +35,11 @@ const title = allTitles.find((t) => !/^도장 갱신/.test(t)) || allTitles[0] |
 const ver = (title.match(/\(v(\d+)/) ||
              (allTitles.join("\n").match(/\(v(\d+)/) || []) || [, "?"])[1] || "?";
 const when = git("log -1 --format=%cI").slice(0, 16).replace("T", " ");
+// 미커밋 파일 수 — 인계 검증에서 "정말 깨끗한지 문서만 보고는 모른다" 가 나왔다 (2026-09-23)
+const dirtyList = git("status --porcelain").split("\n").map((l) => l.trim()).filter(Boolean);
+const dirty = dirtyList.length;
+const dirtyNames = dirtyList.slice(0, 5).map((l) => l.replace(/^\S+\s+/, "")).join(" · ") +
+                   (dirty > 5 ? " 외 " + (dirty - 5) + "개" : "");
 
 // 이번 세션에 무엇을 했나 — 도장 갱신 커밋은 빼고 제목만 모은다
 const log = git('log --format=%s -40').split("\n")
@@ -81,6 +86,8 @@ const doc = `# HANDOFF — 세션 인계
 | 코드 | 모듈 ${modules}개 · ${srcLines.toLocaleString("en-US")}줄 |
 | 저장 포맷 | v${saveV} |
 | 백로그 | ${backlogRows}건 |
+| 작업 트리 (이 도구를 돌린 때) | ${dirty ? "**미커밋 " + dirty + "개** — " + dirtyNames : "깨끗함 (미커밋 없음)"} |
+| 로컬에서 열어 보기 | 저장소 뿌리에서 \`python3 -m http.server 8000\` → http://localhost:8000/index.html |
 | 공개 주소 | https://dongsanghyun.github.io/minigame_blockyard_minecraft/ |
 
 ## 이미 처리된 것 (자문을 띄울 때 **이 목록을 프롬프트에 넣으세요** — 중복 제안 방지)
@@ -136,8 +143,10 @@ ctx.route("**/src/x.js", r => r.abort()) 로 네트워크를 가로채세요. (C
 \`\`\`
 
 ## 시험 이름 필터 (\`node tests/run.mjs 1 "필터"\`)
-이름 앞머리로 걸립니다 — 최근 판일수록 뒤 번호입니다.
-\`v76\`(오두막) · \`v75\`(바다) · \`v74\`(소품) · \`v73\`(소리) · \`v72\`(불) · \`v70\`(재굽기) ·
+시험 **이름 어디에 들어가도** 걸립니다(\`t.name.includes(필터)\`) — 그래서 \`모으기\` 처럼 가운뎃말도 됩니다.
+**최근 것** — \`v141\`(불 속도·TNT) · \`v140\`(과제·얼음·자연 나무) · \`v138\`(숲지기·다이아) · \`v137\`(동물 조준·공유 링크·패드) ·
+\`v134\`~\`v135\`(모으기 모드) · \`모으기\`(모으기 전부) · \`v128\`(맨손) · \`v130\`(사다리 꼭대기).
+**그 전** — \`v76\`(오두막) · \`v75\`(바다) · \`v74\`(소품) · \`v73\`(소리) · \`v72\`(불) · \`v70\`(재굽기) ·
 \`v69\`(모래 되돌리기) · \`v66\`(계단 모서리) · \`v62\`(묘목) · \`폰 ·\`(폰 화면 전부).
 전체 목록은 \`grep -n '^test(' tests/run.mjs\` · 갈래별 개수는 \`docs/TESTING.md\`.
 
@@ -181,5 +190,14 @@ if (CHECK) {
   console.log(`인계 정합성 — 이상 없음 (v${ver} · 시험 ${tests}항목 · 링크 전부 살아 있음)`);
 } else {
   fs.writeFileSync(OUT, doc);
+  // INDEX 의 「현재 상태 한 줄」도 여기서 맞춘다 (2026-09-23 인계 검증) — stamp 는 **커밋 직전**에 돌아
+  // 늘 한 판 뒤에 있었고, 새 세션이 INDEX(v140)와 HANDOFF(v141)를 보고 어느 쪽을 믿을지 멈칫했다
+  try {
+    const ip = path.join(ROOT, "docs", "INDEX.md");
+    const before = fs.readFileSync(ip, "utf8");
+    const after = before.replace(/\*\*마지막으로 커밋된 판 v[\d?]+[^\n]*\*\*/,
+      `**마지막으로 커밋된 판 v${ver} — ${title.replace(/\s*\(v\d+[^)]*\)\s*$/, "").trim()} · 회귀 테스트 ${tests}항목 전부 통과.**`);
+    if (after !== before) fs.writeFileSync(ip, after);
+  } catch {}
   console.log(`docs/HANDOFF.md 갱신 — v${ver} · 시험 ${tests}항목 · 최근 ${recent.length}건`);
 }
