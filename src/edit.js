@@ -169,6 +169,22 @@ export function batchPush(b, x, y, z, from, to, fromSh, toSh, wl, toWl, fromT) {
   b.fromT[i] = fromT ? 1 : 0;
 }
 
+// 되돌리기 목록의 마지막 k 개 묶음을 하나로 합친다 (순서 그대로)
+function mergeLastBatches(k, label) {
+  if (S.history.length < k) return;
+  var parts = S.history.splice(S.history.length - k, k);
+  var total = 0;
+  for (var i = 0; i < parts.length; i++) total += parts[i].batch ? parts[i].batch.n : 0;
+  var m = makeBatch(Math.max(1, total));
+  var keys = ["x", "y", "z", "from", "to", "fromSh", "toSh", "wl", "toWl", "fromT"];
+  for (var p = 0; p < parts.length; p++) {
+    var b = parts[p].batch;
+    if (!b) continue;
+    for (var kk = 0; kk < keys.length; kk++) m[keys[kk]].set(b[keys[kk]].subarray(0, b.n), m.n);
+    m.n += b.n;
+  }
+  S.history.push({ batch: m, label: label });
+}
 // 대량 편집(채우기·붙여넣기)은 한 덩어리로 묶어 한 번에 되돌린다
 export function beginBatch(cap) {
   S.batch = makeBatch(cap || 1024); S.batchCells = 0;
@@ -441,7 +457,7 @@ export var ACHIEVEMENTS = [
   { id: "slabmerge", name: "빈틈없이", desc: "반블록 두 장을 겹쳐 한 블록으로 만든다" },
   { id: "fire", name: "불장난", desc: "부싯돌로 무언가에 불을 붙인다" },
   { id: "boom", name: "쾅", desc: "TNT 를 터뜨린다" },
-  { id: "build100", name: "대공사", desc: "영역 채우기로 100칸 이상을 한 번에 짓는다" },
+  { id: "build100", name: "대공사", desc: "영역 도구(채우기·붙여넣기·복제·청사진)로 100칸 이상을 한 번에 짓는다" },
   { id: "explorer", name: "탐험가", desc: "미니맵 표식을 5개 찍는다" },
   { id: "feed", name: "친구", desc: "동물에게 꽃을 준다" },
   { id: "photo", name: "사진사", desc: "사진 모드로 화면을 저장한다" },
@@ -973,7 +989,7 @@ export var CMD_HELP =
   "marks · marks del <번호> · fill <블록|공기> [바꿀블록] · hollow · walls <블록> · " +
   "cyl <블록> <반지름> [높이] [속빔] · sphere <블록> <반지름> [속빔] · shell <블록> · " +
   "paste [공기] · mirror · rotate · " +
-  "expand/contract <±dx> <±dy> <±dz> · shift <dx> <dy> <dz> · clone <dx> <dy> <dz> [횟수] · give <블록|맨손> · count · bp <save|use|list|del|export|import> <이름> · undo <n> · redo <n> · seed · gm <속도> · help (모으기 모드: fill·give·paste·clone·bp·undo 등은 막힘)";
+  "expand/contract <±dx> <±dy> <±dz> · shift <dx> <dy> <dz> · clone <dx> <dy> <dz> [횟수] · give <블록|맨손> · count · bp <save|use|list|del|export|import> <이름> · undo <n> · redo <n> · seed · gm <속도> · help (명령으로 짓는 것은 늘 온전한 블록 · 모양(G)은 Ctrl+F 가 따릅니다 · 모으기 모드: fill·give·paste·clone·bp·undo 등은 막힘)";
 
 // 이름 **전체**가 딱 맞는 블록만 (v137) — `/fill` 이 「다이아 광석」 을 「다이아 + 광석(=석탄 광석)」 으로
 // 쪼개 읽어 「석탄 광석 인 칸이 없습니다」 라고 했다. 블록 110종 중 68종이 두 낱말이다
@@ -1082,9 +1098,12 @@ export function runCommand(line) {
       S.worldDirty = true;
       return "마을로 돌아왔습니다";
     }
-    if (parts.length === 2 && parts[1]) {
-      var q = parts[1].toLowerCase(), pick = -1;
-      var byNum = parseInt(parts[1], 10);
+    // 숫자 셋이 아니면 **나머지 전체**를 이름으로 본다 (v141 · QA — 「큰 동굴」 처럼 띄어 쓴 표식)
+    var tpName = parts.slice(1).join(" ").trim();
+    var threeNums = parts.length === 4 && isFinite(x) && isFinite(y) && isFinite(z);
+    if (!threeNums && tpName) {
+      var q = tpName.toLowerCase(), pick = -1;
+      var byNum = /^\d+$/.test(tpName) ? parseInt(tpName, 10) : NaN;
       if (isFinite(byNum) && byNum >= 1 && byNum <= S.marks.length) pick = byNum - 1;
       else for (var mk = 0; mk < S.marks.length; mk++)
         if (markName(S.marks[mk]).toLowerCase() === q) { pick = mk; break; }
@@ -1359,8 +1378,9 @@ export function runCommand(line) {
       nz3 = clampAxis(nz3, WZ); nz4 = clampAxis(nz4, WZ);
     } else {
       function shrink(lo, hi, d) {
-        if (d >= 0) hi -= d; else lo -= d;    // 양수는 +쪽에서, 음수는 −쪽에서 줄인다
-        if (lo > hi) lo = hi = (d >= 0 ? hi : lo);   // 한 칸까지만 줄어든다
+        // 양수는 +쪽에서, 음수는 −쪽에서 줄인다 — **한 칸까지만**, 원래 상자 안에서 (v141 · QA:
+        // 너무 크게 주면 hi 가 lo 아래로 내려간 값으로 모여 상자 밖·세계 밖(음수)으로 튀었다)
+        if (d >= 0) hi = Math.max(lo, hi - d); else lo = Math.min(hi, lo - d);
         return [lo, hi];
       }
       var rx = shrink(cb3.x0, cb3.x1, cx3), ry = shrink(cb3.y0, cb3.y1, cy3), rz = shrink(cb3.z0, cb3.z1, cz3);
@@ -1391,6 +1411,8 @@ export function runCommand(line) {
       done += pn2; didTimes++;
     }
     S.clip = keepClip;
+    // 여러 벌을 **한 번의 되돌리기**로 (v141 · QA) — 벌마다 따로 기록돼 Ctrl+Z 를 횟수만큼 눌러야 했다
+    if (didTimes > 1) mergeLastBatches(didTimes, "복제");
     if (!done) return "붙여넣지 못했습니다";
     // **실제로 한 횟수**를 돌려준다 (v97) — 천장에 걸려 조용히 실패한 판까지
     // "12번 했다" 고 말해, /undo 12 를 치면 앞의 편집까지 딸려 갔다

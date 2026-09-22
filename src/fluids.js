@@ -800,14 +800,15 @@ export function primeTick(dt) {
     if (get(p.x, p.y, p.z) !== TNT) { S.primed.splice(i, 1); continue; }  // 누가 캐 갔다
     if (p.t > 0) continue;
     S.primed.splice(i, 1);
-    applyEdit(p.x, p.y, p.z, AIR, true);      // 터지는 자기 자신부터 치운다
-    explode(p.x, p.y, p.z, BLAST_R);
+    // 터지는 자기 자신도 **폭발 묶음 안에서** 치운다 (v141 · QA) — 따로 기록해서 되돌리기 한 번이면
+    // 둘레는 돌아오는데 TNT 는 두 번째에야 돌아왔다
+    explode(p.x, p.y, p.z, BLAST_R, true);
     fired++;
   }
   return fired;
 }
 
-export function explode(cx, cy, cz, radius) {
+export function explode(cx, cy, cz, radius, selfTnt) {
   var R = radius || BLAST_R;
   unlock("boom");                        // 도화선을 넣었으니 과제도 터지는 순간에
   beginBatch();
@@ -823,7 +824,11 @@ export function explode(cx, cy, cz, radius) {
         var b = get(x, y, z);
         if (b === AIR || isUnbreakable(b)) continue;
         // 연쇄 폭발 — 옆의 TNT 는 지우지 않고 짧은 도화선에 불을 붙인다
-        if (b === TNT) { primeTNT(x, y, z, 0.3 + Math.random() * 0.5); continue; }
+        if (b === TNT) {
+          if (selfTnt && dx === 0 && dy === 0 && dz === 0) { applyEdit(x, y, z, AIR, true); continue; }
+          primeTNT(x, y, z, 0.3 + Math.random() * 0.5);
+          continue;
+        }
         if (applyEdit(x, y, z, AIR, true)) removed++;
       }
   endBatch("폭발");

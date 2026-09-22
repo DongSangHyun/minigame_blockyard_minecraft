@@ -772,7 +772,10 @@ export function step(dt) {
   if (S.active && S.waterTimer > 0.15) {
     S.waterTimer = 0;
     dryTick(300);
-    fireTick(40);
+    // 불은 **세 번에 한 번**(0.45초) — 판자 121칸 중 109칸이 4초에 탔다 (QA · v141).
+    // 아이가 불을 보고 물을 떠 올 시간이 있어야 한다. 마크의 불도 칸마다 몇 초씩 탄다
+    S.fireBeat = ((S.fireBeat | 0) + 1) % 3;
+    if (S.fireBeat === 0) fireTick(40);
     // 용암은 물의 4분의 1 속도로 흐른다 — 걸어서 피할 수 있어야 한다
     Q.lavaTimer++;
     if (Q.lavaTimer >= 4) { Q.lavaTimer = 0; lavaFlowTick(120); lavaDryTick(120); }
@@ -995,7 +998,7 @@ export function animate() {
       a.href = cv.toDataURL("image/png");
       a.download = "blockyard-" + Date.now() + ".png";
       a.click();
-      toast("화면을 저장했습니다");
+      toast("화면을 저장했습니다", true);   // 사진 모드에서도 들린다 (v141)
       if (S.photoMode) unlock("photo");
     } catch (e) { toast("화면 저장에 실패했습니다"); }
   }

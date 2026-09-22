@@ -10506,7 +10506,7 @@ phoneTest("도움말이 지도 조작을 알려 준다", async (page) => {
     B.endPlay();
     return { body };
   });
-  assert(/탭하면\s*표식|탭하면.{0,4}표식/.test(r.body),
+  assert(/탭하면\s*표식|탭하면.{0,12}표식/.test(r.body),   // v141: 「탭하면 지금 선 자리에 표식」
      "폰 도움말이 '지도를 탭하면 표식' 을 안 알려 준다");
   assert(/길게 누르면 확대/.test(r.body), "폰 도움말이 지도 확대를 안 알려 준다");
   // 기호는 **모양 이름**으로 적는다 (v113) — 색 이름만으로는 색약에게 범례가 아니다
@@ -15829,6 +15829,125 @@ test("v140 QA 2차: 자연 나무는 되돌리기 밖 · 가장자리 불은 꺼
   eq(r.glassSlots, 1, "복사가 같은 블록을 두 칸에 넣었다");
   eq(r.flowFroze, false, "흐르는 물이 얼었다 (근원만 얼어야 한다)");
   eq(r.srcFroze, true, "근원 물이 안 언다");
+});
+
+test("v141 불은 천천히 번지고, TNT 는 되돌리기 한 번에 자기까지 돌아온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true); B.beginPlay();
+    const keepV = B.S.village; B.S.village = null;
+    B.S.weather = 0; B.S.weatherLock = true;
+    // (1) 불 — 실제 프레임 경로로 4초
+    const FX = 30, FY = 50, FZ = 30;
+    for (let dx = -8; dx <= 8; dx++) for (let dz = -8; dz <= 8; dz++) {
+      for (let dy = 0; dy <= 4; dy++) B.set(FX + dx, FY + dy, FZ + dz, 0);
+      B.set(FX + dx, FY - 1, FZ + dz, (Math.abs(dx) <= 5 && Math.abs(dz) <= 5) ? K.PLANKS : K.STONE);
+    }
+    B.refreshAllTops(); B.resetQueues();
+    B.player.pos.set(FX + 7.5, FY + 3, FZ + 7.5); B.player.flying = true;
+    B.ignite(FX, FY, FZ);
+    for (let k = 0; k < 60 * 4; k++) B.step(1 / 60);
+    let planks = 0;
+    for (let dx = -5; dx <= 5; dx++) for (let dz = -5; dz <= 5; dz++) if (B.get(FX + dx, FY - 1, FZ + dz) === K.PLANKS) planks++;
+    const burned4s = 121 - planks;
+    for (let k = 0; k < 60 * 40; k++) B.step(1 / 60);
+    planks = 0;
+    for (let dx = -5; dx <= 5; dx++) for (let dz = -5; dz <= 5; dz++) if (B.get(FX + dx, FY - 1, FZ + dz) === K.PLANKS) planks++;
+    const burned44s = 121 - planks;
+    // (2) TNT — 되돌리기 한 번
+    const X = 50, Y = 50, Z = 50;
+    for (let dx = -6; dx <= 6; dx++) for (let dz = -6; dz <= 6; dz++) for (let dy = -6; dy <= 6; dy++)
+      B.set(X + dx, Y + dy, Z + dz, dy <= 0 ? K.DIRT : 0);
+    B.set(X, Y, Z, K.TNT);
+    B.refreshAllTops(); B.resetQueues();
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.primeTNT(X, Y, Z, 0.05);
+    for (let k = 0; k < 20; k++) B.step(1 / 60);
+    const gone = B.get(X, Y, Z) === 0 && B.get(X, Y - 1, Z) === 0;
+    B.undo();
+    const tntBack = B.get(X, Y, Z) === K.TNT, dirtBack = B.get(X, Y - 1, Z) === K.DIRT;
+    B.S.weatherLock = false; B.S.village = keepV; B.player.flying = false;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { burned4s, burned44s, gone, tntBack, dirtBack };
+  });
+  assert(r.burned4s < 60, "불이 4초에 판자 " + r.burned4s + "칸을 태웠다 — 너무 빠르다");
+  assert(r.burned44s > 20, "불이 44초 동안 " + r.burned44s + "칸밖에 안 탔다 — 번지지 않는다");
+  assert(r.gone, "시험 준비: TNT 가 안 터졌다");
+  assert(r.tntBack && r.dirtBack, "되돌리기 한 번에 TNT·흙이 다 안 돌아왔다 " + JSON.stringify(r));
+});
+
+test("v141 QA 3차: contract 는 상자 안 · clone 은 한 번에 되돌리기 · 띄어 쓴 표식 tp · 탐험가 · 모으기 막힘 안내", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true); B.beginPlay();
+    const out = {};
+    // (1) contract 를 너무 크게 줘도 한 칸까지, 원래 상자 안
+    B.S.selA = [30, 40, 30]; B.S.selB = [32, 40, 30];
+    B.runCommand("contract 5 0 0");
+    const b1 = B.selectionBounds();
+    out.c1 = [b1.x0, b1.x1];
+    B.S.selA = [0, 40, 30]; B.S.selB = [2, 40, 30];
+    B.runCommand("contract -5 0 0");
+    const b2 = B.selectionBounds();
+    out.c2 = [b2.x0, b2.x1];
+    // (2) clone 5번 = 되돌리기 한 번
+    const X = 44, Y = 50, Z = 44;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -30; dz <= 2; dz++) for (let dy = 0; dy <= 2; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.set(X, Y, Z, K.BRICK); B.set(X + 1, Y, Z, K.BRICK);
+    B.S.history.length = 0;
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 1, Y, Z];
+    const cm = B.runCommand("clone 0 0 -4 5");
+    const hist = B.S.history.length;
+    let bricks = 0; for (let k = 1; k <= 5; k++) if (B.get(X, Y, Z - 4 * k) === K.BRICK) bricks++;
+    B.undo();
+    let left = 0; for (let k = 1; k <= 5; k++) if (B.get(X, Y, Z - 4 * k) === K.BRICK) left++;
+    out.clone = { cm, hist, bricks, left };
+    B.S.selA = B.S.selB = null;
+    // (3) 띄어 쓴 이름의 표식으로 tp
+    const keepMarks = B.S.marks.slice();
+    B.S.marks = [[60, 45, 60, "큰 동굴"]];
+    for (let dy = 0; dy <= 3; dy++) for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) B.set(60 + dx, 45 + dy, 60 + dz, 0);
+    const tm = B.runCommand("tp 큰 동굴");
+    out.tp = { tm, x: Math.floor(B.player.pos.x), z: Math.floor(B.player.pos.z) };
+    // (4) 탐험가 — 마을 표식은 안 센다
+    if (B.S.village) {
+      B.S.marks = B.villageMarks(B.S.village).map((m) => m.slice());
+      B.S.marks.push([1, 40, 1, ""], [3, 40, 3, ""]);
+      out.pmc = B.playerMarkCount();
+    } else out.pmc = 2;
+    B.S.marks = keepMarks;
+    // (5) 모으기에서 Ctrl+F · Ctrl+V · Ctrl+Z 는 「쓸 수 없습니다」 로 끝난다
+    const keepBar = B.getBar().slice(), keepAlt = B.S.barAlt.slice();
+    B.resetSurvival(true);
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 1, Y, Z];
+    const t = document.getElementById("toast");
+    const msgs = [];
+    for (const code of ["KeyF", "KeyV", "KeyZ"]) {
+      t.textContent = "";
+      window.dispatchEvent(new KeyboardEvent("keydown", { code, ctrlKey: true, bubbles: true }));
+      document.dispatchEvent(new KeyboardEvent("keydown", { code, ctrlKey: true, bubbles: true }));
+      msgs.push(t.textContent);
+      window.dispatchEvent(new KeyboardEvent("keyup", { code, ctrlKey: true, bubbles: true }));
+    }
+    out.svMsgs = msgs;
+    B.S.selA = B.S.selB = null;
+    B.resetSurvival(false);
+    for (let i = 0; i < keepBar.length; i++) B.getBar()[i] = keepBar[i];
+    for (let i = 0; i < keepAlt.length; i++) B.S.barAlt[i] = keepAlt[i];
+    B.refreshBar();
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  eq(r.c1.join(), "30,30", "contract 를 크게 주면 원래 상자 밖으로 튄다");
+  eq(r.c2.join(), "2,2", "contract 음수를 크게 주면 원래 상자 밖(세계 밖)으로 튄다");
+  eq(r.clone.bricks, 5, "clone 5번이 다 안 놓였다 — " + r.clone.cm);
+  eq(r.clone.hist, 1, "clone 5번이 되돌리기 " + r.clone.hist + "단계로 쪼개졌다");
+  eq(r.clone.left, 0, "되돌리기 한 번에 clone 이 다 안 사라졌다");
+  eq(r.tp.x + "," + r.tp.z, "60,60", "띄어 쓴 표식 이름으로 tp 가 안 된다 — " + r.tp.tm);
+  eq(r.pmc, 2, "마을 표식까지 「내가 찍은 표식」 으로 센다");
+  for (const m of r.svMsgs) assert(/모으기 모드/.test(m), "모으기에서 막힌 조작의 안내가 덮였다 — '" + m + "'");
 });
 
 // ── 실행 ───────────────────────────────────────────────

@@ -9,6 +9,7 @@ import { relightAll } from "./light.js";
 import { IS_TOUCH } from "./boot.js";
 import { SH_SLAB, SH_SLAB_UP, isStairShape, NAMES, isItem, AIR, TORCH, hasShapes } from "./blocks.js";
 import { invCount, josa, svGoalText } from "./survival.js";
+import { villageMarks } from "./village.js";
 import { camera, crackMesh, renderer } from "./scene.js";
 import { applyTime } from "./daynight.js";
 import { applyOpts, applyFov, applyTbtn, applyUi, opts, saveOpts } from "./settings.js";
@@ -16,7 +17,7 @@ import { EYE, currentShape, player, raycast, spawn } from "./player.js";
 import { ac, setAudioAwake, startAmbient, tone } from "./audio.js";
 import { renameSlot, clearSave, SLOTS, backupLabel, dayLabel, restoreDay, needsHomeScreenHint, resetDayMark, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo , rememberSlot, releaseLock, lockHeldByOther} from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
-import { undoEmptyWhy, nextToTry, lastEditLabel, blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock } from "./edit.js";
+import { undoEmptyWhy, nextToTry, lastEditLabel, blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock, svBlocked } from "./edit.js";
 import { helpOpen, bigMapOpen, toggleBigMap, closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
 import { place } from "./mine.js";
@@ -1139,6 +1140,18 @@ export function setShapeMode(m) {
 // 지금 선 자리에 이미 있는 표식의 번호 — 없으면 -1
 // **`toggleMark` 과 같은 것을 골라야 한다** — 3칸 안에 표식이 둘이면
 // 길게 눌러 이름 붙인 것과 탭해서 지운 것이 서로 달라진다. 둘 다 **마지막** 것을 쓴다.
+// 마을이 미리 찍어 둔 표식을 뺀 수
+export function playerMarkCount() {
+  var vm = S.village ? villageMarks(S.village) : [];
+  var n = 0;
+  for (var i = 0; i < S.marks.length; i++) {
+    var m = S.marks[i], pre = false;
+    for (var j = 0; j < vm.length; j++)
+      if (markX(m) === vm[j][0] && markZ(m) === vm[j][2] && markName(m) === vm[j][3]) pre = true;
+    if (!pre) n++;
+  }
+  return n;
+}
 export function markHere() {
   var mx = Math.round(player.pos.x), mz = Math.round(player.pos.z);
   var near = -1;
@@ -1175,7 +1188,8 @@ export function toggleMark(named) {
     S.marks.push([mx, my, mz, nm]);
     // 좌표를 알려 준다 — 안 그러면 /tp 에 넣을 숫자를 알 길이 없다
     toast("표식 " + S.marks.length + (nm ? " · " + nm : "") + " · " + mx + " " + my + " " + mz);
-    if (S.marks.length >= 5) unlock("explorer");
+    // **내가 찍은 것만** 센다 (v141 · QA) — 새 세계는 마을 표식 셋(시장·광산·우리)으로 시작해 둘만 찍어도 열렸다
+    if (playerMarkCount() >= 5) unlock("explorer");
   }
   S.worldDirty = true;
   tone(620, 0.08, "triangle", 0.05);
@@ -1374,6 +1388,11 @@ window.addEventListener("keydown", function (e) {
   }
 
   if (e.ctrlKey || e.metaKey) {
+    // 모으기에서 막힌 조작은 **여기서 한 번만** 말한다 (v141 · QA) — svBlocked 가 알린 뒤 부른 쪽이
+    // 「먼저 영역을 고르세요」 · 「복사한 것이 없습니다」 · 「더 없음」 으로 곧바로 덮었다
+    if (S.survival && (e.code === "KeyF" || e.code === "KeyV" || e.code === "KeyZ" || e.code === "KeyY")) {
+      e.preventDefault(); svBlocked(); return;
+    }
     // ── 영역 도구
     if (e.code === "KeyF") {
       e.preventDefault();
@@ -1866,7 +1885,12 @@ export function toggleRegionBar(on) {
   }
   function on(id, fn) {
     var el = document.getElementById(id);
-    if (el) el.addEventListener("click", function (e) { e.stopPropagation(); fn(); });
+    if (el) el.addEventListener("click", function (e) {
+      e.stopPropagation();
+      // 모으기 — 채우기·비우기·붙여넣기는 막혔다는 말만 (v141). 복사·해제는 그대로 된다
+      if (S.survival && (id === "rb-fill" || id === "rb-wipe" || id === "rb-paste")) { svBlocked(); return; }
+      fn();
+    });
   }
   on("rb-fill", function () {
     var b = S.bar[S.selected];
@@ -2181,7 +2205,7 @@ export function pollGamepad(dt) {
   // 비어 있던 버튼 셋에 **안전망과 모양**을 건다 (v113) —
   // 되돌리기는 문서가 "물·용암을 지우는 유일한 안전망" 이라고 적어 둔 것인데
   // 패드 배치에 없었다. 모양(G)도 없어서 패드만으로는 반블록·계단을 못 놓았다
-  if (tapped(13)) { undo(); toast("되돌리기"); }   // 십자 아래 — 되돌리기
+  if (tapped(13)) { if (undo()) toast("되돌리기"); else if (!S.survival) toast("더 없음"); }   // 십자 아래 — 되돌리기 (모으기면 막힘 안내를 안 덮는다)
   if (tapped(12)) {                                // 십자 위 — 모양 (G 와 같은 길)
     cycleShape();
   }
