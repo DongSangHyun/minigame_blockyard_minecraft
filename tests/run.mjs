@@ -3896,7 +3896,7 @@ test("v19 조경: 동물이 옆에 있어도 꽃을 심을 수 있다", async (p
     B.seedMobs();
     B.setPaused(true); B.beginPlay();
     B.player.pos.set(x + 0.5, y, z + 0.5);
-    B.player.yaw = 0; B.player.pitch = 0.85;     // 발 앞쪽 바닥을 본다
+    B.player.yaw = 0; B.player.pitch = -0.85;     // 발 앞쪽 바닥을 본다
     B.camera.position.set(x + 0.5, y + 1.62, z + 0.5);
     B.camera.rotation.set(-0.85, 0, 0);
     // 양을 바로 옆(조준선 밖)에 세운다
@@ -15109,7 +15109,7 @@ test("v134 모으기 모드: 나무 → 판자 → 제작대 → 곡괭이, 가�
     // 놓기 — 가방에서 하나 빠지고, 없으면 못 놓는다
     B.getBar()[0] = K.CRAFT_TABLE; B.selectSlot(0);
     B.player.pos.set(X + 0.5, Y, Z + 0.5);
-    B.player.yaw = 0; B.player.pitch = 0.7;
+    B.player.yaw = 0; B.player.pitch = -0.7;
     B.camera.position.set(X + 0.5, Y + 1.62, Z + 0.5);
     B.camera.rotation.set(-0.7, 0, 0, "YXZ");
     B.camera.updateMatrixWorld(true);
@@ -15192,8 +15192,10 @@ test("v134 모으기 모드: 곡괭이 없이는 누르고 있어도 돌이 안 
     B.set(X, Y + 1, Z - 2, K.STONE); B.refreshAllTops();
     function hold(secs) {
       B.player.pos.set(X + 0.5, Y, Z + 0.5); B.player.vel.set(0, 0, 0);
-      B.player.yaw = 0; B.player.pitch = 0.2;
+      // 아래가 음수다 (v137) — 예전엔 +0.2(위)라 경계에 걸려 10회 중 1회 흔들렸다
+      B.player.yaw = 0; B.player.pitch = -0.2;
       B.camera.rotation.set(-0.2, 0, 0, "YXZ");
+      B.mobs.forEach((m) => { if (!B.MOB_KINDS[m.kind].trader) { m.x = 5; m.z = 5; } });
       B.S.keyMine = true;
       for (let k = 0; k < secs * 60; k++) B.step(1 / 60);
       B.S.keyMine = false;
@@ -15471,14 +15473,36 @@ test("v137 공유 링크: 슬롯 1 에 세계가 있어도 ?seed= 는 받은 시
     const k = { slot: B.S.slot, seed: B.seed() };
     B.S.slot = 1; B.saveGame();            // 슬롯 1 에 옛 세계가 있다
     B.S.slot = k.slot;
+    // 빈 슬롯 하나를 보장한다 — 다 차 있으면 링크 세계는 저장하지 않으므로 새로고침을 잴 수 없다
+    const free = [2, 3].filter((n) => n !== k.slot)[0];
+    k.freeKey = B.slotKey(free); k.freeRaw = localStorage.getItem(k.freeKey);
+    localStorage.removeItem(k.freeKey);
     return k;
   });
   const url = page.url().split("?")[0] + "?seed=4242";
   const p2 = await page.context().newPage();
   await p2.goto(url, { waitUntil: "load" });
   await p2.waitForFunction("window.__blockyard && window.__blockyard.booted !== false", null, { timeout: 30000 });
-  const r = await p2.evaluate(() => ({ seed: window.__blockyard.seed(), loaded: window.__blockyard.S.loadedFromSave }));
+  const r = await p2.evaluate(() => ({ seed: window.__blockyard.seed(), loaded: window.__blockyard.S.loadedFromSave,
+                                      slot: window.__blockyard.S.slot, noSave: window.__blockyard.S.noSave, search: location.search }));
+  // 새로고침해도 **방금 그 세계**가 열린다 (v139) — 링크가 주소에 남아 매번 새 세계를 열었다
+  let re = null;
+  if (!r.noSave) {
+    await p2.evaluate(() => { const B = window.__blockyard; B.set(10, 60, 10, B.B.GOLD); B.saveGame(); });
+    await p2.reload({ waitUntil: "load" });
+    await p2.waitForFunction("window.__blockyard && window.__blockyard.booted !== false", null, { timeout: 30000 });
+    re = await p2.evaluate(() => ({ seed: window.__blockyard.seed(), slot: window.__blockyard.S.slot,
+                                    gold: window.__blockyard.get(10, 60, 10) === window.__blockyard.B.GOLD }));
+  }
   await p2.close();
+  await page.evaluate((k) => { if (k.freeRaw) localStorage.setItem(k.freeKey, k.freeRaw); }, keep);
+  eq(r.noSave, false, "시험 준비: 빈 슬롯이 있는데 저장을 멈췄다");
+  eq(r.search, "", "링크를 쓴 뒤에도 주소에 ?seed= 가 남아 있다");
+  if (re) {
+    eq(re.seed, 4242, "링크 탭을 새로고침했더니 다른 세계가 열렸다");
+    eq(re.slot, r.slot, "새로고침하니 다른 슬롯에 앉았다");
+    assert(re.gold, "새로고침하니 지은 것이 사라졌다 (같은 시드의 새 세계)");
+  }
   eq(r.seed, 4242, "링크로 연 세계가 받은 시드가 아니다 (옛 세계 " + keep.seed + " 가 열렸나)");
   eq(r.loaded, false, "링크로 열었는데 저장에서 불러왔다");
 });
@@ -15671,6 +15695,39 @@ test("v138 외부 시험 3차: 숲지기·수문장은 내가 한 일로만 · �
   eq(r.rejected, true, "seed 가 null 인 저장을 받아들였다");
   assert(r.dia.placed >= 10 && r.dia.after >= r.dia.before + 10,
      "모으기 다이아가 굴 벽에 안 늘었다 " + JSON.stringify(r.dia));
+});
+
+test("v139 QA: 모으기 이어하기 카드는 목표를 · 패드 트리거는 반쯤 당겨도", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const keep = { bar: B.getBar().slice(), alt: B.S.barAlt.slice() };
+    B.resetSurvival(true); B.saveGame(); B.refreshResume();
+    const td = document.getElementById("resume-todo");
+    const sv = td ? td.textContent : "";
+    B.resetSurvival(false);
+    for (let i = 0; i < keep.bar.length; i++) B.getBar()[i] = keep.bar[i];
+    for (let i = 0; i < keep.alt.length; i++) B.S.barAlt[i] = keep.alt[i];
+    B.saveGame(); B.refreshResume();
+    const cr = td ? td.textContent : "";
+    // 트리거 반쯤 — pressed 는 거짓, value 0.6
+    const real = navigator.getGamepads;
+    const pad = { connected: true, axes: [0, 0, 0, 0], buttons: Array.from({ length: 16 }, () => ({ pressed: false, value: 0 })) };
+    navigator.getGamepads = () => [pad];
+    B.setPaused(true); B.beginPlay();
+    B.pollGamepad(1 / 60);
+    pad.buttons[7].value = 0.6;
+    B.pollGamepad(1 / 60);
+    const half = B.S.padMine === true;
+    pad.buttons[7].value = 0;
+    B.pollGamepad(1 / 60);
+    navigator.getGamepads = real;
+    B.S.padMine = false;
+    B.endPlay(); B.setPaused(false);
+    return { sv, cr, half };
+  });
+  assert(/모으기/.test(r.sv) && /나무/.test(r.sv), "모으기 세계의 이어하기 카드가 목표를 안 보여 준다 — " + r.sv);
+  assert(!/모으기/.test(r.cr), "만들기 세계의 카드에 모으기가 뜬다 — " + r.cr);
+  assert(r.half, "트리거를 반쯤(0.6) 당겼는데 캐기가 안 된다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

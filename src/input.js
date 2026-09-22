@@ -771,7 +771,12 @@ export function refreshResume() {
   }
   // 오늘 해 볼 것 (v123) — 아이 순서로 셋
   var td = document.getElementById("resume-todo");
-  if (td) {
+  // 모으기 세계는 **목표 한 줄**을 보여 준다 (v139 · QA) — 「첫 벽돌」 같은 만들기 과제를 권했다
+  if (td && S.survival) {
+    var sg = svGoalText();
+    td.innerHTML = "<b>모으기</b> — " + (sg || "모든 목표를 이뤘어요! 마음껏 지어 보세요");
+    td.hidden = false;
+  } else if (td) {
     var tl = nextToTry(3);
     td.innerHTML = tl.length ? ("<b>오늘 해 볼 것</b> — " +
       tl.map(function (a) { return a.name; }).join(" · ")) : "";
@@ -2101,7 +2106,12 @@ export function pollGamepad(dt) {
   padState.rx = dead(g.axes[2] || 0);
   padState.ry = dead(g.axes[3] || 0);
 
-  function pressed(n) { return !!(g.buttons[n] && g.buttons[n].pressed); }
+  // 트리거(6·7)는 **반쯤 당겨도** 누른 것으로 (v139 · QA) — 끝까지 당겨야 pressed 가 서는 패드·브라우저가 있다
+  function pressed(n) {
+    var bt = g.buttons[n];
+    if (!bt) return false;
+    return !!bt.pressed || ((n === 6 || n === 7) && (bt.value || 0) > 0.35);
+  }
   function tapped(n) {
     var now = pressed(n), was = padPrev[n];
     padPrev[n] = now;

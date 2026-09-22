@@ -17,7 +17,7 @@ import { applyTime, clockText, dayLight } from "./daynight.js";
 import { OPT_KEY, applyOpts, applyFov, applyTbtn, applyUi, UI_MIN_H, fovForAspect, FOV_BASE_ASPECT, calmMotion, opts } from "./settings.js";
 import { EYE, STEP_UP, boxHitsWorld, currentShape, footSupported, moveAxis, moveHorizontal, player, playerOccupies, pointSolid, rayBox, raycast, spawn, stats, unstick } from "./player.js";
 import { SOFT, WOOD, CLOTH, GLASSY, startAmbient, updateAmbient, ac, at, tone, crunch, breakSound, caveSound, lavaHiss, lavaPop, listenAt, miningSound, moodChord, placeSound, rainHiss, setMuffle, thunder } from "./audio.js";
-import { lastSlot, lockHeldByOther, touchLock, releaseLock, prevKey, pushPrev, backupCandidates, backupLabel, dayLabel, restoreDay, resetDayMark, dayKey, renameSlot, curKey, OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey } from "./save.js";
+import { lastSlot, lockHeldByOther, touchLock, releaseLock, prevKey, pushPrev, backupCandidates, backupLabel, dayLabel, restoreDay, resetDayMark, dayKey, renameSlot, curKey, OLD_KEY, SAVE_KEY, SLOTS, backupKey, clearSave, decodeArrB64, decodeWorld, decodeWorldB64, encodeArrB64, encodeWorld, encodeWorldB64, exportWorld, hasBackup, hasSave, importWorldText, liftLegacy, loadGame, pushBackup, restoreBackup, saveGame, slotInfo, slotKey, rememberSlot } from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName, baseRev, setBaseRev, ensureGist, req } from "./cloud.js";
 import { notePlaced, checkFoundAchievements, nextToTry, FOUND_IDS, undoEmptyWhy, HISTORY_CELLS_MAX, editLabel, blueprintList, deleteBlueprint, settleWorld, mirrorClip, rotateClip, BATCH_RELIGHT_ALL, checkBuildAchievements, ACHIEVEMENTS, CMD_HELP, CMD_LIST, REGION_MAX, achCount, applyEdit, beginBatch, blueprintNames, clearSelection, completeCommand, copySelection, shellSelection, roundSelection, exportBlueprint, importBlueprint, endBatch, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, saveBlueprint, selectionBounds, selectionCounts, selectionSize, undo, unlock, useBlueprint } from "./edit.js";
 import { refreshMouthDots, mouthDots, naturalRoof, roofDepth, ROOF_R, UNDER_ROOF, refreshMinimapCap, openPicker, closePicker, pickBtns, airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawMinimapTo, drawBigMap, toggleBigMap, bigMapOpen, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp , setHelpTab, toast, renderCraft} from "./hud.js";
@@ -72,6 +72,13 @@ if (!S.loadedFromSave) {
   bootProgress("세계를 만드는 중…", 0.20);
   generate(S.urlSeed !== null ? S.urlSeed : ((Math.random() * 100000) | 0));
 }
+// 링크는 **한 번 쓰고 주소에서 지운다** (v139 · QA) — 남아 있으면 새로고침할 때마다 링크를 다시 읽어
+// 빈 슬롯을 또 찾아 **같은 시드의 새 세계**를 열었고(지은 것이 사라진 것처럼 보였다),
+// 세 번째에는 빈 슬롯이 없어 저장이 멈췄다. 앉은 슬롯도 바로 기억한다 — 첫 저장 전에 새로고침해도 여기로 온다
+if (S.urlSeed !== null) {
+  if (!S.noSave) rememberSlot(S.slot);
+  try { history.replaceState(null, "", location.pathname + location.hash); } catch (e) {}
+}
 // 링크로 받은 세계라고 **말해 준다** (v116) — 시작 화면 카드는 슬롯의 이름·시간을
 // 읽어 「이어하기」라고 하는데, 실제로 열려 있는 것은 링크가 준 다른 세계다
 if (S.urlSeed !== null) {
@@ -94,6 +101,9 @@ refreshAchList();
 refreshStats();
 refreshMenu();
 if (!S.loadedFromSave) spawn();
+// 링크로 받은 세계는 **곧바로 한 번 저장**한다 (v139) — 첫 자동 저장(20초) 전에 새로고침하면
+// 기억한 슬롯이 비어 있어 옛 세계로 떨어졌다
+if (S.urlSeed !== null && !S.noSave) saveGame();
 
 S.savedPos = player.pos.clone(); S.savedYaw = player.yaw; S.savedPitch = player.pitch;
 // 동물·물고기·새는 newWorld() 안에서만 뿌려지고 있었다 — 즉 R 로 새 세계를 만든 세션에만
