@@ -6,7 +6,7 @@ import { MATERIALS, blockAliases, hasShapes, AIR, ALL_BLOCKS, isStained, BUCKET,
 import { AVG_TOP, TILE, atlas, tileOrigin } from "./atlas.js";
 import { SEEN_TOP, SEEN_UNDER_ALL, UNDER_BANDS, underBand, isTouched, heightMap, markX, markY, markZ, markName, seenMap, markSeen, topMap, world } from "./world.js";
 import { player } from "./player.js";
-import { opts } from "./settings.js";
+import { opts, applyTbtn } from "./settings.js";
 import { updateHandBlock } from "./hand.js";
 import { advanceTut, canvas, isTouch } from "./input.js";
 import { canCraft, craft, needLine, recipesFor, stationsNear } from "./survival.js";
@@ -261,7 +261,13 @@ export var photoBar = document.getElementById("photobar");
 export var regionBar = document.getElementById("regionbar");
 export function showHud(on) {
   hudEls.forEach(function (el) { el.hidden = !on; });
+  var wasHidden = touchEl.hidden;
   touchEl.hidden = !(on && isTouch);
+  // **여기서 한 번 다시 잰다** (v143) — `applyTbtn` 은 부팅 때 도는데 그때 `#touch` 는
+  // 아직 hidden 이라 `offsetHeight` 가 0 이고, 그러면 그냥 빠져나가 배율이 1 로 굳는다.
+  // 단추가 열 개일 때는 마침 들어맞아 아무도 몰랐다 — v143 이 「지도」 를 더해
+  // 열한 개가 되자 **캐기·놓기가 화면 위로 29px 밀려 나갔다.** 창 크기가 바뀔 때까지 그대로였다
+  if (wasHidden && !touchEl.hidden) applyTbtn();
   // 사진 모드에서는 미니 바만 남긴다 (v96) — HUD 를 끄면 터치 단추가 통째로 사라져
   // **폰에서는 사진을 저장할 길도 나올 길도 없었다** (과제 「사진사」가 영영 안 열렸다)
   // 데스크톱에도 띄운다 (v136 · 외부 시험) — F6 을 누르면 HUD 가 통째로 사라지고
@@ -745,6 +751,8 @@ export function renderCraft() {
   if (lede) lede.textContent = S.survival ? "만든 것은 가방에 들어갑니다 · 가방의 것을 누르면 지금 칸에 듭니다"
                                           : "고른 블록이 지금 선택된 칸에 들어갑니다";
   if (pickerEl) pickerEl.classList.toggle("sv", !!S.survival);
+  var bagHead = document.getElementById("bag-head");
+  if (bagHead) bagHead.hidden = !S.survival;      // 만들기 모드의 목록은 가방이 아니다
   if (!craftBox) return;
   craftBox.hidden = !S.survival;
   if (!S.survival) return;
@@ -770,10 +778,17 @@ export function renderCraft() {
     t.appendChild(sm);
     b.appendChild(cv); b.appendChild(t);
     b.setAttribute("aria-label", NAMES[r.out] + " 만들기 — " + needLine(r));
+    b.setAttribute("data-out", r.out);       // 시험과 접근성이 이 단추를 짚는 길 (v143)
     b.addEventListener("click", function () {
       var step0 = S.svStep;
       if (!craft(r)) return;
       tone(760, 0.06, "triangle", 0.05);
+      // **만든 것이 손에 들린다** (v143 · 자문 30차 #2) — 목표가 「제작대를 땅에 놓으세요」 로
+      // 넘어가는데 고른 칸은 그대로 0번(원목)이라, 시킨 대로 「놓기」 를 누른 아이에게
+      // **원목이 놓였다.** 폰에는 숫자키가 없어 핫바 칸을 눈으로 찾아 탭해야 한다.
+      // 지금 쪽(S.bar)에 있을 때만 옮긴다 — 반대쪽 쪽까지 넘기면 손이 멋대로 튄다
+      var made = S.bar.indexOf(r.out);
+      if (made >= 0 && made !== S.selected) selectSlot(made);
       // 목표를 넘긴 칭찬이 떴으면 덮지 않는다
       if (S.svStep === step0) toast(NAMES[r.out] + (r.n > 1 ? " ×" + r.n : "") + " 만들었습니다");
       renderCraft();

@@ -357,6 +357,14 @@
      계기판·지도·핫바 셋만 썼다. 토스트("12,345칸을 채웠습니다")와 힌트는
      10px 에 못 박혀 있어서, 글자가 작다는 사람이 슬라이더를 끝까지 올려도
      **글자가 실제로 커지는 곳이 없었다.** 토스트는 이 게임이 사람에게 말을 거는 주 통로다 */
+  #bag-head {
+    margin: 14px 0 6px; font-family: var(--sans); font-size: 12px;
+    color: var(--dust); letter-spacing: .02em;
+    border-top: 1px solid var(--line); padding-top: 10px;
+  }
+  #bag-head b { color: var(--bone); font-weight: 600; }
+  @media (max-height: 520px) { #bag-head { margin: 8px 0 4px; padding-top: 6px; font-size: 10px; } }
+
   #toast {
     position: fixed; left: 50%; bottom: 120px;
     zoom: var(--ui);                /* 자리도 배율을 탄다 — 핫바가 커지면 같이 올라간다 */
@@ -390,7 +398,9 @@
     .slot .name { display: none; }
     #hint { font-size: 9px; line-height: 1.3; max-width: 70vw;
             bottom: calc(56px * var(--ui, 1) + var(--safe-b)); }
-    #toast { bottom: calc(58px + var(--safe-b)); font-size: 9px; padding: 5px 9px; }
+    /* 힌트 줄과 **같은 높이**였다 (v143 · 자문 30차 #4) — 목표가 넘어가는
+       그 순간에 둘이 물려 글자 위에 글자가 찍혔다. 힌트 위로 한 층 올린다 */
+    #toast { bottom: calc(96px * var(--ui, 1) + var(--safe-b)); font-size: 9px; padding: 5px 9px; }
     #tbtns { right: calc(10px + var(--safe-r)); bottom: calc(54px + var(--safe-b)); }
   }
   @media (max-width: 420px) {
@@ -816,6 +826,10 @@
   /* 모으기의 가방은 몇 칸뿐이라 검색·갈래가 자리만 먹는다 — 폰 가로에서 가방이 한 줄도 안 보였다 */
   #picker.sv .pick-tools { display: none; }
   body.sv #tb-undo { display: none; }    /* 모으기에서는 되돌리기가 없다 (v135) */
+  /* 2열 격자라 단추가 홀수면 마지막 줄에 **구멍**이 남는다 (v143 · 자문 30차 #9).
+     만들기는 11칸(홀수)이라 메뉴가 두 칸을 쓰고, 모으기는 되돌리기가 빠져 10칸(짝수)이라 그대로 둔다 */
+  #tb-menu { grid-column: span 2; }
+  body.sv #tb-menu { grid-column: auto; }
   @media (max-height: 520px) {
     /* 폰 가로에서 만들기 목록이 117px(2.5줄)이었다 (v139 · QA) — 제목을 접고 목록에 자리를 준다 */
     #craft-list { max-height: 30vh; }
@@ -824,6 +838,8 @@
     .craft { padding: 2px 6px; }
     .craft canvas { width: 24px; height: 24px; }
     #picker.sv .pick-card > p { display: none; }
+    /* 가방 이름표만은 남긴다 (v143) — 이 줄이 「무엇을 가졌나」 를 말하는 유일한 글자다 */
+    #picker.sv .pick-card > p#bag-head { display: block; }
   }
   .craft:disabled { opacity: .45; cursor: default; }
   .pick .cnt, .slot .cnt {
@@ -1019,6 +1035,9 @@
     <button id="tb-pick" type="button">뽑기</button>
     <button id="tb-sneak" type="button">웅크림</button>
     <button id="tb-shape" type="button">모양</button>
+    <!-- 큰 지도 (v143 · 자문 30차 #3) — `toggleBigMap(true)` 를 부르는 곳이 `KeyN` 하나뿐이라
+         폰은 96칸 세계를 105×123px 미니맵으로만 봤다. 표식 이름을 읽을 화면이 없었다 -->
+    <button id="tb-map" type="button">지도</button>
     <button id="tb-undo" type="button">되돌리기</button>
     <button id="tb-menu" type="button">메뉴</button>
   </div>
@@ -1159,6 +1178,7 @@
         <dd><b>목록을 길게</b> 누르면 핫바 2쪽 — 울타리·문·사다리·유리판·부싯돌·<b>양동이</b>가 있습니다</dd>
         <dd><b>모양</b> — 전체 블록 → 반블록 → 계단 (계단 방향은 보고 있는 쪽 · 울타리·문 같은 블록은 모양이 없습니다)</dd>
         <dd>아래 <b>핫바 칸</b>을 눌러 고릅니다 · <b>되돌리기</b>는 대량 편집도 한 번에 되돌립니다</dd>
+        <dd><b>지도</b> — 세계를 통째로 크게 봅니다 (표식 이름이 읽힙니다 · 다시 누르면 닫힙니다)</dd>
         <dd><b>맨손</b> — 목록 맨 앞의 ✋ 칸을 고르면 아무것도 안 듭니다 (캐기·문 열기·상인은 그대로)</dd>
         <dd><b>모으기 모드</b>(새 세계 › 놀이) — 나무를 캐서 원목 → 목록에서 판자·제작대를 만들고, 제작대 옆에서 곡괭이를 만듭니다.
           돌은 나무 곡괭이, 철은 돌 곡괭이, 금·다이아는 철 곡괭이가 있어야 캐집니다 · 철은 <b>화로</b> 옆에서 석탄과 녹입니다 ·
@@ -1175,6 +1195,7 @@
         <dt>동물</dt>
         <dd>꽃이나 <b>키큰풀</b>을 들고 동물을 향해 <b>놓기</b> — 잠시 따라옵니다</dd>
         <dd>따라오는 동안 머리 위에 <b>하트</b>가 뜹니다. 같은 종 두 마리를 <b>3칸</b> 안에 모으면 새끼가 납니다</dd>
+        <dd>새끼를 본 부모는 <b>2분쯤 쉽니다</b> — 그동안에도 꽃을 주면 따라오지만 새끼는 안 생깁니다</dd>
         <dd>울타리와 울타리문으로 우리를 지으면 가둔 동물은 사라지지 않습니다</dd>
         <dd>동물을 향해 <b>캐기</b> — 동물을 보냅니다. <b>되돌리기로 돌아오지 않습니다</b></dd>
         <dt>나무</dt>
@@ -1225,6 +1246,10 @@
       <p id="craft-note"></p>
       <div id="craft-list"></div>
     </div>
+    <!-- 가방 이름표 (v143 · 자문 30차 #7) — 모으기에서 이 아래 줄이 아이의 가방 전부인데
+         「가방」 이라는 글자가 어디에도 없었다. 「맨손」 칸이 재료 칸과 같은 모양·같은 줄에
+         나란히 있어 「맨손이라는 아이템 1개」 로 보였다 -->
+    <p id="bag-head" hidden>가방 — 가진 것 (누르면 손에 듭니다 · <b>맨손</b>은 아무것도 안 든 손)</p>
     <div class="pick-tools">
       <input id="pick-find" type="text" placeholder="이름으로 찾기 (예: 양털, 문, 꽃)" autocomplete="off">
       <div id="pick-tabs">
@@ -1307,7 +1332,7 @@
       <summary>설정</summary>
       <p class="opt-head">조작</p>
       <div class="opt-grid">
-        <label class="opt"><span>시점 감도</span><input type="range" id="s-sens" min="20" max="400" step="5"><output id="o-sens"></output></label>
+        <label class="opt"><span>시점 감도 <small>(마우스 · 터치 드래그 · 패드를 함께 움직입니다)</small></span><input type="range" id="s-sens" min="20" max="400" step="5"><output id="o-sens"></output></label>
         <label class="opt check"><span>Y축 반전</span><input type="checkbox" id="s-inv"><output id="o-inv"></output></label>
         <label class="opt check"><span>왼손잡이 배치</span><input type="checkbox" id="s-lefty"><output id="o-lefty"></output></label>
         <label class="opt check"><span>웅크리기 전환식</span><input type="checkbox" id="s-sneaktog"><output id="o-sneaktog"></output></label>

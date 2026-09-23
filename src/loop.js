@@ -966,6 +966,10 @@ export function animate() {
   requestAnimationFrame(animate);
   var dt = Math.min(clock.getDelta(), 0.05);
   if (S.loopPaused) return;
+  // 세로로 들면 「가로로 돌려 주세요」 검은 판이 화면을 통째로 덮는데,
+  // 그 뒤에서 세계는 계속 돌았다 (v143 · 자문 30차 #6) — 아무것도 못 보고
+  // 못 누르는 동안 밤이 오고 불이 번졌다. 가로로 돌리면 그대로 이어진다
+  if (S.rotateBlock) return;
   pollGamepadMenu();          // 시작 화면에서 A 로 들어올 수 있게
   step(dt);
 

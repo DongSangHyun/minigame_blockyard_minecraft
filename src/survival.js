@@ -227,9 +227,20 @@ export var SV_GOALS = [
   { key: "craft:" + PICK_IRON, text: "철괴 3개와 막대기 2개로 <b>철 곡괭이</b>를 만드세요 — 다이아몬드를 캘 수 있어요" },
   // 「바닥 가까이」 라고 말했지만 v138 의 `enrichDiamonds` 가 넣는 자리는 y 3~14 · 중앙값 5~6 이다.
   // 바닥(y 1)까지 파 내려간 아이는 오히려 돌밭을 만난다 — 말을 실제에 맞췤다 (v142 · CLAUDE.md §5.5)
-  { key: "get:" + DIAMOND_GEM, text: "깊은 굴의 <b>바닥에서 예닭섯 칸쯤</b> 되는 벽에서 하늘색 점이 박힌 <b>다이아 광석</b>을 찾으세요!" },
+  { key: "get:" + DIAMOND_GEM, text: "깊은 굴의 <b>바닥에서 예닐곱 칸쯤</b> 되는 벽에서 하늘색 점이 박힌 <b>다이아 광석</b>을 찾으세요!" },
   { key: "craft:" + PICK_DIAMOND, text: "다이아몬드 3개와 막대기 2개로 <b>다이아 곡괭이</b>를 만드세요" }
 ];
+// 방금 넘긴 목표를 「무엇을 해냈다」 로 짧게 말한다 (v143).
+// 목표의 `key` 가 `craft:`·`get:`·`place:` 라 그것만 보면 된다 —
+// 긴 지시문을 토스트가 다시 읽혀 줄 이유가 없다
+export function doneWords(g) {
+  if (!g) return "잘 되고 있어요";
+  var p = g.key.split(":"), id = parseInt(p[1], 10), nm = NAMES[id] || "";
+  var ob = nm + josa(nm, "을", "를");
+  if (p[0] === "craft") return ob + " 만들었어요";
+  if (p[0] === "place") return ob + " 놓았어요";
+  return ob + " 모았어요";
+}
 export function svGoalText() {
   var st = S.svStep | 0;
   if (st >= SV_GOALS.length) return "";
@@ -261,7 +272,12 @@ export function svEvent(key) {
     S.worldDirty = true;
     refreshHint();
     var next = svGoalText();
-    toast(next ? "잘했어요! 다음: " + next.replace(/<[^>]+>/g, "") : "모든 목표를 이뤘어요! 이제 마음껏 지어 보세요");
+    // 토스트는 **방금 해낸 일**만 말한다 (v143 · 자문 30차 #10).
+    // 예전에는 「잘했어요! 다음: …」 으로 **왼쪽 목표 줄과 똑같은 문장**을 떰웠는데,
+    // 폰 가로에서는 그 둘이 같은 높이라 글자 위에 글자가 찍혔다 — 둘 다 못 읽는다.
+    // 다음에 할 일은 왼쪽 목표 줄이 상시로 말하고 있다
+    toast(next ? "잘했어요! — " + doneWords(SV_GOALS[(S.svStep | 0) - 1])
+               : "모든 목표를 이뤄어요! 이제 마음껏 지어 보세요");
   }
 }
 function alreadyDone(key) {

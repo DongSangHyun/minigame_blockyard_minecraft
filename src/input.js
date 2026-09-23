@@ -1711,7 +1711,12 @@ window.addEventListener("touchmove", function (e) {
                t.clientY - parseFloat(stickBase.style.top));
       e.preventDefault();
     } else if (t.identifier === S.lookId) {
-      applyLook((t.clientX - lookLast.x) * 0.64, (t.clientY - lookLast.y) * 0.64);
+      // 폰은 쓸 수 있는 띄가 짧다 (v143 · 자문 30차 #1) — 844px 화면에서
+      // 왼쪽 42%는 스틱, 오른쪽 끝은 단추가 가져가 **남는 띄가 329px** 뿐이다.
+      // v142 가 ×1.6→×0.64 로 나눠 「예전 속도 그대로」 를 지켰는데,
+      // 그 예전 속도가 **한 번 쓸어 66도**였다 — 뒤를 보려면 손가락을 세 번 긋는다.
+      // 마크 폰판은 한 번 쓸기에 180~200도다. ×1.4 면 한 번에 약 145도
+      applyLook((t.clientX - lookLast.x) * 1.4, (t.clientY - lookLast.y) * 1.4);
       lookLast.x = t.clientX; lookLast.y = t.clientY;
       e.preventDefault();
     }
@@ -1922,6 +1927,14 @@ export function toggleRegionBar(on) {
     toast("영역 선택 해제");
   });
 })();
+// 큰 지도 (v143) — 폰에서 유일한 입구다. 키보드의 `N` 과 같은 길을 탄다
+bindHold("tb-map", function () {}, function () {
+  if (bigMapOpen()) { toggleBigMap(false); return; }
+  if (S.uiOpen) return;
+  toggleBigMap(true);
+  advanceTut(6);
+});
+
 // 되돌리기는 짧게, **다시하기는 길게** (v91).
 // 폰에는 `Ctrl+Y` 가 없어 되돌리기의 짝이 아예 없었다 — 메뉴를 누르려다 손이
 // 한 칸 위로 가면 TNT 한 방(158칸)이 통째로 사라지고 되돌릴 길이 없었다.
@@ -1995,7 +2008,17 @@ bindHold("tb-undo", function () {
   });
 })();
 
+// 세로 장막이 덮여 있는 동안은 세계를 재워 둔다 (v143) — `#rotate` 와 **같은 조건**을 읽는다.
+// 둘이 어긋나면 「가리긴 했는데 도는」 가 되므로, 질의문을 CSS 에서 그대로 베껴 썬다
+export var rotateQuery = window.matchMedia ? window.matchMedia("(hover: none) and (orientation: portrait)") : null;
+export function refreshRotateBlock() {
+  S.rotateBlock = !!(rotateQuery && rotateQuery.matches);
+}
+refreshRotateBlock();
+if (rotateQuery && rotateQuery.addEventListener) rotateQuery.addEventListener("change", refreshRotateBlock);
+
 window.addEventListener("resize", function () {
+  refreshRotateBlock();
   camera.aspect = window.innerWidth / window.innerHeight;
   applyFov();                       // 좁은 창에서 가로 시야를 지킨다 (v93)
   S.fovNow = camera.fov;            // 달리기 보간이 옛 각도로 되돌리지 않게

@@ -15953,7 +15953,7 @@ test("v141 QA 3차: contract 는 상자 안 · clone 은 한 번에 되돌리기
 
 // ══ v142 — 자문 29차 ══════════════════════════════════════
 
-test("v142 시점 감도: 마우스는 빨라지고 터치·패드는 그대로다", async (page) => {
+test("v142 시점 감도: 마우스는 빨라지고 패드는 그대로다", async (page) => {
   const r = await page.evaluate(() => {
     const B = window.__blockyard;
     B.setPaused(true); B.beginPlay();
@@ -15964,10 +15964,6 @@ test("v142 시점 감도: 마우스는 빨라지고 터치·패드는 그대로�
     B.applyLook(1000, 0);
     const radPer1000 = Math.abs(B.player.yaw);
     const px360 = 2 * Math.PI / (radPer1000 / 1000);
-    // 터치 드래그는 부르는 쪽이 ×0.64 를 곱한다 (예전 ×1.6 과 같은 속도여야 한다)
-    B.player.yaw = 0;
-    B.applyLook(1000 * 0.64, 0);
-    const touch1000 = Math.abs(B.player.yaw);
     // 패드 오른쪽 스틱 — 1초 끝까지 밀었을 때 (예전 ×620 과 같아야 한다)
     B.player.yaw = 0;
     B.applyLook(1 * 248 * 1, 0);
@@ -15975,13 +15971,14 @@ test("v142 시점 감도: 마우스는 빨라지고 터치·패드는 그대로�
     B.opts.sens = keepSens; B.opts.invertY = keepInv;
     B.player.yaw = 0;
     B.endPlay(); B.setPaused(false);
-    return { px360, touch1000, pad1s, max: +document.getElementById("s-sens").max };
+    return { px360, pad1s, max: +document.getElementById("s-sens").max };
   });
   // 마크는 586px · v141 까지는 2,856px 이었다. 아이에게 안전한 선으로 1,000~1,400px
   assert(r.px360 > 900 && r.px360 < 1500,
          "마우스로 360° 도는 데 " + Math.round(r.px360) + "px — 1,000~1,400px 를 벗어났다");
-  // 터치·패드는 예전 값(0.0022×1.6 · 0.0022×620)과 같아야 한다
-  near(r.touch1000, 0.0022 * 1.6 * 1000, 1e-6, "터치 드래그 속도가 v141 과 달라졌다");
+  // 폰 한 쓸기는 **진짜 터치 이벤트로** 따로 잰다 (아래 「폰 · v143 한 쓸기」) —
+  // 여기서 배수를 시험이 직접 곱하면 코드의 배수를 아예 안 재게 된다
+  // 패드만 예전 값 그대로 (0.0022×620)
   near(r.pad1s, 0.0022 * 620, 1e-6, "패드 오른쪽 스틱 속도가 v141 과 달라졌다");
   assert(r.max >= 400, "감도 슬라이더 최대가 " + r.max + " — 400 이상이어야 한다");
 });
@@ -16117,6 +16114,192 @@ test("v142 모으기: 금괴가 쓸 데가 있고, 다이아 안내가 바닥이
   assert(r.diaText.indexOf("바닥 가까이") < 0,
          "다이아 안내가 아직 「바닥 가까이」 라고 말한다 — enrichDiamonds 는 y 3~14 에 넣는다");
   assert(r.diaText.indexOf("다이아 광석") >= 0, "다이아 안내에서 「다이아 광석」 이 사라졌다");
+});
+
+
+// ══ v143 — 자문 30차 (폰) ═══════════════════════════════
+
+test("v143 모으기: 만든 것이 손에 들리고, 토스트는 한 일을 말한다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true);
+    B.S.nextMode = 1; B.newWorld(4242); B.beginPlay();
+    const out = {};
+    // 원목만 든 채로 목록을 연다 — 목표는 「판자를 만드세요」 자리
+    B.S.inv = {}; B.S.bar = B.S.bar.map(() => K.AIR);
+    B.addItem(K.LOG, 8);
+    B.S.selected = 0;
+    B.openPicker();
+    B.renderCraft();
+    // 판자 단추를 실제로 누른다 (data-out 으로 짚는다)
+    const btn = document.querySelector('#craft-list button[data-out="' + K.PLANKS + '"]');
+    out.hasBtn = !!btn;
+    B.S.svStep = 1;                    // 「판자를 만드세요」 단계
+    btn.click();
+    out.held = B.S.bar[B.S.selected];
+    out.planks = B.invCount(K.PLANKS);
+    // 토스트가 목표 줄을 되풀이하지 않는다
+    out.toast = document.getElementById("toast").textContent;
+    out.hint = document.getElementById("hint").textContent;
+    B.closePicker();
+    B.S.nextMode = 0;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  assert(r.hasBtn, "제작 단추에 data-out 이 없다 — 짚을 길이 없다");
+  assert(r.planks >= 4, "판자가 안 만들어졌다 (" + r.planks + ")");
+  eq(r.held, 7, "만든 판자가 손에 안 들렸다 — 고른 칸이 " + r.held + " 이다");
+  assert(r.toast.indexOf("다음:") < 0,
+         "토스트가 아직 다음 목표를 되풀이한다 — " + r.toast);
+  assert(r.toast.indexOf("만들었어요") > 0, "토스트가 한 일을 안 말한다 — " + r.toast);
+  assert(r.hint !== r.toast, "목표 줄과 토스트가 같은 문장이다 — " + r.toast);
+});
+
+test("v143 세로로 돌린 동안에는 세계가 멈춘다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    const t0 = B.S.timeOfDay;
+    B.S.rotateBlock = true;
+    // 실제 프레임을 돌린다 — animate 가 rotateBlock 에서 빠져나와야 한다
+    const before = B.stats.frames;
+    B.S.rotateBlock = false;
+    B.endPlay();
+    return { t0, has: typeof B.S.rotateBlock !== "undefined", before };
+  });
+  assert(r.has, "S.rotateBlock 이 없다");
+  // 실제 정지는 프레임을 돌려서 잰다 (setPaused 로 재운 채로는 animate 가 안 돈다)
+  const moved = await page.evaluate(async () => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    B.S.rotateBlock = true;
+    const a = B.S.timeOfDay;
+    await new Promise((res) => setTimeout(res, 400));
+    const b = B.S.timeOfDay;
+    B.S.rotateBlock = false;
+    const c = B.S.timeOfDay;
+    await new Promise((res) => setTimeout(res, 400));
+    const d = B.S.timeOfDay;
+    B.endPlay();
+    return { stopped: b - a, ran: d - c };
+  });
+  assert(Math.abs(moved.stopped) < 1e-9,
+         "세로 장막이 덮인 동안에도 시간이 흘렀다 (" + moved.stopped + ")");
+  assert(moved.ran > 0, "가로로 돌아왔는데 시간이 안 흐른다 (" + moved.ran + ")");
+});
+
+phoneTest("v143 한 쓸기에 100도 위로 돈다 (진짜 터치 드래그)", async (page) => {
+  const r = await page.evaluate(async () => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    const cv = document.querySelector("canvas");
+    B.player.yaw = 0; B.player.pitch = 0;
+    B.S.uiOpen = false;
+    // 시점 띠 한가운데에서 오른쪽으로 329px — 폰에서 실제로 쓸 수 있는 폭이다
+    // (왼쪽 42% 는 스틱, 오른쪽 끝은 단추가 가져간다)
+    const y = 200, x0 = 360, span = 329;
+    function touch(type, x) {
+      const t = new Touch({ identifier: 7, target: cv, clientX: x, clientY: y });
+      cv.dispatchEvent(new TouchEvent(type, {
+        bubbles: true, cancelable: true,
+        touches: type === "touchend" ? [] : [t],
+        targetTouches: type === "touchend" ? [] : [t],
+        changedTouches: [t]
+      }));
+    }
+    touch("touchstart", x0);
+    for (let k = 1; k <= 16; k++) touch("touchmove", x0 + (span * k) / 16);
+    touch("touchend", x0 + span);
+    const deg = Math.abs(B.player.yaw) * 180 / Math.PI;
+    B.player.yaw = 0;
+    B.endPlay();
+    return { deg };
+  });
+  // v142 까지는 **66도**였다 — 뒤를 보려면 손가락을 세 번, 한 바퀴는 다섯 번 긋는다.
+  // 마크 베드락 폰판은 한 쓸기에 180~200도다
+  assert(r.deg > 100 && r.deg < 220,
+         "폰 한 쓸기가 " + Math.round(r.deg) + "도 — 100~220도를 벗어났다");
+});
+
+phoneTest("v143 지도 단추로 큰 지도를 열고 닫는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    const btn = document.getElementById("tb-map");
+    const out = { has: !!btn, visible: !!(btn && btn.getClientRects().length) };
+    function tap(el) {
+      el.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
+      el.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true }));
+    }
+    tap(btn);
+    out.opened = B.bigMapOpen();
+    tap(btn);
+    out.closed = !B.bigMapOpen();
+    B.endPlay();
+    return out;
+  });
+  assert(r.has && r.visible, "폰에 「지도」 단추가 없다");
+  assert(r.opened, "「지도」 를 눌러도 큰 지도가 안 열린다");
+  assert(r.closed, "한 번 더 눌러도 큰 지도가 안 닫힌다");
+});
+
+phoneTest("v143 터치 단추가 화면 안에 다 들어오고, 마지막 줄에 구멍이 없다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    function look() {
+      const out = { off: [], lastSpan: "" };
+      const bs = Array.from(document.querySelectorAll("#tbtns button"))
+                      .filter((b) => b.getClientRects().length);
+      bs.forEach((b) => {
+        const q = b.getBoundingClientRect();
+        if (q.top < 0 || q.bottom > window.innerHeight ||
+            q.left < 0 || q.right > window.innerWidth) out.off.push(b.id);
+      });
+      out.n = bs.length;
+      // 홀수면 마지막 단추(메뉴)가 두 칸을 써야 구멍이 안 남는다
+      const menu = document.getElementById("tb-menu");
+      out.lastSpan = getComputedStyle(menu).gridColumn;
+      out.odd = bs.length % 2 === 1;
+      return out;
+    }
+    const make = look();
+    B.S.survival = true; document.body.classList.add("sv");
+    const surv = look();
+    B.S.survival = false; document.body.classList.remove("sv");
+    B.endPlay();
+    return { make, surv };
+  });
+  eq(r.make.off.length, 0, "만들기: 단추가 화면 밖으로 나갔다 — " + r.make.off.join(","));
+  eq(r.surv.off.length, 0, "모으기: 단추가 화면 밖으로 나갔다 — " + r.surv.off.join(","));
+  // 만들기 11칸(홀수) → 메뉴가 두 칸 · 모으기 10칸(짝수) → 한 칸
+  assert(r.make.odd && /span 2/.test(r.make.lastSpan),
+         "만들기에서 마지막 줄에 구멍이 남는다 — " + r.make.n + "칸 · " + r.make.lastSpan);
+  assert(!r.surv.odd, "모으기 단추가 " + r.surv.n + "칸 — 짝수여야 구멍이 안 남는다");
+});
+
+phoneTest("v143 목표 줄과 토스트가 안 겹치고, 가방에 이름표가 있다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.S.nextMode = 1; B.newWorld(4242); B.beginPlay();
+    B.S.svStep = 3; B.refreshHint();
+    B.toast("잘했어요! — 제작대를 만들었어요");
+    const h = document.getElementById("hint").getBoundingClientRect();
+    const t = document.getElementById("toast").getBoundingClientRect();
+    const overlap = !(t.bottom <= h.top || t.top >= h.bottom || t.right <= h.left || t.left >= h.right);
+    B.openPicker(); B.renderCraft();
+    const bag = document.getElementById("bag-head");
+    const out = {
+      overlap, hintB: Math.round(h.bottom), toastB: Math.round(t.bottom),
+      bagShown: !!(bag && bag.getClientRects().length)
+    };
+    B.closePicker();
+    B.S.survival = false; B.S.nextMode = 0;
+    B.endPlay();
+    return out;
+  });
+  assert(!r.overlap, "폰에서 목표 줄과 토스트가 겹친다 (hint " + r.hintB + " · toast " + r.toastB + ")");
+  assert(r.bagShown, "모으기 목록에 「가방」 이름표가 없다");
 });
 
 // ── 실행 ───────────────────────────────────────────────
