@@ -76,9 +76,12 @@ export function refreshHint() {
   // "다 배웠다" 는 신호가 없어, 게임이 아직 나를 초보로 보는 느낌이 내내 갔다.
   // 메뉴에서 돌아오거나 도움말을 닫으면 잠깐 다시 뜬다(이 함수가 그때 불린다)
   // 모으기 모드는 **목표 한 줄**이 튜토리얼 자리를 쓴다 (v134) — 다 이룰 때까지 접지 않는다
-  var goal = S.survival ? svGoalText() : "";
-  if (goal) {
-    hintEl.innerHTML = "목표 — " + goal;
+  // 다 이룬 뒤에도 **모으기 세계는 튜토리얼로 돌아가지 않는다** (v142 · 자문 29차 #2).
+  // 목표가 빈 문자열이면 그대로 아래 tutLine 으로 떨어져, 몇 시간 걸려 다이아 곡괭이를
+  // 만든 아이의 화면에 「먼저 좌클릭으로 블록을 캐보세요」 가 다시 떴다.
+  // 이어하기 화면(resume-todo)은 이미 완주 문구를 갖고 있었는데 여기만 빠져 있었다
+  if (S.survival) {
+    hintEl.innerHTML = "목표 — " + (svGoalText() || "모두 이뤘어요! 이제 마음껏 지어 보세요");
     if (!S.hudHidden && !S.photoMode) hintEl.hidden = false;
     clearTimeout(hintFade);
     return;
@@ -968,11 +971,16 @@ export function arrowLookTick(dt) {
   var ly = (S.keys.ArrowDown ? 1 : 0) - (S.keys.ArrowUp ? 1 : 0);
   if (!lx && !ly) return;
   // 게임패드 오른쪽 스틱과 같은 속도 — 감도 설정을 그대로 탄다
-  applyLook(lx * 620 * dt, ly * 480 * dt);
+  applyLook(lx * 248 * dt, ly * 192 * dt);
 }
 
+// 기반 감도 (v142) — 0.0022 는 마우스로 360° 도는 데 **2,856 px** 이었다.
+// 마크는 기본 감도에서 586 px · 마우스패드 한 장이면 뒤를 본다.
+// 슬라이더를 최대(당시 300%)로 올려도 952 px 이라 **설정으로도 따라잡을 수 없었다.**
+// 0.0055 면 360° ≈ 1,142 px — 마크의 두 배쯤 느린, 아이에게 안전한 선이다.
+// 터치 드래그(×1.6→0.64)와 패드·방향키(×620→248)는 예전 속도 그대로 두려고 같은 배수로 나눴다.
 export function applyLook(dx, dy) {
-  var s = 0.0022 * (opts.sens / 100);
+  var s = 0.0055 * (opts.sens / 100);
   player.yaw -= dx * s;
   player.pitch -= dy * s * (opts.invertY ? -1 : 1);
   var lim = Math.PI / 2 - 0.001;
@@ -1703,7 +1711,7 @@ window.addEventListener("touchmove", function (e) {
                t.clientY - parseFloat(stickBase.style.top));
       e.preventDefault();
     } else if (t.identifier === S.lookId) {
-      applyLook((t.clientX - lookLast.x) * 1.6, (t.clientY - lookLast.y) * 1.6);
+      applyLook((t.clientX - lookLast.x) * 0.64, (t.clientY - lookLast.y) * 0.64);
       lookLast.x = t.clientX; lookLast.y = t.clientY;
       e.preventDefault();
     }
@@ -2163,7 +2171,7 @@ export function pollGamepad(dt) {
 
   // 시점 — 오른쪽 스틱
   if (padState.rx || padState.ry) {
-    applyLook(padState.rx * 620 * dt, padState.ry * 480 * dt);
+    applyLook(padState.rx * 248 * dt, padState.ry * 192 * dt);
   }
 
   // 눌렸을 때만 켠다. 가만히 있는 패드가 키보드·마우스를 끄면 안 된다.

@@ -15950,6 +15950,175 @@ test("v141 QA 3차: contract 는 상자 안 · clone 은 한 번에 되돌리기
   for (const m of r.svMsgs) assert(/모으기 모드/.test(m), "모으기에서 막힌 조작의 안내가 덮였다 — '" + m + "'");
 });
 
+
+// ══ v142 — 자문 29차 ══════════════════════════════════════
+
+test("v142 시점 감도: 마우스는 빨라지고 터치·패드는 그대로다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const keepSens = B.opts.sens, keepInv = B.opts.invertY;
+    B.opts.sens = 100; B.opts.invertY = 0;
+    // 마우스는 픽셀을 그대로 applyLook 에 넘긴다 — 1,000px 에 도는 각을 잰다
+    B.player.yaw = 0;
+    B.applyLook(1000, 0);
+    const radPer1000 = Math.abs(B.player.yaw);
+    const px360 = 2 * Math.PI / (radPer1000 / 1000);
+    // 터치 드래그는 부르는 쪽이 ×0.64 를 곱한다 (예전 ×1.6 과 같은 속도여야 한다)
+    B.player.yaw = 0;
+    B.applyLook(1000 * 0.64, 0);
+    const touch1000 = Math.abs(B.player.yaw);
+    // 패드 오른쪽 스틱 — 1초 끝까지 밀었을 때 (예전 ×620 과 같아야 한다)
+    B.player.yaw = 0;
+    B.applyLook(1 * 248 * 1, 0);
+    const pad1s = Math.abs(B.player.yaw);
+    B.opts.sens = keepSens; B.opts.invertY = keepInv;
+    B.player.yaw = 0;
+    B.endPlay(); B.setPaused(false);
+    return { px360, touch1000, pad1s, max: +document.getElementById("s-sens").max };
+  });
+  // 마크는 586px · v141 까지는 2,856px 이었다. 아이에게 안전한 선으로 1,000~1,400px
+  assert(r.px360 > 900 && r.px360 < 1500,
+         "마우스로 360° 도는 데 " + Math.round(r.px360) + "px — 1,000~1,400px 를 벗어났다");
+  // 터치·패드는 예전 값(0.0022×1.6 · 0.0022×620)과 같아야 한다
+  near(r.touch1000, 0.0022 * 1.6 * 1000, 1e-6, "터치 드래그 속도가 v141 과 달라졌다");
+  near(r.pad1s, 0.0022 * 620, 1e-6, "패드 오른쪽 스틱 속도가 v141 과 달라졌다");
+  assert(r.max >= 400, "감도 슬라이더 최대가 " + r.max + " — 400 이상이어야 한다");
+});
+
+test("v142 모으기: 목표를 다 이뤄도 튜토리얼로 돌아가지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    B.S.nextMode = 1; B.newWorld(4242); B.beginPlay();
+    const hint = document.getElementById("hint");
+    B.S.tut = 0;                       // 튜토리얼이 첫 줄에 있는 최악의 경우
+    B.S.svStep = 0; B.refreshHint();
+    const mid = hint.innerHTML;
+    B.S.svStep = B.SV_GOALS.length; B.refreshHint();
+    const done = hint.innerHTML;
+    // 튜토리얼 첫 줄이 무엇인지도 같이 본다 (그 말이 돌아오면 안 된다)
+    B.S.survival = false; B.refreshHint();
+    const tut0 = hint.innerHTML;
+    B.S.survival = true;
+    B.S.nextMode = 0;
+    B.endPlay(); B.setPaused(false);
+    return { mid, done, tut0 };
+  });
+  assert(r.mid.indexOf("목표") === 0, "모으기 도중에 목표 줄이 아니다 — " + r.mid.slice(0, 40));
+  assert(r.done.indexOf("목표") === 0,
+         "목표를 다 이룬 뒤 힌트가 목표 줄이 아니다 — " + r.done.slice(0, 60));
+  assert(r.done !== r.tut0, "다 이룬 뒤 튜토리얼 문장으로 되돌아갔다 — " + r.done.slice(0, 60));
+});
+
+test("v142 동물: 상한 32 · 새끼를 본 부모는 대기 · 대기 중에도 따라온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const out = { MOB_MAX: B.MOB_MAX, BREED_COOL: B.BREED_COOL };
+    // 같은 종 두 마리만 남기고, 나란히 세운다
+    const keep = [];
+    for (let i = B.mobs.length - 1; i >= 0; i--) {
+      const m = B.mobs[i];
+      if (!B.isTrader(m) && m.kind === B.mobs.find((q) => !B.isTrader(q)).kind && keep.length < 2) keep.push(m);
+      else B.removeMob(m);
+    }
+    const a = B.mobs[0], b = B.mobs[1];
+    a.baby = 0; b.baby = 0; a.cool = 0; b.cool = 0;
+    a.x = 40; a.y = 50; a.z = 40;
+    b.x = 41; b.y = 50; b.z = 40;
+    a.love = 20; b.love = 20;
+    const before = B.mobs.length;
+    let born = 0;
+    for (let k = 0; k < 40; k++) born += B.breedTick(0.05);
+    out.born1 = born;
+    out.grew = B.mobs.length - before;
+    out.coolA = B.mobs[0].cool;
+    // 대기 중에 다시 꽃을 줘도 사랑이 안 붙는다 — 따라오기는 한다
+    B.player.pos.set(40.5, 50, 40.5);
+    B.mobs[0].follow = 0; B.mobs[0].love = 0;
+    const fed = B.feedNearbyMob(B.player.pos, B.mobs[0]);
+    out.fed = fed;
+    out.followAfter = B.mobs[0].follow;
+    out.loveAfter = B.mobs[0].love;
+    // 대기가 끝나면 다시 사랑이 붙는다
+    for (let k = 0; k < 60; k++) B.breedTick(3);
+    B.mobs[0].follow = 0;
+    out.fed2 = B.feedNearbyMob(B.player.pos, B.mobs[0]);
+    out.loveAfter2 = B.mobs[0].love;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  assert(r.MOB_MAX === 32, "MOB_MAX 가 " + r.MOB_MAX + " — 32 여야 한다");
+  assert(r.born1 === 1, "2초 안에 새끼가 " + r.born1 + "마리 났다 — 대기가 없으면 연타로 늘어난다");
+  eq(r.grew, 1, "동물 수가 한 마리만 늘지 않았다");
+  assert(r.coolA > 0, "새끼를 본 부모에게 대기가 안 걸렸다");
+  eq(r.fed, 3, "대기 중인 동물에게 꽃을 줬는데 3(대기 중)이 안 돌아왔다 — " + r.fed);
+  assert(r.followAfter > 0, "대기 중이라고 따라오기까지 막혔다");
+  eq(r.loveAfter, 0, "대기 중인데 사랑이 붙었다");
+  assert(r.fed2 === true && r.loveAfter2 > 0,
+         "대기가 끝났는데 사랑이 안 붙는다 — " + r.fed2 + " / " + r.loveAfter2);
+});
+
+test("v142 저장: 따라오기·사랑·대기·털이 왕복에서 살아남고, 옛 저장(6수)도 열린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const m = B.mobs.find((q) => !B.isTrader(q));
+    m.follow = 17; m.love = 11; m.cool = 42;
+    m.shornAt = Date.now() - 60000;       // 1분 전에 깎았다 (5분 창의 한가운데)
+    const dumped = B.dumpMobs();
+    const row = dumped.find((d) => Math.round(d[6]) === 17) || [];
+    B.loadMobs(dumped);
+    const back = B.mobs.find((q) => Math.round(q.follow) === 17);
+    const out = {
+      wide: row.length,
+      follow: back ? Math.round(back.follow) : -1,
+      love: back ? Math.round(back.love) : -1,
+      cool: back ? Math.round(back.cool) : -1,
+      shornLeft: back ? Math.round((B.SHEAR_MS - (Date.now() - back.shornAt)) / 1000) : -1
+    };
+    // 옛 저장 — 6수짜리 줄만 있는 배열도 그대로 열린다
+    const legacy = dumped.map((d) => d.slice(0, 6));
+    out.legacyOk = B.loadMobs(legacy);
+    out.legacyN = B.mobs.length;
+    out.legacyFollow = B.mobs[0].follow;
+    out.legacyShorn = B.mobs[0].shornAt;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  eq(r.wide, 10, "dumpMobs 한 줄이 " + r.wide + "수 — 10수여야 한다");
+  eq(r.follow, 17, "따라오기가 왕복에서 사라졌다");
+  eq(r.love, 11, "사랑이 왕복에서 사라졌다");
+  eq(r.cool, 42, "재번식 대기가 왕복에서 사라졌다");
+  assert(r.shornLeft > 200 && r.shornLeft <= 240,
+         "털 대기 남은 시간이 " + r.shornLeft + "초 — 240초 언저리여야 한다");
+  assert(r.legacyOk && r.legacyN > 0, "6수짜리 옛 저장이 안 열렸다");
+  eq(r.legacyFollow, 0, "옛 저장인데 따라오기가 0 이 아니다");
+  eq(r.legacyShorn, 0, "옛 저장인데 털 대기가 남았다 — 기본은 '안 깎임' 이어야 한다");
+});
+
+test("v142 모으기: 금괴가 쓸 데가 있고, 다이아 안내가 바닥이라 말하지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    const usedAs = [];
+    B.RECIPES.forEach((rc) => rc.need.forEach((n) => { if (usedAs.indexOf(n[0]) < 0) usedAs.push(n[0]); }));
+    const goldRecipes = B.RECIPES.filter((rc) => rc.need.some((n) => n[0] === K.GOLD_INGOT));
+    const dia = B.SV_GOALS.find((g) => g.key === "get:" + K.DIAMOND_GEM);
+    return {
+      goldUsed: usedAs.indexOf(K.GOLD_INGOT) >= 0,
+      goldCount: goldRecipes.length,
+      goldOuts: goldRecipes.map((rc) => rc.out),
+      diaText: dia ? dia.text : ""
+    };
+  });
+  assert(r.goldUsed, "금괴가 어떤 레시피의 재료에도 안 들어간다 — 화로에서 나오기만 하는 막다른 길이다");
+  assert(r.goldCount >= 2, "금괴를 쓰는 레시피가 " + r.goldCount + "개뿐이다");
+  assert(r.diaText.indexOf("바닥 가까이") < 0,
+         "다이아 안내가 아직 「바닥 가까이」 라고 말한다 — enrichDiamonds 는 y 3~14 에 넣는다");
+  assert(r.diaText.indexOf("다이아 광석") >= 0, "다이아 안내에서 「다이아 광석」 이 사라졌다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

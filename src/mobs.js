@@ -12,7 +12,13 @@ import { S } from "./state.js";
 // 하트 파티클 — 분홍 양털의 색을 빌려 쓴다 (새 텍스처를 만들지 않는다)
 export var LOVE_HINT = WOOL0 + 6;
 export var MOB_COUNT = 14;      // 처음 뿌리는 수
-export var MOB_MAX = 24;        // 번식으로 늘어날 수 있는 상한
+export var MOB_MAX = 32;        // 번식으로 늘어날 수 있는 상한
+// 24 였다 (v142 · 자문 29차 #3). 새 세계가 이미 15마리로 시작하고
+// 상인까지 여기 들어 있어, 한 세계에서 **평생 새끼 9마리**가 끝이었다.
+// 24마리에서 `updateMobs` 한 프레임이 0.021 ms 라(예산 16.6 ms 의 0.13%) 여유가 크다
+// 재번식 대기 (v142) — 마크는 5분이지만 아이용이라 2분.
+// 없을 때는 꽃만 들고 두 마리 사이를 오가면 **0.1초 만에** 상한까지 찼다
+export var BREED_COOL = 120;
 export var FISH_COUNT = 18;
 export var BIRD_COUNT = 10;
 
@@ -85,7 +91,7 @@ function makeMob(kind) {
   mobGroup.add(g);
   return { g: g, legs: legs, kind: kind, lit: -1, x: 0, y: 0, z: 0, yaw: 0,
            turn: 0, walk: 0, phase: Math.random() * 6, cry: 3 + Math.random() * 12,
-           follow: 0, love: 0, loveHint: 0, baby: 0 };
+           follow: 0, love: 0, loveHint: 0, baby: 0, cool: 0, shornAt: 0 };
 }
 
 // 씬에서 떼는 것만으로는 GPU 버퍼가 안 돌아온다 (v93).
@@ -101,13 +107,24 @@ export function disposeMob(m) {
 }
 
 // ── 저장 · 복원 — 동물이 저장에 없어서, 목장을 만들어도 탭을 닫으면 빈 우리가 됐다.
-// 좌표는 0.25칸 단위로 반올림해 담는다 (24마리 × 6수 ≈ 200바이트)
+// 좌표는 0.25칸 단위로 반올림해 담는다 (32마리 × 10수 ≈ 400바이트)
+//
+// 6수였다 (v142 · 자문 29차 #5·#6) — 따라오는 중이든 사랑이든 털을 깎였든,
+// 자동 저장 한 번이면 전부 사라졌다. 꽃으로 96칸 섬을 가로질러 데려오던 소가
+// 그 자리에 서 버렸고, 「조금 뒤에 다시 털이 자라요」 는 이어하기 한 번으로 풀렸다.
+// **뒤에 덧붙기만** 한다 — 예전 저장은 그 칸이 없어도 그대로 열리고(기본값 0),
+// 예전 판이 새 저장을 열면 남는 칸을 무시한다. 그래서 저장 판은 v5 그대로다.
+// 털 대기는 절대 시각이 아니라 **흔러간 초**로 담는다 (기기 시계가 달라도 안 깨진다)
+export var SHEAR_MS = 300000;
 export function dumpMobs() {
-  var out = [];
+  var out = [], now = Date.now();
   for (var i = 0; i < mobs.length; i++) {
     var m = mobs[i];
+    var shorn = m.shornAt ? Math.min(SHEAR_MS, Math.max(0, now - m.shornAt)) : SHEAR_MS;
     out.push([Math.round(m.x * 4), Math.round(m.y * 4), Math.round(m.z * 4),
-              m.kind, Math.round(m.yaw * 100), Math.round(m.baby || 0)]);
+              m.kind, Math.round(m.yaw * 100), Math.round(m.baby || 0),
+              Math.round(m.follow || 0), Math.round(m.love || 0),
+              Math.round(m.cool || 0), Math.round(shorn / 1000)]);
   }
   return out;
 }
@@ -123,6 +140,12 @@ export function loadMobs(arr) {
     m.x = a[0] / 4; m.y = a[1] / 4; m.z = a[2] / 4;
     m.yaw = (a[4] || 0) / 100;
     m.baby = a[5] || 0;
+    // 7수부터는 v142 에서 덧붙은 칸이다 — 없으면 예전 저장이니 0 으로 둔다
+    m.follow = a[6] || 0;
+    m.love = a[7] || 0;
+    m.cool = a[8] || 0;
+    var elapsed = a.length > 9 ? (a[9] || 0) * 1000 : SHEAR_MS;
+    m.shornAt = elapsed >= SHEAR_MS ? 0 : Date.now() - elapsed;
     mobs.push(m);
   }
   return mobs.length > 0;
@@ -600,7 +623,7 @@ export function feedNearbyMob(pos, prefer) {
     // 둘레에 따라오는 동물뿐이면 그 동물의 시간을 채운다
     if (refeed) {
       refeed.follow = 22 + Math.random() * 14;
-      refeed.love = capped ? 0 : refeed.follow;
+      refeed.love = (capped || refeed.cool > 0) ? 0 : refeed.follow;
       refeed.loveHint = 0;
       burst(refeed.x, refeed.y + 0.8, refeed.z, LOVE_HINT, 4);
       tone(MOB_KINDS[refeed.kind].cry * 1.35, 0.14, "triangle", 0.05,
@@ -614,17 +637,22 @@ export function feedNearbyMob(pos, prefer) {
   // 사랑은 따라오기와 **같이** 끝난다 (자문 12차 #4).
   // 예전엔 20초로 짧아서, 아직 졸졸 따라오는 동물이 사실은 이미 사랑이 식은 상태였다 —
   // 게임이 "된다" 고 보여 주는 동안 창은 닫혀 있었다. 기능이 없는 것보다 나쁘다.
-  mm.love = capped ? 0 : mm.follow;
+  // 방금 새끼를 본 부모는 대기 중이다 (v142) — 따라오기는 하고 사랑만 안 붙는다.
+  // 3 을 돌려 「왜 이번엔 새끼가 안 생기는지」 를 부르는 쪽이 말하게 한다
+  mm.love = (capped || mm.cool > 0) ? 0 : mm.follow;
   mm.loveHint = 0;
   burst(mm.x, mm.y + 0.8, mm.z, LOVE_HINT, 5);
   tone(k.cry * 1.35, 0.16, "triangle", 0.06, at(mm.x, mm.y + 0.6, mm.z));
-  return capped ? 2 : true;
+  if (capped) return 2;
+  return mm.cool > 0 ? 3 : true;
 }
 
 // 꽃을 받은 두 마리가 가까이 있으면 새끼가 난다 — 우리를 채울 유일한 방법이다.
 // 목장을 지어 놓고 채울 방법이 없으면 목장을 지을 이유도 없다.
 export function breedTick(dt) {
   var born = 0;
+  // 재번식 대기는 사랑과 따로 준다 (v142) — 사랑이 식은 동물도 시계는 돌아야 한다
+  for (var c = 0; c < mobs.length; c++) if (mobs[c].cool > 0) mobs[c].cool -= dt;
   for (var i = 0; i < mobs.length; i++) {
     var a = mobs[i];
     if (!(a.love > 0)) continue;
@@ -645,6 +673,7 @@ export function breedTick(dt) {
       var dx = a.x - b2.x, dy = a.y - b2.y, dz = a.z - b2.z;
       if (Math.abs(dy) > 2 || dx * dx + dz * dz > 9) continue;   // 3칸 안
       a.love = 0; b2.love = 0;
+      a.cool = BREED_COOL; b2.cool = BREED_COOL;   // 마크의 5분 자리 (v142)
       var kid = makeMob(a.kind);
       kid.x = (a.x + b2.x) / 2; kid.y = a.y; kid.z = (a.z + b2.z) / 2;
       kid.yaw = a.yaw; kid.baby = 60;                  // 60초 동안 작다

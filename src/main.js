@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { villageMarks } from "./village.js";
 import { addItem, removeItem, invCount, collect, dropOf, toolTier, needTier, canMine, RECIPES, craft, canCraft, recipesFor, stationsNear, svEvent, svGoalText, resetSurvival, SV_GOALS, leafDrop, needText, josa, enrichDiamonds, withRo } from "./survival.js";
 import { growTree } from "./tree.js";
-import { breedTick, isTrader, MOB_MAX, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, loadMobs, disposeMob, mobOccupies, aimedMob, removeMob, mobs, pushOutOfMobs, seedFlocks, seedMobs, seedVillage, updateFlocks, updateMobs } from "./mobs.js";
+import { breedTick, isTrader, MOB_MAX, BREED_COOL, SHEAR_MS, dumpMobs, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, loadMobs, disposeMob, mobOccupies, aimedMob, removeMob, mobs, pushOutOfMobs, seedFlocks, seedMobs, seedVillage, updateFlocks, updateMobs } from "./mobs.js";
 import { atlasSample, SWATCH_SIDE, animateLiquids, atlas, painted, AVG_TOP, makeRng } from "./atlas.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, GEN, setGen, seaLift, WX, WY, WZ, idx, inside } from "./dims.js";
@@ -23,7 +23,7 @@ import { achTotal, CREATIVE_ONLY, notePlaced, checkFoundAchievements, nextToTry,
 import { refreshMouthDots, mouthDots, naturalRoof, roofDepth, ROOF_R, UNDER_ROOF, refreshMinimapCap, openPicker, closePicker, pickBtns, airEl, bootDone, bootProgress, closeCmd, cmdEl, cmdIn, drawIcon, drawMinimap, drawMinimapTo, drawBigMap, toggleBigMap, bigMapOpen, drawPreview, facingText, helpEl, mmCap, noteBlockUse, openCmd, perfEl, refreshBar, refreshPickFilter, selectSlot, showAchPop, showHud, sortPickByRecent, toggleHelp , setHelpTab, toast, renderCraft} from "./hud.js";
 import { updateGhost, ghostMesh, ghostMat, updateHandLight, handMat, makeBlockGeometry, triggerSwing, updateHand, heldMesh, updateHandBlock } from "./hand.js";
 import { bodyRoot, updateBody, armL, armR, legL, legR, neck, upper } from "./body.js";
-import { playerMarkCount, nextMode, cycleShape, torchSlotText, toggleRegionBar, refreshResume, advanceTut, tutDone, TUT_LEN, TUT_KEY, setStick, advanceTutTouch, HINT_TOUCH, refreshBlueprints, afterWorldSwap, aimCell, setPhotoMode, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink , swapBarPage, setShapeMode, cycleMinimapZoom, toggleMark, markHere, renameMarkHere} from "./input.js";
+import { applyLook, playerMarkCount, nextMode, cycleShape, torchSlotText, toggleRegionBar, refreshResume, advanceTut, tutDone, TUT_LEN, TUT_KEY, setStick, advanceTutTouch, HINT_TOUCH, refreshBlueprints, afterWorldSwap, aimCell, setPhotoMode, selectionText, pollGamepadMenu, agoText, refreshHint, TUT_TOUCH, hintText, RESERVED, TUT, beginPlay, bindConflict, endPlay, hashSeed, padState, pickBlock, pollGamepad, refreshBindLabels, refreshKeyButtons, refreshMenu, refreshSlots, refreshTerrain, shareLink , swapBarPage, setShapeMode, cycleMinimapZoom, toggleMark, markHere, renameMarkHere} from "./input.js";
 import { canPlaceAt, mineAt, place, tryInteract, upperFromHit, tradeWith, rumorLine } from "./mine.js";
 import { weatherPoints, applyWeather, HIDE_Y, starMat, sunMat, stars, sunSprite, cPos, placeCreature, MOON_PHASES, boltAt, boltMesh, strikeBolt, brightStars, columnTop, moonTex, rPos, seedCreatures, setWeather, updateCreatures, updateSkyBodies, updateStorm, updateWeather, wDraw, wPos } from "./sky.js";
 import { newWorld, PLACE_DELAY, PLACE_REPEAT, SNEAK_MUL, SPRINT, WALK, animate, autoTuneFar, farNow, refreshPerf, step , chunkFloor, refreshChunkFloor} from "./loop.js";
@@ -254,7 +254,7 @@ window.__blockyard = {
   drawPreview: drawPreview, showAchPop: showAchPop, cmdIn: cmdIn, cmdEl: cmdEl,
   refreshStats: refreshStats, nextToTry: nextToTry, categoryOf: categoryOf, noteBlockUse: noteBlockUse,
   sortPickByRecent: sortPickByRecent, refreshPickFilter: refreshPickFilter, pickBtns: pickBtns,
-  refreshKeyButtons: refreshKeyButtons, bindConflict: bindConflict, hintText: hintText, refreshBindLabels: refreshBindLabels, RESERVED: RESERVED, TUT: TUT, TUT_TOUCH: TUT_TOUCH, refreshHint: refreshHint, chunkCX: chunkCX, chunkCZ: chunkCZ,
+  refreshKeyButtons: refreshKeyButtons, bindConflict: bindConflict, hintText: hintText, refreshBindLabels: refreshBindLabels, RESERVED: RESERVED, TUT: TUT, TUT_TOUCH: TUT_TOUCH, refreshHint: refreshHint, applyLook: applyLook, chunkCX: chunkCX, chunkCZ: chunkCZ,
   explode: explode, ignite: ignite, fireTick: fireTick, BLAST_R: BLAST_R,
   isFlammable: isFlammable, seedFlocks: seedFlocks, updateFlocks: updateFlocks,
   fish: fish, birds: birds, moodChord: moodChord, listenAt: listenAt,
@@ -276,7 +276,7 @@ window.__blockyard = {
   seedVillage: seedVillage, villageMarks: villageMarks, isTrader: isTrader,
   loadMobs: loadMobs, disposeMob: disposeMob, mobOccupies: mobOccupies,
   aimedMob: aimedMob, removeMob: removeMob,
-  breedTick: breedTick, MOB_MAX: MOB_MAX,
+  breedTick: breedTick, MOB_MAX: MOB_MAX, BREED_COOL: BREED_COOL, SHEAR_MS: SHEAR_MS, dumpMobs: dumpMobs,
   toggleHelp: toggleHelp, helpEl: helpEl, setHelpTab: setHelpTab,
   toggleBigMap: toggleBigMap, bigMapOpen: bigMapOpen, drawBigMap: drawBigMap, drawMinimapTo: drawMinimapTo,
   refreshMouthDots: refreshMouthDots, mouthDots: mouthDots, naturalRoof: naturalRoof,

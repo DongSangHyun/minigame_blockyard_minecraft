@@ -155,6 +155,12 @@ export var RECIPES = [
   { out: LAMP, n: 1, need: [[GLASS, 4], [TORCH, 1]], at: "table" },
   { out: POT, n: 1, need: [[BRICK, 3]], at: "table" },
   { out: BUCKET, n: 1, need: [[IRON_INGOT, 3]], at: "table" },
+  // 금괴가 갈 데가 없었다 (v142 · 자문 29차 #8) — 화로에서 나오기만 하고
+  // 어느 레시피의 재료에도 안 들어 있었다. 시드 하나에 금 광석이 195칸인데,
+  // 그 구간(철 곱국이 ~ 다이아 곱국이)의 가장 흔한 보상이 막다른 길이었다.
+  // 마크처럼 **금은 효율이 좋고 반짝이는 길**로 둔다 — 같은 것을 더 적게 들여 더 많이
+  { out: LAMP, n: 4, need: [[GOLD_INGOT, 1], [GLASS, 4]], at: "table" },
+  { out: FRAME, n: 2, need: [[GOLD_INGOT, 1], [STICK, 4]], at: "table" },
   { out: FLINT, n: 1, need: [[IRON_INGOT, 1], [GRAVEL, 1]], at: "table" },
   { out: IRON_INGOT, n: 1, need: [[IRON, 1], [COAL_LUMP, 1]], at: "furnace" },
   { out: GOLD_INGOT, n: 1, need: [[GOLD, 1], [COAL_LUMP, 1]], at: "furnace" },
@@ -219,7 +225,9 @@ export var SV_GOALS = [
   { key: "place:" + FURNACE, text: "<b>화로</b>를 땅에 놓으세요 — 그 옆에서 광석을 녹입니다" },
   { key: "craft:" + IRON_INGOT, text: "철 광석과 석탄을 화로에서 녹여 <b>철괴</b>를 만드세요" },
   { key: "craft:" + PICK_IRON, text: "철괴 3개와 막대기 2개로 <b>철 곡괭이</b>를 만드세요 — 다이아몬드를 캘 수 있어요" },
-  { key: "get:" + DIAMOND_GEM, text: "아주 깊은 굴(바닥 가까이)의 벽에서 하늘색 점이 박힌 <b>다이아 광석</b>을 찾으세요!" },
+  // 「바닥 가까이」 라고 말했지만 v138 의 `enrichDiamonds` 가 넣는 자리는 y 3~14 · 중앙값 5~6 이다.
+  // 바닥(y 1)까지 파 내려간 아이는 오히려 돌밭을 만난다 — 말을 실제에 맞췤다 (v142 · CLAUDE.md §5.5)
+  { key: "get:" + DIAMOND_GEM, text: "깊은 굴의 <b>바닥에서 예닭섯 칸쯤</b> 되는 벽에서 하늘색 점이 박힌 <b>다이아 광석</b>을 찾으세요!" },
   { key: "craft:" + PICK_DIAMOND, text: "다이아몬드 3개와 막대기 2개로 <b>다이아 곡괭이</b>를 만드세요" }
 ];
 export function svGoalText() {

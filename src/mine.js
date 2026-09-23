@@ -220,6 +220,11 @@ export function tryInteractMob(repeating) {
       S.capHinted = true;
       toast("동물이 " + MOB_MAX + "마리라 새끼는 안 생깁니다 — 따라오기만 합니다");
     }
+    // 3 은 "방금 새끼를 봐서 쉬는 중" (v142) — 상한과 이유가 다르니 말도 다르다
+    if (fed === 3 && !S.coolHinted) {
+      S.coolHinted = true;
+      toast("방금 새끼를 본 동물이에요 — 조금 쉬었다가 다시 꽃을 주세요");
+    }
     if (fed) {
       triggerSwing();
       unlock("feed");
