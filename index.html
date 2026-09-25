@@ -699,6 +699,15 @@
   #touchwarn { color: var(--ember); }
 
   /* ---------- 도움말 ---------- */
+  #bigmap-x {
+    position: absolute; top: calc(10px + var(--safe-t, 0px)); right: calc(10px + var(--safe-r, 0px));
+    z-index: 2; min-width: 84px; min-height: 44px;
+    font-family: var(--pixel); font-size: 11px; letter-spacing: .06em;
+    color: var(--bone); background: rgba(23,29,32,.9);
+    border: 2px solid var(--line-hi); border-radius: 6px; cursor: pointer;
+  }
+  #bigmap-x:active { border-color: var(--ember); color: var(--ember); }
+
   /* 큰 지도 (v111) — 128px 지도는 "집 한 채" 시절의 치수다.
      30분이면 집 둘·갱도·굴 어귀 스물이 한 세계에 있는데 계획을 세울 화면이 없었다 */
   #bigmap {
@@ -906,8 +915,12 @@
     display: grid; grid-template-columns: repeat(2, 70px); gap: 7px;
     pointer-events: auto;
   }
-  /* 메뉴·되돌리기는 자주 안 누르니 조금 낮게 — 8개가 되면 4행이라 화면을 많이 먹는다 */
-  #tb-menu, #tb-undo, #tb-shape { height: 40px !important; font-size: 8px; }
+  /* 「메뉴·되돌리기·모양만 낮게」 였다 (v143 까지) — 8개 시절에 4행을 줄이려던 것인데,
+     **같은 줄에 46px 과 35px 이 나란히** 서서 눈에 띄게 어긋났고(웅크림↔모양 · 지도↔되돌리기),
+     35px 은 권장 최소 탭 표적보다 작다. 「모양 길게 = 영역 도구」·「되돌리기 길게 = 다시하기」 가
+     전부 그 작은 단추에 걸려 있었다. 이제 높이는 한 줄로 같고, 글자만 조금 작다 (v144 · 자문 31차 #10).
+     행이 늘어난 만큼은 `applyTbtn` 이 화면에 맞춰 줄인다 */
+  #tb-menu, #tb-undo, #tb-shape { font-size: 8px; }
   #tbtns button {
     height: 52px;
     font-family: var(--pixel); font-size: 9px; letter-spacing: .06em;
@@ -1045,8 +1058,12 @@
 
 <div id="bigmap" hidden role="dialog" aria-modal="true" aria-label="큰 지도">
   <canvas id="bigmap-c" width="480" height="480"></canvas>
+  <!-- 닫기 단추 (v144 · 자문 31차 #1) — v143 이 폰에 「지도」 를 붙였는데 **나올 길이 없었다.**
+       범례는 「N 또는 ESC」 라고 적혀 있고 폰에는 그 둘이 다 없다. 전면 덮개가 지도 단추까지
+       가려서 「한 번 더 눌러 닫기」 에도 손가락이 안 닿았다 — 새로고침 말고는 길이 없었다 -->
+  <button type="button" id="bigmap-x" aria-label="큰 지도 닫기">닫기 ✕</button>
   <div class="bigmap-legend" id="bigmap-cap">
-    <b>N</b> 또는 <b>ESC</b> 로 닫습니다 ·
+    <span class="onlykeys"><b>N</b> 또는 <b>ESC</b> 로 닫습니다</span><span class="onlytouch"><b>닫기</b> 를 누르세요</span> ·
     <b style="color:#e89640">빈 동그라미</b> 굴 어귀 · <b style="color:#e0c060">마름모</b> 표식 ·
     <b style="color:#5aa8e0">집 모양</b> 시작 지점
   </div>
@@ -1096,7 +1113,8 @@
         <dd><b>밤이 싫으면</b> — <kbd>ESC</kbd> 메뉴 › 설정 › 「지금 이 세계」 의 <b>멈춤</b> 으로
             시간을 그 자리에 못 박습니다 (하루 20분 중 9.6분이 밤입니다)</dd>
         <dd><kbd>V</kbd> 시작 지점 · <kbd>B</kbd> 미니맵 표식(<kbd>Shift</kbd>+<kbd>B</kbd> 이름 붙여 찍기) · <kbd>[</kbd> <kbd>]</kbd> 미니맵 확대</dd>
-        <dd><kbd>N</kbd> <b>큰 지도</b> — 세계를 통째로 크게 봅니다 (표식 이름이 읽힙니다 · 표식은 24개까지)</dd>
+        <dd><kbd>N</kbd> <b>큰 지도</b> — 세계를 통째로 크게 봅니다 (표식 이름이 읽힙니다 · 표식은 24개까지)
+            <b>표식을 두 번 누르면 지워집니다</b></dd>
         <dd>지도 — <b style="color:#e89640">빈 동그라미</b> 굴 어귀 · <b style="color:#e0c060">마름모</b> 표식 ·
             <b style="color:#5aa8e0">집 모양</b> 시작 지점 · 땅속에서는 지금 층이 진하고 다른 층은 흐립니다</dd>
         <dd>표식으로 돌아가려면 <kbd>/</kbd><b>tp 3</b> 또는 <kbd>/</kbd><b>tp 채석장</b> · <kbd>/</kbd><b>marks</b> 로 목록</dd>
@@ -1223,6 +1241,8 @@
             <b style="color:#e0c060">마름모</b> 내 표식 · <b style="color:#5aa8e0">집 모양</b> 시작 지점</dd>
         <dd>땅속에서는 <b>지금 층</b>이 진하고 <b>다른 층에서 밝힌 곳</b>은 흐립니다 ·
             표식 옆 <b>▲5</b>/<b>▼5</b> 는 그 표식이 몇 칸 위/아래인지입니다</dd>
+        <dd><b>표식을 지우려면</b> — <b>지도</b>를 열고 표식을 누른 뒤 <b>한 번 더</b> 누르세요
+            (표식은 24개까지입니다). 그 자리에 서서 지도를 탭해도 지워집니다</dd>
         <dt>아직 키보드에서만</dt>
         <dd>명령창(<b>/</b>)과 <b>시작 지점 찍기</b>는 지금 <b>키보드에서만</b> 됩니다.
             <b>영역 도구는 폰에서도 됩니다</b> — 모서리로 삼을 칸을 <b>조준선으로 보면서</b>
@@ -1316,7 +1336,7 @@
       <div><kbd>F2</kbd><span>화면 저장 (PNG)</span></div>
       <div><kbd>F3</kbd><span>성능 정보</span></div>
       <div><kbd>F6</kbd><span>사진 모드</span></div>
-      <div><kbd>/</kbd><span>명령창 (tp · time · fill · bp · count)</span></div>
+      <div><kbd>/</kbd><span>명령창 (tp · time · fill · bp · count · 앞의 <b>/</b> 는 붙여도 됩니다)</span></div>
       <div><kbd>V</kbd><span>여기를 시작 지점으로</span></div>
       <div><kbd>B</kbd><span>미니맵 표식</span></div>
       <div><kbd>TAB</kbd><span>핫바 2쪽 바꾸기</span></div>

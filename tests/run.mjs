@@ -14348,7 +14348,9 @@ test("v124 내 집과 소문: 지도에 지은 것이 보이고, 상인이 빈�
     const marksBefore = B.S.marks.length;
     B.tradeWith();
     const toast = document.getElementById("toast").textContent;
-    const rumorMarks = B.S.marks.filter((m) => m[3] === "소문").length;
+    // v144 부터 소문 표식은 「소문 1」·「소문 2」 로 이름이 갈린다 (자문 31차 #5) —
+    // 예전에는 전부 「소문」 이라 지도에서 뭐가 뭔지 알 수 없었다
+    const rumorMarks = B.S.marks.filter((m) => String(m[3] || "").indexOf("소문") === 0).length;
     // 빈집을 이미 찾았으면 소문은 안 돈다
     B.S.earned = { findHut: true };
     B.S.tradeCount = 3;
@@ -15069,7 +15071,11 @@ test("v133 선물은 빈 칸으로 · 사다리는 벽 쪽으로 밀 때만 오�
   assert(r.slot5 !== 0 && r.slot5 !== r.STONE, "선물이 빈 칸(5번)에 안 들어갔다 — " + r.slot5);
   eq(r.slot0, r.GLASS, "빈 칸이 있는데도 0번 칸을 덮어썼다");
   assert(/5번 칸/.test(r.toast), "토스트가 칸 번호를 잘못 말한다 — " + r.toast);
-  assert(r.fallback, "빈 칸이 없을 때 0번 칸에 안 넣었다");
+  // v144 에서 **규칙을 뒤집었다** (자문 31차 #3) — 빈 칸이 없으면 0번 칸으로 떨어지던 것이
+  // 기본 핫바(10칸이 다 참)에서는 **늘** 0번 칸이라, 열네 번 말을 걸면 아이가 짜 둔
+  // 팔레트가 조명 → 양귀비 → 색유리 → 묘목으로 지워졌다. 이제 안 덮고 말로 알린다.
+  // 튜토리얼이 걸린 선물(첫 선물·꽃 줄)만은 꽉 차 있어도 준다 — 막히면 뒤 두 줄이 안 나온다
+  assert(!r.fallback, "빈 칸이 없는데도 0번 칸을 덮었다 (v144 에서 규칙이 바뀌었다)");
   assert(r.toWall > 1.5, "벽 쪽으로 미는데 안 올라간다 (" + r.toWall.toFixed(2) + ")");
   assert(r.space > 1.5, "스페이스로 안 올라간다 (" + r.space.toFixed(2) + ")");
   assert(r.backward <= 0.01, "사다리에서 뒤로 물러나는데 올라간다 (" + r.backward.toFixed(2) + ")");
@@ -16143,6 +16149,7 @@ test("v143 모으기: 만든 것이 손에 들리고, 토스트는 한 일을 �
     out.hint = document.getElementById("hint").textContent;
     B.closePicker();
     B.S.nextMode = 0;
+    B.S.survival = false;           // 켜 둔 채 끝내면 뒤에 오는 명령창 시험이 「모으기」 로 막힌다
     B.endPlay(); B.setPaused(false);
     return out;
   });
@@ -16300,6 +16307,159 @@ phoneTest("v143 목표 줄과 토스트가 안 겹치고, 가방에 이름표가
   });
   assert(!r.overlap, "폰에서 목표 줄과 토스트가 겹친다 (hint " + r.hintB + " · toast " + r.toastB + ")");
   assert(r.bagShown, "모으기 목록에 「가방」 이름표가 없다");
+});
+
+
+// ══ v144 — 자문 31차 ════════════════════════════════════
+
+test("v144 명령창: 앞의 / · 빈 인자 · 비슷한 이름 · 좌표를 덜 친 tp", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.survival = false;           // 명령이 「모으기에서는 쓸 수 없습니다」 로 막히지 않게 못 박는다
+    const out = {};
+    B.player.pos.set(48, 40, 48);
+    out.slash = B.runCommand("/tp 20 30 20");
+    out.after = [Math.floor(B.player.pos.x), Math.floor(B.player.pos.z)];
+    out.giveEmpty = B.runCommand("give");
+    out.fillEmpty = B.runCommand("fill");
+    out.near = B.runCommand("give 다이아몬드");
+    out.junk = B.runCommand("give ㅋㅋㅋㅋ");
+    out.tp2 = B.runCommand("tp 10 30");
+    out.tpComma = B.runCommand("tp 1,2,3");
+    out.tpName = B.runCommand("tp 없는표식이름");
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  assert(r.after[0] === 20 && r.after[1] === 20, "앞에 / 가 붙은 명령이 안 먹는다 — " + r.slash);
+  assert(r.giveEmpty.indexOf("give <블록>") === 0, "빈 give 가 사용법을 안 준다 — " + r.giveEmpty);
+  assert(r.fillEmpty.indexOf("fill <블록>") === 0, "빈 fill 이 사용법을 안 준다 — " + r.fillEmpty);
+  assert(r.near.indexOf("혹시") > 0, "비슷한 이름에 추천이 없다 — " + r.near);
+  assert(r.near.indexOf("다이아") > 0, "추천이 다이아 쪽을 안 가리킨다 — " + r.near);
+  assert(r.junk.indexOf("목록(E)") > 0, "짚을 데 없는 이름에 안내가 없다 — " + r.junk);
+  assert(r.tp2.indexOf("좌표는 셋") === 0, "tp 에 숫자 둘을 쳤는데 표식 얘기를 한다 — " + r.tp2);
+  assert(r.tpComma.indexOf("좌표는 셋") === 0, "쉼표 좌표에 표식 얘기를 한다 — " + r.tpComma);
+  assert(r.tpName.indexOf("표식") >= 0, "이름으로 친 tp 는 표식 안내여야 한다 — " + r.tpName);
+});
+
+test("v144 /cyl 이 반지름을 말없이 자르지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.survival = false;
+    const K = B.B;
+    for (let dx = -40; dx <= 40; dx++) for (let dz = -40; dz <= 40; dz++)
+      for (let dy = 0; dy <= 3; dy++) B.set(48 + dx, 40 + dy, 48 + dz, K.AIR);
+    B.refreshAllTops();
+    B.player.pos.set(48, 40, 48);
+    const big = B.runCommand("cyl 돌 999");
+    const ok = B.runCommand("cyl 조약돌 3");
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { big, ok };
+  });
+  assert(r.big.indexOf("줄였습니다") > 0,
+         "999 를 32 로 자르고도 말을 안 한다 — " + r.big);
+  assert(r.big.indexOf("32") > 0, "줄인 값을 안 알려 준다 — " + r.big);
+  assert(r.ok.indexOf("줄였습니다") < 0, "자르지 않았는데 줄였다고 한다 — " + r.ok);
+});
+
+test("v144 상인: 꽉 찬 핫바를 안 덮는다 · 소문 표식은 둘까지", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.survival = false;
+    // 첫 선물(n===0)과 튜토리얼 꽃 줄은 꽉 차 있어도 주는 예외라, 그 뒤부터 잰다
+    B.S.giftDay = 0; B.S.tradeCount = 1; B.S.tut = 9;
+    B.S.marks.length = 0;
+    // 핫바를 **꽉** 채워 둔다 — 빈 칸이 없으면 선물이 0번 칸을 덮던 자리다
+    const K = B.B;
+    for (let i = 0; i < B.S.bar.length; i++) if (B.S.bar[i] === K.AIR) B.S.bar[i] = K.STONE;
+    const before = B.S.bar.slice();
+    for (let k = 0; k < 14; k++) B.tradeWith();
+    const rumor = B.S.marks.filter((m) => String(m[3] || "").indexOf("소문") === 0);
+    const names = rumor.map((m) => m[3]);
+    const out = {
+      bar0Changed: B.S.bar[9] !== before[9],
+      changedSlots: B.S.bar.filter((v, i) => v !== before[i]).length,
+      rumorN: rumor.length,
+      uniq: new Set(names).size,
+      names
+    };
+    B.S.marks.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  eq(r.changedSlots, 0,
+     "핫바가 꽉 찼는데 선물이 " + r.changedSlots + "칸을 덮었다 — 빈 칸이 없으면 안 덮어야 한다");
+  assert(r.rumorN <= 2, "소문 표식이 " + r.rumorN + "개 — 둘까지여야 한다");
+  eq(r.uniq, r.rumorN, "소문 표식 이름이 겹친다 — " + r.names.join(","));
+});
+
+test("v144 큰 지도에서 표식을 두 번 눌러 지운다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    B.S.marks.length = 0;
+    B.S.marks.push([30, 40, 30, "내 집"]);
+    B.S.marks.push([70, 40, 70, "굴"]);
+    B.toggleBigMap(true);
+    const cv = document.getElementById("bigmap-c");
+    const box = cv.getBoundingClientRect();
+    function tapWorld(wx, wz) {
+      cv.dispatchEvent(new MouseEvent("click", {
+        bubbles: true, cancelable: true,
+        clientX: box.left + (wx / 96) * box.width,
+        clientY: box.top + (wz / 96) * box.height
+      }));
+    }
+    tapWorld(30, 30);
+    const armed = B.S.marks.length;
+    tapWorld(30, 30);
+    const after = B.S.marks.length;
+    const left = B.S.marks.map((m) => m[3]);
+    B.toggleBigMap(false);
+    B.S.marks.length = 0;
+    B.endPlay();
+    return { armed, after, left };
+  });
+  eq(r.armed, 2, "한 번 눌렀는데 바로 지워졌다 — 되돌릴 수 없는 것은 두 번 물어야 한다");
+  eq(r.after, 1, "두 번 눌렀는데 안 지워졌다");
+  eq(r.left[0], "굴", "엉뚱한 표식이 지워졌다 — " + r.left.join(","));
+});
+
+phoneTest("v144 큰 지도를 손으로 닫을 수 있다 · 단추 높이가 한 줄로 같다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    function tap(el) {
+      el.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true }));
+      el.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true }));
+    }
+    tap(document.getElementById("tb-map"));
+    const opened = B.bigMapOpen();
+    const x = document.getElementById("bigmap-x");
+    const box = x ? x.getBoundingClientRect() : null;
+    // 덮개 위에서 **닫기 단추가 실제로 손에 닿는지** 본다
+    const hit = box ? document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2) : null;
+    if (x) x.click();
+    const closed = !B.bigMapOpen();
+    // 단추 높이 — 같은 줄에서 46 과 35 가 섞여 있었다
+    const hs = Array.from(document.querySelectorAll("#tbtns button"))
+                    .filter((b) => b.getClientRects().length)
+                    .map((b) => Math.round(b.getBoundingClientRect().height));
+    B.endPlay();
+    return {
+      opened, closed, hs, uniq: Array.from(new Set(hs)),
+      hitId: hit ? hit.id : "없음",
+      tall: box ? Math.round(box.height) : 0
+    };
+  });
+  assert(r.opened, "폰에서 큰 지도가 안 열린다");
+  assert(r.hitId === "bigmap-x", "닫기 단추가 덮개에 가려 손에 안 닿는다 — " + r.hitId);
+  assert(r.tall >= 44, "닫기 단추가 " + r.tall + "px — 44px 보다 작다");
+  assert(r.closed, "닫기를 눌러도 큰 지도가 안 닫힌다");
+  eq(r.uniq.length, 1, "터치 단추 높이가 섞여 있다 — " + r.uniq.join(" / "));
 });
 
 // ── 실행 ───────────────────────────────────────────────

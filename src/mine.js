@@ -114,14 +114,20 @@ export function tradeWith() {
   if (n >= 1 && n % 2 === 1 && hutSpots.length && !S.earned.findHut) {
     var hs = hutSpots[((n - 1) >> 1) % hutSpots.length];
     rumor = rumorLine(hs);
-    if (S.marks.length < MARK_MAX) {
+    // 소문 표식은 **두 개까지**, 이름은 서로 다르게 (v144 · 자문 31차 #5).
+    // 예전에는 열두 번 말을 걸면 전부 「소문」 이라는 이름으로 **다섯 개**가 쌓여
+    // MARK_MAX 24 중 다섯 칸을 상인이 가져갔고, 지도에서 뭐가 뭔지 알 수 없었다
+    var rumorN = 0;
+    for (var rc = 0; rc < S.marks.length; rc++)
+      if (markName(S.marks[rc]).indexOf("소문") === 0) rumorN++;
+    if (S.marks.length < MARK_MAX && rumorN < 2) {
       var jx = hs[0] + (((n * 7) % 7) - 3), jz = hs[2] + (((n * 5) % 7) - 3);
       var dup = false;
       for (var mi = 0; mi < S.marks.length; mi++) {
-        if (markName(S.marks[mi]) === "소문" &&
+        if (markName(S.marks[mi]).indexOf("소문") === 0 &&
             Math.abs(markX(S.marks[mi]) - jx) + Math.abs(markZ(S.marks[mi]) - jz) < 8) dup = true;
       }
-      if (!dup) S.marks.push([jx, hs[1], jz, "소문"]);
+      if (!dup) S.marks.push([jx, hs[1], jz, "소문 " + (rumorN + 1)]);
     }
   }
   // 다시 온 사람에게는 **기억하는 말**로 (v122) — 첫마디가 매번 "어서 오세요" 였다
@@ -162,8 +168,25 @@ export function tradeWith() {
   // 꾸미려고 넣어 둔 색유리가 두 번째 대화에 화분으로 바뀌었다. 빈 칸이 없으면 예전처럼 0번 칸
   var onAlt = S.barPage === 2 && S.barAlt;
   var gbar = onAlt ? S.barAlt : S.bar, gfill = onAlt ? S.fillBarAlt : S.fillBar;
-  var slot = 9;
+  var slot = -1;
   for (var gi = 0; gi < gbar.length; gi++) if (gbar[gi] === AIR) { slot = gi; break; }
+  // **빈 칸이 없으면 안 덮는다** (v144 · 자문 31차 #3). 예전에는 0번 칸으로 떨어져서,
+  // 기본 핫바 10칸이 다 찬 채로 열네 번 말을 걸면 0번 칸이 조명 → 양귀비 → 색유리 →
+  // 묘목으로 계속 바뀌었다 — 아이가 짜 둔 팔레트가 말 몇 번에 사라졌다.
+  // 만들기 모드에서 블록은 목록(E)에서 공짜로 꺼내므로, 선물은 **덤**이지 자원이 아니다.
+  // 하루 한 번으로 막지 않는 이유도 그것이다 — 상인에게 말 거는 것 자체가 놀이다 (v133 의 시험이 그 전제다)
+  // 단, **튜토리얼이 걸린 선물**은 꽉 차 있어도 준다 (v144) — 꽃 줄에서 막히면
+  // 뒤 두 줄이 영영 안 나온다(v128·v130 이 고친 자리다). 첫 선물도 같다
+  var mustGive = (n === 0 || wantFlower);
+  if (slot < 0 && mustGive) slot = 9;
+  if (slot < 0) {
+    toast("상인: “" + line + "” — 핫바가 꽉 찼어요. 한 칸을 비우면 " +
+          NAMES[gift] + josa(NAMES[gift], "을", "를") + " 드릴게요");
+    advanceTut(3);
+    tone(520, 0.09, "triangle", 0.05);
+    unlock("trade");
+    return true;
+  }
   gbar[slot] = gift;
   if (gfill) gfill[slot] = 0;
   // 칸이 기억하던 모양도 비운다 (v132) — 그 칸이 계단 모드였으면 선물받은 조명이 계단으로 놓였다

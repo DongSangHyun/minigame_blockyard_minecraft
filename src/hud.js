@@ -427,6 +427,45 @@ export function toggleBigMap(on) {
     drawBigMap();
   }
 }
+// **큰 지도에서 표식을 지운다** (v144 · 자문 31차 #4) — 24개가 차면 토스트가
+// 「표식은 24개까지입니다」 하고 끝이었고, 지우는 길인 `/marks del` 은 키보드 전용이었다.
+// 탭으로 지울 수 있던 것은 3칸 안의 **제자리 표식**뿐이라, 폰에서는 회수 경로가 없었다.
+// 큰 지도(v111·v143)가 표식 24개를 전제로 서 있는데 그랬다.
+// 지우는 것은 되돌릴 수 없으니 **두 번 누르게** 한다 (CLAUDE.md §2-8)
+var markArmed = -1;
+if (bigCanvas) bigCanvas.addEventListener("click", function (e) {
+  var box = bigCanvas.getBoundingClientRect();
+  if (!box.width || !box.height) return;
+  var wx = ((e.clientX - box.left) / box.width) * WX;
+  var wz = ((e.clientY - box.top) / box.height) * WZ;
+  var pick = -1, bestD = 25;            // 5칸 안
+  for (var i = 0; i < S.marks.length; i++) {
+    var dx = markX(S.marks[i]) - wx, dz = markZ(S.marks[i]) - wz;
+    var d = dx * dx + dz * dz;
+    if (d < bestD) { bestD = d; pick = i; }
+  }
+  if (pick < 0) { markArmed = -1; return; }
+  var label = markName(S.marks[pick]) || ("표식 " + (pick + 1));
+  if (markArmed !== pick) {
+    markArmed = pick;
+    toast("「" + label + "」 — 한 번 더 누르면 지웁니다");
+    return;
+  }
+  S.marks.splice(pick, 1);
+  markArmed = -1;
+  S.worldDirty = true;
+  drawBigMap();
+  drawMinimap();
+  toast("표식 지움 — " + label);
+});
+
+// 닫기 단추 (v144) — 폰에는 `N` 도 `ESC` 도 없다. 덮개가 지도 단추까지 가려서
+// 「한 번 더 눌러 닫기」 에도 손이 안 닿았다 (v143 이 낸 길에 나가는 문이 없었다)
+var bigMapX = document.getElementById("bigmap-x");
+if (bigMapX) bigMapX.addEventListener("click", function (e) {
+  e.stopPropagation();
+  toggleBigMap(false);
+});
 if (bigMapEl) bigMapEl.addEventListener("click", function (e) {
   // 지도 자체를 눌렀을 때는 안 닫는다 — 들여다보려고 누르는 일이 잦다
   if (e.target === bigMapEl) toggleBigMap(false);

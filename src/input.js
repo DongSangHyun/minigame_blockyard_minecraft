@@ -1187,7 +1187,11 @@ export function toggleMark(named) {
   if (near >= 0) { S.marks.splice(near, 1); toast("표식 지움"); }
   // 12 → 24 (v111) — 12개는 "집 한 채" 시절의 치수다. 한 시간이면 굴 어귀·갱도·
   // 집·광맥으로 다 차고, 그다음부터는 새로 찍으려면 쓰던 표식을 지워야 했다
-  else if (S.marks.length >= MARK_MAX) toast("표식은 " + MARK_MAX + "개까지입니다");
+  // 막다른 말이었다 (v144 · 자문 31차 #4) — 무엇을 하라는 안내가 없었고,
+  // 지우는 길인 `/marks del` 은 키보드 전용이었다. 이제 큰 지도에서 눌러 지운다
+  else if (S.marks.length >= MARK_MAX)
+    toast("표식이 " + MARK_MAX + "개로 꽉 찼어요 — " +
+          (isTouch ? "「지도」 에서 표식을 눌러 지우세요" : "N 지도에서 표식을 누르거나 /marks del <번호>"));
   else {
     // 높이까지 담는다 — 지하 갱도 입구와 지상 탑이 지도에서 같은 점이었다.
     // 예전 저장의 [x, z] 두 원소도 그대로 읽히게, 길이로 구분한다 (저장 버전은 v5 그대로).

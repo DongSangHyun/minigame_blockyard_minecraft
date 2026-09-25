@@ -989,7 +989,7 @@ export var CMD_HELP =
   "marks · marks del <번호> · fill <블록|공기> [바꿀블록] · hollow · walls <블록> · " +
   "cyl <블록> <반지름> [높이] [속빔] · sphere <블록> <반지름> [속빔] · shell <블록> · " +
   "paste [공기] · mirror · rotate · " +
-  "expand/contract <±dx> <±dy> <±dz> · shift <dx> <dy> <dz> · clone <dx> <dy> <dz> [횟수] · give <블록|맨손> · count · bp <save|use|list|del|export|import> <이름> · undo <n> · redo <n> · seed · gm <속도> · help (명령으로 짓는 것은 늘 온전한 블록 · 모양(G)은 Ctrl+F 가 따릅니다 · 모으기 모드: fill·give·paste·clone·bp·undo 등은 막힘)";
+  "expand/contract <±dx> <±dy> <±dz> · shift <dx> <dy> <dz> · clone <dx> <dy> <dz> [횟수] · give <블록|맨손> · count · bp <save|use|list|del|export|import> <이름> · undo <n> · redo <n> · seed · gm <속도> · help (앞의 `/` 는 붙여도 됩니다 · 블록 이름이 어긋나면 비슷한 것을 알려 줍니다 · 명령으로 짓는 것은 늘 온전한 블록 · 모양(G)은 Ctrl+F 가 따릅니다 · 모으기 모드: fill·give·paste·clone·bp·undo 등은 막힘)";
 
 // 이름 **전체**가 딱 맞는 블록만 (v137) — `/fill` 이 「다이아 광석」 을 「다이아 + 광석(=석탄 광석)」 으로
 // 쪼개 읽어 「석탄 광석 인 칸이 없습니다」 라고 했다. 블록 110종 중 68종이 두 낱말이다
@@ -1037,6 +1037,27 @@ function findBlock(name) {
   }
   return -1;
 }
+// **혹시 이것?** (v144 · 자문 31차 #8) — `findBlock` 은 낱말이 들어맞아야 한다.
+// `/give 다이아` 는 되는데 **`/give 다이아몬드` 는 「그런 블록이 없습니다」** 였다.
+// 명령 이름에는 `completeCommand` 로 앞글자 보정이 있는데 블록 이름에는 없었다 —
+// 초등 저학년은 정확한 표기를 모른다. 앞글자를 가장 많이 나눠 가진 것 하나를 되돌린다
+export function suggestBlock(name) {
+  var q = String(name || "").replace(/\s+/g, "").toLowerCase();
+  if (q.length < 2) return -1;
+  var pool = ALL_BLOCKS.concat(ITEMS), best = -1, bestN = 1;
+  for (var i = 0; i < pool.length; i++) {
+    var nm = (NAMES[pool[i]] || "").replace(/\s+/g, "").toLowerCase();
+    var k = 0;
+    while (k < nm.length && k < q.length && nm.charAt(k) === q.charAt(k)) k++;
+    if (k > bestN) { bestN = k; best = pool[i]; }
+  }
+  return best;
+}
+export function noBlockLine(name) {
+  var g = suggestBlock(name);
+  return g >= 0 ? "그런 블록이 없습니다 — 혹시 「" + NAMES[g] + "」?"
+                : "그런 블록이 없습니다 — 이름은 목록(E)에 적힌 그대로 치세요";
+}
 
 // 모으기 모드에서 막는 명령 — 블록을 공짜로 만들거나 가방을 건너뛴다 (v134)
 var SV_CHEATS = ["fill", "hollow", "walls", "shell", "cyl", "sphere", "paste", "clone", "give", "bp", "undo", "redo"];
@@ -1050,7 +1071,10 @@ export function completeCommand(prefix) {
 }
 
 export function runCommand(line) {
-  var parts = String(line).trim().split(/\s+/);
+  // 앞의 `/` 를 벗긴다 (v144 · 자문 31차 #6) — 도움말·`CMD_HELP`·GAMEPLAY 가 전부
+  // `/tp`·`/fill` 로 적어 놓았는데 그대로 치면 **「모르는 명령: /tp」** 였다.
+  // (`/` 키로 창을 열면 입력칸은 비어 있어, 문서와 화면이 서로 다른 말을 했다)
+  var parts = String(line).trim().replace(/^\/+/, "").trim().split(/\s+/);
   var cmd = (parts[0] || "").toLowerCase();
   if (!cmd) return "";
   if (CMD_LIST.indexOf(cmd) < 0) {
@@ -1107,6 +1131,10 @@ export function runCommand(line) {
       if (isFinite(byNum) && byNum >= 1 && byNum <= S.marks.length) pick = byNum - 1;
       else for (var mk = 0; mk < S.marks.length; mk++)
         if (markName(S.marks[mk]).toLowerCase() === q) { pick = mk; break; }
+      // 좌표를 **덜 친 것**을 표식 얘기로 답하고 있었다 (v144 · 자문 31차 #9).
+      // `/tp 10 30` 도 `/tp 1,2,3` 도 「그런 표식이 없습니다」 였다
+      if (pick < 0 && /^[\d\s,.-]+$/.test(tpName))
+        return "좌표는 셋입니다 — /tp <x> <y> <z> (예: tp 48 40 48)";
       if (pick < 0) return "그런 표식이 없습니다 — /tp <번호|이름> 또는 /tp <x> <y> <z>";
       var m = S.marks[pick];
       x = markX(m); z = markZ(m);
@@ -1159,8 +1187,11 @@ export function runCommand(line) {
   if (cmd === "give") {
     var gname = parts.slice(1).join(" ");
     // 맨손 (v128) — 목록에서는 고를 수 있는데 명령으로만 못 비웠다
+    // 빈 인자에는 **사용법**을 준다 (v144 · #7) — `/time`·`/weather`·`/cyl` 은 다 그러는데
+    // `give`·`fill` 만 「그런 블록이 없습니다」 라서, 아이는 명령 이름을 틀렸다고 읽었다
+    if (!gname.trim()) return "give <블록> — 지금 칸에 블록을 듭니다 (예: give 다이아 광석 · give 맨손)";
     var gb = /^(맨손|빈손|손|hand)$/i.test(gname.trim()) ? AIR : findBlock(gname);
-    if (gb < 0) return "그런 블록이 없습니다";
+    if (gb < 0) return noBlockLine(gname);
     S.bar[S.selected] = gb;
     if (S.fillBar) S.fillBar[S.selected] = 0;    // 먼저 든 양동이의 물이 새 칸에 남지 않게
     // 핫바를 다시 그린다 (v95) — 예전에는 손에 든 건 다이아, 핫바가 보여 주는 건 잔디였다.
@@ -1172,6 +1203,7 @@ export function runCommand(line) {
 
   if (cmd === "fill") {
     var fname = parts.slice(1).join(" ");
+    if (!fname.trim()) return "fill <블록> — 고른 영역을 채웁니다 (fill 공기 로 비웁니다)";
     // "공기" 는 블록 목록에 없다 — 비우기로 알아듣는다
     if (/^(공기|빈칸|air|없음)$/i.test(fname.trim())) {
       var nc = clearSelection();
@@ -1204,7 +1236,7 @@ export function runCommand(line) {
       }
     }
     var fb = findBlock(fbName);
-    if (fb < 0) return "그런 블록이 없습니다";
+    if (fb < 0) return noBlockLine(fname);
     var n = fillSelection(fb, SH_FULL, repl >= 0 ? repl : undefined);
     if (n < 0) return "영역이 너무 큽니다";
     if (repl >= 0 && !n) return (NAMES[repl] || "그 블록") + " 인 칸이 없습니다";
@@ -1248,12 +1280,20 @@ export function runCommand(line) {
                            : "sphere <블록> <반지름> [속빔] — 선 자리를 중심으로 구";
     }
     var rad = nums[0], hei = cmd === "cyl" ? (nums.length > 1 ? nums[1] : 1) : 1;
+    // **말없이 자르지 않는다** (v144 · 자문 31차 #2) — `roundSelection` 이 반지름을 32 로
+    // 자르므로 `/cyl 돌 999` 는 거절이 아니라 **반지름 32 짜리 원기둥 3,155칸**이 됐다.
+    // 999 를 친 아이는 자기가 무엇을 만든 줄 모른 채 섬 한복판에 돌판을 깐다
+    var radUse = Math.max(1, Math.min(32, Math.round(rad)));
+    var heiUse = Math.max(1, Math.min(WY, Math.round(hei)));
+    var capped = (radUse !== rad || heiUse !== hei)
+               ? " (반지름은 32 · 높이는 " + WY + " 까지라 " + radUse +
+                 (cmd === "cyl" ? " · " + heiUse : "") + " 로 줄였습니다)" : "";
     var rn = roundSelection(cb4, SH_FULL, rad, hei, hollowWord, cmd);
     if (rn < 0) return "너무 큽니다 — 반지름과 높이를 줄이세요 (" + REGION_MAX.toLocaleString("ko-KR") + "칸까지)";
     if (!rn) return "이미 " + NAMES[cb4] + " 입니다";
     return rn.toLocaleString("ko-KR") + "칸을 " + withRo(NAMES[cb4]) + " (" +
-           (cmd === "cyl" ? "원기둥 반지름 " + rad + " · 높이 " + hei : "구 반지름 " + rad) +
-           (hollowWord ? " · 속빔" : "") + ")";
+           (cmd === "cyl" ? "원기둥 반지름 " + radUse + " · 높이 " + heiUse : "구 반지름 " + radUse) +
+           (hollowWord ? " · 속빔" : "") + ")" + capped;
   }
 
   // 세 키 조합에 **명령 대안**을 둔다 (v113) — Ctrl+Shift+V(빈칸까지 붙여넣기)와
