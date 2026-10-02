@@ -18,7 +18,7 @@ import { EYE, HALF, moveAxis, moveHorizontal, player, pointSolid, raycast, spawn
 import { splash, waterLap, fireCrackle, at, caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, setReverb, stepSound, tone, updateAmbient } from "./audio.js";
 import { pushPrev, saveGame, touchLock, lockHeldByOther } from "./save.js";
 import { checkBuildAchievements, checkFoundAchievements, achCount, achTotal, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
-import { refreshMouthDots, refreshMinimapCap, tAim, airBar, airEl, drawMinimap, bigMapOpen, drawBigMap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
+import { roofDepth, refreshMouthDots, refreshMinimapCap, tAim, airBar, airEl, drawMinimap, bigMapOpen, drawBigMap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
 import { makeRng } from "./atlas.js";
 import { canMine, enrichDiamonds, josa, mineSpeed, needText, resetSurvival } from "./survival.js";
 import { ghostMesh, handCam, handScene, triggerSwing, updateGhost, updateHand, updateHandBlock } from "./hand.js";
@@ -144,6 +144,7 @@ export function newWorld(seed) {
   tone(300, 0.16, "sine", 0.05);
 }
 
+var rvTimer = 0, rvTarget = 0;      // 동굴 잔향 — 0.2초마다 잰 목표 세기 (v147)
 export function step(dt) {
   var playing = S.active && !S.uiOpen;
   var eyeY = player.pos.y + EYE;
@@ -613,17 +614,28 @@ export function step(dt) {
   updateParticles(dt);
   updateAmbient(dt);
   setMuffle(eyeInLiquid);
-  // 동굴 잔향 (v147) — **머리 위 흙이 얼마나 두꺼운가**로 잰다(동굴 울림과 같은 잣대 · v79).
-  // 2칸까지는 지붕 한 겹(집 안)이라 거의 안 울리고, 12칸이면 깊은 굴이라 온전히 울린다.
-  // 시작 화면·물속·소리 끔에서는 0 — 물속은 먹먹하게(muffle) 처리하니 울림을 겹치지 않는다
+  // 동굴 잔향 (v147) — **자연 지붕이 머리 위에 얼마나 두꺼운가**로 잰다 (`roofDepth` · v146 자문 34차 #1).
+  // v147 첫 판은 `topMap` 을 그대로 썼다 — 「동굴 울림과 같은 잣대」 라고 적었지만 **아니었다**:
+  // 동굴 울림은 `lightAtPlayer() <= 4`(어두울 때만)라는 문이 하나 더 있어 숲이 걸러졌는데, 그 문을 빼먹었다.
+  // `topMap` 은 **나뭇잎과 내가 얹은 지붕까지** 세므로 잎 덮인 기둥 405개 중 301개(74%)에서 울렸다 —
+  // 아이가 가장 오래 걷는 숲에서 참나무 밑만 들어가도 굴 안 소리가 났다. `roofDepth` 는 잎·십자 블록·
+  // **내가 손댄 칸**(집·홀의 지붕)을 빼고, 둘러싸였는지도 본다 (지도와 지하 판정이 쓰는 그 함수다).
+  // 그래서 **내가 지은 집은 안 울린다** — 이것은 「동굴·지하」 잔향이다. 2칸까지는 거의 안 울리고 12칸이면 온전히 울린다.
+  // 0.2초마다만 다시 잰다(기둥을 훑는 일이라 매 프레임은 낭비다).
+  // 시작 화면·물속·**소리 끔·볼륨 0**에서는 0 — 물속은 먹먹하게(muffle) 처리하니 울림을 겹치지 않는다
   var rvMix = 0;
-  if (S.active && !eyeInLiquid) {
-    var rvx = Math.floor(player.pos.x), rvz = Math.floor(player.pos.z);
-    if (rvx >= 0 && rvx < WX && rvz >= 0 && rvz < WZ) {
-      rvMix = Math.max(0, Math.min(1, (topMap[rvz * WX + rvx] - player.pos.y - 2) / 10));
+  if (S.active && !eyeInLiquid && !S.muted && opts.vol > 0) {
+    rvTimer -= dt;
+    if (rvTimer <= 0) {
+      rvTimer = 0.2;
+      var rvDepth = roofDepth(Math.floor(player.pos.x), Math.floor(player.pos.z), Math.floor(player.pos.y));
+      rvTarget = rvDepth > 0 ? Math.max(0, Math.min(1, (rvDepth - 2) / 10)) : 0;
     }
-  }
-  if (Math.abs(rvMix - S.reverbMix) > 0.02 || (rvMix === 0) !== (S.reverbMix === 0)) setReverb(rvMix);
+    rvMix = rvTarget;
+  } else rvTimer = 0;                      // 다시 켜지는 순간 곧바로 새로 잰다
+  // 0 이 된 **뒤에도** 연결이 남아 있으면 계속 불러 준다 — 한 프레임만 부르면 그때는 게인이 아직 안 사그라들어
+  // 끊는 분기를 못 타고, 이후엔 호출이 없어 컨볼버가 영영 물려 있었다 (자문 34차 #2)
+  if (Math.abs(rvMix - S.reverbMix) > 0.02 || (rvMix === 0) !== (S.reverbMix === 0) || (S.reverbOn && rvMix === 0)) setReverb(rvMix);
   listenAt(camera.position.x, camera.position.y, camera.position.z,
            -Math.sin(player.yaw), -Math.cos(player.yaw));
 

@@ -16748,16 +16748,22 @@ phoneTest("v146 아주 작은 폰(568×320)에서도 터치 단추 11칸이 화�
 
 // ══ v147 — 동굴 잔향 ═════════════════════════════════════
 
-test("v147 잔향: 지하에서만 켜지고 · 지상과 물속에서는 꺼지고 · 오디오가 늦게 생겨도 켜진다", async (page) => {
+test("v147 잔향: 자연 지붕 밑에서만 켜지고 · 지상과 물속에서는 꺼지고 · 오디오가 늦게 생겨도 켜진다", async (page) => {
   const r = await page.evaluate(() => {
     const B = window.__blockyard, K = B.B;
     B.setPaused(true); B.beginPlay();
     B.S.weather = 0; B.S.weatherLock = true;
     const out = {};
-    // 오디오 컨텍스트를 **아직 안 만든** 상태에서 지하로 간다 — 늦게 생겨도 켜져야 한다
+    // 0.2초마다 다시 재므로(v148) 단계마다 시간을 흘린다
+    const settle = () => { for (let k = 0; k < 16; k++) B.step(1 / 60); };
     B.S.audioCtx = null; B.S.masterGain = null; B.S.muffle = null;
     B.S.reverb = null; B.S.reverbSend = null; B.S.reverbOn = false; B.S.reverbMix = 0;
-    // 시험장 — 바닥(y 30) 위 공간 3칸, 그 위 돌 지붕 12칸 두께는 topMap 으로 만든다
+    // 「오디오가 아직 없다」 를 **확정적으로** 만든다 — 16프레임을 흘리는 동안 발소리·착지음이
+    // `ac()` 를 불러 컨텍스트를 만들어 버리면(무작위로 소리가 난다) 세기가 기록되는 게 정상이라,
+    // 이 구간은 AudioContext 생성을 막는다 (v148 게이트에서 4/10 으로 흔들렸다). `ac()` 는 try 안이라 null 을 돌려준다
+    const RealAC = window.AudioContext, RealWAC = window.webkitAudioContext;
+    window.AudioContext = function () { throw new Error("오디오 없음(시험)"); };
+    window.webkitAudioContext = undefined;
     const X = 60, Z = 60, Y = 30;
     for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
       for (let dy = 0; dy <= 20; dy++) B.set(X + dx, Y + dy, Z + dz, K.AIR);
@@ -16765,42 +16771,44 @@ test("v147 잔향: 지하에서만 켜지고 · 지상과 물속에서는 꺼지
     }
     B.refreshAllTops();
     B.player.pos.set(X + 0.5, Y, Z + 0.5); B.player.vel.set(0, 0, 0); B.player.flying = false;
-    B.step(1 / 60);
+    settle();
     out.surface = B.S.reverbMix;
-    // 지붕을 덮는다 — 머리 위 흙이 두껍다
+    // 자연 지붕 12칸 — B.set 은 「내가 손댄 칸」 으로 안 친다(tops 만 갱신)
     for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
       for (let dy = 3; dy <= 14; dy++) B.set(X + dx, Y + dy, Z + dz, K.STONE);
     B.refreshAllTops();
-    B.step(1 / 60);
+    settle();
     out.beforeAudio = B.S.reverbMix;                 // 오디오가 없으니 기록되면 안 된다
     out.hadReverb = !!B.S.reverb;
-    B.ac();                                          // 이제 만든다 (첫 소리가 나는 때)
-    B.step(1 / 60);
+    out.noCtx = !B.S.audioCtx;                       // 시험 준비 — 정말 오디오가 없었나
+    window.AudioContext = RealAC; window.webkitAudioContext = RealWAC;   // 이제 풀고 늦게 만든다
+    B.ac();
+    settle();
     out.deep = B.S.reverbMix;
     out.on = B.S.reverbOn;
     out.irSec = B.S.reverb && B.S.reverb.buffer ? B.S.reverb.buffer.length / B.S.reverb.buffer.sampleRate : 0;
-    // 지붕이 얇으면 약하게
+    // 지붕이 얇으면 약하게 (3칸 두께 → roofDepth 5)
     for (let dy = 6; dy <= 14; dy++) for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
       B.set(X + dx, Y + dy, Z + dz, K.AIR);
     B.refreshAllTops();
-    B.step(1 / 60);
+    settle();
     out.thin = B.S.reverbMix;
-    // 물속은 0 — 먹먹하게(muffle) 처리하니 울림을 겹치지 않는다
+    // 물속은 0
     for (let dy = 0; dy <= 14; dy++) for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
       B.set(X + dx, Y + dy, Z + dz, K.WATER);
     B.refreshAllTops();
-    B.step(1 / 60);
+    settle();
     out.water = B.S.reverbMix;
-    // 지붕을 걷으면 0 으로 돌아가고 연결도 끊긴다 (setTargetAtTime 이 헤드리스에서 안 흐르므로 값만 본다)
     for (let dy = 0; dy <= 14; dy++) for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
       B.set(X + dx, Y + dy, Z + dz, K.AIR);
     B.refreshAllTops();
-    B.step(1 / 60);
+    settle();
     out.open = B.S.reverbMix;
     B.S.weatherLock = false;
     B.endPlay(); B.setPaused(false);
     return out;
   });
+  assert(r.noCtx, "시험 준비: 오디오 생성을 막았는데도 컨텍스트가 생겼다");
   eq(r.surface, 0, "지상인데 잔향이 켜졌다");
   assert(r.beforeAudio === 0 && !r.hadReverb, "오디오가 없는데 잔향 세기가 기록됐다 — 늦게 생기면 영영 안 켜진다 (" + r.beforeAudio + ")");
   assert(r.deep > 0.9, "깊은 굴인데 잔향이 약하다 (" + r.deep + ") — 오디오가 늦게 생긴 경우를 놓쳤다");
@@ -16809,6 +16817,166 @@ test("v147 잔향: 지하에서만 켜지고 · 지상과 물속에서는 꺼지
   assert(r.thin > 0 && r.thin < r.deep, "지붕이 얇은데 세기가 안 줄었다 (" + r.thin + " vs " + r.deep + ")");
   eq(r.water, 0, "물속에서 잔향이 켜졌다 — muffle 과 겹친다");
   eq(r.open, 0, "지붕을 걷었는데 잔향이 안 꺼진다");
+});
+
+test("v148 잔향: 숲(잎)과 내가 지은 지붕 밑에서는 안 울린다 · 음소거에서는 0", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true); B.beginPlay();
+    B.S.weather = 0; B.S.weatherLock = true;
+    B.ac();
+    const settle = () => { for (let k = 0; k < 16; k++) B.step(1 / 60); };
+    const X = 60, Z = 60, Y = 30;
+    function room() {
+      for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+        for (let dy = 0; dy <= 20; dy++) B.set(X + dx, Y + dy, Z + dz, K.AIR);
+        B.set(X + dx, Y - 1, Z + dz, K.STONE);
+      }
+      B.refreshAllTops();
+      B.player.pos.set(X + 0.5, Y, Z + 0.5); B.player.vel.set(0, 0, 0); B.player.flying = false;
+    }
+    const out = {};
+    // (1) 잎 12칸 — 나무 밑이다. topMap 은 잎도 세므로 v147 첫 판은 여기서 울렸다
+    room();
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = 3; dy <= 14; dy++) B.set(X + dx, Y + dy, Z + dz, K.LEAVES);
+    B.refreshAllTops();
+    settle();
+    out.leaves = B.S.reverbMix;
+    // (2) 내가 지은 돌 지붕 12칸 — 기록되는 편집(record=true)만 「손댄 칸」 으로 친다 (집·홀은 굴이 아니다)
+    room();
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = 3; dy <= 14; dy++) {
+        B.set(X + dx, Y + dy, Z + dz, K.STONE);
+        B.setTouched(X + dx, Y + dy, Z + dz, true);     // 「사람이 손댄 칸」 — 집·홀의 지붕이다
+      }
+    B.refreshAllTops();
+    settle();
+    out.built = B.S.reverbMix;
+    // 손댄 표시를 **반드시 끈다** — 남기면 뒤 시험이 같은 자리의 자연 지붕을 못 알아본다
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = 3; dy <= 14; dy++) B.setTouched(X + dx, Y + dy, Z + dz, false);
+    // (3) 같은 자리를 자연 돌로 — 이쪽은 울려야 한다 (위 둘이 「항상 0」 이 아님을 못 박는다)
+    room();
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = 3; dy <= 14; dy++) B.set(X + dx, Y + dy, Z + dz, K.STONE);
+    B.refreshAllTops();
+    settle();
+    out.natural = B.S.reverbMix;
+    // (4) 음소거·볼륨 0 — 소리 끔에서는 0 (문서가 그렇게 말한다)
+    B.S.muted = true; settle(); out.muted = B.S.reverbMix; B.S.muted = false;
+    const keepVol = B.opts.vol; B.opts.vol = 0; settle(); out.vol0 = B.S.reverbMix; B.opts.vol = keepVol;
+    settle(); out.back = B.S.reverbMix;
+    B.S.weatherLock = false;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  eq(r.leaves, 0, "나뭇잎 밑에서 잔향이 켜졌다 (" + r.leaves + ") — 숲이 굴로 읽힌다");
+  eq(r.built, 0, "내가 지은 지붕 밑에서 잔향이 켜졌다 (" + r.built + ") — 집은 굴이 아니다");
+  assert(r.natural > 0.9, "같은 자리의 자연 지붕에서는 울려야 한다 (" + r.natural + ")");
+  eq(r.muted, 0, "음소거인데 잔향 상태가 켜져 있다");
+  eq(r.vol0, 0, "볼륨 0 인데 잔향 상태가 켜져 있다");
+  assert(r.back > 0.9, "소리를 다시 켰는데 잔향이 안 돌아왔다 (" + r.back + ")");
+});
+
+test("v148 잔향: 지상으로 나오면 컨볼버 연결이 끊긴다 (시간을 실제로 흘려서)", async (page) => {
+  await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true); B.beginPlay();
+    B.S.weather = 0; B.S.weatherLock = true;
+    B.ac();
+    const X = 60, Z = 60, Y = 30;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+      for (let dy = 0; dy <= 20; dy++) B.set(X + dx, Y + dy, Z + dz, K.AIR);
+      B.set(X + dx, Y - 1, Z + dz, K.STONE);
+      for (let dy = 3; dy <= 14; dy++) B.set(X + dx, Y + dy, Z + dz, K.STONE);
+    }
+    B.refreshAllTops();
+    B.player.pos.set(X + 0.5, Y, Z + 0.5); B.player.vel.set(0, 0, 0); B.player.flying = false;
+    for (let k = 0; k < 20; k++) B.step(1 / 60);
+  });
+  const on1 = await page.evaluate(() => window.__blockyard.S.reverbOn);
+  // 지붕을 걷는다 — setTargetAtTime(시정수 0.45초)이 실제 시간으로 흘러야 0.004 아래로 내려간다
+  await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = 3; dy <= 14; dy++) B.set(60 + dx, 30 + dy, 60 + dz, K.AIR);
+    B.refreshAllTops();
+  });
+  let off = false, waited = 0;
+  while (!off && waited < 7000) {
+    await page.waitForTimeout(250); waited += 250;
+    off = await page.evaluate(() => {
+      const B = window.__blockyard;
+      for (let k = 0; k < 16; k++) B.step(1 / 60);
+      return !B.S.reverbOn;
+    });
+  }
+  const mix = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.S.weatherLock = false; B.endPlay(); B.setPaused(false);
+    return B.S.reverbMix;
+  });
+  assert(on1, "시험 준비: 굴 안인데 잔향 연결이 안 켜졌다");
+  eq(mix, 0, "지붕을 걷었는데 목표 세기가 0 이 아니다");
+  assert(off, "지붕을 걷고 " + waited + "ms 가 지나도 컨볼버 연결이 안 끊긴다 — 지상에서 계속 물려 있다");
+});
+
+test("v148 큰 지도를 N 으로 닫으면 시점이 돌아온다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.lockMode = true;
+    const cv = document.querySelector("canvas");
+    let calls = 0;
+    const orig = cv.requestPointerLock;
+    cv.requestPointerLock = function () { calls++; };
+    function key(code) {
+      window.dispatchEvent(new KeyboardEvent("keydown", { code: code, bubbles: true, cancelable: true }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { code: code, bubbles: true, cancelable: true }));
+    }
+    key("KeyN");
+    const opened = B.bigMapOpen();
+    const callsAfterOpen = calls;
+    key("KeyN");
+    const closed = !B.bigMapOpen();
+    cv.requestPointerLock = orig;
+    B.endPlay(); B.setPaused(false);
+    return { opened, closed, callsAfterOpen, calls };
+  });
+  assert(r.opened && r.closed, "N 으로 큰 지도가 안 열리고 닫힌다");
+  eq(r.callsAfterOpen, 0, "지도를 여는데 시점 잠금을 요청했다");
+  assert(r.calls >= 1, "N 으로 지도를 닫았는데 시점 잠금을 안 되돌린다 — 다시 클릭해야 한다");
+});
+
+phoneTest("v148 두 손가락 탭이 너무 빠르면 한 번 안내한다 (문턱은 그대로)", async (page) => {
+  async function twoFingerTap(ms) {
+    return page.evaluate((ms) => new Promise((resolve) => {
+      const el = document.getElementById("stage");
+      const mk = (id, x) => new Touch({ identifier: id, target: el, clientX: x, clientY: 200 });
+      const a = mk(1, 500), b = mk(2, 560);
+      el.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true, touches: [a, b], targetTouches: [a, b], changedTouches: [b] }));
+      setTimeout(() => {
+        el.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true, touches: [], targetTouches: [], changedTouches: [a, b] }));
+        resolve(document.getElementById("toast").textContent);
+      }, ms);
+    }), ms);
+  }
+  await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    B.S.selA = null; B.S.selB = null;
+    B.toast("대기");
+  });
+  const jitter = await twoFingerTap(30);              // 떨림 — 말하지 않는다
+  const quick = await twoFingerTap(130);              // 보통의 빠른 탭 — 한 번 말한다
+  await page.evaluate(() => window.__blockyard.toast("대기"));
+  const quick2 = await twoFingerTap(130);             // 두 번째는 조용히
+  const selA = await page.evaluate(() => { const B = window.__blockyard; const v = B.S.selA; B.endPlay(); return v; });
+  assert(jitter.indexOf("꾹") < 0, "60ms 밑의 떨림에 안내가 떴다 — " + jitter);
+  assert(quick.indexOf("꾹") > 0, "빠른 탭인데 안내가 없다 — " + quick);
+  assert(quick2.indexOf("꾹") < 0, "안내가 세션당 한 번이 아니다 — " + quick2);
+  eq(selA, null, "빠른 탭이 영역을 찍어 버렸다 — 문턱이 바뀌었다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

@@ -31,6 +31,7 @@ function buildReverb(c) {
   } catch (e) { S.reverb = null; S.reverbSend = null; }
 }
 // mix 0~1 — 머리 위 흙의 두께에서 loop.js 가 매 프레임 알려 준다
+var rvLast = -1;                 // 마지막으로 예약한 목표 — 같은 값을 매 프레임 다시 예약하지 않는다
 export function setReverb(mix) {
   // **준비가 안 됐으면 값을 기록하지도 않는다** — 오디오 컨텍스트는 첫 소리 때 늦게 만들어진다.
   // 먼저 기록하면 컨텍스트가 생긴 뒤에도 「이미 같은 값」 이라 loop.js 가 다시 안 불러서,
@@ -43,15 +44,20 @@ export function setReverb(mix) {
       S.reverbSend.connect(S.reverb);
       S.reverb.connect(S.muffle);            // 물속이면 울림도 같이 먹먹해진다
       S.reverbOn = true;
+      rvLast = -1;
     }
-    if (S.reverbOn) {
+    if (!S.reverbOn) return;
+    if (Math.abs(mix - rvLast) > 0.005) {
       S.reverbSend.gain.setTargetAtTime(mix * REVERB_WET, c.currentTime, 0.45);
-      // 다 사그라들면 끊는다 — 지상에서 컨볼버를 돌려 둘 이유가 없다
-      if (mix <= 0.01 && S.reverbSend.gain.value < 0.004) {
-        S.reverbSend.disconnect(S.reverb);
-        S.reverb.disconnect();
-        S.reverbOn = false;
-      }
+      rvLast = mix;
+    }
+    // 다 사그라들면 끊는다 — 지상에서 컨볼버를 돌려 둘 이유가 없다.
+    // loop.js 가 0 인 동안 **계속 불러 주므로** 사그라드는 몇 초 뒤 이 분기를 탄다
+    if (mix <= 0.01 && S.reverbSend.gain.value < 0.004) {
+      S.reverbSend.disconnect(S.reverb);
+      S.reverb.disconnect();
+      S.reverbOn = false;
+      rvLast = -1;
     }
   } catch (e) {}
 }

@@ -1380,7 +1380,14 @@ window.addEventListener("keydown", function (e) {
   // 자기 키로 닫히지 않으면 도움말이 그랬듯 잠금만 풀린 채 판이 남는다
   if (e.code === "KeyN" && !e.ctrlKey && !e.altKey && !e.metaKey) {
     e.preventDefault();
-    if (bigMapOpen()) toggleBigMap(false);
+    if (bigMapOpen()) {
+      toggleBigMap(false);
+      // `E` 와 같이 **시점을 되돌려 준다** (v148 · 자문 34차 #4) — 지도를 `N` 으로 닫아도 마우스 시점이
+      // 안 돌아와 다시 클릭해야 했다. 큰 지도를 열 때 `toggleBigMap` 이 잠금을 풀기 때문이다
+      if (S.active && S.lockMode && canvas.requestPointerLock) {
+        try { canvas.requestPointerLock(); } catch (err) {}
+      }
+    }
     else if (!S.uiOpen) { toggleBigMap(true); advanceTut(6); }
     return;
   }
@@ -1753,7 +1760,7 @@ window.addEventListener("touchmove", function (e) {
 (function bindTouchRegion() {
   var el = document.getElementById("stage");
   if (!el) return;
-  var twoStart = 0;
+  var twoStart = 0, quickTapHinted = false;
   el.addEventListener("touchstart", function (ev) {
     if (ev.touches.length !== 2 || !S.active) return;
     twoStart = Date.now();
@@ -1762,6 +1769,15 @@ window.addEventListener("touchmove", function (e) {
     if (!twoStart || ev.touches.length > 0) { if (!ev.touches.length) twoStart = 0; return; }
     var held = Date.now() - twoStart;
     twoStart = 0;
+    // **너무 빠른 탭은 말해 준다** (v148 · 자문 33차) — 220ms 밑은 시점 돌리기와 구분하려고 무시하는데,
+    // 보통의 빠른 탭(100~180ms)이 토스트도 소리도 없이 사라져 아이는 기능이 없는 줄 알았다.
+    // **문턱은 안 건드린다**(시점 돌리기와 겹치는 조작 변경이라 유저 확인이 필요하다) — 안내만 세션당 한 번.
+    // 스틱과 시점을 동시에 짧게 짚는 평소 동작에서 번거롭지 않도록 60ms 밑(떨림)은 건너뛴다
+    if (held >= 60 && held < 220 && !quickTapHinted) {
+      quickTapHinted = true;
+      toast("영역을 찍으려면 두 손가락을 조금 더 꾹 눌러 주세요");
+      return;
+    }
     if (held < 220 || held > 1400) return;
     // 데스크톱과 같은 사거리로 본다 (v98) — 터치만 6칸이라
     // 20×20 집터를 잡으려면 모서리마다 날아가야 했다
