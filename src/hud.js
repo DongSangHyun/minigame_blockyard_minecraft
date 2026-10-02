@@ -422,6 +422,7 @@ export function toggleBigMap(on) {
   var want = on === undefined ? bigMapEl.hidden : on;
   bigMapEl.hidden = !want;
   S.uiOpen = want;
+  disarmMark();
   if (want) {
     if (document.pointerLockElement === canvas) document.exitPointerLock();
     drawBigMap();
@@ -432,7 +433,11 @@ export function toggleBigMap(on) {
 // 탭으로 지울 수 있던 것은 3칸 안의 **제자리 표식**뿐이라, 폰에서는 회수 경로가 없었다.
 // 큰 지도(v111·v143)가 표식 24개를 전제로 서 있는데 그랬다.
 // 지우는 것은 되돌릴 수 없으니 **두 번 누르게** 한다 (CLAUDE.md §2-8)
-var markArmed = -1;
+// 무장은 **인덱스가 아니라 표식 자체**를 기억한다 (v145 · 자문 32차 #2) — 다른 길(`B` 키 ·
+// `/marks del`)로 목록이 바뀌면 인덱스가 어긋나 엉뚱한 표식을 지울 수 있다.
+// 지도를 닫으면 풀리고, 4초 뒤에도 풀린다 — 닫았다 연 지도에서 한 번 누른 것이 바로 삭제가 되면 안 된다
+var markArmed = null, armTimer = 0;
+function disarmMark() { markArmed = null; clearTimeout(armTimer); }
 if (bigCanvas) bigCanvas.addEventListener("click", function (e) {
   var box = bigCanvas.getBoundingClientRect();
   if (!box.width || !box.height) return;
@@ -444,15 +449,17 @@ if (bigCanvas) bigCanvas.addEventListener("click", function (e) {
     var d = dx * dx + dz * dz;
     if (d < bestD) { bestD = d; pick = i; }
   }
-  if (pick < 0) { markArmed = -1; return; }
+  if (pick < 0) { disarmMark(); return; }
   var label = markName(S.marks[pick]) || ("표식 " + (pick + 1));
-  if (markArmed !== pick) {
-    markArmed = pick;
+  if (markArmed !== S.marks[pick]) {
+    markArmed = S.marks[pick];
+    clearTimeout(armTimer);
+    armTimer = setTimeout(disarmMark, 4000);
     toast("「" + label + "」 — 한 번 더 누르면 지웁니다");
     return;
   }
   S.marks.splice(pick, 1);
-  markArmed = -1;
+  disarmMark();
   S.worldDirty = true;
   drawBigMap();
   drawMinimap();

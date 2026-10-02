@@ -989,7 +989,7 @@ export var CMD_HELP =
   "marks · marks del <번호> · fill <블록|공기> [바꿀블록] · hollow · walls <블록> · " +
   "cyl <블록> <반지름> [높이] [속빔] · sphere <블록> <반지름> [속빔] · shell <블록> · " +
   "paste [공기] · mirror · rotate · " +
-  "expand/contract <±dx> <±dy> <±dz> · shift <dx> <dy> <dz> · clone <dx> <dy> <dz> [횟수] · give <블록|맨손> · count · bp <save|use|list|del|export|import> <이름> · undo <n> · redo <n> · seed · gm <속도> · help (앞의 `/` 는 붙여도 됩니다 · 블록 이름이 어긋나면 비슷한 것을 알려 줍니다 · 명령으로 짓는 것은 늘 온전한 블록 · 모양(G)은 Ctrl+F 가 따릅니다 · 모으기 모드: fill·give·paste·clone·bp·undo 등은 막힘)";
+  "expand/contract <±dx> <±dy> <±dz> · shift <dx> <dy> <dz> · clone <dx> <dy> <dz> [횟수] · give <블록|맨손> [개수는 없음] · count · bp <save|use|list|del|export|import> <이름> · undo <n> · redo <n> · seed · gm <속도> · help (앞의 `/` 는 붙여도 됩니다 · 앞글자만 쳐도 되고 후보가 여럿이면 목록을 줍니다 · 블록 이름이 어긋나면 비슷한 것을 알려 줍니다 · 명령으로 짓는 것은 늘 온전한 블록 · 모양(G)은 Ctrl+F 가 따릅니다 · 모으기 모드: fill·give·paste·clone·bp·undo 등은 막힘)";
 
 // 이름 **전체**가 딱 맞는 블록만 (v137) — `/fill` 이 「다이아 광석」 을 「다이아 + 광석(=석탄 광석)」 으로
 // 쪼개 읽어 「석탄 광석 인 칸이 없습니다」 라고 했다. 블록 110종 중 68종이 두 낱말이다
@@ -1068,6 +1068,13 @@ export function completeCommand(prefix) {
   if (!q) return "";
   var hit = CMD_LIST.filter(function (c) { return c.indexOf(q) === 0; });
   return hit.length === 1 ? hit[0] : "";
+}
+// 후보가 **여럿**이면 목록을 준다 (v145 · 자문 32차 #6) — `/g` 는 give 와 gm 이 겹쳐
+// 「모르는 명령」 이라고만 해서, 아이는 명령이 아예 없는 줄 알았다
+export function commandChoices(prefix) {
+  var q = String(prefix || "").trim().toLowerCase();
+  if (!q) return [];
+  return CMD_LIST.filter(function (c) { return c.indexOf(q) === 0; });
 }
 
 export function runCommand(line) {
@@ -1149,6 +1156,9 @@ export function runCommand(line) {
     var tx = Math.max(0.4, Math.min(WX - 0.4, x));
     var ty = Math.max(1, Math.min(WY - 2, y));
     var tz = Math.max(0.4, Math.min(WZ - 0.4, z));
+    // **줄였는지는 여기서 잰다** (v145) — 아래 「막힌 자리면 위로 올린다」 가 `ty` 를 바꾸므로,
+    // 그 뒤에 재면 땅속 좌표에 tp 한 사람이 줄이지도 않았는데 「안으로 맞췄어요」 를 듣는다
+    var clippedTp = (tx !== x || ty !== y || tz !== z);
     // 돌 한가운데로 보내지 않는다 (v95) — 거기 떨어지면 걸을 수도, 날 수도, 떨어질 수도 없고
     // 조준은 늘 제 머리가 든 칸 하나뿐이라 **한 칸씩 캐서 파 올라가는 것 말고는 길이 없었다.**
     // 좌표를 대충 친 사람이나, 표식 자리를 나중에 벽으로 메운 사람이 그대로 갇혔다.
@@ -1159,10 +1169,13 @@ export function runCommand(line) {
       if (!boxHitsWorld(tx, ty2, tz)) { ty = ty2; break; }
       lifted++;
     }
+    // 범위 밖 좌표는 **줄였다고 말한다** (v145 · 자문 32차 #4) — `/tp 5000 5 5` 가 x 를 95 로 자르고도
+    // 「이동: 95 …」 라고만 해서, `/cyl` 이 고친 것과 같은 말없는 자르기가 여기 남아 있었다
     player.pos.set(tx, ty, tz);
     player.vel.set(0, 0, 0);
     return "이동: " + Math.floor(player.pos.x) + " " + Math.floor(player.pos.y) + " " +
-           Math.floor(player.pos.z) + (lifted ? " (막힌 자리라 " + lifted + "칸 올렸습니다)" : "");
+           Math.floor(player.pos.z) + (lifted ? " (막힌 자리라 " + lifted + "칸 올렸습니다)" : "") +
+           (clippedTp ? " (세계가 " + WX + "×" + WY + "×" + WZ + " 칸이라 안으로 맞췄어요)" : "");
   }
 
   if (cmd === "time") {
@@ -1190,6 +1203,10 @@ export function runCommand(line) {
     // 빈 인자에는 **사용법**을 준다 (v144 · #7) — `/time`·`/weather`·`/cyl` 은 다 그러는데
     // `give`·`fill` 만 「그런 블록이 없습니다」 라서, 아이는 명령 이름을 틀렸다고 읽었다
     if (!gname.trim()) return "give <블록> — 지금 칸에 블록을 듭니다 (예: give 다이아 광석 · give 맨손)";
+    // 끝에 숫자를 붙여도 알아듣는다 (v145 · 자문 32차 #5) — `/give 철 3` 이 「그런 블록이 없습니다」 였다.
+    // 개수는 없다(한 칸에 하나) — 몰랐던 걸 알려 주는 덤을 붙인다
+    var giveCount = /^(.*\S)\s+\d+$/.exec(gname.trim());
+    if (giveCount) gname = giveCount[1];
     var gb = /^(맨손|빈손|손|hand)$/i.test(gname.trim()) ? AIR : findBlock(gname);
     if (gb < 0) return noBlockLine(gname);
     S.bar[S.selected] = gb;
@@ -1198,7 +1215,7 @@ export function runCommand(line) {
     // v85 가 글리프까지 넣어 고친 "핫바를 봐서는 뭘 든지 모른다" 가 명령 경로에만 남아 있었다
     refreshBar();
     updateHandBlock();
-    return "핫바에 " + NAMES[gb];
+    return "핫바에 " + NAMES[gb] + (giveCount ? " (개수는 없어요 — 한 칸에 하나, 놓을 만큼 계속 놓입니다)" : "");
   }
 
   if (cmd === "fill") {
@@ -1462,6 +1479,8 @@ export function runCommand(line) {
 
   if (cmd === "seed") return "SEED " + S.worldSeed;
 
+  var choices = commandChoices(cmd);
+  if (choices.length > 1) return "혹시 " + choices.join(" · ") + " ?  (앞글자를 조금 더 쳐 주세요)";
   return "모르는 명령: " + cmd + "  (help)";
 }
 

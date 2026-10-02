@@ -178,9 +178,14 @@ export function tradeWith() {
   // 단, **튜토리얼이 걸린 선물**은 꽉 차 있어도 준다 (v144) — 꽃 줄에서 막히면
   // 뒤 두 줄이 영영 안 나온다(v128·v130 이 고친 자리다). 첫 선물도 같다
   var mustGive = (n === 0 || wantFlower);
+  // **지난 선물이 아직 그 칸에 있으면 그 칸을 바꿔 준다** (v145 · 자문 32차 #3) — v144 가 「빈 칸이
+  // 없으면 안 줌」 으로 뒤집자 기본 핫바(10칸 다 참)에서는 첫 선물 뒤로 **선물이 영영 안 나왔다.**
+  // 초등 저학년은 칸을 비우는 법을 모른다. 아이가 짠 칸은 안 건드리고, **상인이 준 칸만** 돌려 쓴다.
+  // 그 칸을 아이가 다른 것으로 바꿨다면(지난 선물이 없으면) 그때는 아무것도 안 덮는다
+  if (slot < 0 && S.giftSlot !== undefined && S.giftOnAlt === !!onAlt && gbar[S.giftSlot] === S.giftLast) slot = S.giftSlot;
   if (slot < 0 && mustGive) slot = 9;
   if (slot < 0) {
-    toast("상인: “" + line + "” — 핫바가 꽉 찼어요. 한 칸을 비우면 " +
+    toast("상인: “" + line + "” — 핫바가 꽉 찼어요. 칸 하나를 맨손(✋)으로 비우면 " +
           NAMES[gift] + josa(NAMES[gift], "을", "를") + " 드릴게요");
     advanceTut(3);
     tone(520, 0.09, "triangle", 0.05);
@@ -188,6 +193,7 @@ export function tradeWith() {
     return true;
   }
   gbar[slot] = gift;
+  S.giftSlot = slot; S.giftLast = gift; S.giftOnAlt = !!onAlt;   // 저장하지 않는다 — 다시 켜면 처음부터
   if (gfill) gfill[slot] = 0;
   // 칸이 기억하던 모양도 비운다 (v132) — 그 칸이 계단 모드였으면 선물받은 조명이 계단으로 놓였다
   var gshape = onAlt ? S.shapeBarAlt : S.shapeBar;

@@ -366,6 +366,11 @@
   @media (max-height: 520px) { #bag-head { margin: 8px 0 4px; padding-top: 6px; font-size: 10px; } }
 
   #toast {
+    /* 지도·목록 덮개(z-index 12) **위**에 둔다 (v145 · 자문 32차 #1) — z-index 가 없어서 큰 지도 뒤에
+       깔렸다. v144 의 「한 번 더 누르면 지웁니다」 확인이 **눈에 안 보여**, 한 번 눌러 본 아이는
+       반응이 없다고 느끼고 두 번 누른 아이는 읽지도 못한 채 표식을 지웠다. 확인은 보여야 확인이다.
+       회전 안내(20)와 시작 화면(30)은 그대로 위에 있다 */
+    z-index: 13;
     position: fixed; left: 50%; bottom: 120px;
     zoom: var(--ui);                /* 자리도 배율을 탄다 — 핫바가 커지면 같이 올라간다 */
     transform: translateX(-50%);

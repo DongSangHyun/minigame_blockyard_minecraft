@@ -14805,6 +14805,13 @@ test("v130 자문 34: 양동이로 상인 · 밤 횃불 튜토리얼 · 꽃 줄�
     const v = B.S.village;
     B.seedVillage(v);
     const tr = B.mobs.filter((m) => B.isTrader(m))[0];
+    // `aimedMob` 은 **가장 가까운 동물이 아니라 배열 순서로 처음 걸리는 동물**을 돌려준다.
+    // 마을 동물이 상인과 시선 사이에 우연히 서면 상인을 못 겨눈다 — 앞선 시험이 남긴 개체 수에 따라
+    // 10회 중 한 번쯤 흔들렸다(v145 게이트). 상인 둘레의 동물을 치워 준비를 결정적으로 만든다
+    for (let mi = B.mobs.length - 1; mi >= 0; mi--) {
+      const mm = B.mobs[mi];
+      if (!B.isTrader(mm) && Math.hypot(mm.x - tr.x, mm.z - tr.z) < 7) B.removeMob(mm);
+    }
     B.player.pos.set(tr.x + 0.5, tr.y, tr.z + 2.5);
     B.player.vel.set(0, 0, 0);
     const dx = tr.x - B.player.pos.x, dz = tr.z - B.player.pos.z;
@@ -14815,7 +14822,11 @@ test("v130 자문 34: 양동이로 상인 · 밤 횃불 튜토리얼 · 꽃 줄�
     B.selectSlot(3);
     B.getBar()[3] = B.B.BUCKET;
     B.S.tradeCount = 5;
-    const aimed = !!B.aimedMob() && B.isTrader(B.aimedMob().mob);
+    const amNow = B.aimedMob();
+    const aimed = !!amNow && B.isTrader(amNow.mob);
+    // 또 흔들리면 **왜인지** 찍히게 한다 — 무엇이 걸렸나, 몇 번째 상인인가
+    const aimInfo = amNow ? ("걸린 것 종류 " + amNow.mob.kind + " · 거리 " + amNow.dist.toFixed(2))
+                          : "아무것도 안 걸림 · 상인 " + B.mobs.filter((m) => B.isTrader(m)).length + "명 · 동물 " + B.mobs.length + "마리";
     B.place(false);
     const traded = B.S.tradeCount === 6;
     // (2) 꽃 줄(4)에 와 있는데 꽃이 없으면 선물이 꽃
@@ -14847,9 +14858,9 @@ test("v130 자문 34: 양동이로 상인 · 밤 횃불 튜토리얼 · 꽃 줄�
     B.selectSlot(keep.sel);
     B.S.village = null;
     B.endPlay(); B.setPaused(false);
-    return { aimed, traded, flower, torchPlaced, tutAfter, msg, y0, y1, h: v.h };
+    return { aimed, aimInfo, traded, flower, torchPlaced, tutAfter, msg, y0, y1, h: v.h };
   });
-  assert(r.aimed, "시험 준비: 상인을 못 겨눴다");
+  assert(r.aimed, "시험 준비: 상인을 못 겨눴다 — " + r.aimInfo);
   assert(r.traded, "양동이를 든 채로는 상인과 말할 수 없다");
   assert(r.flower, "튜토리얼 꽃 줄인데 꽃이 없는 아이에게 꽃을 안 줬다");
   assert(r.torchPlaced >= 1, "시험 준비: 횃불이 안 놓였다");
@@ -16460,6 +16471,118 @@ phoneTest("v144 큰 지도를 손으로 닫을 수 있다 · 단추 높이가 �
   assert(r.tall >= 44, "닫기 단추가 " + r.tall + "px — 44px 보다 작다");
   assert(r.closed, "닫기를 눌러도 큰 지도가 안 닫힌다");
   eq(r.uniq.length, 1, "터치 단추 높이가 섞여 있다 — " + r.uniq.join(" / "));
+});
+
+
+// ══ v145 — 자문 32차 ════════════════════════════════════
+
+test("v145 토스트가 큰 지도 위에 보인다 · 표식 무장은 지도를 닫으면 풀린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    const z = (id) => parseInt(getComputedStyle(document.getElementById(id)).zIndex, 10) || 0;
+    const out = { zToast: z("toast"), zMap: z("bigmap") };
+    B.S.marks.length = 0;
+    B.S.marks.push([30, 40, 30, "A"]);
+    B.S.marks.push([70, 40, 70, "B"]);
+    B.toggleBigMap(true);
+    const cv = document.getElementById("bigmap-c");
+    const box = cv.getBoundingClientRect();
+    function tapWorld(wx, wz) {
+      cv.dispatchEvent(new MouseEvent("click", {
+        bubbles: true, cancelable: true,
+        clientX: box.left + (wx / 96) * box.width, clientY: box.top + (wz / 96) * box.height
+      }));
+    }
+    tapWorld(30, 30);                       // A 무장
+    B.toggleBigMap(false); B.toggleBigMap(true);
+    tapWorld(30, 30);                       // 닫았다 연 뒤 첫 탭 — 지워지면 안 된다
+    out.afterReopen = B.S.marks.length;
+    tapWorld(30, 30);                       // 이제 두 번째 — 지운다
+    out.afterSecond = B.S.marks.length;
+    B.toggleBigMap(false);
+    B.S.marks.length = 0;
+    B.endPlay();
+    return out;
+  });
+  assert(r.zToast > r.zMap, "토스트(z " + r.zToast + ")가 큰 지도(z " + r.zMap + ") 뒤에 깔린다 — 확인이 안 보인다");
+  eq(r.afterReopen, 2, "지도를 닫았다 열었는데 무장이 남아 첫 탭에 지워졌다");
+  eq(r.afterSecond, 1, "다시 두 번 누르면 지워져야 한다");
+});
+
+test("v145 상인 선물: 꽉 찬 핫바에서도 상인이 준 칸만 돌려 쓴다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true); B.beginPlay();
+    B.S.survival = false;
+    B.S.tut = 9; B.S.tradeCount = 0; B.S.giftDay = 0;
+    B.S.giftSlot = undefined; B.S.giftLast = undefined;
+    B.S.barPage = 1;
+    for (let i = 0; i < B.S.bar.length; i++) B.S.bar[i] = K.STONE;     // 꽉 참
+    B.tradeWith();                                  // 첫 선물(꽃) — 꽉 차 있어도 준다
+    const after1 = B.S.bar.slice();
+    const gifted = [];
+    for (let k = 0; k < 6; k++) { B.tradeWith(); gifted.push(B.S.bar[9]); }
+    const others = B.S.bar.slice(0, 9).every((v) => v === K.STONE);
+    // 아이가 그 칸을 직접 고쳤다 — 이제는 아무것도 덮지 않는다
+    B.S.bar[9] = K.DIAMOND;
+    for (let k = 0; k < 4; k++) B.tradeWith();
+    const kept = B.S.bar[9] === K.DIAMOND;
+    B.S.giftSlot = undefined; B.S.giftLast = undefined;
+    B.endPlay(); B.setPaused(false);
+    return { first: after1[9], gifted, others, kept, STONE: K.STONE };
+  });
+  assert(r.first !== r.STONE, "첫 선물이 꽉 찬 핫바에서 안 들어왔다");
+  assert(new Set(r.gifted).size >= 2, "선물이 계속 같은 것이거나 안 나온다 — " + r.gifted.join(","));
+  assert(r.others, "아이가 짠 다른 칸이 덮였다");
+  assert(r.kept, "아이가 바꾼 칸을 상인이 덮었다");
+});
+
+test("v145 명령창: /tp 가 줄였다고 말한다 · 후보가 여럿이면 목록 · give 에 개수", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.survival = false;
+    const out = {};
+    out.tpFar = B.runCommand("tp 5000 40 5");
+    // 돌 한가운데로 보낸다 — 「막힌 자리라 올렸습니다」 가 붙는 경로다. 줄이지 않았으니
+    // 「안으로 맞췄어요」 는 붙으면 안 된다 (v145 에서 이 순서를 틀려 10회 게이트가 잡았다)
+    for (let dy = 0; dy <= 2; dy++) B.set(40, 40 + dy, 40, B.B.STONE);
+    B.refreshAllTops();
+    out.tpIn = B.runCommand("tp 40 40 40");
+    for (let dy = 0; dy <= 2; dy++) B.set(40, 40 + dy, 40, B.B.AIR);
+    B.refreshAllTops();
+    out.g = B.runCommand("g");
+    out.gi = B.runCommand("gi 돌");
+    out.count = B.runCommand("give 돌 3");
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  assert(r.tpFar.indexOf("안으로 맞췄") > 0, "범위 밖 tp 를 줄이고도 말을 안 한다 — " + r.tpFar);
+  assert(r.tpIn.indexOf("올렸습니다") > 0, "시험 준비: 막힌 자리 경로를 안 탔다 — " + r.tpIn);
+  assert(r.tpIn.indexOf("안으로 맞췄") < 0, "줄이지 않았는데 줄였다고 한다 — " + r.tpIn);
+  assert(r.g.indexOf("혹시") === 0 && r.g.indexOf("give") > 0 && r.g.indexOf("gm") > 0,
+         "후보가 여럿인데 목록을 안 준다 — " + r.g);
+  assert(r.gi.indexOf("모르는 명령") < 0, "기존 앞글자 보정(gi→give)이 깨졌다 — " + r.gi);
+  assert(r.count.indexOf("그런 블록이 없습니다") < 0 && r.count.indexOf("개수는 없어요") > 0,
+         "give <블록> <개수> 를 못 알아듣는다 — " + r.count);
+});
+
+phoneTest("v145 세로로 돌리면 열려 있던 큰 지도가 닫힌다", async (page) => {
+  await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    B.toggleBigMap(true);
+  });
+  const opened = await page.evaluate(() => window.__blockyard.bigMapOpen());
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(400);
+  const closed = await page.evaluate(() => !window.__blockyard.bigMapOpen());
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.waitForTimeout(300);
+  await page.evaluate(() => { window.__blockyard.toggleBigMap(false); window.__blockyard.endPlay(); });
+  assert(opened, "시험 준비: 큰 지도가 안 열렸다");
+  assert(closed, "폰을 세로로 돌렸는데 큰 지도가 열린 채 굳어 있다");
 });
 
 // ── 실행 ───────────────────────────────────────────────

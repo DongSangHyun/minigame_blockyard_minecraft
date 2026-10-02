@@ -2018,8 +2018,14 @@ export var rotateQuery = window.matchMedia ? window.matchMedia("(hover: none) an
 export function refreshRotateBlock() {
   S.rotateBlock = !!(rotateQuery && rotateQuery.matches);
 }
+// 세로 장막이 뜰 때 **큰 지도를 닫는다** (v145 · 자문 32차 #8) — 지도를 연 채 폰을 눕히면
+// 장막이 「닫기 ✕」 까지 가리고 세계는 멈춰서, 가로로 돌아올 때까지 지도가 열린 채 굳어 있었다
+function closeMapOnRotate() {
+  refreshRotateBlock();
+  if (S.rotateBlock && bigMapOpen()) toggleBigMap(false);
+}
 refreshRotateBlock();
-if (rotateQuery && rotateQuery.addEventListener) rotateQuery.addEventListener("change", refreshRotateBlock);
+if (rotateQuery && rotateQuery.addEventListener) rotateQuery.addEventListener("change", closeMapOnRotate);
 
 window.addEventListener("resize", function () {
   refreshRotateBlock();
