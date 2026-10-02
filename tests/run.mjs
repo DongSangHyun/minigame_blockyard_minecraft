@@ -16745,6 +16745,72 @@ phoneTest("v146 아주 작은 폰(568×320)에서도 터치 단추 11칸이 화�
   assert(r.minH >= 30, "단추가 너무 낮다 — " + r.minH + "px");
 });
 
+
+// ══ v147 — 동굴 잔향 ═════════════════════════════════════
+
+test("v147 잔향: 지하에서만 켜지고 · 지상과 물속에서는 꺼지고 · 오디오가 늦게 생겨도 켜진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true); B.beginPlay();
+    B.S.weather = 0; B.S.weatherLock = true;
+    const out = {};
+    // 오디오 컨텍스트를 **아직 안 만든** 상태에서 지하로 간다 — 늦게 생겨도 켜져야 한다
+    B.S.audioCtx = null; B.S.masterGain = null; B.S.muffle = null;
+    B.S.reverb = null; B.S.reverbSend = null; B.S.reverbOn = false; B.S.reverbMix = 0;
+    // 시험장 — 바닥(y 30) 위 공간 3칸, 그 위 돌 지붕 12칸 두께는 topMap 으로 만든다
+    const X = 60, Z = 60, Y = 30;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+      for (let dy = 0; dy <= 20; dy++) B.set(X + dx, Y + dy, Z + dz, K.AIR);
+      B.set(X + dx, Y - 1, Z + dz, K.STONE);
+    }
+    B.refreshAllTops();
+    B.player.pos.set(X + 0.5, Y, Z + 0.5); B.player.vel.set(0, 0, 0); B.player.flying = false;
+    B.step(1 / 60);
+    out.surface = B.S.reverbMix;
+    // 지붕을 덮는다 — 머리 위 흙이 두껍다
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      for (let dy = 3; dy <= 14; dy++) B.set(X + dx, Y + dy, Z + dz, K.STONE);
+    B.refreshAllTops();
+    B.step(1 / 60);
+    out.beforeAudio = B.S.reverbMix;                 // 오디오가 없으니 기록되면 안 된다
+    out.hadReverb = !!B.S.reverb;
+    B.ac();                                          // 이제 만든다 (첫 소리가 나는 때)
+    B.step(1 / 60);
+    out.deep = B.S.reverbMix;
+    out.on = B.S.reverbOn;
+    out.irSec = B.S.reverb && B.S.reverb.buffer ? B.S.reverb.buffer.length / B.S.reverb.buffer.sampleRate : 0;
+    // 지붕이 얇으면 약하게
+    for (let dy = 6; dy <= 14; dy++) for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      B.set(X + dx, Y + dy, Z + dz, K.AIR);
+    B.refreshAllTops();
+    B.step(1 / 60);
+    out.thin = B.S.reverbMix;
+    // 물속은 0 — 먹먹하게(muffle) 처리하니 울림을 겹치지 않는다
+    for (let dy = 0; dy <= 14; dy++) for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      B.set(X + dx, Y + dy, Z + dz, K.WATER);
+    B.refreshAllTops();
+    B.step(1 / 60);
+    out.water = B.S.reverbMix;
+    // 지붕을 걷으면 0 으로 돌아가고 연결도 끊긴다 (setTargetAtTime 이 헤드리스에서 안 흐르므로 값만 본다)
+    for (let dy = 0; dy <= 14; dy++) for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++)
+      B.set(X + dx, Y + dy, Z + dz, K.AIR);
+    B.refreshAllTops();
+    B.step(1 / 60);
+    out.open = B.S.reverbMix;
+    B.S.weatherLock = false;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  eq(r.surface, 0, "지상인데 잔향이 켜졌다");
+  assert(r.beforeAudio === 0 && !r.hadReverb, "오디오가 없는데 잔향 세기가 기록됐다 — 늦게 생기면 영영 안 켜진다 (" + r.beforeAudio + ")");
+  assert(r.deep > 0.9, "깊은 굴인데 잔향이 약하다 (" + r.deep + ") — 오디오가 늦게 생긴 경우를 놓쳤다");
+  assert(r.on, "잔향 연결이 안 켜졌다");
+  assert(r.irSec > 1 && r.irSec < 3, "임펄스 응답 길이가 이상하다 (" + r.irSec + "초)");
+  assert(r.thin > 0 && r.thin < r.deep, "지붕이 얇은데 세기가 안 줄었다 (" + r.thin + " vs " + r.deep + ")");
+  eq(r.water, 0, "물속에서 잔향이 켜졌다 — muffle 과 겹친다");
+  eq(r.open, 0, "지붕을 걷었는데 잔향이 안 꺼진다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

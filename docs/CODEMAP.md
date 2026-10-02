@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-10-02 · 모듈 31개 · 합계 16,185줄
+생성일 2026-10-02 · 모듈 31개 · 합계 16,251줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -10,7 +10,7 @@
 
 | 모듈 | 하는 일 | 줄 | 기대는 곳 |
 |---|---|---:|---|
-| [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 228 | — |
+| [`state.js`](../src/state.js) | 여러 모듈이 값을 바꾸는 공유 상태 | 230 | — |
 | [`dims.js`](../src/dims.js) | 세계 치수와 좌표 계산 (의존성 없음) | 33 | — |
 | [`queues.js`](../src/queues.js) | 시뮬레이션 대기열 (의존성 없음) | 36 | — |
 | [`boot.js`](../src/boot.js) | 부팅 가드 · 환경 판별 | 29 | state |
@@ -25,7 +25,7 @@
 | [`daynight.js`](../src/daynight.js) | 낮과 밤 | 88 | state · world · scene |
 | [`settings.js`](../src/settings.js) | 설정 | 115 | state · boot · scene |
 | [`player.js`](../src/player.js) | 플레이어 · 충돌 · 레이캐스트 | 383 | state · dims · blocks · world · scene |
-| [`audio.js`](../src/audio.js) | 소리 | 356 | state · blocks · daynight · settings |
+| [`audio.js`](../src/audio.js) | 소리 | 409 | state · blocks · daynight · settings |
 | [`save.js`](../src/save.js) | 저장 · 불러오기 | 580 | state · dims · blocks · world · player · mobs · village · hud · sky |
 | [`village.js`](../src/village.js) | 시작 마을. 세계를 켜면 **이미 누가 살고 있는 자리**에서 시작한다. | 438 | dims · state · blocks · world |
 | [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 1627 | state · queues · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · hand · survival · sky |
@@ -37,7 +37,7 @@
 | [`mobs.js`](../src/mobs.js) | 걸어 다니는 동물. 세계에 "살아 있는 것" 을 하나 넣는다. | 772 | dims · world · blocks · scene · player · audio · light · daynight · state |
 | [`sky.js`](../src/sky.js) | 해와 달과 별 · 날씨 · 앰비언트 생물 | 500 | state · audio · dims · atlas · blocks · world · scene · daynight · settings · player |
 | [`cloud.js`](../src/cloud.js) | 기기 사이 이어하기 (GitHub Gist 에 세계를 올리고 내려받는다) | 243 | state · save |
-| [`loop.js`](../src/loop.js) | 게임 루프 | 1122 | state · input · mobs · queues · dims · blocks · atlas · world · light · village · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · atlas · survival · hand · body · mine · sky |
+| [`loop.js`](../src/loop.js) | 게임 루프 | 1133 | state · input · mobs · queues · dims · blocks · atlas · world · light · village · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · atlas · survival · hand · body · mine · sky |
 | [`version.js`](../src/version.js) | 빌드 도장 (자동 생성) | 8 | — |
 | [`main.js`](../src/main.js) | 조립과 시작 | 344 | state · village · survival · tree · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · body · input · mine · sky · loop |
 | [`survival.js`](../src/survival.js) | 모으기 모드: 가방 · 캐면 얻기 · 곡괭이 단계 · 제작대/화로 제작 · 목표 한 줄 | 349 | state · blocks · world · player · dims · hud · input |
@@ -323,30 +323,31 @@
 
 | 함수 | 줄 |
 |---|---:|
-| `ac()` | 7 |
-| `tone(freq, dur, type, gain, node, exact)` | 30 |
-| `noiseBuffer(c)` | 50 |
-| `crunch(dur, gain, cutoff, node)` | 58 |
-| `startAmbient()` | 77 |
-| `updateAmbient(dt)` | 96 |
-| `breakSound(b)` | 164 |
-| `stepSound(b, through)` | 177 |
-| `setMuffle(on)` | 188 |
-| `rainHiss(vol)` | 203 |
-| `setAudioAwake(on)` | 222 |
-| `thunder(delayMs, near)` | 235 |
-| `moodChord(night, vol)` | 246 |
-| `caveSound(depthMix)` | 259 |
-| `at(x, y, z)` | 272 |
-| `listenAt(x, y, z, fx, fz)` | 291 |
-| `lavaPop(vol, node)` | 307 |
-| `splash(vol, node)` | 312 |
-| `waterLap(vol, node)` | 319 |
-| `birdCall(node)` | 325 |
-| `fireCrackle(vol, node)` | 331 |
-| `lavaHiss()` | 337 |
-| `placeSound(b)` | 342 |
-| `miningSound(b)` | 350 |
+| `setReverb(mix)` | 34 |
+| `ac()` | 59 |
+| `tone(freq, dur, type, gain, node, exact)` | 83 |
+| `noiseBuffer(c)` | 103 |
+| `crunch(dur, gain, cutoff, node)` | 111 |
+| `startAmbient()` | 130 |
+| `updateAmbient(dt)` | 149 |
+| `breakSound(b)` | 217 |
+| `stepSound(b, through)` | 230 |
+| `setMuffle(on)` | 241 |
+| `rainHiss(vol)` | 256 |
+| `setAudioAwake(on)` | 275 |
+| `thunder(delayMs, near)` | 288 |
+| `moodChord(night, vol)` | 299 |
+| `caveSound(depthMix)` | 312 |
+| `at(x, y, z)` | 325 |
+| `listenAt(x, y, z, fx, fz)` | 344 |
+| `lavaPop(vol, node)` | 360 |
+| `splash(vol, node)` | 365 |
+| `waterLap(vol, node)` | 372 |
+| `birdCall(node)` | 378 |
+| `fireCrackle(vol, node)` | 384 |
+| `lavaHiss()` | 390 |
+| `placeSound(b)` | 395 |
+| `miningSound(b)` | 403 |
 
 내보내는 값 — `NOISE_SEC` · `SOFT` · `WOOD` · `CLOTH` · `GLASSY`
 
@@ -679,10 +680,10 @@
 | `refreshChunkFloor()` | 34 |
 | `newWorld(seed)` | 62 |
 | `step(dt)` | 147 |
-| `animate()` | 966 |
-| `autoTuneFar(fps)` | 1079 |
-| `farNow()` | 1097 |
-| `refreshPerf()` | 1099 |
+| `animate()` | 977 |
+| `autoTuneFar(fps)` | 1090 |
+| `farNow()` | 1108 |
+| `refreshPerf()` | 1110 |
 
 내보내는 값 — `GRAVITY` · `chunkFloor` · `PLACE_DELAY` · `SNEAK_MUL` · `AIR_CONTROL` · `fwd` · `clock`
 

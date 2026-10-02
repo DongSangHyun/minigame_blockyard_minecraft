@@ -4,6 +4,58 @@ import { CARPET, CARPET0, CARPET_COUNT, SAPLING, SAPLING_BIRCH, SAPLING_SPRUCE, 
 import { dayLight } from "./daynight.js";
 import { opts } from "./settings.js";
 
+// ── 동굴 잔향 (v147 · 유저 「잔향」) — 지하·굴·실내에서만 소리가 울린다.
+// 마스터에서 **병렬로** 갈라 내보내므로 모든 소리(발소리·곡괭이·횃불·동물·동굴 울림)가 한 길로 울린다.
+// 외부 라이브러리 없이 Web Audio 의 ConvolverNode 하나에 **직접 구운 임펄스 응답**을 쓴다.
+// 꼬리는 잡음이 지수로 사그라들고 갈수록 어두워진다(고음이 먼저 죽는다) — 돌벽 굴 안의 울림이다.
+// 한 번만 굽는다(1.6초 × 2채널 · 몇 ms). 지상에서는 세기가 0 이라 연결을 끊어 CPU 를 안 쓴다
+var REVERB_SEC = 1.6, REVERB_WET = 0.42;
+function buildReverb(c) {
+  try {
+    var n = Math.floor(c.sampleRate * REVERB_SEC);
+    var ir = c.createBuffer(2, n, c.sampleRate);
+    for (var ch = 0; ch < 2; ch++) {
+      var d = ir.getChannelData(ch), lp = 0;
+      for (var i = 0; i < n; i++) {
+        var t = i / n;
+        lp += ((Math.random() * 2 - 1) - lp) * (0.85 - 0.72 * t);   // 갈수록 어두운 꼬리
+        d[i] = lp * Math.pow(1 - t, 3.2);
+      }
+    }
+    S.reverb = c.createConvolver();
+    S.reverb.buffer = ir;
+    S.reverbSend = c.createGain();
+    S.reverbSend.gain.value = 0;
+    S.masterGain.connect(S.reverbSend);      // 보내는 쪽은 늘 붙여 둔다 — 세기가 0 이면 아무것도 안 흐른다
+    S.reverbOn = false;                      // 컨볼버 쪽은 켤 때만 잇는다
+  } catch (e) { S.reverb = null; S.reverbSend = null; }
+}
+// mix 0~1 — 머리 위 흙의 두께에서 loop.js 가 매 프레임 알려 준다
+export function setReverb(mix) {
+  // **준비가 안 됐으면 값을 기록하지도 않는다** — 오디오 컨텍스트는 첫 소리 때 늦게 만들어진다.
+  // 먼저 기록하면 컨텍스트가 생긴 뒤에도 「이미 같은 값」 이라 loop.js 가 다시 안 불러서,
+  // 지하에서 시작한 사람은 잔향이 영영 안 켜진다. 안 적어 두면 loop.js 가 준비될 때까지 매 프레임 다시 시도한다
+  if (!S.reverb || !S.reverbSend || !S.audioCtx) return;
+  S.reverbMix = mix;
+  var c = S.audioCtx;
+  try {
+    if (mix > 0.01 && !S.reverbOn) {
+      S.reverbSend.connect(S.reverb);
+      S.reverb.connect(S.muffle);            // 물속이면 울림도 같이 먹먹해진다
+      S.reverbOn = true;
+    }
+    if (S.reverbOn) {
+      S.reverbSend.gain.setTargetAtTime(mix * REVERB_WET, c.currentTime, 0.45);
+      // 다 사그라들면 끊는다 — 지상에서 컨볼버를 돌려 둘 이유가 없다
+      if (mix <= 0.01 && S.reverbSend.gain.value < 0.004) {
+        S.reverbSend.disconnect(S.reverb);
+        S.reverb.disconnect();
+        S.reverbOn = false;
+      }
+    }
+  } catch (e) {}
+}
+
 export function ac() {
   if (!S.audioCtx) {
     try {
@@ -16,6 +68,7 @@ export function ac() {
       S.muffle.frequency.value = 20000;
       S.masterGain.connect(S.muffle);
       S.muffle.connect(S.audioCtx.destination);
+      buildReverb(S.audioCtx);
     } catch (e) { return null; }
   }
   // 재웠으면 깨우지 않는다 (v106) — 예약된 소리가 잠금을 뒤에서 풀었다

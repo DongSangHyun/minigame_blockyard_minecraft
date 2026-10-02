@@ -15,7 +15,7 @@ import { DEEP_UNDER, dynamicHighlight, updatePasteBox, updateOuterSea, primedBox
 import { applyTime, clockText, dayLight } from "./daynight.js";
 import { calmMotion, fovForAspect, opts } from "./settings.js";
 import { EYE, HALF, moveAxis, moveHorizontal, player, pointSolid, raycast, spawn, stats, unstick } from "./player.js";
-import { splash, waterLap, fireCrackle, at, caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, stepSound, tone, updateAmbient } from "./audio.js";
+import { splash, waterLap, fireCrackle, at, caveSound, crunch, lavaHiss, lavaPop, listenAt, miningSound, moodChord, setMuffle, setReverb, stepSound, tone, updateAmbient } from "./audio.js";
 import { pushPrev, saveGame, touchLock, lockHeldByOther } from "./save.js";
 import { checkBuildAchievements, checkFoundAchievements, achCount, achTotal, applyEdit, refreshAchList, refreshStats, selectionBounds, unlock } from "./edit.js";
 import { refreshMouthDots, refreshMinimapCap, tAim, airBar, airEl, drawMinimap, bigMapOpen, drawBigMap, facingText, perfEl, refreshBar, tAch, tBiome, tBlocks, tFace, tFps, tLight, tMode, tPos, tShape, tTime, toast, toastEl, inblockEl, underwaterEl } from "./hud.js";
@@ -613,6 +613,17 @@ export function step(dt) {
   updateParticles(dt);
   updateAmbient(dt);
   setMuffle(eyeInLiquid);
+  // 동굴 잔향 (v147) — **머리 위 흙이 얼마나 두꺼운가**로 잰다(동굴 울림과 같은 잣대 · v79).
+  // 2칸까지는 지붕 한 겹(집 안)이라 거의 안 울리고, 12칸이면 깊은 굴이라 온전히 울린다.
+  // 시작 화면·물속·소리 끔에서는 0 — 물속은 먹먹하게(muffle) 처리하니 울림을 겹치지 않는다
+  var rvMix = 0;
+  if (S.active && !eyeInLiquid) {
+    var rvx = Math.floor(player.pos.x), rvz = Math.floor(player.pos.z);
+    if (rvx >= 0 && rvx < WX && rvz >= 0 && rvz < WZ) {
+      rvMix = Math.max(0, Math.min(1, (topMap[rvz * WX + rvx] - player.pos.y - 2) / 10));
+    }
+  }
+  if (Math.abs(rvMix - S.reverbMix) > 0.02 || (rvMix === 0) !== (S.reverbMix === 0)) setReverb(rvMix);
   listenAt(camera.position.x, camera.position.y, camera.position.z,
            -Math.sin(player.yaw), -Math.cos(player.yaw));
 

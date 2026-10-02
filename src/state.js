@@ -208,6 +208,8 @@ export const S = {
   audioCtx: null,
   masterGain: null,
   muffle: null,
+  // 동굴 잔향 (v147) — 마스터에서 갈라 나온 병렬 리버브. 켜졌는지(연결)와 지금 목표 세기
+  reverbSend: null, reverb: null, reverbOn: false, reverbMix: 0,
   ambient: null,
   history: [],
   batch: null,
