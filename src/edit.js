@@ -1063,10 +1063,16 @@ export function noBlockLine(name) {
 var SV_CHEATS = ["fill", "hollow", "walls", "shell", "cyl", "sphere", "paste", "clone", "give", "bp", "undo", "redo"];
 export var CMD_LIST = ["tp", "marks", "time", "weather", "fill", "hollow", "walls", "shell", "cyl", "sphere", "paste", "mirror", "rotate", "expand", "contract", "shift", "clone", "give", "count", "bp", "undo", "redo", "seed", "gm", "help"];
 // 앞글자만 쳐도 알아듣게 — 명령이 열 개나 되면 오타 한 번에 막힌다
+// 지금 **쓸 수 있는** 명령만 후보로 삼는다 (v146 · 자문 33차 #3) — 모으기에서 `g` 를 치면
+// 「혹시 give · gm ?」 하고 권해 놓고 `give` 를 치면 「모으기 모드에서는 쓸 수 없는 명령」 이었다
+function usableCommands() {
+  if (!S.survival) return CMD_LIST;
+  return CMD_LIST.filter(function (c) { return SV_CHEATS.indexOf(c) < 0; });
+}
 export function completeCommand(prefix) {
   var q = String(prefix || "").trim().toLowerCase();
   if (!q) return "";
-  var hit = CMD_LIST.filter(function (c) { return c.indexOf(q) === 0; });
+  var hit = usableCommands().filter(function (c) { return c.indexOf(q) === 0; });
   return hit.length === 1 ? hit[0] : "";
 }
 // 후보가 **여럿**이면 목록을 준다 (v145 · 자문 32차 #6) — `/g` 는 give 와 gm 이 겹쳐
@@ -1074,7 +1080,7 @@ export function completeCommand(prefix) {
 export function commandChoices(prefix) {
   var q = String(prefix || "").trim().toLowerCase();
   if (!q) return [];
-  return CMD_LIST.filter(function (c) { return c.indexOf(q) === 0; });
+  return usableCommands().filter(function (c) { return c.indexOf(q) === 0; });
 }
 
 export function runCommand(line) {

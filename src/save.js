@@ -322,6 +322,7 @@ export function loadGame() {
       }
     }
     S.tradeCount = d.trc | 0;
+    S.giftSlot = -1; S.giftLast = 0;       // 불러온 세계의 핫바에는 지난 선물 기록이 안 맞는다 (v146)
     // 오두막 자리 — 옛 저장에는 없다(그때는 소문이 안 돈다)
     hutSpots.length = 0;
     if (Array.isArray(d.hp)) {

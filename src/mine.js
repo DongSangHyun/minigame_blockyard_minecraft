@@ -182,10 +182,17 @@ export function tradeWith() {
   // 없으면 안 줌」 으로 뒤집자 기본 핫바(10칸 다 참)에서는 첫 선물 뒤로 **선물이 영영 안 나왔다.**
   // 초등 저학년은 칸을 비우는 법을 모른다. 아이가 짠 칸은 안 건드리고, **상인이 준 칸만** 돌려 쓴다.
   // 그 칸을 아이가 다른 것으로 바꿨다면(지난 선물이 없으면) 그때는 아무것도 안 덮는다
-  if (slot < 0 && S.giftSlot !== undefined && S.giftOnAlt === !!onAlt && gbar[S.giftSlot] === S.giftLast) slot = S.giftSlot;
+  // **`gbar` 는 늘 물리적 1쪽이다** (v146 · 자문 33차 #1) — 2쪽을 보는 중에는 `swapBarPage` 가
+  // `S.bar` 와 `S.barAlt` 를 맞바꿔 두어 1쪽이 숨은 `S.barAlt` 다. v145 는 기록에 「보던 쪽」
+  // (`giftOnAlt`)을 같이 적어서, 2쪽에서 받은 선물을 1쪽으로 돌아와 보면 **지난 선물을 못 알아보고**
+  // 선물이 다시 죽었다. 어느 쪽을 보든 같은 1쪽이니 쪽 표시를 아예 두지 않는다
+  if (slot < 0 && S.giftSlot >= 0 && gbar[S.giftSlot] === S.giftLast) slot = S.giftSlot;
   if (slot < 0 && mustGive) slot = 9;
   if (slot < 0) {
-    toast("상인: “" + line + "” — 핫바가 꽉 찼어요. 칸 하나를 맨손(✋)으로 비우면 " +
+    // 2쪽을 보는 중이면 **어느 쪽이 꽉 찼는지 말한다** (v146) — 아이가 눈앞의 2쪽 칸을 비워도
+    // 같은 말이 또 떴다. 비워야 할 칸이 안 보이는 1쪽에 있다는 사실을 안내가 안 말했다
+    toast("상인: “" + line + "” — " + (onAlt ? "핫바 1쪽이 꽉 찼어요. 1쪽으로 돌아가 칸 하나를 맨손(✋)으로 비우면 "
+                                            : "핫바가 꽉 찼어요. 칸 하나를 맨손(✋)으로 비우면 ") +
           NAMES[gift] + josa(NAMES[gift], "을", "를") + " 드릴게요");
     advanceTut(3);
     tone(520, 0.09, "triangle", 0.05);
@@ -193,7 +200,7 @@ export function tradeWith() {
     return true;
   }
   gbar[slot] = gift;
-  S.giftSlot = slot; S.giftLast = gift; S.giftOnAlt = !!onAlt;   // 저장하지 않는다 — 다시 켜면 처음부터
+  S.giftSlot = slot; S.giftLast = gift;   // 저장하지 않는다 — 다시 켜면 처음부터
   if (gfill) gfill[slot] = 0;
   // 칸이 기억하던 모양도 비운다 (v132) — 그 칸이 계단 모드였으면 선물받은 조명이 계단으로 놓였다
   var gshape = onAlt ? S.shapeBarAlt : S.shapeBar;

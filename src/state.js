@@ -114,6 +114,8 @@ export const S = {
   nextTerrain: null,
   welcomeBack: false,    // 세 시간 넘게 지나 다시 켰다 — 아침·인사 (v122)
   tradedThisSession: false,
+  // 상인이 마지막으로 선물을 넣은 칸 — 핫바 **1쪽**의 칸 번호와 그때 준 블록 (v146). 저장하지 않는다
+  giftSlot: -1, giftLast: 0,
   storagePersisted: false,   // 브라우저가 저장소를 안 지우기로 했나 (v123)     // 다음 「새 세계」의 지형 — 지금 세계의 S.terrain 과 따로 든다 (v121)
   tradeCount: 0,         // 상인에게 몇 번 말을 걸었나 — 선물이 돌아가며 나온다
   padFlyTap: 0,

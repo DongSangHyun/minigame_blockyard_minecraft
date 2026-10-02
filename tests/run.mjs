@@ -2132,12 +2132,22 @@ test("v12 사다리: 벽에 붙고, 타고 오를 수 있다", async (page) => {
     for (let k = 0; k < 90; k++) B.step(1 / 60);
     B.setKey("Space", false);
     const y1 = B.player.pos.y;
+    // 10회 중 1회 「46.00 → 46.00」 (v146 게이트) — 한 칸도 안 움직였다. 동물이 밀어냈다는 가설은
+    // 직접 재현해 봤지만 안 맞았다(동물을 그 자리에 세워도 올랐다). 그래서 **원인 대신 진단을 남긴다**:
+    // 다음에 또 흔들리면 이 줄이 답이다 — S.uiOpen·S.active·눌린 키·사다리 칸·둘레 동물
+    const diag = JSON.stringify({
+      active: B.S.active, uiOpen: B.S.uiOpen, space: !!B.S.keys.Space, flying: B.player.flying,
+      x: +B.player.pos.x.toFixed(2), z: +B.player.pos.z.toFixed(2),
+      ladder: B.get(x + 1, y, z), expect: B.B.LADDER,
+      mobsNear: B.mobs.filter((m) => Math.hypot(m.x - B.player.pos.x, m.z - B.player.pos.z) < 2.5).length,
+      loopPaused: B.S.loopPaused
+    });
     B.endPlay(); B.setPaused(false);
-    return { y0, y1, climbable: B.isClimbable(B.B.LADDER), solid: B.isSolid(B.B.LADDER) };
+    return { y0, y1, diag, climbable: B.isClimbable(B.B.LADDER), solid: B.isSolid(B.B.LADDER) };
   });
   assert(r.climbable, "사다리가 오를 수 있는 블록이 아니다");
   eq(r.solid, false, "사다리가 길을 막는다");
-  assert(r.y1 > r.y0 + 1.5, `사다리를 못 올라갔다 — ${r.y0.toFixed(2)} → ${r.y1.toFixed(2)}`);
+  assert(r.y1 > r.y0 + 1.5, `사다리를 못 올라갔다 — ${r.y0.toFixed(2)} → ${r.y1.toFixed(2)} · ${r.diag}`);
 });
 
 test("v12 시작 지점: V 로 정한 곳에서 되살아난다", async (page) => {
@@ -16516,7 +16526,7 @@ test("v145 상인 선물: 꽉 찬 핫바에서도 상인이 준 칸만 돌려 �
     B.setPaused(true); B.beginPlay();
     B.S.survival = false;
     B.S.tut = 9; B.S.tradeCount = 0; B.S.giftDay = 0;
-    B.S.giftSlot = undefined; B.S.giftLast = undefined;
+    B.S.giftSlot = -1; B.S.giftLast = 0;
     B.S.barPage = 1;
     for (let i = 0; i < B.S.bar.length; i++) B.S.bar[i] = K.STONE;     // 꽉 참
     B.tradeWith();                                  // 첫 선물(꽃) — 꽉 차 있어도 준다
@@ -16528,7 +16538,7 @@ test("v145 상인 선물: 꽉 찬 핫바에서도 상인이 준 칸만 돌려 �
     B.S.bar[9] = K.DIAMOND;
     for (let k = 0; k < 4; k++) B.tradeWith();
     const kept = B.S.bar[9] === K.DIAMOND;
-    B.S.giftSlot = undefined; B.S.giftLast = undefined;
+    B.S.giftSlot = -1; B.S.giftLast = 0;
     B.endPlay(); B.setPaused(false);
     return { first: after1[9], gifted, others, kept, STONE: K.STONE };
   });
@@ -16583,6 +16593,156 @@ phoneTest("v145 세로로 돌리면 열려 있던 큰 지도가 닫힌다", asyn
   await page.evaluate(() => { window.__blockyard.toggleBigMap(false); window.__blockyard.endPlay(); });
   assert(opened, "시험 준비: 큰 지도가 안 열렸다");
   assert(closed, "폰을 세로로 돌렸는데 큰 지도가 열린 채 굳어 있다");
+});
+
+
+// ══ v146 — 자문 33차 ════════════════════════════════════
+
+test("v146 선물: 어느 쪽을 보든 같은 1쪽 · 2쪽에서 막히면 쪽을 말한다 · 세계를 바꾸면 기록을 버린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true); B.beginPlay();
+    B.S.survival = false;
+    B.S.tut = 9; B.S.tradeCount = 0; B.S.giftDay = 0;
+    B.S.giftSlot = -1; B.S.giftLast = 0;
+    if (B.S.barPage === 2) B.swapBarPage();
+    for (let i = 0; i < B.S.bar.length; i++) B.S.bar[i] = K.STONE;
+    for (let i = 0; i < B.S.barAlt.length; i++) B.S.barAlt[i] = K.STONE;
+    const out = {};
+    B.tradeWith();                                  // 1쪽을 보며 첫 선물 — 꽉 차 있어도 준다
+    out.first = B.S.bar[9];
+    B.swapBarPage();                                // 이제 2쪽을 본다 — 1쪽은 숨은 S.barAlt
+    const seen = [];
+    for (let k = 0; k < 4; k++) { B.tradeWith(); seen.push(B.S.barAlt[9]); }
+    out.onPage2 = seen;
+    B.swapBarPage();                                // 1쪽으로 돌아온다 — 지난 선물을 알아봐야 한다
+    const back = [];
+    for (let k = 0; k < 4; k++) { B.tradeWith(); back.push(B.S.bar[9]); }
+    out.backOnPage1 = back;
+    out.othersKept = B.S.bar.slice(0, 9).every((v) => v === K.STONE);
+    // 아이가 1쪽 그 칸을 바꿨다 — 2쪽을 보는 중에 말을 걸면 「1쪽」 이 꽉 찼다고 말해야 한다
+    B.S.bar[9] = K.DIAMOND;
+    B.swapBarPage();
+    B.tradeWith();
+    out.toast = document.getElementById("toast").textContent;
+    out.kept = B.S.barAlt[9] === K.DIAMOND;
+    B.swapBarPage();
+    // 세계를 갈아타면 기록을 버린다
+    B.S.giftSlot = 9; B.S.giftLast = K.DIAMOND;
+    B.newWorld(4242);
+    out.afterNew = [B.S.giftSlot, B.S.giftLast];
+    B.S.tradeCount = 0; B.S.giftSlot = -1; B.S.giftLast = 0;
+    B.endPlay(); B.setPaused(false);
+    return Object.assign(out, { STONE: K.STONE });
+  });
+  assert(r.first !== r.STONE, "첫 선물이 안 들어왔다");
+  assert(new Set(r.onPage2).size >= 2, "2쪽을 보며 말을 걸어도 선물이 돌아가야 한다 — " + r.onPage2.join(","));
+  assert(new Set(r.backOnPage1).size >= 2, "2쪽에서 받은 뒤 1쪽으로 돌아오자 선물이 죽었다 — " + r.backOnPage1.join(","));
+  assert(r.othersKept, "아이가 짠 다른 칸이 덮였다");
+  assert(r.kept, "아이가 바꾼 칸을 상인이 덮었다");
+  assert(r.toast.indexOf("1쪽") >= 0, "2쪽을 보는 중인데 어느 쪽이 꽉 찼는지 말하지 않는다 — " + r.toast);
+  eq(r.afterNew[0], -1, "새 세계에 지난 세계의 선물 칸 기록이 남았다");
+});
+
+test("v146 표식 이름: 취소는 아무 일도 안 한다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.marks.length = 0;
+    B.player.pos.set(40.5, 40, 40.5);
+    B.S.marks.push([40, 40, 40, "내 집"]);
+    const keep = window.prompt;
+    window.prompt = () => null;                 // 취소
+    const cancelled = B.renameMarkHere();
+    const afterCancel = B.S.marks[0][3];
+    window.prompt = () => "";                   // 비운 입력 — 이름을 지운다
+    B.renameMarkHere();
+    const afterEmpty = B.S.marks[0][3];
+    window.prompt = keep;
+    B.S.marks.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return { cancelled, afterCancel, afterEmpty };
+  });
+  eq(r.afterCancel, "내 집", "취소를 눌렀는데 붙여 둔 이름이 지워졌다");
+  assert(r.cancelled === false, "취소는 false 를 돌려줘야 한다");
+  eq(r.afterEmpty, "", "비운 입력은 이름을 지워야 한다(기존 동작)");
+});
+
+test("v146 명령창: 모으기에서 막힌 명령을 후보로 권하지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const out = {};
+    B.S.survival = true;
+    out.gSv = B.runCommand("g");
+    out.sSv = B.runCommand("s");
+    B.S.survival = false;
+    out.gMk = B.runCommand("g");
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  assert(r.gSv.indexOf("give") < 0, "모으기에서 막힌 give 를 권한다 — " + r.gSv);
+  assert(r.sSv.indexOf("sphere") < 0 && r.sSv.indexOf("shell") < 0, "모으기에서 막힌 명령을 권한다 — " + r.sSv);
+  assert(r.gMk.indexOf("give") > 0 && r.gMk.indexOf("gm") > 0, "만들기에서는 후보가 다 나와야 한다 — " + r.gMk);
+});
+
+test("v146 큰 지도: 가장자리 표식 이름이 잘리지 않는다 · 토스트가 명령창 위로 올라간다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    B.S.marks.length = 0;
+    B.S.marks.push([92, 40, 50, "깊은곳표식"]);
+    const c = document.createElement("canvas");
+    c.width = 96 * 5; c.height = 96 * 5;
+    const ctx = c.getContext("2d");
+    const calls = [];
+    const orig = ctx.fillText.bind(ctx);
+    ctx.fillText = function (t, x, y) {
+      calls.push({ t, x, align: ctx.textAlign, w: ctx.measureText(t).width });
+      return orig(t, x, y);
+    };
+    B.drawMinimapTo(ctx, 5, true);
+    const lab = calls.filter((q) => q.t === "깊은곳표식");
+    const ext = lab.map((q) => q.align === "right" ? [q.x - q.w, q.x] : [q.x, q.x + q.w]);
+    B.S.marks.length = 0;
+    // 토스트와 명령창
+    B.openCmd();
+    B.toast("확인 줄");
+    const cmd = document.getElementById("cmd").getBoundingClientRect();
+    const toast = document.getElementById("toast").getBoundingClientRect();
+    const overlap = !(toast.bottom <= cmd.top || toast.top >= cmd.bottom);
+    const cls = document.body.classList.contains("cmdopen");
+    B.closeCmd();
+    const clsAfter = document.body.classList.contains("cmdopen");
+    B.endPlay();
+    return { n: lab.length, ext, W: c.width, overlap, cls, clsAfter };
+  });
+  assert(r.n >= 1, "시험 준비: 표식 이름이 안 그려졌다");
+  assert(r.ext.every((e) => e[0] >= 0 && e[1] <= r.W), "가장자리 표식 이름이 지도 밖으로 잘린다 — " + JSON.stringify(r.ext) + " / " + r.W);
+  assert(r.cls && !r.clsAfter, "명령창 열림 표시(body.cmdopen)가 열고 닫는 것을 안 따른다");
+  assert(!r.overlap, "토스트가 명령창과 겹친다");
+});
+
+phoneTest("v146 아주 작은 폰(568×320)에서도 터치 단추 11칸이 화면 안에 들어온다", async (page) => {
+  await page.setViewportSize({ width: 568, height: 320 });
+  await page.waitForTimeout(400);
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    const bs = Array.from(document.querySelectorAll("#tbtns button")).filter((b) => b.getClientRects().length);
+    const off = bs.filter((b) => {
+      const q = b.getBoundingClientRect();
+      return q.top < 0 || q.bottom > window.innerHeight || q.left < 0 || q.right > window.innerWidth;
+    }).map((b) => b.id);
+    const hs = bs.map((b) => Math.round(b.getBoundingClientRect().height));
+    B.endPlay();
+    return { n: bs.length, off, minH: Math.min.apply(null, hs) };
+  });
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.waitForTimeout(300);
+  assert(r.n >= 10, "터치 단추가 " + r.n + "개뿐이다");
+  eq(r.off.length, 0, "작은 폰에서 단추가 화면 밖으로 나갔다 — " + r.off.join(","));
+  assert(r.minH >= 30, "단추가 너무 낮다 — " + r.minH + "px");
 });
 
 // ── 실행 ───────────────────────────────────────────────

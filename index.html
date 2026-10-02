@@ -384,6 +384,9 @@
     opacity: 0; transition: opacity .2s ease;
   }
   #toast.on { opacity: 1; }
+  /* 명령창(z-index 14)이 열려 있으면 **그 위로** 올린다 (v146 · 자문 33차 #7) — 토스트(13)가 명령창
+     (14) 뒤라 데스크톱에서 14px · 폰에서 5px 겹쳐, 토스트 위 절반이 명령창에 가려 글자가 잘렸다 */
+  body.cmdopen #toast { bottom: calc(190px / var(--ui, 1) + var(--safe-b)); }
 
   /* 좁은 화면에서는 HUD 와 핫바를 줄인다 */
   @media (max-width: 820px), (max-height: 480px) {
@@ -406,6 +409,7 @@
     /* 힌트 줄과 **같은 높이**였다 (v143 · 자문 30차 #4) — 목표가 넘어가는
        그 순간에 둘이 물려 글자 위에 글자가 찍혔다. 힌트 위로 한 층 올린다 */
     #toast { bottom: calc(96px * var(--ui, 1) + var(--safe-b)); font-size: 9px; padding: 5px 9px; }
+    body.cmdopen #toast { bottom: calc(190px / var(--ui, 1) + var(--safe-b)); }
     #tbtns { right: calc(10px + var(--safe-r)); bottom: calc(54px + var(--safe-b)); }
   }
   @media (max-width: 420px) {
@@ -933,6 +937,13 @@
     border: 2px solid var(--line-hi); border-radius: 6px;
   }
   #tbtns button:active, #tbtns button.on { border-color: var(--ember); color: var(--ember); }
+  /* 작은 폰 가로(568×320 — 한 판 지난 iPhone 과 사파리 주소창이 붙은 667×375 가 이쯤이다)에서
+     11칸이 안 들어가 「캐기」·「놓기」 가 화면 밖으로 나갔다 (v146 · 자문 33차 #4).
+     `applyTbtn` 은 배율을 0.8 아래로 못 줄이므로 **단추 자체를 낮춘다** */
+  @media (max-height: 360px) {
+    #tbtns { gap: 4px; }
+    #tbtns button { height: 36px; }
+  }
 
   /* 사진 모드 미니 바 (v96) — HUD 를 끄면 터치 단추가 통째로 사라지므로,
      폰에서 사진 모드에 들어가면 저장할 길도 나올 길도 없었다 */

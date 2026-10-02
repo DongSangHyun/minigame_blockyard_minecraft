@@ -1172,7 +1172,11 @@ export function renameMarkHere() {
   var i = markHere();
   if (i < 0) return false;
   var m = S.marks[i];
-  var nm = (window.prompt("표식 이름 (비우면 번호만)", markName(m) || "") || "").slice(0, 16);
+  var raw = window.prompt("표식 이름 (비우면 번호만)", markName(m) || "");
+  // **취소는 아무 일도 안 한다** (v146 · 자문 33차 #2) — `|| ""` 로 읽어서 취소(null)가 「비운 입력」
+  // 과 같아져, 이름을 바꾸려다 취소를 누르면 붙여 둔 이름이 지워지고 「표식 이름 지움」 이 떴다
+  if (raw === null) return false;
+  var nm = raw.slice(0, 16);
   if (m.length >= 4) m[3] = nm;
   else S.marks[i] = [markX(m), markY(m), markZ(m), nm];
   S.worldDirty = true;

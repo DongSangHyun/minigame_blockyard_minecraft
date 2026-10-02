@@ -679,10 +679,19 @@ export function drawMinimapTo(ctx, scale, full) {
         if (dy >= 3) tag += " ▲" + dy;
         else if (dy <= -3) tag += " ▼" + (-dy);
       }
+      // 오른쪽 끝에 가까우면 **왼쪽에 붙인다** (v146 · 자문 33차 #6) — (85,85) 의 「깊은곳」 이
+      // 지도 끝에서 「깊은ㅈ」 로 잘렸다. 글자 폭을 재서 넘칠 때만 뒤집는다
+      var lblGap = 3 * Math.sqrt(scale);
+      var lblW = ctx.measureText(tag).width;
+      var flipLbl = mxp + lblGap + lblW > ctx.canvas.width - 2;
+      ctx.textAlign = flipLbl ? "right" : "left";
+      var lblX = flipLbl ? mxp - lblGap : mxp + lblGap;
+      var lblSh = flipLbl ? -Math.sqrt(scale) : Math.sqrt(scale);
       ctx.fillStyle = "rgba(10,14,16,.85)";
-      ctx.fillText(tag, mxp + 4 * Math.sqrt(scale), mzp + 1);
+      ctx.fillText(tag, lblX + lblSh, mzp + 1);
       ctx.fillStyle = "#f0d888";
-      ctx.fillText(tag, mxp + 3 * Math.sqrt(scale), mzp);
+      ctx.fillText(tag, lblX, mzp);
+      ctx.textAlign = "left";
     }
   }
 
@@ -912,6 +921,7 @@ export var cmdMsg = document.getElementById("cmd-msg");
 export function openCmd() {
   if (!cmdEl) return;
   cmdEl.hidden = false;
+  document.body.classList.add("cmdopen");     // 토스트가 명령창 뒤에 깔리지 않게 (v146)
   cmdIn.value = "";
   if (cmdMsg) cmdMsg.textContent = "";
   cmdIn.focus();
@@ -919,6 +929,7 @@ export function openCmd() {
 export function closeCmd() {
   if (!cmdEl) return;
   cmdEl.hidden = true;
+  document.body.classList.remove("cmdopen");
   cmdIn.blur();
 }
 export function cmdSay(msg) { if (cmdMsg) cmdMsg.textContent = msg; }
