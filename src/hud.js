@@ -200,6 +200,10 @@ export function openPicker() {
 }
 export function closePicker(resume) {
   if (!S.uiOpen) return;
+  // **자기 덮개(목록)가 열려 있을 때만** 닫는다 (v150 · 자문 36차 #1) — `S.uiOpen` 은 큰 지도·도움말·목록이
+  // 함께 쓰는 깃발이라, 지도가 열린 채 `E` 를 누르면 목록은 안 열렸는데 `uiOpen` 만 풀려
+  // **지도는 화면에 그대로인데 세계가 돌았다**(`W` 로 걸으면 지도에 가려진 채 걸어갔다)
+  if (pickerEl.hidden) return;
   S.uiOpen = false;
   S.forceStation = null;
   pickerEl.hidden = true;

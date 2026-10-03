@@ -17135,6 +17135,97 @@ test("v149 복사가 막혀 있으면(Promise 거절) 막혔다고 말한다", a
   assert(r.exportToast.indexOf("막혀") >= 0, "청사진 내보내기가 막혔는데 말이 없다 — " + r.exportToast + " / " + r.exportNow);
 });
 
+
+// ══ v150 — 자문 36차 ════════════════════════════════════
+
+test("v150 큰 지도 위에서 E 를 눌러도 지도가 남은 채 세계가 돌지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    const picker = document.getElementById("picker");
+    function key(code) {
+      window.dispatchEvent(new KeyboardEvent("keydown", { code: code, bubbles: true, cancelable: true }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { code: code, bubbles: true, cancelable: true }));
+    }
+    const out = {};
+    // (1) 지도를 연 채 E — 지도가 닫혀야 하고, 지도가 남은 채 uiOpen 만 풀리면 안 된다
+    B.toggleBigMap(true);
+    key("KeyE");
+    out.afterE = { map: B.bigMapOpen(), ui: B.S.uiOpen, picker: picker.hidden };
+    // (2) 뿌리 — 목록이 안 열려 있으면 closePicker 는 남의 깃발을 건드리지 않는다
+    B.toggleBigMap(true);
+    B.closePicker(true);
+    out.afterClose = { map: B.bigMapOpen(), ui: B.S.uiOpen };
+    B.toggleBigMap(false);
+    // (3) 그 사이 목록은 여전히 E 로 열고 닫힌다
+    key("KeyE"); out.opened = !picker.hidden && B.S.uiOpen;
+    key("KeyE"); out.closed = picker.hidden && !B.S.uiOpen;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  eq(r.afterE.map, false, "지도 위에서 E 를 눌렀는데 지도가 안 닫혔다");
+  eq(r.afterE.ui, false, "지도가 닫혔는데 uiOpen 이 켜져 있다");
+  assert(r.afterE.picker, "지도 위에서 E 를 눌렀는데 목록이 열렸다");
+  assert(r.afterClose.map && r.afterClose.ui, "목록이 안 열려 있는데 closePicker 가 지도의 uiOpen 을 풀었다 — 지도는 남고 세계가 돈다");
+  assert(r.opened && r.closed, "E 로 목록을 열고 닫는 기본 동작이 깨졌다");
+});
+
+test("v150 클립보드가 없으면 복사했다고 말하지 않는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.survival = false;
+    const keep = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
+    const keepExec = document.execCommand;
+    const out = {};
+    document.execCommand = function () { return false; };            // 이것도 안 된다
+    B.toast("대기"); document.getElementById("copyseed").click();
+    out.seedFail = document.getElementById("toast").textContent;
+    document.execCommand = function () { return true; };             // 이쪽은 된다
+    B.toast("대기"); document.getElementById("copyseed").click();
+    out.seedOk = document.getElementById("toast").textContent;
+    B.toast("대기"); document.getElementById("copylink").click();
+    out.link = document.getElementById("toast").textContent;
+    document.execCommand = keepExec;
+    if (keep) Object.defineProperty(navigator, "clipboard", keep); else delete navigator.clipboard;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  assert(r.seedFail.indexOf("복사됨") < 0 && r.seedFail.indexOf("복사할 수 없") >= 0, "execCommand 도 실패했는데 복사됐다고 한다 — " + r.seedFail);
+  assert(r.seedOk.indexOf("복사됨") >= 0, "execCommand 가 성공하면 복사됨이어야 한다 — " + r.seedOk);
+  assert(r.link.indexOf("복사했습니다") < 0 && r.link.indexOf("링크") >= 0, "클립보드가 없는데 링크를 복사했다고 한다 — " + r.link);
+});
+
+phoneTest("v150 두 손가락을 올렸다가 시스템이 터치를 취소해도 다음 한 손가락 탭이 영역을 안 찍는다", async (page) => {
+  async function ev(type, touches, changed) {
+    await page.evaluate(({ type, touches, changed }) => {
+      const el = document.getElementById("stage");
+      const mk = (t) => new Touch({ identifier: t.id, target: el, clientX: t.x, clientY: 200 });
+      el.dispatchEvent(new TouchEvent(type, {
+        bubbles: true, cancelable: true,
+        touches: touches.map(mk), targetTouches: touches.map(mk), changedTouches: changed.map(mk)
+      }));
+    }, { type, touches, changed });
+  }
+  await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    B.S.selA = null; B.S.selB = null;
+    B.player.pitch = -1.2; B.camera.rotation.set(-1.2, B.player.yaw, 0, "YXZ"); B.camera.updateMatrixWorld(true);
+  });
+  const a = { id: 1, x: 500 }, b = { id: 2, x: 560 }, c = { id: 3, x: 520 };
+  await ev("touchstart", [a, b], [a, b]);          // 두 손가락
+  await page.waitForTimeout(400);
+  await ev("touchcancel", [], [a, b]);              // 알림을 내려 시스템이 취소
+  await page.waitForTimeout(300);
+  await ev("touchstart", [c], [c]);                 // 그 뒤 손가락 하나로 톡
+  await page.waitForTimeout(90);
+  await ev("touchend", [], [c]);
+  const selA = await page.evaluate(() => { const B = window.__blockyard; const v = B.S.selA; B.endPlay(); return v; });
+  eq(selA, null, "터치가 취소된 뒤 손가락 하나로 톡 쳤는데 영역 모서리가 찍혔다 — " + JSON.stringify(selA));
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

@@ -229,8 +229,10 @@ if (copySeedBtn) {
     seedIn.value = txt;
     try {
       var seedCopied = copyText(txt, function () { seedIn.select(); toast("복사가 막혀 있어요 — 시드 " + txt + " 를 직접 복사하세요"); });
-      if (!seedCopied) { seedIn.select(); document.execCommand("copy"); }
-      toast("시드 " + txt + " 복사됨");
+      // 클립보드가 **없으면**(http · 오래된 브라우저) `execCommand` 로 한 번 더 — 그것도 안 되면 복사됐다고 하지 않는다
+      // (v150 · 자문 36차 #2: 반환값을 안 봐서 아무것도 안 복사하고도 「복사됨」 이라고 했다)
+      if (!seedCopied) { seedIn.select(); seedCopied = !!document.execCommand("copy"); }
+      toast(seedCopied ? "시드 " + txt + " 복사됨" : "복사할 수 없어요 — 시드 " + txt + " 를 직접 복사하세요");
     } catch (err) { toast("시드 " + txt); }
   });
 }
@@ -672,8 +674,9 @@ if (copyLinkBtn) copyLinkBtn.addEventListener("click", function (e) {
   e.stopPropagation();
   var url = shareLink();
   try {
-    copyText(url, function () { toast("복사가 막혀 있어요 — 링크: " + url); });
-    toast("공유 링크를 복사했습니다");
+    var linkCopied = copyText(url, function () { toast("복사가 막혀 있어요 — 링크: " + url); });
+    // 클립보드가 없으면 복사한 것이 없다 — 링크를 그대로 보여 준다 (v150 · 자문 36차 #2)
+    toast(linkCopied ? "공유 링크를 복사했습니다" : "복사할 수 없어요 — 링크: " + url);
   } catch (err) { toast(url); }
 });
 
@@ -1373,7 +1376,9 @@ window.addEventListener("keydown", function (e) {
   }
   if (!S.active) return;
 
-  if (e.code === "KeyE") { e.preventDefault(); if (S.uiOpen) closePicker(true); else openPicker(); return; }
+  // 큰 지도가 열려 있으면 `E` 는 **지도를 닫는다**(`N` 과 같은 길) — 예전에는 `closePicker` 가 `uiOpen` 만 풀어
+  // 지도는 남은 채 세계가 돌았다 (v150 · 자문 36차 #1)
+  if (e.code === "KeyE") { e.preventDefault(); if (bigMapOpen()) toggleBigMap(false); else if (S.uiOpen) closePicker(true); else openPicker(); return; }
   // 도움말은 자기 키로 닫을 수 있어야 한다 — 아래 조기 반환보다 먼저 본다
   if (e.code === S.binds.help && helpOpen()) { toggleHelp(false); return; }
   // 큰 지도 (v111) — `M` 은 소리 끄기가 이미 물고 있어 `N` 이다.
@@ -1766,6 +1771,9 @@ window.addEventListener("touchmove", function (e) {
     if (firstDown && ev.changedTouches.length < 2 && Date.now() - firstDown > 300) { twoStart = 0; return; }
     twoStart = Date.now(); firstUp = 0;
   }, { passive: true });
+  // 시스템이 터치를 취소하면(알림 내림·스와이프·손바닥) 상태를 비운다 (v150 · 자문 36차 #3) — 안 비우면 `twoStart` 가
+  // 남아, 그 뒤 1.4초 안에 손가락 하나로 톡 쳤을 때 영역 모서리가 찍혔다
+  el.addEventListener("touchcancel", function () { twoStart = 0; firstDown = 0; firstUp = 0; }, { passive: true });
   el.addEventListener("touchend", function (ev) {
     if (!ev.touches.length) firstDown = 0;   // 손가락이 다 떨어지면 다음 제스처는 새로 센다
     if (!twoStart) return;
