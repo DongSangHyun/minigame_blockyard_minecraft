@@ -18,7 +18,7 @@ import { ac, setAudioAwake, startAmbient, tone } from "./audio.js";
 import { renameSlot, clearSave, SLOTS, backupLabel, dayLabel, restoreDay, needsHomeScreenHint, resetDayMark, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo , rememberSlot, releaseLock, lockHeldByOther} from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
 import { undoEmptyWhy, nextToTry, lastEditLabel, blueprintList, deleteBlueprint, useBlueprint, mirrorClip, rotateClip, selectionBounds, REGION_MAX, clearSelection, completeCommand, copySelection, fillSelection, pasteClip, redo, refreshAchList, refreshStats, runCommand, selectionSize, undo, unlock, svBlocked } from "./edit.js";
-import { helpOpen, bigMapOpen, toggleBigMap, closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
+import { copyText, helpOpen, bigMapOpen, toggleBigMap, closeCmd, closePicker, cmdIn, cmdSay, drawMinimap, drawPreview, openCmd, openPicker, perfEl, refreshBar, refreshSlot, selectSlot, setHelpTab, showHud, toast, toggleHelp } from "./hud.js";
 import { handCam, updateHandBlock } from "./hand.js";
 import { place } from "./mine.js";
 import { setWeather } from "./sky.js";
@@ -228,8 +228,8 @@ if (copySeedBtn) {
     var txt = String(S.worldSeed);
     seedIn.value = txt;
     try {
-      if (navigator.clipboard) navigator.clipboard.writeText(txt);
-      else { seedIn.select(); document.execCommand("copy"); }
+      var seedCopied = copyText(txt, function () { seedIn.select(); toast("복사가 막혀 있어요 — 시드 " + txt + " 를 직접 복사하세요"); });
+      if (!seedCopied) { seedIn.select(); document.execCommand("copy"); }
       toast("시드 " + txt + " 복사됨");
     } catch (err) { toast("시드 " + txt); }
   });
@@ -672,7 +672,7 @@ if (copyLinkBtn) copyLinkBtn.addEventListener("click", function (e) {
   e.stopPropagation();
   var url = shareLink();
   try {
-    if (navigator.clipboard) navigator.clipboard.writeText(url);
+    copyText(url, function () { toast("복사가 막혀 있어요 — 링크: " + url); });
     toast("공유 링크를 복사했습니다");
   } catch (err) { toast(url); }
 });
@@ -1380,14 +1380,8 @@ window.addEventListener("keydown", function (e) {
   // 자기 키로 닫히지 않으면 도움말이 그랬듯 잠금만 풀린 채 판이 남는다
   if (e.code === "KeyN" && !e.ctrlKey && !e.altKey && !e.metaKey) {
     e.preventDefault();
-    if (bigMapOpen()) {
-      toggleBigMap(false);
-      // `E` 와 같이 **시점을 되돌려 준다** (v148 · 자문 34차 #4) — 지도를 `N` 으로 닫아도 마우스 시점이
-      // 안 돌아와 다시 클릭해야 했다. 큰 지도를 열 때 `toggleBigMap` 이 잠금을 풀기 때문이다
-      if (S.active && S.lockMode && canvas.requestPointerLock) {
-        try { canvas.requestPointerLock(); } catch (err) {}
-      }
-    }
+    // 시점 복귀는 `toggleBigMap(false)` 가 한다 (v149) — 닫는 길이 여섯인데 `N` 한 곳에만 있었다
+    if (bigMapOpen()) toggleBigMap(false);
     else if (!S.uiOpen) { toggleBigMap(true); advanceTut(6); }
     return;
   }
@@ -1760,22 +1754,34 @@ window.addEventListener("touchmove", function (e) {
 (function bindTouchRegion() {
   var el = document.getElementById("stage");
   if (!el) return;
-  var twoStart = 0, quickTapHinted = false;
+  var twoStart = 0, firstDown = 0, firstUp = 0, quickTapHinted = false;
   el.addEventListener("touchstart", function (ev) {
+    if (ev.touches.length === 1) firstDown = Date.now();
     if (ev.touches.length !== 2 || !S.active) return;
-    twoStart = Date.now();
+    // 두 손가락이 **거의 동시에** 닿았나 (v149 · 자문 35차 #2) — 스틱을 쥔 채 한참 뒤 시점 손가락을 얹는 것은
+    // 영역 탭이 아니다. 예전에는 그것도 둘째 손가락이 닿은 시각부터 재서, 걷다가 시점 손가락을 톡 치고
+    // 0.3~1.4초 안에 스틱을 놓으면 영역 모서리가 찍히고 「영역 시작…」 이 떴다(아이는 영문을 모른다)
+    // 정말 동시에 닿으면 브라우저가 `touchstart` 하나에 둘을 같이 보낸다(changedTouches 가 둘) — 그것은 통과
+    // 첫 손가락의 `touchstart` 를 못 봤으면(`firstDown` 0) 모르는 것이니 통과시킨다 — 아는 경우에만 거른다
+    if (firstDown && ev.changedTouches.length < 2 && Date.now() - firstDown > 300) { twoStart = 0; return; }
+    twoStart = Date.now(); firstUp = 0;
   }, { passive: true });
   el.addEventListener("touchend", function (ev) {
-    if (!twoStart || ev.touches.length > 0) { if (!ev.touches.length) twoStart = 0; return; }
-    var held = Date.now() - twoStart;
-    twoStart = 0;
+    if (!ev.touches.length) firstDown = 0;   // 손가락이 다 떨어지면 다음 제스처는 새로 센다
+    if (!twoStart) return;
+    // 한 손가락이 먼저 떨어졌다 — 그 시각을 적어 둔다. 마지막 손가락이 **한참 뒤에** 떨어지면
+    // 두 손가락 탭이 아니라(스틱을 쥔 채 시점 손가락만 톡) 무시한다
+    if (ev.touches.length > 0) { if (!firstUp) firstUp = Date.now(); return; }
+    var nowUp = Date.now(), held = nowUp - twoStart, gapUp = firstUp ? nowUp - firstUp : 0;
+    twoStart = 0; firstUp = 0;
+    if (gapUp > 300) return;
     // **너무 빠른 탭은 말해 준다** (v148 · 자문 33차) — 220ms 밑은 시점 돌리기와 구분하려고 무시하는데,
     // 보통의 빠른 탭(100~180ms)이 토스트도 소리도 없이 사라져 아이는 기능이 없는 줄 알았다.
     // **문턱은 안 건드린다**(시점 돌리기와 겹치는 조작 변경이라 유저 확인이 필요하다) — 안내만 세션당 한 번.
     // 스틱과 시점을 동시에 짧게 짚는 평소 동작에서 번거롭지 않도록 60ms 밑(떨림)은 건너뛴다
     if (held >= 60 && held < 220 && !quickTapHinted) {
       quickTapHinted = true;
-      toast("영역을 찍으려면 두 손가락을 조금 더 꾹 눌러 주세요");
+      toast("영역을 찍으려면 두 손가락을 0.3초쯤 꾹 눌렀다 떼 주세요");
       return;
     }
     if (held < 220 || held > 1400) return;

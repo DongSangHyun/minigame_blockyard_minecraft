@@ -11,7 +11,7 @@ import { enqueueGrow, enqueueLavaAround, enqueueLavaDryAround, enqueueDryAround,
 import { markAllDirty, touch } from "./mesh.js";
 import { boxHitsWorld, player, stats } from "./player.js";
 import { tone } from "./audio.js";
-import { helpAchList, refreshBar, showAchPop, toast } from "./hud.js";
+import { copyText, helpAchList, refreshBar, showAchPop, toast } from "./hud.js";
 import { updateHandBlock } from "./hand.js";
 import { collect, withRo } from "./survival.js";
 import { setWeather, localBiome } from "./sky.js";
@@ -1355,8 +1355,11 @@ export function runCommand(line) {
     if (sub === "export") {
       var ex = exportBlueprint(nm);
       if (ex.err) return ex.err;
-      var copied = false;
-      try { if (navigator.clipboard) { navigator.clipboard.writeText(ex.text); copied = true; } } catch (e4) {}
+      // 거절까지 받는다 (v149 · 자문 35차 #4) — 권한이 막히면 예외가 아니라 Promise 거절이라
+      // 동기 try/catch 로는 「복사했습니다」 라고 해 놓고 붙여 넣으면 아무것도 없었다
+      var copied = copyText(ex.text, function () {
+        toast("복사가 막혀 있어요 — 청사진 문자열 (" + ex.text.length + "자): " + ex.text.slice(0, 60) + "…");
+      });
       S.lastExport = ex.text;               // 클립보드가 막혀도 꺼낼 데가 있어야 한다
       return (copied ? "청사진을 복사했습니다" : "청사진 문자열") + " (" +
              ex.cells.toLocaleString("ko-KR") + "칸 · " + ex.text.length + "자)" +

@@ -16979,6 +16979,162 @@ phoneTest("v148 두 손가락 탭이 너무 빠르면 한 번 안내한다 (문�
   eq(selA, null, "빠른 탭이 영역을 찍어 버렸다 — 문턱이 바뀌었다");
 });
 
+
+// ══ v149 — 자문 35차 ════════════════════════════════════
+
+test("v149 큰 지도: 어떻게 닫아도 시점이 돌아온다 (N · 닫기 ✕ · 바깥 클릭)", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.lockMode = true;
+    const cv = document.querySelector("canvas");
+    let calls = 0;
+    const orig = cv.requestPointerLock;
+    cv.requestPointerLock = function () { calls++; };
+    function key(code) {
+      window.dispatchEvent(new KeyboardEvent("keydown", { code: code, bubbles: true, cancelable: true }));
+      window.dispatchEvent(new KeyboardEvent("keyup", { code: code, bubbles: true, cancelable: true }));
+    }
+    const out = {};
+    function closeBy(label, closer) {
+      B.toggleBigMap(true);
+      calls = 0;
+      closer();
+      out[label] = { closed: !B.bigMapOpen(), calls };
+    }
+    key("KeyN"); calls = 0; key("KeyN");
+    out.N = { closed: !B.bigMapOpen(), calls };
+    closeBy("x", () => document.getElementById("bigmap-x").click());
+    closeBy("outside", () => document.getElementById("bigmap").dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    // 이미 닫힌 지도를 또 닫아도 시점을 요청하지 않는다
+    calls = 0; B.toggleBigMap(false);
+    out.again = calls;
+    cv.requestPointerLock = orig;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  eq(r.N.calls, 1, "N 으로 닫을 때 시점 요청이 " + r.N.calls + "번이다(한 번이어야 한다)");
+  assert(r.x.closed && r.x.calls >= 1, "「닫기 ✕」 로 닫았는데 시점이 안 돌아온다 (호출 " + r.x.calls + ")");
+  assert(r.outside.closed && r.outside.calls >= 1, "바깥 클릭으로 닫았는데 시점이 안 돌아온다 (호출 " + r.outside.calls + ")");
+  eq(r.again, 0, "이미 닫힌 지도를 닫는데 시점을 요청했다");
+});
+
+phoneTest("v149 스틱을 쥔 채 시점 손가락만 톡 쳐도 영역 모서리가 안 찍힌다", async (page) => {
+  async function ev(type, touches, changed) {
+    await page.evaluate(({ type, touches, changed }) => {
+      const el = document.getElementById("stage");
+      const mk = (t) => new Touch({ identifier: t.id, target: el, clientX: t.x, clientY: 200 });
+      el.dispatchEvent(new TouchEvent(type, {
+        bubbles: true, cancelable: true,
+        touches: touches.map(mk), targetTouches: touches.map(mk), changedTouches: changed.map(mk)
+      }));
+    }, { type, touches, changed });
+  }
+  await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.beginPlay();
+    B.S.selA = null; B.S.selB = null;
+    // 바닥을 내려다본다 — 어디를 겨누든 aimCell 이 칸을 돌려주는 자리여야 시험이 뜻을 가진다
+    B.player.pitch = -1.2; B.camera.rotation.set(-1.2, B.player.yaw, 0, "YXZ"); B.camera.updateMatrixWorld(true);
+    B.toast("대기");
+  });
+  const stick = { id: 1, x: 100 }, look = { id: 2, x: 600 };
+  await ev("touchstart", [stick], [stick]);                 // 스틱을 쥔다
+  await page.waitForTimeout(700);                           // 한참 걷는다
+  await ev("touchstart", [stick, look], [look]);            // 시점 손가락을 얹는다
+  await page.waitForTimeout(100);
+  await ev("touchend", [stick], [look]);                    // 시점 손가락만 톡
+  await page.waitForTimeout(500);
+  await ev("touchend", [], [stick]);                        // 그리고 스틱을 놓는다
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const out = { selA: B.S.selA, toast: document.getElementById("toast").textContent };
+    B.endPlay();
+    return out;
+  });
+  eq(r.selA, null, "걷다가 시점 손가락을 톡 쳤을 뿐인데 영역 모서리가 찍혔다 — " + JSON.stringify(r.selA));
+  assert(r.toast.indexOf("영역 시작") < 0, "영역 시작 안내가 떴다 — " + r.toast);
+});
+
+test("v149 모으기: 양털을 든 손으로 같은 양을 다시 우클릭하면 「아직」 이라고 한다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true);
+    B.S.nextMode = 1; B.newWorld(4242); B.beginPlay();
+    arena(B, 44, 50, 44, 5);
+    // 둘레의 동물을 치우고(다른 동물이 시선을 가리지 않게) 양 한 마리를 코앞에 세운다
+    let sheep = B.mobs.filter((m) => m.kind === 0 && !B.isTrader(m))[0];
+    for (let i = B.mobs.length - 1; i >= 0; i--) {
+      const m = B.mobs[i];
+      if (m !== sheep && !B.isTrader(m) && Math.hypot(m.x - 44.5, m.z - 44.5) < 10) B.removeMob(m);
+    }
+    sheep.x = 44.5; sheep.z = 42.0; sheep.y = 50; sheep.shornAt = 0;
+    // 양은 눈높이보다 낮다 — 수평으로 보면 못 겨눈다. 실제 플레이처럼 살짝 내려다본다
+    B.player.yaw = 0; B.player.pitch = -0.25;
+    B.camera.position.set(B.player.pos.x, B.player.pos.y + 1.62, B.player.pos.z);
+    B.camera.rotation.set(-0.25, 0, 0, "YXZ"); B.camera.updateMatrixWorld(true);
+    B.selectSlot(0); B.S.bar[0] = K.AIR;
+    const aimed = !!B.aimedMob();
+    B.place(false);
+    const t1 = document.getElementById("toast").textContent;
+    const inHand = B.S.bar[B.S.selected];
+    B.toast("대기");
+    B.place(false);                           // 같은 양을 바로 다시 — 손에는 이제 양털이 들려 있다
+    const t2 = document.getElementById("toast").textContent;
+    B.S.nextMode = 0; B.S.survival = false;
+    B.endPlay(); B.setPaused(false);
+    return { aimed, t1, t2, woolInHand: B.isWool(inHand) };
+  });
+  assert(r.aimed, "시험 준비: 양을 못 겨눴다");
+  assert(r.t1.indexOf("+1") >= 0, "첫 우클릭에 양털이 안 나왔다 — " + r.t1);
+  assert(r.woolInHand, "시험 준비: 깎은 뒤 손에 양털이 안 들렸다 — 이 시험이 뜻이 없다");
+  assert(r.t2.indexOf("조금 뒤에 다시 털이 자라요") >= 0, "양털을 든 손으로 다시 눌렀더니 「아직」 이 아니다 — " + r.t2);
+  assert(r.t2.indexOf("5분") >= 0, "기다려야 하는 시간(5분)을 안 알려 준다 — " + r.t2);
+});
+
+test("v149 복사가 막혀 있으면(Promise 거절) 막혔다고 말한다", async (page) => {
+  const r = await page.evaluate(async () => {
+    const B = window.__blockyard;
+    B.setPaused(true); B.beginPlay();
+    B.S.survival = false;
+    const keep = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", { configurable: true,
+      value: { writeText: () => Promise.reject(new Error("NotAllowedError")) } });
+    const out = {};
+    // (1) 시드 복사 단추
+    B.toast("대기");
+    document.getElementById("copyseed").click();
+    await new Promise((res) => setTimeout(res, 60));
+    out.seed = document.getElementById("toast").textContent;
+    // (2) 공유 링크 복사 단추
+    B.toast("대기");
+    document.getElementById("copylink").click();
+    await new Promise((res) => setTimeout(res, 60));
+    out.link = document.getElementById("toast").textContent;
+    // (3) 청사진 내보내기
+    const X = 24, Y = 34, Z = 48;
+    for (let dx = -1; dx <= 4; dx++) for (let dz = -1; dz <= 4; dz++)
+      for (let dy = -1; dy <= 4; dy++) B.set(X + dx, Y + dy, Z + dz, 0);
+    B.refreshAllTops();
+    B.applyEdit(X, Y, Z, B.B.BRICK, false, 0);
+    B.S.selA = [X, Y, Z]; B.S.selB = [X + 1, Y + 1, Z];
+    B.copySelection();
+    B.runCommand("bp save 시험집");
+    B.toast("대기");
+    out.exportNow = B.runCommand("bp export 시험집");
+    await new Promise((res) => setTimeout(res, 60));
+    out.exportToast = document.getElementById("toast").textContent;
+    B.runCommand("bp del 시험집");
+    if (keep) Object.defineProperty(navigator, "clipboard", keep); else delete navigator.clipboard;
+    B.S.history.length = 0; B.S.future.length = 0;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  assert(r.seed.indexOf("막혀") >= 0, "시드 복사가 막혔는데 「복사됨」 만 말한다 — " + r.seed);
+  assert(r.link.indexOf("막혀") >= 0, "링크 복사가 막혔는데 말이 없다 — " + r.link);
+  assert(r.exportToast.indexOf("막혀") >= 0, "청사진 내보내기가 막혔는데 말이 없다 — " + r.exportToast + " / " + r.exportNow);
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

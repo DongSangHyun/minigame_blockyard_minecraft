@@ -3,7 +3,7 @@ import { S } from "./state.js";
 import { MOB_MAX, aimedMob, feedNearbyMob, isTrader, mobOccupies } from "./mobs.js";
 import { primeTNT, ignite } from "./fluids.js";
 import { MARK_MAX, WY, idx, inside } from "./dims.js";
-import { CRAFT_TABLE, FURNACE, WALL_DIR, hasShapes, BOOKSHELF, CARPET0, LAMP, PLANKS, POT, SAPLING, STAINED0, WOOL0, NAMES, BUCKET, FRAME, FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, needsFloor, wallShapeFor } from "./blocks.js";
+import { CRAFT_TABLE, FURNACE, WALL_DIR, hasShapes, BOOKSHELF, CARPET0, LAMP, PLANKS, POT, SAPLING, STAINED0, WOOL0, NAMES, BUCKET, FRAME, FIRE, DOOR, doorFacing, doorOpen, doorShapeFor, GOLD, DIAMOND, ICE, WATER, AIR, COAL, FLINT, FLOWER_R, FLOWER_Y, IRON, LADDER, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, TALLGRASS, TNT, TORCH, isCross, isFlammable, isItem, isLiquid, isLog, isOpenable, isSolid, isWool, needsFloor, wallShapeFor } from "./blocks.js";
 import { get, shape, hutSpots, markName, markX, markZ } from "./world.js";
 import { lightSky } from "./light.js";
 import { burst } from "./scene.js";
@@ -238,9 +238,12 @@ export function tryInteractMob(repeating) {
   // 상인이 먼저다 (v115) — 가판 앞에서 블록을 놓으려다 상인을 가리면 말을 걸 수가 없다
   if (isTrader(am.mob)) return tradeWith();
   // 모으기 — 맨손으로 양을 우클릭하면 양털 한 개 (자문 36차 #5). 한 마리에 5분에 한 번
-  if (S.survival && S.bar[S.selected] === AIR && am.mob.kind === 0) {
+  // **양털을 든 손도 「깎기 시도」 다** (v149 · 자문 35차 #3) — 깎으면 양털이 방금 비었던 선택 칸에 들어가
+  // 손에 양털이 들린다. 그러면 같은 양을 다시 우클릭할 때 조건(`AIR`)이 안 맞아 「동물은 꽃이나 키큰풀을…」
+  // 이 떴다 — 「아직」 이라는 대답을 못 들었다. 5분이라는 시간도 안내문에 적는다
+  if (S.survival && (S.bar[S.selected] === AIR || isWool(S.bar[S.selected])) && am.mob.kind === 0) {
     var now = Date.now();
-    if (am.mob.shornAt && now - am.mob.shornAt < 300000) { toast("이 양은 조금 뒤에 다시 털이 자라요"); return true; }
+    if (am.mob.shornAt && now - am.mob.shornAt < 300000) { toast("이 양은 조금 뒤에 다시 털이 자라요 (5분쯤)"); return true; }
     am.mob.shornAt = now;
     addItem(WOOL0, 1);
     toast("+1 " + NAMES[WOOL0]);

@@ -420,13 +420,33 @@ export function drawBigMap() { if (bigCtx) drawMinimapTo(bigCtx, BIG_K, true); }
 export function toggleBigMap(on) {
   if (!bigMapEl) return;
   var want = on === undefined ? bigMapEl.hidden : on;
+  var wasOpen = !bigMapEl.hidden;
   bigMapEl.hidden = !want;
   S.uiOpen = want;
   disarmMark();
   if (want) {
     if (document.pointerLockElement === canvas) document.exitPointerLock();
     drawBigMap();
+  } else if (wasOpen && S.active && S.lockMode && canvas.requestPointerLock) {
+    // **닫는 길이 어디든 시점을 돌려준다** (v149 · 자문 35차 #1) — v148 은 `N` 한 길에만 넣었다.
+    // 「닫기 ✕」·바깥 클릭·「지도」 단추로 닫으면 화면은 평소처럼 보이는데 마우스를 움직여도 안 돌아가고,
+    // 캔버스를 클릭하면 조준선 앞 블록을 캐 버렸다(`S.active` 라 `requestPlay` 가 안 불려 시점도 못 되살린다).
+    // `toggleHelp`·`closePicker` 가 하는 일을 여기서 한 번에 한다. 폰·드래그 모드는 `S.lockMode` 가 false 라 영향이 없다
+    try { canvas.requestPointerLock(); } catch (e) {}
   }
+}
+// 클립보드에 쓴다 — **거절까지 받는다** (v149 · 자문 35차 #4). `writeText` 는 권한이 막히면 예외가 아니라
+// **Promise 거절**이라 동기 `try/catch` 에 안 걸렸다. 그래서 막힌 채로도 「복사했습니다」 라고 했고,
+// 붙여 넣으면 아무것도 없었다. 못 썼을 때 부른 쪽이 낼 말을 `onFail` 로 받는다
+export function copyText(text, onFail) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      var pr = navigator.clipboard.writeText(text);
+      if (pr && pr.then) pr.then(null, function () { if (onFail) onFail(); });
+      return true;
+    }
+  } catch (e) {}
+  return false;
 }
 // **큰 지도에서 표식을 지운다** (v144 · 자문 31차 #4) — 24개가 차면 토스트가
 // 「표식은 24개까지입니다」 하고 끝이었고, 지우는 길인 `/marks del` 은 키보드 전용이었다.
