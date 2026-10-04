@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-10-04 · 모듈 31개 · 합계 16,342줄
+생성일 2026-10-04 · 모듈 31개 · 합계 16,376줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -29,7 +29,7 @@
 | [`save.js`](../src/save.js) | 저장 · 불러오기 | 580 | state · dims · blocks · world · player · mobs · village · hud · sky |
 | [`village.js`](../src/village.js) | 시작 마을. 세계를 켜면 **이미 누가 살고 있는 자리**에서 시작한다. | 438 | dims · state · blocks · world |
 | [`edit.js`](../src/edit.js) | 편집 · 되돌리기 · 도전 과제 | 1630 | state · queues · settings · save · dims · blocks · world · light · fluids · mesh · player · audio · hud · hand · survival · sky |
-| [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 997 | state · version · dims · blocks · atlas · world · player · settings · hand · input · survival · audio |
+| [`hud.js`](../src/hud.js) | HUD · 핫바 · 블록 고르기 · 미니맵 | 1008 | state · version · dims · blocks · atlas · world · player · settings · hand · input · survival · audio |
 | [`hand.js`](../src/hand.js) | 1인칭 손과 들고 있는 블록 | 208 | state · settings · blocks · atlas · world · mesh · scene · player · dims · light · daynight |
 | [`body.js`](../src/body.js) | 3인칭에서 보이는 플레이어 몸 | 200 | state · settings · scene · player · atlas · hand · blocks |
 | [`input.js`](../src/input.js) | 입력 (키보드 · 마우스 · 터치) | 2303 | state · world · queues · mobs · dims · mesh · light · boot · blocks · survival · village · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · mine · sky · loop |
@@ -40,7 +40,7 @@
 | [`loop.js`](../src/loop.js) | 게임 루프 | 1145 | state · input · mobs · queues · dims · blocks · atlas · world · light · village · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · atlas · survival · hand · body · mine · sky |
 | [`version.js`](../src/version.js) | 빌드 도장 (자동 생성) | 8 | — |
 | [`main.js`](../src/main.js) | 조립과 시작 | 344 | state · village · survival · tree · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · body · input · mine · sky · loop |
-| [`survival.js`](../src/survival.js) | 모으기 모드: 가방 · 캐면 얻기 · 곡괭이 단계 · 제작대/화로 제작 · 목표 한 줄 | 349 | state · blocks · world · player · dims · hud · input |
+| [`survival.js`](../src/survival.js) | 모으기 모드: 가방 · 캐면 얻기 · 곡괭이 단계 · 제작대/화로 제작 · 목표 한 줄 | 372 | state · blocks · world · player · dims · hud · input |
 
 ## 모듈별 공개 함수
 
@@ -491,13 +491,13 @@
 | `bootProgress(msg, frac)` | 811 |
 | `bootDone()` | 816 |
 | `renderCraft()` | 827 |
-| `noteBlockUse(b)` | 885 |
-| `sortPickByRecent()` | 894 |
-| `refreshPickFilter()` | 907 |
-| `openCmd()` | 945 |
-| `closeCmd()` | 953 |
-| `cmdSay(msg)` | 959 |
-| `drawPreview(target)` | 965 |
+| `noteBlockUse(b)` | 896 |
+| `sortPickByRecent()` | 905 |
+| `refreshPickFilter()` | 918 |
+| `openCmd()` | 956 |
+| `closeCmd()` | 964 |
+| `cmdSay(msg)` | 970 |
+| `drawPreview(target)` | 976 |
 
 내보내는 값 — `hotbarEl` · `slotCanvases` · `SHAPE_GLYPH` · `SHAPE_COLOR` · `SHAPE_WORD` · `pickerEl` · `pickGrid` · `pickBtns` · `FACING` · `tFace` · `tAch` · `tBiome` · `achPop` · `tAim` · `tPos` · `underwaterEl` · `inblockEl` · `airEl` · `perfEl` · `airBar` · `minimapEl` · `mmCap` · `touchEl` · `hudEls` · `photoBar` · `regionBar` · `toastEl` · `mmCanvas` · `mmCtx` · `mmImage` · `UNDER_ROOF` · `ROOF_R` · `SURROUND_ROOF` · `MOUTH_MIN` · `mouthDots` · `BIG_K` · `bigMapEl` · `stampEl` · `helpEl` · `helpAchBtn` · `helpAchList` · `helpCols` · `bootEl` · `bootMsg` · `bootBar` · `pickFind` · `pickTabs` · `pickCat` · `cmdEl` · `cmdIn` · `cmdMsg` · `previewEl` · `previewCap`
 
@@ -706,20 +706,21 @@
 | `toolTier()` | 99 |
 | `needTier(b)` | 104 |
 | `canMine(b)` | 112 |
-| `needText(b)` | 113 |
-| `mineSpeed(b)` | 124 |
-| `needLine(r)` | 176 |
-| `canCraft(r)` | 181 |
-| `craft(r)` | 185 |
-| `stationsNear()` | 194 |
-| `recipesFor(st)` | 206 |
-| `doneWords(g)` | 236 |
-| `svGoalText()` | 244 |
-| `touchWords(t)` | 250 |
-| `svEvent(key)` | 257 |
-| `collect(b)` | 295 |
-| `leafDrop(b, x, y, z)` | 307 |
-| `enrichDiamonds(seed, rng)` | 320 |
-| `resetSurvival(on)` | 337 |
+| `needText(b)` | 120 |
+| `missingLine(r)` | 135 |
+| `mineSpeed(b)` | 144 |
+| `needLine(r)` | 196 |
+| `canCraft(r)` | 201 |
+| `craft(r)` | 205 |
+| `stationsNear()` | 214 |
+| `recipesFor(st)` | 226 |
+| `doneWords(g)` | 259 |
+| `svGoalText()` | 267 |
+| `touchWords(t)` | 273 |
+| `svEvent(key)` | 280 |
+| `collect(b)` | 318 |
+| `leafDrop(b, x, y, z)` | 330 |
+| `enrichDiamonds(seed, rng)` | 343 |
+| `resetSurvival(on)` | 360 |
 
 내보내는 값 — `RECIPES` · `SV_GOALS`

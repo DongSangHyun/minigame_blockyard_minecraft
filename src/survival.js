@@ -110,15 +110,35 @@ export function needTier(b) {
 }
 var TIER_NAME = ["", "나무 곡괭이", "돌 곡괭이", "철 곡괭이", "다이아 곡괭이"];
 export function canMine(b) { return !S.survival || toolTier() >= needTier(b); }
+// 그 곡괭이를 **무엇으로 만드는지** 한 줄 (v152 · 자문 38차 #3) — 「돌 곡괭이가 필요합니다」 만으로는
+// 레시피를 몰라 목록을 뒤져야 했고, 안내의 「판자 4개로 제작대를…」 를 곧이곧대로 따르면 제작대를 하나 더 만들었다
+function pickRecipeLine(tier) {
+  var pick = PICKS[tier - 1];
+  for (var i = 0; i < RECIPES.length; i++) if (RECIPES[i].out === pick) return needLine(RECIPES[i]);
+  return "";
+}
 export function needText(b) {
   // 곡괭이 레시피는 **제작대 옆에서만** 뜬다 — 제작대가 멀면 E 를 눌러도 곡괭이가 없다 (자문 37차 #2)
   var where = stationsNear().table ? "E 에서 만드세요"
             : (invCount(CRAFT_TABLE) ? "제작대를 옆에 놓고 E 에서 만드세요"
-                                     : "판자 4개로 제작대를 만들어 옆에 놓고 E 에서 만드세요");
-  var t = TIER_NAME[needTier(b)] + "가 필요합니다 — " + touchWords(where);
+                                     : "제작대 옆에서 E 에서 만드세요 — 제작대가 멀면 판자 4개로 하나 더 만들어 놓아도 돼요");
+  var tier = needTier(b), line = pickRecipeLine(tier);
+  var t = TIER_NAME[tier] + "가 필요합니다" + (line ? " (" + line + ")" : "") + " — " + touchWords(where);
   // 원목도 곡괭이도 없으면 만들 수가 없다 — 어디로 가야 하는지 말한다 (자문 36차 #10)
-  if (!toolTier() && !haveOf(LOGS) && !invCount(PLANKS)) t += " · 먼저 위로 올라가 나무부터 (못 나오면 F 로 날기)";
+  // 폰에는 F 키가 없다 — **비행 버튼**이다 (v152 · 자문 38차 #6: `touchWords` 가 이 꼬리를 못 바꿨다)
+  if (!toolTier() && !haveOf(LOGS) && !invCount(PLANKS))
+    t += " · 먼저 위로 올라가 나무부터 (못 나오면 " + (isTouch ? "비행 버튼으로 날기" : "F 로 날기") + ")";
   return t;
+}
+// 레시피에서 **모자란 재료**를 한 줄로 (v152) — 회색 줄이 왜 회색인지 말해 준다.
+// 예전에는 `disabled` 에 `title` 도 비어 있어 눌러도 아무 일이 없고 이유도 몰랐다
+export function missingLine(r) {
+  var parts = [];
+  for (var i = 0; i < r.need.length; i++) {
+    var lack = r.need[i][1] - haveOf(r.need[i][0]);
+    if (lack > 0) parts.push(labelOf(r.need[i][0]) + " " + lack);
+  }
+  return parts.join(" · ");
 }
 // 곡괭이는 돌 종류를 빨리 캔다. 손으로 캐는 흙·나무는 그대로
 export function mineSpeed(b) {
@@ -218,16 +238,19 @@ export var SV_GOALS = [
   { key: "craft:" + PLANKS, text: "<b>E</b>(목록)를 눌러 원목으로 <b>나무판자</b>를 만드세요" },
   { key: "craft:" + CRAFT_TABLE, text: "판자 4개로 <b>제작대</b>를 만드세요" },
   { key: "place:" + CRAFT_TABLE, text: "<b>제작대</b>를 땅에 놓으세요 — 그 옆에서 더 많이 만듭니다" },
-  { key: "craft:" + PICK_WOOD, text: "제작대 옆에서 <b>나무 곡괭이</b>를 만드세요 (막대기도 필요해요)" },
+  // 재료가 몇 개인지 말한다 (v152 · 자문 38차 #1) — 「막대기도 필요해요」 만 읽고 원목 1~2개로 시작한 아이는 판자가 모자라
+  // 한 번 막혔다(제작대 4 + 곡괭이 3 + 막대기 2회분 4 = 판자 11 → 원목 3개). 모자란 단추는 회색이라 이유도 안 보였다
+  { key: "craft:" + PICK_WOOD, text: "제작대 옆에서 <b>나무 곡괭이</b>를 만드세요 — <b>판자 3개 + 막대기 2개</b>가 들어요 (막대기는 판자 2개로 4개, <b>원목은 모두 3개쯤</b> 베어 두세요)" },
   { key: "get:" + COBBLE, text: "곡괭이로 <b>돌</b>을 캐서 조약돌을 모으세요" },
   { key: "craft:" + PICK_STONE, text: "조약돌 3개와 막대기 2개로 <b>돌 곡괭이</b>를 만드세요 — 철을 캘 수 있어요" },
   { key: "craft:" + FURNACE, text: "조약돌 8개로 <b>화로</b>를 만드세요" },
   { key: "place:" + FURNACE, text: "<b>화로</b>를 땅에 놓으세요 — 그 옆에서 광석을 녹입니다" },
   { key: "craft:" + IRON_INGOT, text: "철 광석과 석탄을 화로에서 녹여 <b>철괴</b>를 만드세요" },
   { key: "craft:" + PICK_IRON, text: "철괴 3개와 막대기 2개로 <b>철 곡괭이</b>를 만드세요 — 다이아몬드를 캘 수 있어요" },
-  // 「바닥 가까이」 라고 말했지만 v138 의 `enrichDiamonds` 가 넣는 자리는 y 3~14 · 중앙값 5~6 이다.
-  // 바닥(y 1)까지 파 내려간 아이는 오히려 돌밭을 만난다 — 말을 실제에 맞췤다 (v142 · CLAUDE.md §5.5)
-  { key: "get:" + DIAMOND_GEM, text: "깊은 굴의 <b>바닥에서 예닐곱 칸쯤</b> 되는 벽에서 하늘색 점이 박힌 <b>다이아 광석</b>을 찾으세요!" },
+  // 「바닥 가까이」 라고 말했지만 v138 의 `enrichDiamonds` 가 넣는 자리는 y 3~14 다. 바닥(y 1)까지 파 내려간 아이는 오히려
+  // 돌밭을 만난다 — 말을 실제에 맞춘다 (v142 · CLAUDE.md §5.5). v142 는 y 중앙값 4~6 을 「바닥에서 예닐곱 칸」 이라 적었는데
+  // **y 와 바닥에서의 높이를 헷갈린** 것이다(바닥이 y 1 이니 3~5칸 위 — 시드 5개 실측 4·5·4·6·5). 「서너 칸쯤 위」 가 맞다 (v152 · 자문 38차 #2)
+  { key: "get:" + DIAMOND_GEM, text: "깊은 굴의 <b>바닥에서 서너 칸쯤 위</b> 벽에서 하늘색 점이 박힌 <b>다이아 광석</b>을 찾으세요!" },
   { key: "craft:" + PICK_DIAMOND, text: "다이아몬드 3개와 막대기 2개로 <b>다이아 곡괭이</b>를 만드세요" }
 ];
 // 방금 넘긴 목표를 「무엇을 해냈다」 로 짧게 말한다 (v143).

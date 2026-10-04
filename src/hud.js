@@ -9,7 +9,7 @@ import { player } from "./player.js";
 import { opts, applyTbtn } from "./settings.js";
 import { updateHandBlock } from "./hand.js";
 import { advanceTut, canvas, isTouch } from "./input.js";
-import { canCraft, craft, needLine, recipesFor, stationsNear } from "./survival.js";
+import { SV_GOALS, canCraft, craft, missingLine, needLine, recipesFor, stationsNear } from "./survival.js";
 import { tone } from "./audio.js";
 
 export var hotbarEl = document.getElementById("hotbar");
@@ -838,22 +838,33 @@ export function renderCraft() {
   var st = stationsNear();
   if (S.forceStation) st[S.forceStation] = true;   // 우클릭해서 연 그 제작대·화로
   var list = recipesFor(st).slice();
-  list.sort(function (a, b) { return (canCraft(b) ? 1 : 0) - (canCraft(a) ? 1 : 0); });
+  // **지금 목표의 레시피를 맨 위로** (v152 · 자문 38차 B3) — 제작대 + 화로 옆에서는 레시피가 37줄이고(폰 가로에서 한 번에 12칸 ·
+  // 약 5화면 분량) 정렬은 「만들 수 있는 것 먼저」 뿐이었다. 재료가 모자라면 그 줄(철괴는 37번째)이 맨 아래라 아이는 5화면을 밀어야 했다.
+  // 회색이라도 목표의 줄은 위에 둔다 — 그 아래에 「모자라요」 가 적혀 있다
+  var goalOut = -1, gs = S.survival ? SV_GOALS[S.svStep | 0] : null;
+  if (gs && gs.key.indexOf("craft:") === 0) goalOut = parseInt(gs.key.slice(6), 10);
+  list.sort(function (a, b) {
+    var ga = a.out === goalOut ? 1 : 0, gb = b.out === goalOut ? 1 : 0;
+    if (ga !== gb) return gb - ga;
+    return (canCraft(b) ? 1 : 0) - (canCraft(a) ? 1 : 0);
+  });
   craftNote.textContent = !st.table ? "제작대 옆에서는 곡괭이·화로·문도 만들 수 있어요"
                         : (!st.furnace ? "제작대 옆입니다 · 화로 옆에서는 철괴·유리를 녹여요" : "제작대와 화로 옆입니다");
   craftList.innerHTML = "";
   list.forEach(function (r) {
     var b = document.createElement("button");
     b.type = "button";
-    b.className = "craft" + (canCraft(r) ? " ok" : "");
+    b.className = "craft" + (canCraft(r) ? " ok" : "") + (r.out === goalOut ? " goal" : "");
     b.disabled = !canCraft(r);
+    if (!canCraft(r)) b.title = "모자라요: " + missingLine(r);
     var cv = document.createElement("canvas");
     cv.width = cv.height = 64;
     drawIcon(cv, r.out);
     var t = document.createElement("span");
-    t.textContent = NAMES[r.out] + (r.n > 1 ? " ×" + r.n : "");
+    t.textContent = (r.out === goalOut ? "▶ " : "") + NAMES[r.out] + (r.n > 1 ? " ×" + r.n : "");
     var sm = document.createElement("small");
-    sm.textContent = needLine(r);
+    // 못 만들면 **무엇이 얼마나 모자란지** 말한다 (v152 · 자문 38차 #1) — 회색 줄에 이유가 없어 눌러도 아무 일이 없었다
+    sm.textContent = canCraft(r) ? needLine(r) : needLine(r) + " — 모자라요: " + missingLine(r);
     t.appendChild(sm);
     b.appendChild(cv); b.appendChild(t);
     b.setAttribute("aria-label", NAMES[r.out] + " 만들기 — " + needLine(r));

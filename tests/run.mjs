@@ -17282,6 +17282,91 @@ test("v151 튜토리얼 첫 줄이 조준을 말해 준다", async (page) => {
   assert(r.tt.indexOf("바라보고") >= 0, "폰 튜토리얼 첫 줄이 조준을 안 말한다: " + r.tt);
 });
 
+
+// ══ v152 — 자문 38차 (모으기 13단계 지급 없이) ═══════════════
+
+test("v152 모으기: 곡괭이 안내가 재료를 말하고 · 목표 문장이 개수를 말한다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true);
+    B.S.nextMode = 1; B.newWorld(4242); B.beginPlay();
+    B.S.inv = {}; B.S.bar = B.S.bar.map(() => K.AIR);
+    const out = {};
+    out.stone = B.needText(K.IRON);                 // 돌 곡괭이가 필요한 광석
+    out.iron = B.needText(K.DIAMOND);                // 철 곡괭이가 필요한 광석
+    out.wood = B.needText(K.STONE);                  // 나무 곡괭이 — 빈손·빈 가방이면 위로 올라가라는 꼬리도 붙는다
+    out.goal5 = B.SV_GOALS[4].text;
+    out.goal11 = B.SV_GOALS[11].text;
+    B.S.nextMode = 0; B.S.survival = false;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  assert(r.stone.indexOf("조약돌 3") >= 0 && r.stone.indexOf("막대기 2") >= 0, "돌 곡괭이 안내에 재료가 없다 — " + r.stone);
+  assert(r.iron.indexOf("철괴 3") >= 0, "철 곡괭이 안내에 재료가 없다 — " + r.iron);
+  assert(r.wood.indexOf("나무판자 3") >= 0, "나무 곡괭이 안내에 재료가 없다 — " + r.wood);
+  assert(r.wood.indexOf("F 로 날기") >= 0, "데스크톱 안내에 F 로 날기가 없다 — " + r.wood);
+  assert(r.stone.indexOf("멀면 판자 4개로 하나 더") >= 0, "제작대가 멀 때의 안내가 곧이곧대로 제작대를 하나 더 만들게 한다 — " + r.stone);
+  assert(r.goal5.indexOf("판자 3개") >= 0 && r.goal5.indexOf("원목은 모두 3개") >= 0, "5단계 문장이 필요한 개수를 안 말한다 — " + r.goal5);
+  assert(r.goal11.indexOf("서너 칸") >= 0 && r.goal11.indexOf("예닐곱") < 0, "다이아 문장이 실제 높이와 안 맞는다 — " + r.goal11);
+});
+
+phoneTest("v152 폰에서는 날기가 「F」 가 아니라 비행 버튼이다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true);
+    B.S.nextMode = 1; B.newWorld(4242); B.beginPlay();
+    B.S.inv = {}; B.S.bar = B.S.bar.map(() => K.AIR);
+    const t = B.needText(K.STONE);
+    B.S.nextMode = 0; B.S.survival = false;
+    B.endPlay(); B.setPaused(false);
+    return t;
+  });
+  assert(r.indexOf("비행 버튼") >= 0, "폰 안내가 비행 버튼을 말하지 않는다 — " + r);
+  assert(r.indexOf("F 로") < 0, "폰에 없는 F 키를 말한다 — " + r);
+});
+
+test("v152 모으기 제작 목록: 지금 목표의 레시피가 맨 위 · 못 만들면 모자란 것을 말한다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true);
+    B.S.nextMode = 1; B.newWorld(4242); B.beginPlay();
+    B.S.inv = {}; B.S.bar = B.S.bar.map(() => K.AIR);
+    // 가방에 판자 1 · 막대기 0 — 지금 목표는 5단계(나무 곡괭이: 판자 3 + 막대기 2)
+    B.addItem(K.PLANKS, 1);
+    B.S.svStep = 4; B.S.forceStation = "table";
+    B.openPicker(); B.renderCraft();
+    const btns = Array.from(document.querySelectorAll("#craft-list button"));
+    const first = btns[0];
+    const out = {
+      n: btns.length,
+      firstOut: first ? +first.getAttribute("data-out") : -1,
+      firstGoal: !!(first && first.classList.contains("goal")),
+      firstText: first ? first.textContent : "",
+      firstTitle: first ? first.title : "",
+      disabled: !!(first && first.disabled),
+      PICK_WOOD: K.PICK_WOOD
+    };
+    // 만들 수 있는 것이 목표 밑에 올라오는지 — 판자를 더 주면 목표 레시피가 활성화되며 여전히 맨 위
+    B.addItem(K.PLANKS, 20); B.addItem(K.STICK, 4);
+    B.renderCraft();
+    const first2 = document.querySelector("#craft-list button");
+    out.okNow = !!(first2 && !first2.disabled && +first2.getAttribute("data-out") === K.PICK_WOOD);
+    out.okText = first2 ? first2.textContent : "";
+    B.closePicker(true);
+    B.S.forceStation = null; B.S.nextMode = 0; B.S.survival = false;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  assert(r.n >= 8, "시험 준비: 제작 목록이 너무 짧다 (" + r.n + ")");
+  eq(r.firstOut, r.PICK_WOOD, "지금 목표(나무 곡괭이)의 레시피가 맨 위가 아니다");
+  assert(r.firstGoal && r.firstText.indexOf("▶") >= 0, "목표 줄이 표시되지 않았다 — " + r.firstText);
+  assert(r.disabled, "시험 준비: 재료가 모자라는데 만들 수 있다고 나온다");
+  assert(r.firstText.indexOf("모자라요") >= 0 && r.firstText.indexOf("막대기") >= 0, "모자란 재료를 말하지 않는다 — " + r.firstText);
+  assert(r.firstTitle.indexOf("모자라요") >= 0, "회색 단추에 이유(title)가 비어 있다");
+  assert(r.okNow, "재료가 차자 목표 레시피가 활성화된 채 맨 위여야 한다 — " + r.okText);
+  assert(r.okText.indexOf("모자라요") < 0, "만들 수 있는데 모자라다고 한다 — " + r.okText);
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
