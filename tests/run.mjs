@@ -17226,6 +17226,62 @@ phoneTest("v150 두 손가락을 올렸다가 시스템이 터치를 취소해�
   eq(selA, null, "터치가 취소된 뒤 손가락 하나로 톡 쳤는데 영역 모서리가 찍혔다 — " + JSON.stringify(selA));
 });
 
+
+// ══ v151 — 자문 37차 (첫 10분) ═══════════════════════════
+
+test("v151 새 세계: 잃을 것이 없는 빈 세계는 한 번에 만들고, 한 칸이라도 있으면 여전히 묻는다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    B.setPaused(true);
+    const alt = document.getElementById("alt"), go = document.getElementById("go"), seedIn = document.getElementById("seedin");
+    const out = {};
+    // (1) 빈 세계 — 놓은 것도 캔 것도 0 · 0분 · 놀던 중 아님
+    B.newWorld(777); B.S.started = false;
+    B.stats.placed = 0; B.stats.mined = 0;
+    B.saveGame();
+    B.refreshMenu();
+    out.goBlank = go.textContent;
+    seedIn.value = "424242";
+    const want = B.hashSeed("424242");
+    alt.click();                                      // 한 번이면 만들어져야 한다
+    out.created = B.S.worldSeed === want;
+    out.confirmAfter = B.S.confirmNew;
+    // (2) 한 칸이라도 지었으면 묻는다
+    B.endPlay();
+    B.newWorld(777); B.S.started = false;
+    B.stats.placed = 3; B.stats.mined = 0;
+    B.saveGame();
+    B.refreshMenu();
+    out.goBuilt = go.textContent;
+    seedIn.value = "515151";
+    const seed1 = B.S.worldSeed;
+    alt.click();
+    out.askedFirst = B.S.confirmNew && B.S.worldSeed === seed1;
+    out.label = alt.textContent;
+    // 뒷정리 — 확인 상태와 라벨을 되돌리고 통계도 비운다
+    B.S.confirmNew = false; alt.textContent = "새 세계"; seedIn.value = "";
+    B.stats.placed = 0; B.stats.mined = 0;
+    B.S.started = false;
+    B.setPaused(false);
+    return out;
+  });
+  assert(r.created, "빈 세계인데 새 세계 단추를 한 번 눌러도 안 만들어졌다 — 모으기를 고른 아이가 이 단추를 거친다");
+  eq(r.confirmAfter, false, "빈 세계인데 확인 상태가 남았다");
+  assert(r.goBlank === "플레이", "빈 세계인데 시작 단추가 「" + r.goBlank + "」 다 — 이을 것이 없다");
+  assert(r.askedFirst, "한 칸이라도 지었는데 묻지 않고 새 세계를 만들었다 — v110 의 보호가 풀렸다");
+  assert(r.label.indexOf("정말") >= 0, "묻는 라벨이 아니다 — " + r.label);
+  assert(r.goBuilt === "이어하기", "지은 세계인데 시작 단추가 「" + r.goBuilt + "」 다");
+});
+
+test("v151 튜토리얼 첫 줄이 조준을 말해 준다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    return { t: B.TUT[0], tt: B.TUT_TOUCH[0] };
+  });
+  assert(r.t.indexOf("바라보고") >= 0, "키보드 튜토리얼 첫 줄이 조준을 안 말한다 — 시작 시선이 허공이라 마우스만 누르고 있는 아이가 생긴다: " + r.t);
+  assert(r.tt.indexOf("바라보고") >= 0, "폰 튜토리얼 첫 줄이 조준을 안 말한다: " + r.tt);
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

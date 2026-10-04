@@ -13,7 +13,7 @@ import { villageMarks } from "./village.js";
 import { camera, crackMesh, renderer } from "./scene.js";
 import { applyTime } from "./daynight.js";
 import { applyOpts, applyFov, applyTbtn, applyUi, opts, saveOpts } from "./settings.js";
-import { EYE, currentShape, player, raycast, spawn } from "./player.js";
+import { EYE, currentShape, player, raycast, spawn, stats } from "./player.js";
 import { ac, setAudioAwake, startAmbient, tone } from "./audio.js";
 import { renameSlot, clearSave, SLOTS, backupLabel, dayLabel, restoreDay, needsHomeScreenHint, resetDayMark, exportWorld, hasBackup, hasSave, importWorldText, loadGame, restoreBackup, saveGame, slotInfo , rememberSlot, releaseLock, lockHeldByOther} from "./save.js";
 import { checkToken, isLinked, listWorlds, normalizeName, pullWorld, pushWorld, setToken, setWorldName, unlink, worldName } from "./cloud.js";
@@ -49,7 +49,7 @@ export var hintEl = document.getElementById("hint");
 // 이미 고쳤는데 키보드판이 그대로였다). 반대로 마을이 준 것 셋 —
 // **상인·동물 먹이·묘목** — 은 일곱 줄에 한 줄도 없었다. 지금은 그 셋이 가운데에 있다
 export var TUT = [
-  '먼저 <b>좌클릭</b>으로 블록을 캐보세요 — 단단한 것은 <b>누르고 있어야</b> 합니다',
+  '먼저 <b>땅이나 블록을 바라보고</b> <b>좌클릭</b>으로 캐보세요 — 단단한 것은 <b>누르고 있어야</b> 합니다',
   '이번엔 <b>우클릭</b>으로 블록을 놓아보세요',
   '<b>E</b> 를 눌러 블록 목록에서 다른 재료를 골라보세요',
   '마을 <b>시장</b>의 <b>상인</b>에게 <b>우클릭</b> — 선물을 줍니다 (<b>빈 칸</b>, 없으면 <b>0</b> 번 칸)',
@@ -60,7 +60,7 @@ export var TUT = [
 // 터치용 튜토리얼 — 단계 번호는 TUT 와 같게 맞춘다 (advanceTut 이 같은 인덱스를 쓴다).
 // 폰에는 마우스도 Alt 도 없으니 문구가 달라야 하고, 이 줄이 480px 아래에서 숨겨져 있어 평생 안 보였다.
 export var TUT_TOUCH = [
-  '먼저 <b>캐기</b> 버튼으로 블록을 캐보세요 — 단단한 것은 <b>누른 채로</b> 두세요',
+  '먼저 <b>땅이나 블록을 바라보고</b> <b>캐기</b> 버튼으로 캐보세요 — 단단한 것은 <b>누른 채로</b> 두세요',
   '이번엔 <b>놓기</b> 버튼으로 블록을 놓아보세요',
   '<b>목록</b> 버튼으로 다른 재료를 골라보세요',
   '마을 <b>시장</b>의 <b>상인</b>을 보고 <b>놓기</b> — 선물을 줍니다 (<b>빈 칸</b>, 없으면 <b>0</b> 번 칸)',
@@ -803,7 +803,7 @@ export function refreshMenu() {
   refreshKeyButtons();
   refreshCloud();
   if (S.started) goBtn.textContent = "계속하기";
-  else if (hasSave()) goBtn.textContent = "이어하기";
+  else if (hasSave() && !slotIsBlank()) goBtn.textContent = "이어하기";   // 0분 · 0칸 세계는 이을 것이 없다 (v151)
   else goBtn.textContent = "플레이";
   altBtn.textContent = "새 세계";
 }
@@ -904,13 +904,26 @@ export function requestPlay() {
 }
 
 goBtn.addEventListener("click", function (e) { e.stopPropagation(); requestPlay(); });
+// 지금 슬롯의 세계가 **잃을 것이 하나도 없는 빈 세계**인가 (v151 · 자문 37차 #1) — 놓은 것도 캔 것도 0 이고
+// 플레이 시간이 1분 밑이며 지금 놀던 중(`S.started`)도 아닐 때만. 하나라도 있으면 빈 세계가 아니다
+function slotIsBlank() {
+  if (S.started) return false;
+  // 메모리의 편집 수도 본다 — 저장 직전에는 저장된 칸보다 메모리가 앞서 있다
+  if (stats.placed + stats.mined > 0) return false;
+  var cur = slotInfo(S.slot);
+  return !cur || (cur.mins < 1 && !cur.placed && !cur.mined);
+}
 altBtn.addEventListener("click", function (e) {
   e.stopPropagation();
   // **언제나** 한 번 더 묻는다 (v110) — 세계는 되돌릴 수 없다.
   // 예전에는 "30칸 넘게 건드렸을 때" 만 물어서, **첫 5분의 초보만 무방비**였다
   // (29칸을 건드린 사람은 한 번 누르면 그대로 세계가 바뀐다).
   // CLAUDE.md 8번 규칙("파괴적 조작에는 확인을 건다")에 문턱을 둘 이유가 없다
-  if (!S.confirmNew) {
+  // **단, 잃을 것이 없는 빈 세계는 바로 만든다** (v151 · 자문 37차 #1) — 모으기 모드는 **새 세계를 만들 때만**
+  // 적용되어(지형처럼) 모으기를 고른 아이는 이 단추를 반드시 거치는데, 놓은 것도 캔 것도 0 인 「0분짜리 세계」 앞에서도
+  // 「정말? … 을 덮습니다」 가 떴다. 첫 클릭에 세계가 열렸다고 믿고 「플레이」 를 찾는 아이가 있었다(3.5초를 기다려도
+  // 같은 라벨). v110 의 「문턱을 둘 이유가 없다」 는 29칸을 건드린 초보를 지키려는 것이었고, **잃을 것이 0 인 세계**는 그 뜻 밖이다
+  if (!S.confirmNew && !slotIsBlank()) {
     S.confirmNew = true;
     // **무엇을 버리는지 부른다** (v121 · 자문 29차 #1) — "정말 새 세계?" 만으로는
     // 새로 만드는 데 왜 확인을 받는지 모른 채 한 번 더 누른다. 새 세계는 **지금 슬롯**을 덮는다
