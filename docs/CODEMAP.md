@@ -1,7 +1,7 @@
 <!-- 자동 생성 파일 — 직접 고치지 말고 `node tools/codemap.mjs` 를 다시 실행하세요 -->
 # CODEMAP — 코드 색인
 
-생성일 2026-10-04 · 모듈 31개 · 합계 16,376줄
+생성일 2026-10-06 · 모듈 31개 · 합계 16,395줄
 
 진입점은 `index.html` → `src/main.js`. 아래 표는 **의존 순서**로 정렬돼 있습니다 —
 위에 있는 모듈은 아래 모듈을 모릅니다(순환이 있는 곳은 함수 호출 시점에만 서로를 봅니다).
@@ -40,7 +40,7 @@
 | [`loop.js`](../src/loop.js) | 게임 루프 | 1145 | state · input · mobs · queues · dims · blocks · atlas · world · light · village · fluids · mesh · scene · daynight · settings · player · audio · save · edit · hud · atlas · survival · hand · body · mine · sky |
 | [`version.js`](../src/version.js) | 빌드 도장 (자동 생성) | 8 | — |
 | [`main.js`](../src/main.js) | 조립과 시작 | 344 | state · village · survival · tree · mobs · atlas · queues · dims · blocks · world · light · fluids · mesh · scene · daynight · settings · player · audio · save · cloud · edit · hud · hand · body · input · mine · sky · loop |
-| [`survival.js`](../src/survival.js) | 모으기 모드: 가방 · 캐면 얻기 · 곡괭이 단계 · 제작대/화로 제작 · 목표 한 줄 | 372 | state · blocks · world · player · dims · hud · input |
+| [`survival.js`](../src/survival.js) | 모으기 모드: 가방 · 캐면 얻기 · 곡괭이 단계 · 제작대/화로 제작 · 목표 한 줄 | 391 | state · blocks · world · player · dims · hud · input |
 
 ## 모듈별 공개 함수
 
@@ -714,13 +714,14 @@
 | `craft(r)` | 205 |
 | `stationsNear()` | 214 |
 | `recipesFor(st)` | 226 |
-| `doneWords(g)` | 259 |
-| `svGoalText()` | 267 |
-| `touchWords(t)` | 273 |
-| `svEvent(key)` | 280 |
-| `collect(b)` | 318 |
-| `leafDrop(b, x, y, z)` | 330 |
-| `enrichDiamonds(seed, rng)` | 343 |
-| `resetSurvival(on)` | 360 |
+| `svWatchesPlace(b)` | 267 |
+| `doneWords(g)` | 275 |
+| `svGoalText()` | 283 |
+| `touchWords(t)` | 289 |
+| `svEvent(key)` | 296 |
+| `collect(b)` | 337 |
+| `leafDrop(b, x, y, z)` | 349 |
+| `enrichDiamonds(seed, rng)` | 362 |
+| `resetSurvival(on)` | 379 |
 
 내보내는 값 — `RECIPES` · `SV_GOALS`

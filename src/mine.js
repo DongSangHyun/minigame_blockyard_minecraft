@@ -11,7 +11,7 @@ import { BODY, EYE, HALF, currentShape, player, raycast, stats } from "./player.
 import { breakSound, crunch, placeSound, tone } from "./audio.js";
 import { notePlaced, applyEdit, beginBatch, endBatch, unlock } from "./edit.js";
 import { noteBlockUse, openPicker, refreshSlot, toast } from "./hud.js";
-import { addItem, collect, invCount, isPick, josa, removeItem, svEvent } from "./survival.js";
+import { addItem, collect, invCount, isPick, josa, removeItem, svEvent, svWatchesPlace } from "./survival.js";
 import { triggerSwing, updateHandBlock } from "./hand.js";
 import { advanceTut } from "./input.js";
 
@@ -513,7 +513,7 @@ export function place(repeating) {
     removeItem(b, 1);
     // 덮어쓴 횃불·꽃·묘목은 가방으로 돌아온다 (자문 36차 #3) — 풀은 dropOf 가 없음으로 친다
     if (onCross) collect(hit.block);
-    if (b === CRAFT_TABLE || b === FURNACE) svEvent("place:" + b);
+    if (svWatchesPlace(b)) svEvent("place:" + b);     // 제작대 · 화로 · 문 · 횃불 — 목표에 걸린 것만 (v153)
   }
   advanceTut(1);
   // 4단계는 **어두운 곳에** 꽂았을 때만 (v110) — 06:00 대낮 잔디밭에서 통과하면

@@ -17367,6 +17367,65 @@ test("v152 모으기 제작 목록: 지금 목표의 레시피가 맨 위 · 못
   assert(r.okText.indexOf("모자라요") < 0, "만들 수 있는데 모자라다고 한다 — " + r.okText);
 });
 
+
+// ══ v153 — 모으기 13단계 뒤의 꾸미기 다섯 ═════════════════
+
+test("v153 모으기: 다이아 곡괭이 뒤에도 할 일이 이어진다(문 · 횃불 · 색 · 조명)", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true);
+    B.S.nextMode = 1; B.newWorld(4242); B.beginPlay();
+    B.S.inv = {}; B.S.bar = B.S.bar.map(() => K.AIR);
+    const out = { len: B.SV_GOALS.length, keys: B.SV_GOALS.slice(13).map((g) => g.key) };
+    // 13단계(다이아 곡괭이)를 막 이뤘다 — 예전에는 여기서 「모두 이뤘어요」 한 줄만 남았다
+    B.S.svStep = 12; B.S.svSeen = {};
+    B.svEvent("craft:" + K.PICK_DIAMOND);
+    out.afterDia = B.S.svStep; out.text13 = B.svGoalText();
+    // 옛 저장(svStep 13 = 완주)을 불러온 경우도 새 목표로 이어진다
+    B.S.svStep = 13; out.oldSave = B.svGoalText();
+    B.S.svStep = 13;
+    B.svEvent("craft:" + K.DOOR); out.afterDoorCraft = B.S.svStep;
+    // 제작대·화로가 아닌 「놓기」 는 둘레에 화로가 있어도 거짓으로 넘어가지 않는다 (옛 식은 「제작대 아니면 화로」)
+    const X = 44, Y = 50, Z = 44;
+    arena(B, X, Y, Z, 3);
+    B.set(X + 1, Y, Z, K.FURNACE);
+    B.player.pos.set(X + 0.5, Y, Z + 0.5);
+    B.svEvent("noop:0");
+    out.furnaceNearDoorStep = B.S.svStep;                 // 14 에 머물러야 한다
+    // 문을 놓는다(이벤트) → 횃불은 **실제 놓기 경로**로
+    B.svEvent("place:" + K.DOOR); out.afterDoorPlace = B.S.svStep;       // 15
+    B.addItem(K.TORCH, 1);
+    B.selectSlot(B.S.bar.indexOf(K.TORCH));
+    B.player.yaw = 0; B.player.pitch = -0.9;
+    B.camera.position.set(X + 0.5, Y + 1.62, Z + 0.5);
+    B.camera.rotation.set(-0.9, 0, 0, "YXZ"); B.camera.updateMatrixWorld(true);
+    B.place(false);
+    out.afterTorch = B.S.svStep;                           // 16
+    B.svEvent("craft:" + (B.WOOL0 + 4)); out.afterWool = B.S.svStep;      // 17
+    B.svEvent("craft:" + K.LAMP); out.afterLamp = B.S.svStep;             // 18 = 완주
+    out.done = B.svGoalText();
+    out.toast = document.getElementById("toast").textContent;
+    out.watch = [B.svWatchesPlace(K.DOOR), B.svWatchesPlace(K.TORCH), B.svWatchesPlace(K.CRAFT_TABLE), B.svWatchesPlace(K.STONE)];
+    B.S.nextMode = 0; B.S.survival = false;
+    B.endPlay(); B.setPaused(false);
+    return Object.assign(out, { DOOR: K.DOOR, TORCH: K.TORCH, LAMP: K.LAMP, WOOL0: B.WOOL0 });
+  });
+  eq(r.len, 18, "목표가 18개여야 한다(13 + 꾸미기 5)");
+  eq(r.keys.join(","), ["craft:" + r.DOOR, "place:" + r.DOOR, "place:" + r.TORCH, "craft:" + (r.WOOL0 + 4), "craft:" + r.LAMP].join(","), "꾸미기 다섯의 순서가 다르다");
+  eq(r.afterDia, 13, "다이아 곡괭이를 만들었는데 꾸미기로 안 넘어갔다(완주 처리됐다)");
+  assert(r.text13.indexOf("꾸며") >= 0, "13번째 목표 문장이 꾸미기가 아니다 — " + r.text13);
+  assert(r.oldSave.indexOf("꾸며") >= 0, "옛 저장(svStep 13)이 새 목표로 이어지지 않는다 — " + r.oldSave);
+  eq(r.afterDoorCraft, 14, "문을 만들었는데 안 넘어갔다");
+  eq(r.furnaceNearDoorStep, 14, "둘레에 화로가 있다고 문 놓기 목표가 거짓으로 넘어갔다");
+  eq(r.afterDoorPlace, 15, "문을 놓았는데 안 넘어갔다");
+  eq(r.afterTorch, 16, "실제 놓기 경로로 횃불을 놓았는데 목표가 안 넘어갔다 — place() 가 문·횃불을 안 알린다");
+  eq(r.afterWool, 17, "빨강 양털을 만들었는데 안 넘어갔다");
+  eq(r.afterLamp, 18, "조명을 만들었는데 안 넘어갔다");
+  eq(r.done, "", "다 이뤘는데 목표 문장이 남아 있다");
+  assert(r.toast.indexOf("이뤘어요") >= 0 && r.toast.indexOf("이뤄어요") < 0, "완주 토스트 문구가 틀렸다 — " + r.toast);
+  eq(r.watch.join(","), "true,true,true,false", "svWatchesPlace 가 목표에 걸린 블록만 알려야 한다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;

@@ -1,7 +1,7 @@
 // main.js — 조립과 시작
 import { S } from "./state.js";
 import { villageMarks } from "./village.js";
-import { addItem, removeItem, invCount, collect, dropOf, toolTier, needTier, canMine, RECIPES, craft, canCraft, recipesFor, stationsNear, svEvent, svGoalText, resetSurvival, SV_GOALS, leafDrop, needText, josa, enrichDiamonds, withRo } from "./survival.js";
+import { addItem, removeItem, invCount, collect, dropOf, toolTier, needTier, canMine, RECIPES, craft, canCraft, recipesFor, stationsNear, svEvent, svWatchesPlace, svGoalText, resetSurvival, SV_GOALS, leafDrop, needText, josa, enrichDiamonds, withRo } from "./survival.js";
 import { growTree } from "./tree.js";
 import { breedTick, isTrader, MOB_MAX, BREED_COOL, SHEAR_MS, dumpMobs, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, loadMobs, disposeMob, mobOccupies, aimedMob, removeMob, mobs, pushOutOfMobs, seedFlocks, seedMobs, seedVillage, updateFlocks, updateMobs } from "./mobs.js";
 import { atlasSample, SWATCH_SIDE, animateLiquids, atlas, painted, AVG_TOP, makeRng } from "./atlas.js";
@@ -191,7 +191,7 @@ window.__blockyard = {
   // 모으기 모드 (v134)
   MATERIALS: MATERIALS, addItem: addItem, removeItem: removeItem, invCount: invCount, collect: collect, dropOf: dropOf,
   toolTier: toolTier, needTier: needTier, canMine: canMine, RECIPES: RECIPES, craft: craft, canCraft: canCraft,
-  recipesFor: recipesFor, stationsNear: stationsNear, svEvent: svEvent, svGoalText: svGoalText,
+  recipesFor: recipesFor, stationsNear: stationsNear, svEvent: svEvent, svWatchesPlace: svWatchesPlace, svGoalText: svGoalText,
   resetSurvival: resetSurvival, SV_GOALS: SV_GOALS, leafDrop: leafDrop, needText: needText, josa: josa, enrichDiamonds: enrichDiamonds, withRo: withRo, makeRng: makeRng, achTotal: achTotal, CREATIVE_ONLY: CREATIVE_ONLY, playerMarkCount: playerMarkCount, renderCraft: renderCraft, nextMode: nextMode,
   selBox: selBox, selMat: selMat, SEL_DONE: SEL_DONE, SEL_ANCHOR: SEL_ANCHOR,
   seenMap: seenMap, seenRatio: seenRatio, markSeen: markSeen, hutSpots: hutSpots, setTouched: setTouched, tradeWith: tradeWith, rumorLine: rumorLine,
