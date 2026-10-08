@@ -17426,6 +17426,37 @@ test("v153 모으기: 다이아 곡괭이 뒤에도 할 일이 이어진다(문 
   eq(r.watch.join(","), "true,true,true,false", "svWatchesPlace 가 목표에 걸린 블록만 알려야 한다");
 });
 
+
+test("v153 모으기: 문을 **실제로 놓는** 경로(두 칸 · 모양)에서도 목표가 넘어간다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    B.setPaused(true);
+    B.S.nextMode = 1; B.newWorld(4242); B.beginPlay();
+    B.S.inv = {}; B.S.bar = B.S.bar.map(() => K.AIR);
+    const X = 44, Y = 50, Z = 44;
+    arena(B, X, Y, Z, 3);
+    B.addItem(K.DOOR, 3);
+    B.selectSlot(B.S.bar.indexOf(K.DOOR));
+    B.S.svStep = 14; B.S.svSeen = {};              // 「문을 집 입구에 놓아 보세요」
+    // 앞쪽 바닥을 내려다본다 — 문은 서 있는 쪽을 바라보게 놓이고 위칸도 비어 있어야 한다
+    B.player.pos.set(X + 0.5, Y, Z + 0.5); B.player.yaw = 0; B.player.pitch = -0.9;
+    B.camera.position.set(X + 0.5, Y + 1.62, Z + 0.5);
+    B.camera.rotation.set(-0.9, 0, 0, "YXZ"); B.camera.updateMatrixWorld(true);
+    let doors = 0;
+    const before = B.invCount ? B.invCount(K.DOOR) : -1;
+    B.place(false);
+    for (let a = -3; a <= 3; a++) for (let c = -3; c <= 3; c++) for (let dy = 0; dy <= 1; dy++)
+      if (B.get(X + a, Y + dy, Z + c) === K.DOOR) doors++;
+    const out = { doors, step: B.S.svStep, left: B.invCount ? B.invCount(K.DOOR) : -1, before };
+    B.S.nextMode = 0; B.S.survival = false;
+    B.endPlay(); B.setPaused(false);
+    return out;
+  });
+  eq(r.doors, 2, "문이 두 칸으로 안 놓였다 (" + r.doors + ") — 시험 준비");
+  eq(r.step, 15, "문을 실제로 놓았는데 목표가 안 넘어갔다 — 문 갈래가 훅 앞에서 빠져나간다 (svStep " + r.step + ")");
+  eq(r.left, r.before - 1, "문 한 번에 가방에서 한 개가 빠져야 한다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
