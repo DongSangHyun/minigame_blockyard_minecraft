@@ -3,12 +3,13 @@ import { S } from "./state.js";
 import { villageMarks } from "./village.js";
 import { addItem, removeItem, invCount, collect, dropOf, toolTier, needTier, canMine, RECIPES, craft, canCraft, recipesFor, stationsNear, svEvent, svWatchesPlace, svGoalText, resetSurvival, SV_GOALS, leafDrop, needText, josa, enrichDiamonds, withRo } from "./survival.js";
 import { growTree } from "./tree.js";
+import { disposeNpc, dumpNpc, loadNpc, npc, npcMapPos, pickSite, planSteps, rot, resetNpc, standAt, updateNpc } from "./npc.js";
 import { breedTick, isTrader, MOB_MAX, BREED_COOL, SHEAR_MS, dumpMobs, MOB_KINDS, aimingAtMob, birds, feedNearbyMob, fish, loadMobs, disposeMob, mobOccupies, aimedMob, removeMob, mobs, pushOutOfMobs, seedFlocks, seedMobs, seedVillage, updateFlocks, updateMobs } from "./mobs.js";
 import { atlasSample, SWATCH_SIDE, animateLiquids, atlas, painted, AVG_TOP, makeRng } from "./atlas.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, CX, CY, CZ, LEGACY_WY, N, SEA, GEN, setGen, seaLift, WX, WY, WZ, idx, inside } from "./dims.js";
 import { MATERIALS, CRAFT_TABLE, FURNACE, STICK, PICK_WOOD, PICK_STONE, PICK_IRON, PICK_DIAMOND, IRON_INGOT, GOLD_INGOT, COAL_LUMP, DIAMOND_GEM, WALL_DIR, hasShapes, DEFAULT_BAR, isThin, needsFloor, needsWall, STAINED0, STAINED_COUNT, isStained, SANDSTONE, STONEBRICK, POT, FRAME, BUCKET, BOOKSHELF, CARPET, CARPET0, CARPET_COUNT, isCarpet, SH_STAIR_NU, SH_STAIR_EU, SH_STAIR_SU, SH_STAIR_WU, isStairShape, SAPLING, SAPLING_BIRCH, SAPLING_SPRUCE, isSapling, doorOpen, doorFacing, doorShapeFor, DOOR, AIR, ALL_BLOCKS, BEDROCK, BIRCH_LEAVES, BIRCH_LOG, SPRUCE_LOG, BRICK, CACTUS, COAL, COBBLE, CROSS, DEADBUSH, DEFAULT_BAR2, DIAMOND, DIRT, DRYGRASS, FENCE, FIRE, FLINT, FLOWER_R, FLOWER_Y, GATE, GLASS, GOLD, GRASS, GRAVEL, ICE, IRON, ITEMS, LADDER, LAMP, LAVA, LEAVES, LOG, NAMES, PANE, PLANKS, SAND, SHAPE_BOXES, SHAPE_NAMES, SH_AXIS_X, SH_AXIS_Z, SH_FULL, SH_SLAB, SH_SLAB_UP, SH_STAIR_E, SH_STAIR_N, SH_STAIR_S, SH_STAIR_W, SH_WALL_E, SH_WALL_N, SH_WALL_S, SH_WALL_W, SNOW, SPRUCE_LEAVES, STONE, TALLGRASS, TILES, TNT, TORCH, WATER, WOOL0, WOOL_COLORS, WOOL_COUNT, blocksLight, categoryOf, connectsTo, crossOffset, faceKindFor, hardnessOf, isClimbable, isConnecting, isCross, isFlammable, isItem, isLeaf, isLiquid, isLog, isOpenable, isSolid, isTransparent, isUnbreakable, isWallShape, isWool, lightPass, wallShapeFor } from "./blocks.js";
-import { hutSpots, markX, markY, markZ, markName, SEEN_TOP, SEEN_UNDER, SEEN_UNDER_ALL, UNDER_BANDS, underBand, expandLegacySeen, seenMap, seenRatio, markSeen, biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBoxes, heightMap, isTouched, markTouched, setTouched, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, touched, waterLvl, world , oreCeil, lavaTop} from "./world.js";
+import { hutSpots, markX, markY, markZ, markName, SEEN_TOP, SEEN_UNDER, SEEN_UNDER_ALL, UNDER_BANDS, underBand, expandLegacySeen, seenMap, seenRatio, markSeen, biomeMap, boxesAt, crossBase, dynamicBoxes, generate, get, hasDynamicBoxes, heightMap, isTouched, markNpcBuilt, markTouched, setTouched, refreshAllTops, refreshTop, set, shape, shapeAt, surfaceTop, topMap, touched, waterLvl, world , oreCeil, lavaTop} from "./world.js";
 import { WATER_DIM, lightBlk, lightSky, relightAll, relightLocal } from "./light.js";
 import { growTick, enqueueGrow, lavaFlowTick, lavaDryTick, LAVA_FLOW, grassTick, primeTNT, primeTick, TNT_FUSE, lavaTick, BLAST_R, FIRE_REACH, MAXFLOW, FALLING, decayTick, dryTick, enqueueDryAround, enqueueFall, enqueueFreeze, enqueueWaterAround, explode, fallTick, fireTick, freezeTick, ignite, isFalling, queueLeafDecay, waterTick } from "./fluids.js";
 import { markDirty, FACE_UV, buildBudget, buildChunk, chunkCX, chunkCY, chunkCZ, chunkFilled, chunkId, dirty, glassMeshes, markAllDirty, opaqueMeshes, rebuildAll, setBuildFocus } from "./mesh.js";
@@ -245,7 +246,7 @@ window.__blockyard = {
   cloudGroup: cloudGroup, applyTime: applyTime,
   setBuildFocus: setBuildFocus, autoTuneFar: autoTuneFar, farNow: farNow, CH: CH,
   touchLock: touchLock, lockHeldByOther: lockHeldByOther, releaseLock: releaseLock,
-  isTouched: isTouched, markTouched: markTouched, OPT_KEY: OPT_KEY, refreshAchList: refreshAchList,
+  isTouched: isTouched, markTouched: markTouched, markNpcBuilt: markNpcBuilt, OPT_KEY: OPT_KEY, refreshAchList: refreshAchList,
   FIRE_REACH: FIRE_REACH, aimingAtMob: aimingAtMob,
   runCommand: runCommand, CMD_HELP: CMD_HELP, completeCommand: completeCommand, CMD_LIST: CMD_LIST, openCmd: openCmd, closeCmd: closeCmd,
   stats: stats, DEFAULT_BAR2: DEFAULT_BAR2, ITEMS: ITEMS, isItem: isItem, touched: touched, pollGamepad: pollGamepad, pollGamepadMenu: pollGamepadMenu, padState: padState, clockText: clockText,
@@ -272,6 +273,8 @@ window.__blockyard = {
   isStairShape: isStairShape, copySelection: copySelection, pasteClip: pasteClip,
   selectionBounds: selectionBounds, selectionSize: selectionSize, REGION_MAX: REGION_MAX,
   beginBatch: beginBatch, endBatch: endBatch, updateSelectionBox: updateSelectionBox,
+  getNpc: function () { return npc; }, updateNpc: updateNpc, resetNpc: resetNpc, loadNpc: loadNpc, dumpNpc: dumpNpc,
+  disposeNpc: disposeNpc, npcMapPos: npcMapPos, planSteps: planSteps, npcRot: rot, pickSite: pickSite, npcStandAt: standAt,
   mobs: mobs, updateMobs: updateMobs, seedMobs: seedMobs, MOB_KINDS: MOB_KINDS,
   seedVillage: seedVillage, villageMarks: villageMarks, isTrader: isTrader,
   loadMobs: loadMobs, disposeMob: disposeMob, mobOccupies: mobOccupies,

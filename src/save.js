@@ -6,6 +6,7 @@ import { hutSpots, seenMap, expandLegacySeen, touched, refreshAllTops, snapshotS
 
 import { player, stats } from "./player.js";
 import { dumpMobs, loadMobs, mobs, isTrader } from "./mobs.js";
+import { dumpNpc, loadNpc } from "./npc.js";
 import { villageAt } from "./village.js";
 import { toast } from "./hud.js";
 import { applyWeather } from "./sky.js";
@@ -218,6 +219,7 @@ export function saveGame() {
       ach: S.earned, kinds: S.placedKinds, lamps: S.lampsPlaced, torches: S.torchesPlaced,
       secs: Math.round(S.playSeconds), tut: S.tut, at: Date.now(),   // at — 슬롯 목록의 "3시간 전"
       tc: encodeArrB64(touched),   // 사람이 손댄 칸 — 없으면 이어하기 때 날씨·잔디가 내 건축물을 다시 건드린다
+      np: dumpNpc(),               // 건축가 — 지은 집·모은 재료·짓던 단계. 필드만 늘어 v 는 그대로다
       mb: dumpMobs(),              // 동물 — 없으면 목장이 탭 하나 닫으면 빈 우리가 된다
       mm: encodeArrB64(seenMap),   // 걸어서 밝힌 지도 — 칸마다 0~3 이라 몇 백 바이트다
       sp: S.spawnPoint, marks: S.marks, bar2: S.barAlt, bp: S.barPage, fly: S.flySpeed, tt: S.terrain,
@@ -301,6 +303,7 @@ export function loadGame() {
     if (d.tc) decodeArrB64(d.tc, touched);   // 0/1 이라 RLE 가 잘 먹어 몇 KB 안 된다
     // 예전 저장(mb 없음)은 부를 때 새로 뿌린다 — 호출부가 판단하게 결과를 남긴다
     S.mobsRestored = loadMobs(d.mb);
+    loadNpc(d.np);                // 옛 저장에는 없다 — 그때는 처음 켜질 때 마을 곁에 새로 선다
     // **마을을 되살린다** (v122) — 예전에는 `S.village` 가 생성기 안에서만 채워져서,
     // 다시 켠 세계에서는 「마을로」·`/tp 마을`·마을 불 보호·상인 고정이 전부 꺼졌다.
     // v115~v121 저장에는 `vg` 가 없다 — **상인이 선 자리에서 거꾸로** 구한다

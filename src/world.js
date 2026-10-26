@@ -280,6 +280,15 @@ export function seenRatio() {
 export function markTouched(x, y, z) {
   if (inside(x, y, z)) touched[idx(x, y, z)] = 1;
 }
+// 건축가(NPC)가 지은 칸 — 값 2. 「사람이 손댄 칸」(1) 이 아니라서 과제(건축 블록 수·문·양털 색·탑)가 세지 않고,
+// 되돌리기에도 안 든다. 저장에는 그대로 실린다(`tc` 는 바이트 배열이다). 사람이 이 칸을 고치면 1 이 된다
+export function markNpcBuilt(x, y, z) {
+  if (inside(x, y, z) && touched[idx(x, y, z)] === 0) touched[idx(x, y, z)] = 2;
+}
+// 사람이든 건축가든 **누군가 지은 칸** — 자연이 아닌 것. 건축가가 제 집 원목을 나무로 알고 베지 않게 (값 1 또는 2)
+export function isBuilt(x, y, z) {
+  return inside(x, y, z) ? touched[idx(x, y, z)] !== 0 : false;
+}
 export function isTouched(x, y, z) {
   return inside(x, y, z) ? touched[idx(x, y, z)] === 1 : false;
 }
@@ -347,7 +356,10 @@ export function oreCeil() {
 // 용암이 고이는 높이 상한 — 지하 두께를 따라간다. 시험도 여기를 읽는다.
 export function lavaTop() { return SEA > 11 ? 12 : 4; }
 
+// 세계를 새로 만든 횟수 — 건축가가 「이 세계의 사람인가」 를 가린다(옛 세계의 집 목록을 들고 새 세계에서 일하지 않게)
+export var worldGen = 0;
 export function generate(seed, gen) {
+  worldGen++;
   S.worldSeed = seed >>> 0;
   world.fill(AIR);
   shape.fill(SH_FULL);

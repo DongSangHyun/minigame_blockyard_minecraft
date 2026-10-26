@@ -11,6 +11,7 @@ import { updateHandBlock } from "./hand.js";
 import { advanceTut, canvas, isTouch } from "./input.js";
 import { SV_GOALS, canCraft, craft, missingLine, needLine, recipesFor, stationsNear } from "./survival.js";
 import { tone } from "./audio.js";
+import { npcMapPos } from "./npc.js";
 
 export var hotbarEl = document.getElementById("hotbar");
 export var slotCanvases = [];
@@ -666,6 +667,20 @@ export function drawMinimapTo(ctx, scale, full) {
     ctx.lineWidth = 1.4 * Math.sqrt(scale);
     ctx.strokeStyle = "#e89640";
     ctx.stroke();
+  }
+  // 건축가 — 초록 점. 지상 지도에서만 (지하 단면에는 위층 사람이 없다)
+  var npcAt = S.mmUnder ? null : npcMapPos();
+  if (npcAt) {
+    var npx = (npcAt[0] - x0) * sx, npz = (npcAt[1] - z0) * sz;
+    if (npx > 1 && npz > 1 && npx < MW - 1 && npz < MH - 1) {
+      ctx.beginPath();
+      ctx.arc(npx, npz, 2.3 * Math.sqrt(scale) * (opts.contrast ? 1.35 : 1), 0, Math.PI * 2);
+      ctx.fillStyle = "#58d68d";
+      ctx.fill();
+      ctx.lineWidth = 1 * Math.sqrt(scale);
+      ctx.strokeStyle = "rgba(10,30,16,.95)";
+      ctx.stroke();
+    }
   }
   for (var mi = 0; mi < S.marks.length; mi++) {
     var mk = S.marks[mi];

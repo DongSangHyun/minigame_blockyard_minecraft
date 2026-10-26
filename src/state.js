@@ -110,6 +110,7 @@ export const S = {
   // 마우스를 못 쓰는 사람을 위해 만든 기능이 마우스 상태에 매여 있었다
   keyMine: false, keyPlace: false,
   village: null,         // 시작 마을이 놓인 자리 (v115 · 생성기가 채운다)
+  npcOff: false,         // 건축가를 멈춘다 — 저장하지 않는다. 「가만히 있는 세계」를 재는 시험이 쓴다(건축가의 편집은 정당한 저장 거리다)
   noSave: false,         // 링크로 받은 세계 — 남의 슬롯을 안 덮는다 (v116)
   nextTerrain: null,
   welcomeBack: false,    // 세 시간 넘게 지나 다시 켰다 — 아침·인사 (v122)

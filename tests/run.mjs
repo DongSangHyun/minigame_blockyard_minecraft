@@ -14392,6 +14392,7 @@ test("v125 오래 켜 둔 세계: 불이 큐와 저장을 안 불리고, 다시 
     const v = B.S.village;
     const keepW = B.S.weather, keepLock = B.S.weatherLock;
     B.S.weather = 0; B.S.weatherMix = 0; B.S.weatherLock = true;
+    B.S.npcOff = true;       // 건축가가 나무를 베고 집을 짓는 것은 정당한 저장 거리다 — 이 시험은 「가만히 있는 세계」를 잰다
 
     // (1) 마을 안의 **꺼지지 않는 불** — 큐가 자라지 않고 저장 거리를 안 만든다
     // 광장 남동쪽 빈자리 — (v.x+6, v.z-6) 은 벽돌집 남쪽 벽이라 불이 안 붙었다
@@ -14407,6 +14408,7 @@ test("v125 오래 켜 둔 세계: 불이 큐와 저장을 안 불리고, 다시 
     }
     const qLen = B.Q.fireQ.length;
     const stillBurning = B.get(fx, v.h + 1, fz + 1) === B.B.FIRE;
+    B.S.npcOff = false;
 
     // (2) 저장했다가 다시 켜면 불이 다시 큐에 든다 — 얼어붙지 않는다
     // v140 부터 마을 안 불은 번지지 않고 **사그라진다** — 막 붙인 불로 잰다
@@ -17457,6 +17459,193 @@ test("v153 모으기: 문을 **실제로 놓는** 경로(두 칸 · 모양)에�
   eq(r.left, r.before - 1, "문 한 번에 가방에서 한 개가 빠져야 한다");
 });
 
+// ── v154 건축가 NPC ───────────────────────────────────
+// 시험 공통 — 새 세계를 열고 낮에 고정한 채 건축가를 한 틱(0.1초)씩 돌린다. 화면 틱 없이 순수 계산이다
+const NPC_BOOT = `
+  function npcBoot(B, seed) {
+    B.setPaused(true);
+    B.S.nextMode = 0; B.newWorld(seed || 4242); B.beginPlay();
+    B.S.timeOfDay = 0.4;
+    B.resetNpc();
+    B.updateNpc(0.1);
+    return B.getNpc();
+  }
+  // ticks 번까지 돌리고, until(n) 이 참이 되면 그 틱 번호를 돌려준다(못 되면 -1)
+  function npcRun(B, ticks, clock, until) {
+    for (var t = 0; t < ticks; t++) {
+      B.S.timeOfDay = clock;
+      B.updateNpc(0.1);
+      if (until && until(B.getNpc())) return t;
+    }
+    return -1;
+  }
+`;
+test("v154 건축가: 새 세계에 한 명이 서고 · 이름표가 붙고 · 저장 칸이 채워진다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const n = window.npcBoot(B, 4242);
+    const out = { has: !!n };
+    if (n) {
+      out.stand = B.npcStandAt(Math.floor(n.x), Math.floor(n.z), n.y);
+      out.y = n.y; out.tag = n.g.children.some((c) => c.isSprite);
+      out.d = B.dumpNpc();
+    }
+    B.setPaused(false);
+    return out;
+  });
+  assert(r.has, "건축가가 안 섰다");
+  assert(r.stand >= 0 && Math.abs(r.stand - r.y) <= 1.01, "서 있을 수 없는 자리에 섰다 (stand " + r.stand + " · y " + r.y + ")");
+  assert(r.tag, "이름표(스프라이트)가 없다");
+  assert(r.d && typeof r.d === "object" && "wd" in r.d && "h" in r.d && "an" in r.d, "저장 칸이 비었다: " + JSON.stringify(r.d));
+});
+
+test("v154 건축가: 나무를 베어 재료를 모은다 (원목이 줄고 · 재료가 는다)", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    const n0 = window.npcBoot(B, 4242);
+    const countLogs = () => { let c = 0; for (let i = 0; i < B.N; i++) { const b = B.world[i]; if (b === 5 || b === 27 || b === 80) c++; } return c; };
+    n0.plan = null; n0.cool = 9999;            // 짓지 말고 모으기만 본다
+    const before = countLogs(), w0 = n0.wood;
+    const got = window.npcRun(B, 4000, 0.4, (n) => n.wood >= w0 + 5);
+    const out = { got, before, after: countLogs(), wood: B.getNpc().wood - w0 };
+    B.setPaused(false);
+    return out;
+  });
+  assert(r.got >= 0, "400초 안에 재료가 안 늘었다 (wood +" + r.wood + ")");
+  assert(r.after < r.before, "재료는 늘었는데 원목이 안 줄었다 (" + r.before + " → " + r.after + ")");
+});
+
+test("v154 건축가: 집을 끝까지 짓는다 — 바닥·벽·창·지붕·문, 사람이 놓은 칸은 그대로", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    window.npcBoot(B, 4242);
+    // 계획이 서면 지붕 한가운데에 **내가 놓은** 돌을 하나 얹어 둔다 — 건축가가 덮으면 안 된다
+    let mine = null;
+    window.npcRun(B, 3000, 0.4, (n) => n.plan);
+    const p0 = B.getNpc().plan;
+    if (p0) {
+      mine = [p0.x, p0.g + 4, p0.z];
+      B.applyEdit(mine[0], mine[1], mine[2], K.STONE, true);
+    }
+    const done = window.npcRun(B, 20000, 0.4, (n) => n.houses.length >= 1);
+    const n = B.getNpc(), out = { done, planned: !!p0, houses: n.houses.length };
+    if (n.houses.length) {
+      const h = n.houses[0];
+      // 설계의 놓기 단계(방식 0)가 세계와 맞는지 센다 — 내 돌 자리만 빼고
+      const steps = B.planSteps(h[0], h[1], h[2], h[3]);
+      let want = 0, ok = 0, bad = [];
+      for (const s of steps) {
+        if (s[5] !== 0) continue;
+        if (mine && s[0] === mine[0] && s[1] === mine[1] && s[2] === mine[2]) continue;
+        want++;
+        if (B.get(s[0], s[1], s[2]) === s[3]) ok++; else if (bad.length < 4) bad.push(s.slice(0, 4).join(","));
+      }
+      out.want = want; out.ok = ok; out.bad = bad;
+      out.mineStill = mine ? B.get(mine[0], mine[1], mine[2]) === K.STONE : null;
+      // 지은 칸은 「건축가가 지은 칸」(2) — 사람이 손댄 칸(1)이 아니라서 과제가 세지 않는다
+      out.floorMark = B.touched[B.idx(h[0], h[2], h[1])];
+      let ones = 0; for (let i = 0; i < B.N; i++) if (B.touched[i] === 1) ones++;
+      out.ones = ones;
+      let doors = 0, glass = 0;
+      for (const s of steps) { if (s[3] === K.DOOR && B.get(s[0], s[1], s[2]) === K.DOOR) doors++; if (s[3] === K.GLASS && B.get(s[0], s[1], s[2]) === K.GLASS) glass++; }
+      out.doors = doors; out.glass = glass; out.h = h;
+    }
+    B.setPaused(false);
+    return out;
+  });
+  assert(r.planned, "집 터를 못 잡았다");
+  assert(r.done >= 0 && r.houses === 1, "집이 안 끝났다 (houses " + r.houses + ")");
+  eq(r.ok, r.want, "설계와 다른 칸이 있다: " + r.bad.join(" | "));
+  eq(r.doors, 2, "문이 두 칸이어야 한다");
+  eq(r.glass, 3, "창이 셋이어야 한다");
+  assert(r.mineStill === true, "사람이 놓은 돌을 덮었다");
+  eq(r.floorMark, 2, "지은 칸에 「건축가가 지은 칸」(2) 표시가 없다");
+  eq(r.ones, 1, "건축가의 집이 「사람이 손댄 칸」으로 세어졌다 — 과제(건축 블록 수·문·양털 색)가 공짜로 열린다 (1 인 칸 " + r.ones + ", 내 돌 하나여야)");
+});
+
+test("v154 건축가: 밤에는 제 집에 들어가 쉬고 · 낮이 되면 다시 나선다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    window.npcBoot(B, 4242);
+    window.npcRun(B, 20000, 0.4, (n) => n.houses.length >= 1);
+    const out = { houses: B.getNpc().houses.length };
+    if (!out.houses) { B.setPaused(false); return out; }
+    const h = B.getNpc().houses[0];
+    out.sleepAt = window.npcRun(B, 6000, 0.0, (n) => n.act === "sleep");
+    const n = B.getNpc();
+    out.inside = Math.abs(n.x - (h[0] + 0.5)) < 2.4 && Math.abs(n.z - (h[1] + 0.5)) < 2.4 && Math.abs(n.y - (h[2] + 1)) < 1.6;
+    out.pos = [n.x, n.y, n.z]; out.house = h;
+    out.wakeAt = window.npcRun(B, 3000, 0.4, (m) => m.act !== "sleep");
+    B.setPaused(false);
+    return out;
+  });
+  assert(r.houses === 1, "집이 없어 밤 시험을 못 한다");
+  assert(r.sleepAt >= 0, "밤이 됐는데 쉬러 가지 않았다");
+  assert(r.inside, "쉬는 자리가 집 밖이다 " + JSON.stringify(r.pos) + " · 집 " + JSON.stringify(r.house));
+  assert(r.wakeAt >= 0, "낮이 됐는데 계속 잔다");
+});
+
+test("v154 건축가: 저장 왕복 — 짓던 단계와 재료를 이어받고 · 옛 저장(칸 없음)은 새로 선다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard;
+    window.npcBoot(B, 4242);
+    window.npcRun(B, 4000, 0.4, (n) => n.plan && n.plan.i >= 80);
+    const a = B.getNpc();
+    const d = JSON.parse(JSON.stringify(B.dumpNpc()));
+    const out = { i0: a.plan ? a.plan.i : -1, wood0: a.wood, x0: a.x, z0: a.z, d };
+    // 실제 저장 경로를 거친다 — saveGame 이 np 를 싣는가
+    B.saveGame();
+    const raw = JSON.parse(localStorage.getItem("blockyard.save"));
+    out.savedNp = !!(raw && raw.np && raw.np.b);
+    B.resetNpc(); B.loadNpc(d); B.updateNpc(0.1);
+    const b = B.getNpc();
+    out.i1 = b.plan ? b.plan.i : -1; out.wood1 = b.wood; out.dx = Math.hypot(b.x - a.x, b.z - a.z);
+    out.fin = window.npcRun(B, 20000, 0.4, (n) => n.houses.length >= 1);
+    // 옛 저장 — np 가 없다
+    B.loadNpc(undefined); B.updateNpc(0.1);
+    out.fresh = !!B.getNpc() && B.getNpc().houses.length === 0 && !B.getNpc().plan;
+    B.setPaused(false);
+    return out;
+  });
+  assert(r.i0 >= 80, "짓는 중까지 못 갔다 (i " + r.i0 + ")");
+  assert(r.savedNp, "saveGame 이 건축가(np)를 안 싣는다");
+  assert(r.i1 >= r.d.b[3] && r.i1 <= r.d.b[3] + 80, "짓던 단계를 못 이어받았다 (" + r.d.b[3] + " → " + r.i1 + ")");
+  near(r.wood1, r.wood0, 25, "재료가 안 이어졌다");
+  assert(r.dx < 1.5, "서 있던 자리가 달라졌다 (" + r.dx.toFixed(1) + "칸)");
+  assert(r.fin >= 0, "불러온 뒤 집을 못 끝냈다");
+  assert(r.fresh, "옛 저장(np 없음)에서 새 건축가가 안 섰다");
+});
+
+test("v154 건축가: 내가 서 있는 칸에는 벽을 안 올린다 — 비킬 때까지 기다린다", async (page) => {
+  const r = await page.evaluate(() => {
+    const B = window.__blockyard, K = B.B;
+    window.npcBoot(B, 4242);
+    window.npcRun(B, 3000, 0.4, (n) => n.plan);
+    const n = B.getNpc(), p = n.plan;
+    n.wood = 999;
+    // 첫 벽 단계(판자, 바닥보다 한 층 위)로 건너뛴다
+    let k = -1;
+    for (let i = 0; i < p.steps.length; i++) { const s = p.steps[i]; if (s[3] === K.PLANKS && s[1] === p.g + 1 && s[5] === 0) { k = i; break; } }
+    p.i = k;
+    const s = p.steps[k];
+    // 내가 그 칸에 선다 — 건축가는 걸어와 그 칸 앞에서 기다려야 한다
+    B.player.flying = false;
+    B.player.pos.set(s[0] + 0.5, s[1], s[2] + 0.5);
+    p.i = k;
+    window.npcRun(B, 150, 0.4, null);
+    const blocked = B.get(s[0], s[1], s[2]) !== K.PLANKS;
+    const stayed = p.i === k;
+    B.player.pos.set(s[0] + 0.5 + 6, s[1] + 20, s[2] + 0.5);   // 비킨다
+    window.npcRun(B, 600, 0.4, null);
+    const placed = B.get(s[0], s[1], s[2]) === K.PLANKS;
+    B.setPaused(false);
+    return { blocked, stayed, placed, k };
+  });
+  assert(r.k >= 0, "벽 단계를 못 찾았다");
+  assert(r.blocked, "내가 서 있는 칸에 벽을 올렸다");
+  assert(r.placed, "내가 비켰는데도 안 올린다");
+});
+
 // ── 실행 ───────────────────────────────────────────────
 const browser = await launch();
 let totalFail = 0, totalPass = 0;
@@ -17470,6 +17659,7 @@ for (let round = 1; round <= REPEAT; round++) {
     if (FILTER && !t.name.includes(FILTER)) continue;
     try {
       await page.evaluate("(function(){" + ARENA + "\nwindow.arena = arena;})()");
+      await page.evaluate("(function(){" + NPC_BOOT + "\nwindow.npcBoot = npcBoot; window.npcRun = npcRun;})()");
       await t.fn(page, errors);
       pass++;
     } catch (e) {

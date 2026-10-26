@@ -1,6 +1,7 @@
 // loop.js — 게임 루프
 import { S } from "./state.js";
 import { padState, pollGamepad, pollGamepadMenu, arrowLookTick, tutDone, TUT_LEN, selectionText, torchSlotText } from "./input.js";
+import { resetNpc, updateNpc } from "./npc.js";
 import { breedTick, MOB_KINDS, aimedMob, removeMob, pushOutOfMobs, seedFlocks, seedMobs, seedVillage, updateFlocks, updateMobs } from "./mobs.js";
 import { Q, resetQueues } from "./queues.js";
 import { CH, CX, CZ, SEA, WX, WY, WZ, idx, inside } from "./dims.js";
@@ -120,6 +121,7 @@ export function newWorld(seed) {
   S.selA = S.selB = null;
   S.clip = null;
   seedMobs();
+  resetNpc();                    // 건축가는 새 세계에서 새로 선다 — 지난 세계의 집 목록을 들고 오지 않게
   seedVillage(S.village);        // 우리에 동물 넷, 가판에 상인 하나 (v115)
   S.marks = villageMarks(S.village);   // 지도에 「시장 · 광산 · 우리」
   // 시작 지점을 마을로 못 박는다 (v117) — 지도의 **집 모양**이 그때까지 한 번도 안 떴다.
@@ -434,6 +436,7 @@ export function step(dt) {
   // (구름·해·동물이 도는 것이 그 화면의 배경이다). S.started 로 가른다
   if (S.active || !S.started) {
     updateMobs(dt);
+    if (S.active && !S.npcOff) updateNpc(dt);     // 시작 화면에서는 안 일한다 — 켜기 전에 세계가 바뀌면 안 된다
     if (breedTick(dt)) unlock("breed");
     updateFlocks(dt);
   }
